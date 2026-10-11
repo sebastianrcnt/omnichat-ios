@@ -20,10 +20,28 @@ UI reference: `reference/claude-ios-2026-10-11/`. The README there has per-scree
 - **Thinking**: the raw reasoning chain (`reasoning_content`), not a summary.
   - While thinking: an animated accent indicator plus a live last-line preview.
   - When done: the row collapses to "Thought for Ns >", and tapping it opens a sheet with the full chain that auto-follows while streaming.
-- **Composer chip**: effort only (single model), opening an effort sub-page with token-cap hints (low / medium / high / extra / max).
+- **Composer chip**: model + effort (see Scope changes). Effort opens a sub-page with token-cap hints (low / medium / high / extra / max).
 - **Context ring** (top right): context fill. Tapping it opens a Usage sheet with Context, Balance (USD, this chat's cost, today's spend), and optionally the last-turn cache hit.
 - **Kept**: sidebar (history, search, new chat, pinned), the `...` menu (pin, rename, share as text, delete), copy/regenerate under answers, a stop button while generating, and the chat title in the header.
-- **Dropped**: model picker and more models, projects, permissions, device, research, connectors, skills, attachments (camera/photos/files), voice mode, gift button, read-aloud, thumbs.
+- **Dropped**: projects, permissions, device, research, connectors, skills, file attachments, voice mode, gift button, read-aloud, thumbs. (Image attachments and a model picker are back in v1; see Scope changes below.)
+
+## Scope changes (2026-10-11, later)
+
+### Image attachments
+- The composer "+" opens a sheet like reference screenshot 01: a camera tile, a recent-photos strip (PhotosPicker), and "Add photo".
+- Images go out as OpenAI `content` parts: `{type:"image_url", image_url:{url:"data:image/jpeg;base64,..."}}`. Downscale to about 1568 px on the long side, JPEG at about 0.8 quality.
+- Thumbnails show in the composer before sending and in the user bubble afterwards. They persist in SwiftData with external storage.
+- Each model has a "supports images" flag. If the selected model doesn't support images, attaching is disabled with an explanation.
+- Info.plist carries camera and photo-library usage strings (localizable via InfoPlist.strings / String Catalog).
+
+### Multiple OpenAI-compatible connections
+- Settings has a "Connections" list. Each connection has a name, base URL, API key (Keychain, one item per connection), optional custom headers, and a model list fetched from `/models` (manual model entry as fallback).
+- Per model: context length, supports images, supports reasoning effort (whether `reasoning_effort` is sent), supports tools (default on).
+- A default "Strata" connection preset (`https://llm-api.coolservices.cc/v1`) ships with the app.
+- The model picker is back: the composer chip shows model + effort. Tapping it opens a sheet with models grouped by connection, an Effort row (only when the model supports effort), and a checkmark on the current model.
+- Each conversation remembers its model. The Usage sheet's Balance section applies only to the Strata connection.
+- web_search / web_fetch are sent to any model whose "supports tools" flag is on; the definitions stay byte-identical.
+- Plain OpenAI chat-completions only, with no provider-specific code. Both `reasoning_content` and `reasoning` delta fields are treated as thinking.
 
 ## Server work needed
 
