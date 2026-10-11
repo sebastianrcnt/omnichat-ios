@@ -1,6 +1,20 @@
 import SwiftUI
 import MarkdownUI
 
+/// Sources available for resolving `[N]` markers in a conversation.
+struct CitationContext: Equatable {
+    var sources: [Int: SourceInfo] = [:]
+}
+
+private struct CitationKey: EnvironmentKey { static let defaultValue = CitationContext() }
+
+extension EnvironmentValues {
+    var citations: CitationContext {
+        get { self[CitationKey.self] }
+        set { self[CitationKey.self] = newValue }
+    }
+}
+
 /// Renders a streaming Markdown document: equatable finalized blocks, then the open tail.
 struct MarkdownDocumentView: View {
     let model: StreamingMarkdownModel
@@ -17,11 +31,12 @@ struct MarkdownDocumentView: View {
 /// Reads only `finalized`, so tail updates never invalidate it.
 private struct FinalizedBlocksView: View {
     @Environment(\.theme) private var theme
+    @Environment(\.citations) private var citations
     let model: StreamingMarkdownModel
 
     var body: some View {
         ForEach(model.finalized) { block in
-            MarkdownBlockView(block: block, theme: theme).equatable()
+            MarkdownBlockView(block: block, theme: theme, citations: citations).equatable()
         }
     }
 }
@@ -29,6 +44,7 @@ private struct FinalizedBlocksView: View {
 /// Reads only `tail` and `freshSpans`.
 private struct TailBlocksView: View {
     @Environment(\.theme) private var theme
+    @Environment(\.citations) private var citations
     let model: StreamingMarkdownModel
 
     var body: some View {
@@ -38,28 +54,52 @@ private struct TailBlocksView: View {
                 OpenBlockView(block: block, spans: model.freshSpans)
             } else {
                 // A block followed by another block is stable: full renderer, re-rendered only if its text changes.
-                MarkdownBlockView(block: block, theme: theme).equatable()
+                MarkdownBlockView(block: block, theme: theme, citations: citations).equatable()
             }
         }
     }
 }
 
-/// A block rendered with the full Markdown renderer. Equatable so SwiftUI skips unchanged blocks.
+/// A closed block. Prose blocks use the inline renderer (so citation chips work); code, tables and
+/// complex nested structures use MarkdownUI. Equatable so SwiftUI skips unchanged blocks.
 struct MarkdownBlockView: View, Equatable {
     let block: MarkdownBlock
     let theme: DSTheme
+    let citations: CitationContext
 
     var body: some View {
-        Markdown(block.renderText)
-            .markdownTheme(.strata(theme))
-            .textSelection(.enabled)
-            .padding(.top, block.kind.isHeading ? DS.Spacing.sm : 0)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        if block.usesInlineRenderer {
+            InlineBlockView(block: block, spans: [], isOpen: false)
+        } else if block.kind == .thematicBreak {
+            Divider()
+        } else {
+            Markdown(block.renderText)
+                .markdownTheme(.strata(theme))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 
-extension MarkdownBlock.Kind {
-    var isHeading: Bool { if case .heading = self { true } else { false } }
+extension MarkdownBlock {
+    /// Prose blocks without nested fences, quotes or tables render with the inline renderer.
+    var usesInlineRenderer: Bool {
+        switch kind {
+        case .paragraph, .heading: return true
+        case .list:
+            return !text.split(separator: "\n").contains { line in
+                let t = line.drop(while: { $0 == " " || $0 == "\t" })
+                return t.hasPrefix("```") || t.hasPrefix("~~~") || t.hasPrefix(">") || t.hasPrefix("|")
+            }
+        case .blockquote:
+            return !text.split(separator: "\n").contains { line in
+                let t = line.drop(while: { $0 == " " || $0 == ">" || $0 == "\t" })
+                return t.hasPrefix("```") || t.hasPrefix("~~~") || t.hasPrefix("- ") || t.hasPrefix("* ") || t.hasPrefix("|") || t.hasPrefix("#")
+            }
+        case .code, .table, .thematicBreak:
+            return false
+        }
+    }
 }
 
 // MARK: - Open (last) block: cheap path
@@ -74,32 +114,15 @@ struct OpenBlockView: View {
 
     var body: some View {
         switch block.kind {
-        case .paragraph:
-            fading(block.text.replacingOccurrences(of: "\n", with: " "), font: DS.Typography.answer)
-        case .heading(let level):
-            fading(Self.headingText(block.text), font: Self.headingFont(level))
-                .padding(.top, DS.Spacing.sm)
-        case .blockquote:
-            let body = block.text.split(separator: "\n", omittingEmptySubsequences: false)
-                .map { Substring($0).drop(while: { $0 == ">" || $0 == " " }) }
-                .joined(separator: " ")
-            fading(body, font: DS.Typography.answer, color: theme.textSecondary)
-                .padding(.leading, DS.Spacing.md)
-                .overlay(alignment: .leading) { Rectangle().fill(theme.separator).frame(width: 3) }
-        case .list:
-            OpenListView(text: block.text, spans: reduceMotion ? [] : spans)
         case .code:
             plainCode(Self.codeBody(block.text))
         case .table:
             plainCode(block.text)
         case .thematicBreak:
             Divider()
+        default:
+            InlineBlockView(block: block, spans: reduceMotion ? [] : spans, isOpen: true)
         }
-    }
-
-    private func fading(_ source: String, font: Font, color: Color? = nil) -> some View {
-        InlineMarkdownText(source: source, font: font, color: color ?? theme.textPrimary,
-                           spans: reduceMotion ? [] : spans)
     }
 
     private func plainCode(_ text: String) -> some View {
@@ -111,6 +134,44 @@ struct OpenBlockView: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .background(theme.surface, in: RoundedRectangle(cornerRadius: DS.Radius.md))
+    }
+
+    /// Body of a fenced block without the fence lines.
+    static func codeBody(_ text: String) -> String {
+        var lines = BlockScanner.lines(of: text).map(String.init)
+        guard let first = lines.first, let f = BlockScanner.Line(Substring(first)).fence else { return text }
+        lines.removeFirst()
+        if let last = lines.last, BlockScanner.Line(Substring(last)).closesFence(char: f.char, count: f.count) { lines.removeLast() }
+        return lines.joined(separator: "\n")
+    }
+}
+
+/// Prose block rendering shared by closed and open blocks.
+struct InlineBlockView: View {
+    @Environment(\.theme) private var theme
+    let block: MarkdownBlock
+    var spans: [StreamingMarkdownModel.FreshSpan]
+    let isOpen: Bool
+
+    var body: some View {
+        switch block.kind {
+        case .heading(let level):
+            InlineMarkdownText(source: Self.headingText(block.text), font: Self.headingFont(level), color: theme.textPrimary,
+                               spans: spans, isOpen: isOpen)
+                .padding(.top, DS.Spacing.sm)
+        case .blockquote:
+            let body = block.text.split(separator: "\n", omittingEmptySubsequences: false)
+                .map { Substring($0).drop(while: { $0 == ">" || $0 == " " }) }
+                .joined(separator: " ")
+            InlineMarkdownText(source: body, font: DS.Typography.answer, color: theme.textSecondary, spans: spans, isOpen: isOpen)
+                .padding(.leading, DS.Spacing.md)
+                .overlay(alignment: .leading) { Rectangle().fill(theme.separator).frame(width: 3) }
+        case .list:
+            InlineListView(text: block.text, spans: spans, isOpen: isOpen)
+        default:
+            InlineMarkdownText(source: block.text.replacingOccurrences(of: "\n", with: " "), font: DS.Typography.answer,
+                               color: theme.textPrimary, spans: spans, isOpen: isOpen)
+        }
     }
 
     static func headingText(_ text: String) -> String {
@@ -126,42 +187,61 @@ struct OpenBlockView: View {
         default: .system(.headline, design: .serif)
         }
     }
-
-    /// Body of a fenced block without the fence lines.
-    static func codeBody(_ text: String) -> String {
-        var lines = BlockScanner.lines(of: text).map(String.init)
-        guard let first = lines.first, let f = BlockScanner.Line(Substring(first)).fence else { return text }
-        lines.removeFirst()
-        if let last = lines.last, BlockScanner.Line(Substring(last)).closesFence(char: f.char, count: f.count) { lines.removeLast() }
-        return lines.joined(separator: "\n")
-    }
 }
 
-/// Inline Markdown rendered through `AttributedString`, with optimistic closing and a fade on fresh spans.
+/// Inline Markdown rendered through `AttributedString`, with citation chips, optimistic closing and a
+/// fade on fresh spans.
 struct InlineMarkdownText: View {
+    @Environment(\.citations) private var citations
+    @Environment(\.theme) private var theme
     let source: String
     let font: Font
     let color: Color
     var spans: [StreamingMarkdownModel.FreshSpan] = []
+    var isOpen = false
 
-    nonisolated static func attributed(_ source: String) -> AttributedString {
-        let closed = OptimisticCloser.closeInline(CJKEmphasisFixer.fix(source))
+    nonisolated static func attributed(_ source: String, sources: [Int: SourceInfo] = [:], isOpen: Bool = false,
+                                       chipFont: Font = .system(size: 12, weight: .medium),
+                                       chipColor: Color = .secondary, chipBackground: Color = .gray.opacity(0.2)) -> AttributedString {
+        var text = CJKEmphasisFixer.fix(source)
+        text = CitationParser.transform(text, sources: sources, holdBack: isOpen)
+        let closed = isOpen ? OptimisticCloser.closeInline(text) : text
         let options = AttributedString.MarkdownParsingOptions(allowsExtendedAttributes: false,
                                                               interpretedSyntax: .inlineOnly,
                                                               failurePolicy: .returnPartiallyParsedIfPossible)
-        return (try? AttributedString(markdown: closed, options: options)) ?? AttributedString(source)
+        var result = (try? AttributedString(markdown: closed, options: options)) ?? AttributedString(source)
+        // Style citation links as chips.
+        var chipRanges: [Range<AttributedString.Index>] = []
+        for run in result.runs {
+            if let url = run.link, url.scheme == CitationParser.scheme { chipRanges.append(run.range) }
+        }
+        for range in chipRanges {
+            result[range].font = chipFont
+            result[range].foregroundColor = chipColor
+            result[range].backgroundColor = chipBackground
+            result[range].underlineStyle = nil
+            result[range].baselineOffset = 1
+        }
+        return result
+    }
+
+    private func make() -> AttributedString {
+        Self.attributed(source, sources: citations.sources, isOpen: isOpen,
+                        chipColor: theme.textSecondary, chipBackground: theme.surfaceRaised)
     }
 
     var body: some View {
         if spans.isEmpty {
-            Text(Self.attributed(source)).font(font).foregroundStyle(color).textSelection(.enabled)
+            Text(make()).font(font).foregroundStyle(color).textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             TimelineView(.animation) { context in
-                Text(Self.faded(Self.attributed(source), spans: spans, color: color, now: context.date))
+                Text(Self.faded(make(), spans: spans, color: color, now: context.date))
                     .font(font)
                     .foregroundStyle(color)
                     .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -188,11 +268,12 @@ struct InlineMarkdownText: View {
     }
 }
 
-/// Cheap list rendering for the open tail: bullets and numbers with inline Markdown.
-struct OpenListView: View {
+/// List rendering: bullets and numbers with inline Markdown, nested by indentation.
+struct InlineListView: View {
     @Environment(\.theme) private var theme
     let text: String
     var spans: [StreamingMarkdownModel.FreshSpan] = []
+    var isOpen = false
 
     struct Item: Identifiable { let id: Int; let level: Int; let marker: String; let content: String }
 
@@ -200,15 +281,15 @@ struct OpenListView: View {
         var items: [Item] = []
         for (i, raw) in text.split(separator: "\n", omittingEmptySubsequences: true).enumerated() {
             let line = BlockScanner.Line(raw)
+            if line.isBlank { continue }
             let level = line.indent / 2
             let rest = line.trimmed
             if let c = rest.first, "-+*".contains(c), rest.dropFirst().first == " " {
                 items.append(Item(id: i, level: level, marker: "•", content: String(rest.dropFirst(2))))
             } else if let m = rest.firstMatchOrderedMarker() {
                 items.append(Item(id: i, level: level, marker: m.marker, content: m.content))
-            } else if var last = items.popLast() {
-                last = Item(id: last.id, level: last.level, marker: last.marker, content: last.content + " " + String(rest))
-                items.append(last)
+            } else if let last = items.popLast() {
+                items.append(Item(id: last.id, level: last.level, marker: last.marker, content: last.content + " " + String(rest)))
             } else {
                 items.append(Item(id: i, level: 0, marker: "", content: String(rest)))
             }
@@ -222,10 +303,11 @@ struct OpenListView: View {
             ForEach(items) { item in
                 HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.sm) {
                     Text(item.marker).font(DS.Typography.answer).foregroundStyle(theme.textSecondary)
+                        .frame(minWidth: DS.Spacing.lg, alignment: .trailing)
                     InlineMarkdownText(source: item.content, font: DS.Typography.answer, color: theme.textPrimary,
-                                       spans: item.id == items.last?.id ? spans : [])
+                                       spans: item.id == items.last?.id ? spans : [], isOpen: isOpen && item.id == items.last?.id)
                 }
-                .padding(.leading, CGFloat(item.level) * DS.Spacing.lg + DS.Spacing.sm)
+                .padding(.leading, CGFloat(item.level) * DS.Spacing.lg)
             }
         }
     }
@@ -246,7 +328,6 @@ private extension Substring {
 
 /// Raw reasoning chain as plain text: finalized paragraphs are cached views; only the tail changes.
 struct ReasoningTextView: View {
-    @Environment(\.theme) private var theme
     let model: ReasoningChunkModel
 
     var body: some View {
@@ -267,7 +348,7 @@ private struct ReasoningFinalized: View {
     }
 }
 
-private struct ReasoningChunkView: View, Equatable {
+struct ReasoningChunkView: View, Equatable {
     @Environment(\.theme) private var theme
     let chunk: ReasoningChunkModel.Chunk
     var body: some View {

@@ -228,7 +228,7 @@ final class ReasoningChunkModel {
     /// Start a new reasoning section (a new tool round).
     func beginSection() {
         revealAll()
-        if !text.isEmpty { consume("\n\n") }
+        if !text.isEmpty && !text.hasSuffix("\n\n") { consume("\n\n") }
     }
 
     func revealAll() {

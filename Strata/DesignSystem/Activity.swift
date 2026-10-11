@@ -1,0 +1,450 @@
+import SwiftUI
+import SafariServices
+
+// MARK: - Source chips
+
+/// Domain chip with a monogram circle (the host's first letter on an accent-tinted background).
+struct SourceChip: View {
+    @Environment(\.theme) private var theme
+    let host: String
+    var url: URL?
+
+    var body: some View {
+        let chip = HStack(spacing: DS.Spacing.xs) {
+            Text(String(host.first.map { Character($0.uppercased()) } ?? "?"))
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(theme.accent)
+                .frame(width: 16, height: 16)
+                .background(theme.accentMuted, in: Circle())
+            Text(host)
+                .font(DS.Typography.uiCaption)
+                .foregroundStyle(theme.textSecondary)
+                .lineLimit(1)
+        }
+        .padding(.leading, DS.Spacing.xs)
+        .padding(.trailing, DS.Spacing.sm)
+        .padding(.vertical, DS.Spacing.xs)
+        .background(theme.surfaceRaised, in: Capsule())
+        if let url { Link(destination: url) { chip } } else { chip }
+    }
+}
+
+// MARK: - Activity model
+
+/// One row in the live feed or the timeline: a search or a page visit.
+struct ActivityEntry: Identifiable, Equatable {
+    enum Kind: Equatable {
+        case search(query: String, sources: [SourceInfo])
+        case visit(url: String, host: String)
+    }
+    let id: String
+    var kind: Kind
+    var isRunning: Bool
+    var isError: Bool
+
+    static func host(of url: String) -> String {
+        guard let h = URL(string: url)?.host(percentEncoded: false) else { return url }
+        return h.hasPrefix("www.") ? String(h.dropFirst(4)) : h
+    }
+
+    init(call: ToolCallRecord, sources: [Int: SourceInfo]) {
+        id = call.id
+        isRunning = false
+        isError = call.isError
+        if call.name == ToolNames.webSearch {
+            kind = .search(query: call.primaryArgument, sources: call.sourceIDs.compactMap { sources[$0] })
+        } else {
+            kind = .visit(url: call.primaryArgument, host: Self.host(of: call.primaryArgument))
+        }
+    }
+
+    init(pending: PendingToolCall) {
+        id = pending.id
+        isRunning = true
+        isError = false
+        if pending.name == ToolNames.webSearch {
+            kind = .search(query: pending.primaryArgument, sources: [])
+        } else {
+            kind = .visit(url: pending.primaryArgument, host: Self.host(of: pending.primaryArgument))
+        }
+    }
+
+    static func entries(calls: [ToolCallRecord], pending: [PendingToolCall], sources: [Int: SourceInfo]) -> [ActivityEntry] {
+        calls.map { ActivityEntry(call: $0, sources: sources) } + pending.map { ActivityEntry(pending: $0) }
+    }
+}
+
+/// One activity row: search (magnifier, quoted query, result count, source chips) or visit (globe, "Visited domain").
+struct ActivityRow: View {
+    @Environment(\.theme) private var theme
+    let entry: ActivityEntry
+    /// Show every source chip (timeline) instead of a single scrolling line.
+    var wrapsChips = false
+
+    var body: some View {
+        switch entry.kind {
+        case .search(let query, let sources):
+            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                HStack(spacing: DS.Spacing.sm) {
+                    icon("magnifyingglass")
+                    Text("“\(query)”").font(DS.Typography.uiSmall).foregroundStyle(theme.textPrimary).lineLimit(1)
+                    if entry.isRunning {
+                        ProgressView().controlSize(.mini)
+                    } else if entry.isError {
+                        Text("failed").font(DS.Typography.uiCaption).foregroundStyle(theme.warning)
+                    } else {
+                        Text("\(sources.count) results").font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
+                    }
+                    Spacer(minLength: 0)
+                }
+                if !sources.isEmpty {
+                    if wrapsChips {
+                        FlowLayout(spacing: DS.Spacing.xs) { ForEach(sources) { SourceChip(host: $0.host, url: URL(string: $0.url)) } }
+                    } else {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: DS.Spacing.xs) { ForEach(sources) { SourceChip(host: $0.host) } }
+                        }
+                        .scrollDisabled(true)
+                        .padding(.leading, DS.Spacing.xl)
+                    }
+                }
+            }
+        case .visit(let url, let host):
+            HStack(spacing: DS.Spacing.sm) {
+                icon("globe")
+                if wrapsChips, let u = URL(string: url) {
+                    Text("Visited").font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary)
+                    SourceChip(host: host, url: u)
+                } else {
+                    Text("Visited \(host)").font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary).lineLimit(1)
+                }
+                if entry.isRunning { ProgressView().controlSize(.mini) }
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    private func icon(_ name: String) -> some View {
+        Image(systemName: name)
+            .font(.system(size: DS.IconSize.sm))
+            .foregroundStyle(entry.isError ? theme.warning : theme.textTertiary)
+            .frame(width: DS.IconSize.md)
+    }
+}
+
+/// Simple wrapping layout for chips.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = DS.Spacing.xs
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        arrange(width: proposal.width ?? .infinity, subviews: subviews).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = arrange(width: bounds.width, subviews: subviews)
+        for (i, origin) in result.origins.enumerated() {
+            subviews[i].place(at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y), proposal: .unspecified)
+        }
+    }
+
+    private func arrange(width: CGFloat, subviews: Subviews) -> (size: CGSize, origins: [CGPoint]) {
+        var origins: [CGPoint] = []
+        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0, maxX: CGFloat = 0
+        for sub in subviews {
+            let size = sub.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width { x = 0; y += rowHeight + spacing; rowHeight = 0 }
+            origins.append(CGPoint(x: x, y: y))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+            maxX = max(maxX, x - spacing)
+        }
+        return (CGSize(width: maxX, height: y + rowHeight), origins)
+    }
+}
+
+// MARK: - Live feed
+
+/// "Thinking · 12s" with the animated mark.
+struct ActivityStatusLine: View {
+    @Environment(\.theme) private var theme
+    let label: String
+    let start: Date
+
+    var body: some View {
+        HStack(spacing: DS.Spacing.sm) {
+            StreamingIndicator()
+            TimelineView(.periodic(from: start, by: 1)) { context in
+                let seconds = max(0, Int(context.date.timeIntervalSince(start)))
+                Text("\(label) · \(seconds)s")
+                    .font(DS.Typography.uiSmall)
+                    .foregroundStyle(theme.accent)
+                    .monospacedDigit()
+            }
+            Image(systemName: "chevron.right")
+                .font(.system(size: DS.IconSize.sm, weight: .semibold))
+                .foregroundStyle(theme.textTertiary)
+            Spacer(minLength: 0)
+        }
+        .contentShape(Rectangle())
+    }
+}
+
+/// Status line plus the latest two activity rows in a fixed-height area; older rows fade out upward.
+struct LiveActivityFeed: View {
+    let label: String
+    let start: Date
+    let entries: [ActivityEntry]
+    let action: () -> Void
+
+    static let height: CGFloat = 132
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                ActivityStatusLine(label: label, start: start)
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                    ForEach(entries.suffix(2)) { entry in
+                        ActivityRow(entry: entry)
+                            .transition(.asymmetric(insertion: .opacity.combined(with: .move(edge: .bottom)),
+                                                    removal: .opacity.combined(with: .move(edge: .top))))
+                    }
+                }
+                .animation(DS.Motion.snappy, value: entries.suffix(2).map(\.id))
+                .mask(LinearGradient(colors: [.clear, .black, .black], startPoint: .top, endPoint: .init(x: 0.5, y: 0.25)))
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .frame(height: Self.height, alignment: .topLeading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Collapsed summary once the answer starts: "Thought for 4s · 2 searches, 3 pages ›".
+struct ActivitySummaryRow: View {
+    @Environment(\.theme) private var theme
+    let seconds: Double?
+    let searches: Int
+    let pages: Int
+    let action: () -> Void
+
+    static func title(seconds: Double?, searches: Int, pages: Int) -> String {
+        var parts: [String] = []
+        if let seconds { parts.append(String(localized: "Thought for \(max(1, Int(seconds.rounded())))s")) }
+        var counts: [String] = []
+        if searches > 0 { counts.append(String(localized: "\(searches) searches")) }
+        if pages > 0 { counts.append(String(localized: "\(pages) pages")) }
+        if !counts.isEmpty { parts.append(counts.joined(separator: ", ")) }
+        return parts.isEmpty ? String(localized: "Thoughts") : parts.joined(separator: " · ")
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: DS.Spacing.sm) {
+                Image(systemName: searches + pages > 0 ? "globe" : "clock")
+                    .font(.system(size: DS.IconSize.md)).foregroundStyle(theme.textSecondary)
+                Text(Self.title(seconds: seconds, searches: searches, pages: pages))
+                    .font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary).lineLimit(1)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: DS.IconSize.sm, weight: .semibold)).foregroundStyle(theme.textTertiary)
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Timeline
+
+enum TimelineItem: Identifiable, Equatable {
+    case thinking(id: String, text: String)
+    case activity(ActivityEntry)
+
+    var id: String {
+        switch self {
+        case .thinking(let id, _): id
+        case .activity(let e): e.id
+        }
+    }
+
+    /// Interleave raw thinking paragraphs with tool activity in stream order.
+    /// A step's `reasoningParagraphs` is how many paragraphs came before it; running calls come last.
+    static func build(chunks: [String], steps: [ToolStep], pending: [PendingToolCall], sources: [Int: SourceInfo]) -> [TimelineItem] {
+        var items: [TimelineItem] = []
+        var p = 0
+        func emitChunks(upTo limit: Int) {
+            while p < min(limit, chunks.count) { items.append(.thinking(id: "t\(p)", text: chunks[p])); p += 1 }
+        }
+        for step in steps {
+            emitChunks(upTo: step.reasoningParagraphs)
+            for call in step.calls { items.append(.activity(ActivityEntry(call: call, sources: sources))) }
+        }
+        emitChunks(upTo: chunks.count)
+        for call in pending { items.append(.activity(ActivityEntry(pending: call))) }
+        return items
+    }
+}
+
+/// Sheet with the raw thinking interleaved with tool cards; follows the bottom while live.
+struct TimelineSheet: View {
+    @Environment(\.theme) private var theme
+    let reasoning: ReasoningChunkModel
+    let steps: [ToolStep]
+    let pending: [PendingToolCall]
+    let sources: [Int: SourceInfo]
+    let isLive: Bool
+    var seconds: Double?
+
+    private var items: [TimelineItem] {
+        let chunks = reasoning.finalized.map(\.text) + (reasoning.tail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : [reasoning.tail])
+        return TimelineItem.build(chunks: chunks, steps: steps, pending: pending, sources: sources)
+    }
+
+    var body: some View {
+        SheetScaffold(title: titleKey) {
+            ScrollViewReader { proxy in
+                let items = items
+                if items.isEmpty {
+                    Text("Waiting for the model to think…")
+                        .font(DS.Typography.monoSmall).foregroundStyle(theme.textTertiary)
+                }
+                VStack(alignment: .leading, spacing: DS.Spacing.lg) {
+                    ForEach(items) { item in
+                        switch item {
+                        case .thinking(_, let text):
+                            Text(text).font(DS.Typography.monoSmall).foregroundStyle(theme.textSecondary)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        case .activity(let entry):
+                            ActivityRow(entry: entry, wrapsChips: true)
+                                .padding(DS.Spacing.md)
+                                .background(theme.surface, in: RoundedRectangle(cornerRadius: DS.Radius.md))
+                        }
+                    }
+                }
+                Color.clear.frame(height: 1).id("end")
+                    .onChange(of: items) { _, _ in
+                        if isLive { proxy.scrollTo("end", anchor: .bottom) }
+                    }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private var titleKey: LocalizedStringKey {
+        if isLive { return "Working…" }
+        if let seconds { return "Thought for \(max(1, Int(seconds.rounded())))s" }
+        return "Timeline"
+    }
+}
+
+// MARK: - Sources & citations
+
+/// "Sources ›" row at the end of an answer that used tools.
+struct SourcesRow: View {
+    @Environment(\.theme) private var theme
+    let count: Int
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: DS.Spacing.sm) {
+                Image(systemName: "link").font(.system(size: DS.IconSize.md)).foregroundStyle(theme.textSecondary)
+                Text("Sources").font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary)
+                Text("\(count)").font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: DS.IconSize.sm, weight: .semibold)).foregroundStyle(theme.textTertiary)
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// One source: title, domain, snippet, and an Open button.
+struct SourceCard: View {
+    @Environment(\.theme) private var theme
+    let source: SourceInfo
+    let onOpen: (URL) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("[\(source.id)]").font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
+                Text(source.title).font(DS.Typography.uiEmphasis).foregroundStyle(theme.textPrimary).lineLimit(2)
+            }
+            SourceChip(host: source.host)
+            if !source.snippet.isEmpty {
+                Text(source.snippet).font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary).lineLimit(6)
+            }
+            if let url = URL(string: source.url) {
+                Button { onOpen(url) } label: {
+                    Label("Open", systemImage: "safari").font(DS.Typography.uiSmall)
+                }
+                .buttonStyle(.glass)
+            }
+        }
+        .padding(DS.Spacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(theme.surface, in: RoundedRectangle(cornerRadius: DS.Radius.lg))
+    }
+}
+
+struct SafariDestination: Identifiable { let url: URL; var id: URL { url } }
+
+struct SafariView: UIViewControllerRepresentable {
+    let url: URL
+    func makeUIViewController(context: Context) -> SFSafariViewController { SFSafariViewController(url: url) }
+    func updateUIViewController(_ controller: SFSafariViewController, context: Context) {}
+}
+
+/// Sheet for tapped citation chips (title, domain, snippet, Open) and the answer's Sources list.
+struct SourcesSheet: View {
+    let title: LocalizedStringKey
+    let sources: [SourceInfo]
+    @State private var safari: SafariDestination?
+
+    var body: some View {
+        SheetScaffold(title: title) {
+            ForEach(sources) { source in
+                SourceCard(source: source) { safari = SafariDestination(url: $0) }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .fullScreenCover(item: $safari) { SafariView(url: $0.url).ignoresSafeArea() }
+    }
+}
+
+// MARK: - Previews
+
+#Preview("Light · Purple") { activityPreview.previewStyle(.light) }
+#Preview("Dark · Purple") { activityPreview.previewStyle(.dark) }
+#Preview("Dark · Orange") { activityPreview.previewStyle(.dark, accent: Color(hex: "#F97316")) }
+
+@MainActor private var previewSources: [SourceInfo] {
+    [SourceInfo(id: 1, title: "Applying Liquid Glass", url: "https://developer.apple.com/documentation/swiftui", snippet: "Configure, combine, and morph views."),
+     SourceInfo(id: 2, title: "Hacking with Swift", url: "https://www.hackingwithswift.com/", snippet: "Learn SwiftUI.")]
+}
+
+@MainActor private var activityPreview: some View {
+    let sources = previewSources
+    let entries = [
+        ActivityEntry(call: .init(id: "a", name: "web_search", arguments: "{\"query\":\"liquid glass\"}", result: "", isError: false, sourceIDs: [1, 2]),
+                      sources: Dictionary(uniqueKeysWithValues: sources.map { ($0.id, $0) })),
+        ActivityEntry(pending: .init(id: "b", name: "web_fetch", primaryArgument: "https://developer.apple.com/documentation/swiftui")),
+    ]
+    return ScrollView {
+        VStack(alignment: .leading, spacing: DS.Spacing.xl) {
+            LiveActivityFeed(label: "Searching", start: .now.addingTimeInterval(-12), entries: entries) {}
+            ActivitySummaryRow(seconds: 4, searches: 2, pages: 3) {}
+            SourcesRow(count: 5) {}
+            SourceCard(source: sources[0]) { _ in }
+            FlowLayout { SourceChip(host: "github.com"); SourceChip(host: "developer.apple.com"); SourceChip(host: "example.org") }
+        }
+        .padding()
+    }
+}

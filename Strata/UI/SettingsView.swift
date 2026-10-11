@@ -136,6 +136,15 @@ struct ConnectionEditor: View {
                         Text(keyError).font(DS.Typography.uiCaption).foregroundStyle(theme.destructive)
                     }
 
+                    GroupedSection(header: "System prompt", footer: "Sent as the first message. Leave empty to send none. The default asks for [N] citations and tells the model not to invent ids.") {
+                        SettingsFieldRow(title: "Prompt", prompt: "None", text: binding(\.systemPrompt, fallback: ""), multiline: true)
+                        SettingsRow(systemImage: "arrow.counterclockwise", title: "Reset to default") {
+                            var c = connection
+                            c.systemPrompt = DefaultPrompts.citation
+                            connections.upsert(c)
+                        }
+                    }
+
                     GroupedSection(header: "Models", footer: fetchStatus.map { LocalizedStringKey($0) }) {
                         ForEach(connection.models) { model in
                             SettingsRow(title: LocalizedStringKey(model.id), subtitle: ModelPickerSheet.capabilities(model),
@@ -183,6 +192,7 @@ struct ConnectionEditor: View {
             apiKeyText = ""
             hasKey = connections.apiKey(for: connectionID) != nil
             keyError = nil
+            Task { await fetch() } // a new key usually means models can now be listed
         } catch {
             keyError = error.localizedDescription
         }

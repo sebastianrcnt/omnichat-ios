@@ -4,7 +4,13 @@ import Foundation
 /// (`**`, `*`, `` ` ``, `~~`, `[`) do not flicker while a block is still streaming.
 enum OptimisticCloser {
     /// Returns `text` plus whatever closers are needed. Nothing changes for balanced input.
-    static func closeInline(_ text: String) -> String {
+    static func closeInline(_ input: String) -> String {
+        // A trailing partial citation marker (`[` or `[12`) is held back until its `]` arrives.
+        var text = input
+        if let open = text.lastIndex(of: "["), text[text.index(after: open)...].allSatisfy({ $0.isASCII && $0.isNumber }) {
+            text = String(text[..<open])
+            if text.hasSuffix(" ") { text.removeLast() }
+        }
         let chars = Array(text)
         var stack: [String] = []       // "**", "*", "~~"
         var codeTicks = 0               // length of the open code span, 0 if none

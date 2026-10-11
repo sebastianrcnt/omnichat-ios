@@ -187,7 +187,7 @@ struct OptimisticCloserTests {
     }
 
     @Test func attributedStringIsBoldForOpenEmphasis() {
-        let a = InlineMarkdownText.attributed("This is **bold")
+        let a = InlineMarkdownText.attributed("This is **bold", isOpen: true)
         let bold = a.runs.contains { $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true }
         #expect(bold)
         #expect(!String(a.characters).contains("*"))

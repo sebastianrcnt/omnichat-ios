@@ -118,31 +118,52 @@ struct AssistantContent: Equatable {
     var pending: [PendingToolCall] = []
     var isStreaming = false
     var phase: ChatController.Phase = .idle
+    var turnStart: Date?
     var errorText: String?
+    var errorNeedsSettings = false
     var stopped = false
     var canRegenerate = false
 }
 
 struct AssistantMessage: View {
     @Environment(\.theme) private var theme
+    @Environment(\.citations) private var citations
     let content: AssistantContent
     let render: MessageRenderState
-    var onOpenThinking: () -> Void = {}
+    var onOpenTimeline: () -> Void = {}
+    var onOpenSources: ([SourceInfo]) -> Void = { _ in }
     var onCopy: () -> Void = {}
     var onRegenerate: () -> Void = {}
+    var onOpenSettings: () -> Void = {}
 
-    private var isThinkingLive: Bool {
-        content.isStreaming && (content.phase == .thinking || content.phase == .waiting)
+    private var isLive: Bool { content.isStreaming && !render.markdown.hasContent }
+
+    private var phaseLabel: String {
+        switch content.phase {
+        case .tool(let name, _): name == ToolNames.webSearch ? String(localized: "Searching") : String(localized: "Reading")
+        default: String(localized: "Thinking")
+        }
+    }
+
+    private var searches: Int { content.calls.filter { $0.name == ToolNames.webSearch }.count }
+    private var pages: Int { content.calls.filter { $0.name == ToolNames.webFetch }.count }
+
+    /// Visited pages plus cited results, for the "Sources" list.
+    private var usedSources: [SourceInfo] {
+        var ids: [Int] = content.calls.filter { $0.name == ToolNames.webFetch }.flatMap(\.sourceIDs)
+        for id in CitationParser.citedIDs(in: render.markdown.text, known: Set(citations.sources.keys)) where !ids.contains(id) { ids.append(id) }
+        return ids.compactMap { citations.sources[$0] }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            if isThinkingLive || render.reasoning.hasContent {
-                ThinkingRowHost(reasoning: render.reasoning, isLive: isThinkingLive,
-                                seconds: content.thinkingSeconds, action: onOpenThinking)
-            }
-            if !content.calls.isEmpty || !content.pending.isEmpty {
-                ToolActivityRow(calls: content.calls, pending: content.pending)
+            if isLive {
+                LiveActivityFeed(label: phaseLabel, start: content.turnStart ?? .now,
+                                 entries: ActivityEntry.entries(calls: content.calls, pending: content.pending, sources: citations.sources),
+                                 action: onOpenTimeline)
+            } else if render.reasoning.hasContent || !content.calls.isEmpty {
+                ActivitySummaryRow(seconds: render.reasoning.hasContent ? content.thinkingSeconds : nil,
+                                   searches: searches, pages: pages, action: onOpenTimeline)
             }
             if render.markdown.hasContent {
                 MarkdownDocumentView(model: render.markdown)
@@ -153,11 +174,20 @@ struct AssistantMessage: View {
             if let error = content.errorText {
                 HStack(alignment: .top, spacing: DS.Spacing.sm) {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(theme.warning)
-                    Text(error).font(DS.Typography.uiSmall).foregroundStyle(theme.textPrimary)
+                    VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                        Text(error).font(DS.Typography.uiSmall).foregroundStyle(theme.textPrimary)
+                        if content.errorNeedsSettings {
+                            Button("Open Settings", action: onOpenSettings).buttonStyle(.glass)
+                        }
+                    }
                     Spacer(minLength: 0)
                 }
                 .padding(DS.Spacing.md)
                 .background(theme.warning.opacity(0.12), in: RoundedRectangle(cornerRadius: DS.Radius.md))
+            }
+            if !content.isStreaming, !content.calls.isEmpty {
+                let used = usedSources
+                if !used.isEmpty { SourcesRow(count: used.count) { onOpenSources(used) } }
             }
             if !content.isStreaming && (render.markdown.hasContent || content.errorText != nil) {
                 MessageActionBar(onCopy: onCopy, onRegenerate: content.canRegenerate ? onRegenerate : nil)
@@ -167,36 +197,27 @@ struct AssistantMessage: View {
     }
 }
 
-/// Reads the reasoning model's last line in its own view, so per-tick changes stay local.
-private struct ThinkingRowHost: View {
-    let reasoning: ReasoningChunkModel
-    let isLive: Bool
-    let seconds: Double?
-    let action: () -> Void
-
-    var body: some View {
-        ThinkingRow(state: isLive ? .live(preview: reasoning.lastLine) : .done(seconds: seconds ?? 0), action: action)
-    }
-}
-
 #Preview("Light · Purple") { messagesPreview.previewStyle(.light) }
 #Preview("Dark · Purple") { messagesPreview.previewStyle(.dark) }
 #Preview("Dark · Orange") { messagesPreview.previewStyle(.dark, accent: Color(hex: "#F97316")) }
 
 @MainActor private var messagesPreview: some View {
-    ScrollView {
+    let sources = [1: SourceInfo(id: 1, title: "Liquid Glass", url: "https://developer.apple.com/docs", snippet: "Docs."),
+                   2: SourceInfo(id: 2, title: "HWS", url: "https://www.hackingwithswift.com/", snippet: "Learn.")]
+    return ScrollView {
         VStack(alignment: .leading, spacing: DS.Spacing.xl) {
             MessageBubble(text: "Does Naver open an API for my order history?")
             AssistantMessage(
                 content: .init(thinkingSeconds: 4,
-                               calls: [.init(id: "1", name: "web_search", arguments: "{\"query\":\"naver api\"}", result: "", isError: false)],
+                               calls: [.init(id: "1", name: "web_search", arguments: "{\"query\":\"naver api\"}", result: "", isError: false, sourceIDs: [1, 2])],
                                canRegenerate: true),
-                render: MessageRenderState(text: "No. Naver does **not** expose order history.\n\n- Login API\n- Blog API\n\n```swift\nlet x = 1\n```",
+                render: MessageRenderState(text: "No. Naver does **not** expose order history [1][2].\n\n- Login API [1]\n- Blog API [9]\n\n```swift\nlet x = 1\n```",
                                            reasoning: "Checking the docs."))
-            AssistantMessage(content: .init(isStreaming: true, phase: .thinking),
+            AssistantMessage(content: .init(isStreaming: true, phase: .thinking, turnStart: .now),
                              render: MessageRenderState(reasoning: "Let me think about the plan"))
-            AssistantMessage(content: .init(errorText: "HTTP 401: invalid API key"), render: MessageRenderState())
+            AssistantMessage(content: .init(errorText: "Add an API key for Strata in Settings.", errorNeedsSettings: true), render: MessageRenderState())
         }
         .padding()
     }
+    .environment(\.citations, CitationContext(sources: sources))
 }

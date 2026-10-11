@@ -138,7 +138,9 @@ struct UsageSheet: View {
                 UsageCard(title: "Context window",
                           valueText: String(localized: "\(Int((pct * 100).rounded()))% used"),
                           fraction: pct,
-                          caption: String(localized: "\(TokenFormat.short(used)) of \(TokenFormat.short(contextLength)) tokens used"))
+                          caption: usage == nil
+                            ? String(localized: "No messages yet")
+                            : String(localized: "\(TokenFormat.short(used)) of \(TokenFormat.short(contextLength)) tokens used"))
                     .padding(DS.Spacing.sm)
             }
             if let usage {

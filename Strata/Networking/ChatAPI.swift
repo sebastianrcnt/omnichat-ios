@@ -193,14 +193,24 @@ struct Usage: Codable, Sendable, Equatable {
 enum APIError: Error, LocalizedError, Equatable {
     case invalidBaseURL
     case missingModel
+    case missingAPIKey(connection: String)
     case http(status: Int, message: String)
     case server(String)
     case transport(String)
 
+    /// Errors fixed in Settings; the chat shows an "Open Settings" button for these.
+    var needsSettings: Bool {
+        switch self {
+        case .missingModel, .missingAPIKey, .invalidBaseURL: true
+        default: false
+        }
+    }
+
     var errorDescription: String? {
         switch self {
         case .invalidBaseURL: String(localized: "The base URL is not valid.")
-        case .missingModel: String(localized: "No model selected. Add a connection and pick a model in Settings.")
+        case .missingModel: String(localized: "No model available. Add an API key in Settings so models can be fetched, then pick one.")
+        case .missingAPIKey(let name): String(localized: "Add an API key for \(name) in Settings.")
         case .http(let status, let message):
             message.isEmpty ? String(localized: "The server returned HTTP \(status).")
                             : String(localized: "HTTP \(status): \(message)")

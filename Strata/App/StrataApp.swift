@@ -21,7 +21,11 @@ struct StrataApp: App {
         }
         _settings = State(initialValue: settings)
         _connections = State(initialValue: connections)
-        _controller = State(initialValue: ChatController(connections: connections, settings: settings))
+        var tools: any ToolExecuting = ToolRouter()
+        #if DEBUG
+        if DebugHooks.fakeTools { tools = FakeWebTools() }
+        #endif
+        _controller = State(initialValue: ChatController(connections: connections, settings: settings, tools: tools))
     }
 
     var body: some Scene {

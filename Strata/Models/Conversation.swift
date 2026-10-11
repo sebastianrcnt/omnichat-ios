@@ -93,6 +93,7 @@ final class Message {
     var createdAt: Date
     var sortIndex: Int
     var errorText: String?
+    var errorNeedsSettings: Bool = false
     var stoppedByUser: Bool
     @Attribute(.externalStorage) var stepsData: Data?
     var conversation: Conversation?

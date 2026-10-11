@@ -19,7 +19,9 @@ struct ChatView: View {
     @State private var showAttach = false
     @State private var showModelPicker = false
     @State private var showUsage = false
-    @State private var thinkingMessage: Message?
+    @State private var timelineMessage: Message?
+    @State private var citationItem: SourceListItem?
+    @State private var sourcesItem: SourceListItem?
     @State private var showRename = false
     @State private var renameText = ""
     @State private var confirmDelete = false
@@ -35,13 +37,17 @@ struct ChatView: View {
 
     private var selection: Selection {
         if let c = conversation { return Selection(connectionID: c.connectionID, modelID: c.modelID, effort: c.effort) }
-        var sel = Selection(connectionID: settings.lastConnectionID, modelID: settings.lastModelID, effort: settings.lastEffort)
-        let valid = connections.connection(sel.connectionID)?.models.contains { $0.id == sel.modelID } ?? false
-        if !valid, let first = connections.allModels.first {
-            sel.connectionID = first.connection.id
-            sel.modelID = first.model.id
-        }
-        return sel
+        let choice = ModelSelection.resolve(connections: connections.connections,
+                                            preferredConnectionID: settings.lastConnectionID,
+                                            preferredModelID: settings.lastModelID)
+        return Selection(connectionID: choice?.connectionID, modelID: choice?.modelID, effort: settings.lastEffort)
+    }
+
+    /// Persist the auto-selected model so it survives relaunch.
+    private func persistAutoSelection() {
+        guard conversation == nil, let cid = selection.connectionID, let mid = selection.modelID else { return }
+        if settings.lastConnectionID != cid { settings.lastConnectionID = cid }
+        if settings.lastModelID != mid { settings.lastModelID = mid }
     }
 
     private var selectedModel: ModelInfo? {
@@ -70,13 +76,18 @@ struct ChatView: View {
         return min(1, Double(used) / Double(contextLength))
     }
 
+    private var citationContext: CitationContext {
+        let list = (conversation.map { controller.isStreaming($0) } ?? false) ? controller.liveSources : (conversation?.sources ?? [])
+        return CitationContext(sources: Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) }))
+    }
+
     private var isStreamingHere: Bool {
         conversation.map { controller.isStreaming($0) } ?? false
     }
 
+    /// Sending is allowed whenever there is something to send; missing key or model is reported inline.
     private var canSend: Bool {
-        guard selectedModel != nil || selection.modelID != nil else { return false }
-        return !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty
+        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty
     }
 
     // MARK: Body
@@ -104,10 +115,21 @@ struct ChatView: View {
                 UsageSheet(conversation: conversation, contextLength: contextLength,
                            connection: connections.connection(selection.connectionID))
             }
-            .sheet(item: $thinkingMessage) { message in
-                ThinkingSheet(model: controller.renderState(for: message).reasoning,
-                              isStreaming: controller.activeMessageID == message.id && controller.phase == .thinking,
+            .sheet(item: $timelineMessage) { message in
+                let active = controller.activeMessageID == message.id
+                TimelineSheet(reasoning: controller.renderState(for: message).reasoning,
+                              steps: message.steps,
+                              pending: active ? controller.pendingCalls : [],
+                              sources: citationContext.sources,
+                              isLive: active,
                               seconds: message.thinkingSeconds)
+                    .environment(\.theme, theme)
+            }
+            .sheet(item: $citationItem) { item in
+                SourcesSheet(title: item.sources.count == 1 ? "Source" : "Sources", sources: item.sources)
+            }
+            .sheet(item: $sourcesItem) { item in
+                SourcesSheet(title: "Sources", sources: item.sources)
             }
             .alert("Rename chat", isPresented: $showRename) {
                 TextField("Title", text: $renameText)
@@ -129,15 +151,23 @@ struct ChatView: View {
             .onChange(of: atBottom) { _, now in
                 if !now && isStreamingHere { controller.revealAllNow() } // user scrolled away: show everything now
             }
-            .task { await debugActions() }
+            .onChange(of: showAttach) { _, on in if on { composerFocused = false } }
+            .onChange(of: showModelPicker) { _, on in if on { composerFocused = false } }
+            .onChange(of: showUsage) { _, on in if on { composerFocused = false } }
+            .onChange(of: composerFocused) { _, focused in
+                // Keep the latest message visible when the keyboard opens.
+                if focused && atBottom { withAnimation(DS.Motion.spring) { position.scrollTo(edge: .bottom) } }
+            }
+            .task { persistAutoSelection(); await debugActions() }
+            .onChange(of: connections.allModels.count) { _, _ in persistAutoSelection() }
     }
 
     // MARK: Header
 
     private var header: some View {
-        GlassEffectContainer(spacing: DS.Spacing.md) {
-            HStack(spacing: DS.Spacing.md) {
-                GlassIconButton(systemName: "line.3.horizontal", label: "Sidebar", action: onOpenSidebar)
+        GlassEffectContainer(spacing: DS.Spacing.sm) {
+            HStack(spacing: DS.Spacing.sm) {
+                GlassIconButton(systemName: "line.3.horizontal", label: "Sidebar") { composerFocused = false; onOpenSidebar() }
                 VStack(alignment: .leading, spacing: 0) {
                     Text(conversation?.displayTitle ?? String(localized: "New chat"))
                         .font(DS.Typography.title)
@@ -148,19 +178,11 @@ struct ChatView: View {
                     }
                 }
                 Spacer(minLength: 0)
-                HStack(spacing: 0) {
-                    Button { showUsage = true } label: {
-                        ContextRing(fraction: contextFraction)
-                            .frame(width: DS.IconSize.controlDiameter, height: DS.IconSize.controlDiameter)
-                            .contentShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(conversation == nil)
-                    .opacity(conversation == nil ? 0.4 : 1)
-                    .accessibilityLabel(Text("Usage"))
-                    GlassIconMenuPlain(systemName: "ellipsis", label: "More") { menuContent }
+                ContextRingButton(fraction: conversation?.lastUsage == nil ? nil : contextFraction) {
+                    composerFocused = false
+                    showUsage = true
                 }
-                .glassEffect(.regular.interactive(), in: Capsule())
+                GlassIconMenu(systemName: "ellipsis", label: "More") { menuContent }
             }
             .padding(.horizontal, DS.Spacing.md)
             .padding(.top, DS.Spacing.xs)
@@ -187,17 +209,7 @@ struct ChatView: View {
 
     // MARK: Messages
 
-    @ViewBuilder
-    private var messages: some View {
-        if conversation == nil {
-            emptyState
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.bottom, 160)
-                .background(theme.background.ignoresSafeArea())
-        } else {
-            messageList
-        }
-    }
+    private var messages: some View { messageList }
 
     private var messageList: some View {
         ScrollView {
@@ -216,28 +228,22 @@ struct ChatView: View {
         .scrollPosition($position)
         .defaultScrollAnchor(.bottom)
         .scrollDismissesKeyboard(.interactively)
+        .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
         .onScrollGeometryChange(for: Bool.self) { geo in
             geo.contentSize.height + geo.contentInsets.bottom - (geo.contentOffset.y + geo.containerSize.height) < 80
         } action: { _, newValue in
             atBottom = newValue
         }
         .background(theme.background.ignoresSafeArea())
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: DS.Spacing.sm) {
-            Text("How can I help?")
-                .font(DS.Typography.largeTitle)
-                .foregroundStyle(theme.textPrimary)
-            if connections.allModels.isEmpty {
-                Text("Add a connection and API key in Settings to start chatting.")
-                    .font(DS.Typography.uiSmall)
-                    .foregroundStyle(theme.textSecondary)
-                    .multilineTextAlignment(.center)
-                Button("Open Settings", action: onOpenSettings).buttonStyle(.glass)
-            }
-        }
-        .frame(maxWidth: .infinity)
+        .environment(\.citations, citationContext)
+        .environment(\.openURL, OpenURLAction { url in
+            let ids = CitationParser.ids(from: url)
+            guard !ids.isEmpty else { return .systemAction }
+            let known = citationContext.sources
+            let list = ids.compactMap { known[$0] }
+            if !list.isEmpty { citationItem = SourceListItem(sources: list) }
+            return .handled
+        })
     }
 
     @ViewBuilder
@@ -254,15 +260,19 @@ struct ChatView: View {
                     pending: active ? controller.pendingCalls : [],
                     isStreaming: active,
                     phase: active ? controller.phase : .idle,
+                    turnStart: active ? controller.turnStart : nil,
                     errorText: message.errorText,
+                    errorNeedsSettings: message.errorNeedsSettings,
                     stopped: message.stoppedByUser,
                     canRegenerate: isLast && !controller.isStreaming),
                 render: controller.renderState(for: message),
-                onOpenThinking: { thinkingMessage = message },
+                onOpenTimeline: { timelineMessage = message },
+                onOpenSources: { sourcesItem = SourceListItem(sources: $0) },
                 onCopy: { UIPasteboard.general.string = message.text },
                 onRegenerate: {
                     if let c = conversation { controller.regenerate(conversation: c, context: context) }
-                })
+                },
+                onOpenSettings: onOpenSettings)
         }
     }
 
@@ -306,12 +316,11 @@ struct ChatView: View {
 
     private func send() {
         let sel = selection
-        guard let modelID = sel.modelID, let connectionID = sel.connectionID else { return }
         let target: Conversation
         if let existing = conversation {
             target = existing
         } else {
-            target = Conversation(connectionID: connectionID, modelID: modelID, effort: sel.effort)
+            target = Conversation(connectionID: sel.connectionID, modelID: sel.modelID, effort: sel.effort)
             context.insert(target)
             conversation = target
         }
@@ -351,4 +360,9 @@ struct ChatView: View {
         openRequestedSheet()
         #endif
     }
+}
+
+struct SourceListItem: Identifiable {
+    let sources: [SourceInfo]
+    var id: String { sources.map { String($0.id) }.joined(separator: ",") }
 }

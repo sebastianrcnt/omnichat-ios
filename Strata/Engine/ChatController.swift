@@ -25,6 +25,9 @@ final class ChatController {
     private(set) var activeMessageID: UUID?
     private(set) var phase: Phase = .idle
     private(set) var pendingCalls: [PendingToolCall] = []
+    private(set) var turnStart: Date?
+    /// Sources of the running turn (conversation-wide ids), updated as tools finish.
+    private(set) var liveSources: [SourceInfo] = []
     var isStreaming: Bool { activeMessageID != nil }
 
     private let connections: ConnectionStore
@@ -33,6 +36,7 @@ final class ChatController {
     private let tools: any ToolExecuting
     private var task: Task<Void, Never>?
     private var renderStates: [UUID: MessageRenderState] = [:]
+    private var sourceStore: SourceStore?
 
     init(connections: ConnectionStore, settings: AppSettings,
          streamer: any ChatStreaming = ChatClient(), tools: any ToolExecuting = ToolRouter()) {
@@ -57,6 +61,11 @@ final class ChatController {
 
     func forgetRenderStates(except keep: Set<UUID>) {
         renderStates = renderStates.filter { keep.contains($0.key) || $0.key == activeMessageID }
+    }
+
+    /// The Strata gateway always needs a key; other connections may be keyless (local servers).
+    static func needsKey(_ endpoint: Endpoint, connections: ConnectionStore) -> Bool {
+        (endpoint.apiKey ?? "").isEmpty && connections.connection(endpoint.connectionID)?.isStrata == true
     }
 
     func isStreaming(_ conversation: Conversation) -> Bool {
@@ -118,6 +127,8 @@ final class ChatController {
         activeMessageID = assistant.id
         phase = .waiting
         pendingCalls = []
+        turnStart = .now
+        liveSources = conversation.sources
 
         let history = conversation.sortedMessages
             .filter { $0.id != assistant.id }
@@ -125,6 +136,10 @@ final class ChatController {
             .map(\.historyMessage)
         guard let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID) else {
             finish(assistant, conversation: conversation, context: context, error: APIError.missingModel)
+            return
+        }
+        if Self.needsKey(endpoint, connections: connections) {
+            finish(assistant, conversation: conversation, context: context, error: APIError.missingAPIKey(connection: endpoint.connectionName))
             return
         }
         let runner = TurnRunner(streamer: streamer, tools: tools)
@@ -135,6 +150,7 @@ final class ChatController {
         task = Task { @MainActor [weak self] in
             guard let self else { return }
             let tracker = TurnTracker(message: assistant, conversation: conversation, render: render)
+            self.sourceStore = sourceStore
             do {
                 let outcome = try await runner.run(endpoint: endpoint, messages: messages, effort: effort, sources: sourceStore) { event in
                     self.handle(event, tracker: tracker)
@@ -142,7 +158,7 @@ final class ChatController {
                 tracker.finishThinking()
                 conversation.sources = sourceStore.items
                 tracker.complete(finalText: outcome.finalContent)
-                assistant.steps = outcome.steps
+                assistant.steps = tracker.completedSteps
                 if let usage = outcome.lastUsage { conversation.apply(usage) }
                 self.finish(assistant, conversation: conversation, context: context, error: nil, tracker: tracker)
             } catch is CancellationError {
@@ -181,6 +197,7 @@ final class ChatController {
             if let first = pendingCalls.first { phase = .tool(name: first.name, argument: first.primaryArgument) }
         case .toolFinished(let record):
             tracker.completeTool(record)
+            if let store = sourceStore { liveSources = store.items }
             pendingCalls.removeAll { $0.id == record.id }
             if let next = pendingCalls.first { phase = .tool(name: next.name, argument: next.primaryArgument) }
         case .usage(let u):
@@ -190,13 +207,18 @@ final class ChatController {
 
     private func finish(_ message: Message, conversation: Conversation, context: ModelContext,
                         error: Error?, tracker: TurnTracker? = nil) {
-        if let error { message.errorText = error.localizedDescription }
+        if let error {
+            message.errorText = error.localizedDescription
+            message.errorNeedsSettings = (error as? APIError)?.needsSettings ?? false
+        }
         conversation.updatedAt = .now
         try? context.save()
         phase = .idle
         pendingCalls = []
         activeMessageID = nil
         activeConversationID = nil
+        turnStart = nil
+        sourceStore = nil
         task = nil
     }
 }
@@ -214,6 +236,7 @@ final class TurnTracker {
     private var roundHasReasoning = false
     private var reasoningAll = ""
     private var requested: [ToolCall] = []
+    private var stepParagraphs = 0
     private var finishedRecords: [ToolCallRecord] = []
     private(set) var completedSteps: [ToolStep] = []
 
@@ -232,10 +255,7 @@ final class TurnTracker {
 
     func addReasoning(_ r: String) {
         if thinkingStart == nil { thinkingStart = .now }
-        if !roundHasReasoning {
-            roundHasReasoning = true
-            if !reasoningAll.isEmpty { reasoningAll += "\n\n"; render.reasoning.beginSection() }
-        }
+        roundHasReasoning = true
         reasoningAll += r
         render.reasoning.append(r)
     }
@@ -256,12 +276,16 @@ final class TurnTracker {
     func beginTools(_ calls: [ToolCall]) {
         requested = calls
         finishedRecords = []
+        // Force a paragraph boundary so the timeline can place this step after the reasoning so far.
+        render.reasoning.beginSection()
+        if !reasoningAll.isEmpty && !reasoningAll.hasSuffix("\n\n") { reasoningAll += "\n\n" }
+        stepParagraphs = render.reasoning.finalized.count
     }
 
     func completeTool(_ record: ToolCallRecord) {
         finishedRecords.append(record)
         if finishedRecords.count == requested.count {
-            completedSteps.append(ToolStep(assistantContent: roundContent, calls: finishedRecords))
+            completedSteps.append(ToolStep(assistantContent: roundContent, calls: finishedRecords, reasoningParagraphs: stepParagraphs))
             message.steps = completedSteps
         }
     }
