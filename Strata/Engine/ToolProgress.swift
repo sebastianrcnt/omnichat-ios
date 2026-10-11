@@ -4,6 +4,8 @@ import Observation
 /// Who is running a tool call: the id of the model's call, for the code that reports progress for it.
 enum ToolContext {
     @TaskLocal static var callID: String?
+    /// Where a page load reports its progress: it fans out to every call waiting on the load.
+    @TaskLocal static var progressSink: (@MainActor @Sendable (Double) -> Void)?
 }
 
 /// Progress of running tool calls (0...1), keyed by call id, for the fill in a running fetch's chip. Only calls that

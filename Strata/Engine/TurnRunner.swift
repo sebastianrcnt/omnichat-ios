@@ -31,6 +31,8 @@ struct TurnRunner: Sendable {
 
     var streamer: any ChatStreaming
     var tools: any ToolExecuting
+    /// How many calls of one round run at once.
+    var maxConcurrentTools = ToolRound.maxConcurrent
     /// Told about each request actually sent (not the replay of one restored from a checkpoint).
     var requestLog: (@MainActor @Sendable (RequestLogEvent) -> Void)?
 
@@ -119,28 +121,56 @@ struct TurnRunner: Sendable {
             }
 
             try onEvent(.toolsRequested(calls))
+            // Calls run side by side, a few at a time. Results are numbered and appended in call order, so the
+            // history and the source ids are what a one-by-one run would produce; a result that finishes early waits
+            // (and is checkpointed) until the calls before it are done.
             var records: [ToolCallRecord] = checkpoint.records
             var outputs = records.map { ToolOutput(text: $0.result, isError: $0.isError) }
             for record in records { try onEvent(.toolFinished(record)) }
-            for call in calls {
-                if records.contains(where: { $0.id == call.id }) { continue }
-                try Task.checkCancellation()
-                var out = try await ToolExecutionRecovery.execute(call, using: tools)
-                try Task.checkCancellation()
-                var ids: [Int] = []
-                if let sources, !out.sources.isEmpty, !out.isError {
-                    let infos = out.sources.map { sources.assign($0) }
-                    ids = infos.map(\.id)
-                    out.text = zip(infos, out.sources).map { SourceFormatter.block($0, content: $1.content) }.joined(separator: "\n")
+            var finished: [Int: ToolOutput] = [:]
+            let flushed = Set(records.map(\.id))
+            let stashed = Dictionary(uniqueKeysWithValues: (checkpoint.pendingResults ?? []).map { ($0.callID, $0) })
+            var toRun: [Int] = []
+            for (i, call) in calls.enumerated() where !flushed.contains(call.id) {
+                if let raw = stashed[call.id] { finished[i] = raw.output } else { toRun.append(i) }
+            }
+            var nextToAppend = calls.firstIndex { !flushed.contains($0.id) } ?? calls.count
+
+            func appendReady() throws {
+                var appended = false
+                while nextToAppend < calls.count, var out = finished[nextToAppend] {
+                    let call = calls[nextToAppend]
+                    finished[nextToAppend] = nil
+                    nextToAppend += 1
+                    var ids: [Int] = []
+                    if let sources, !out.sources.isEmpty, !out.isError {
+                        let infos = out.sources.map { sources.assign($0) }
+                        ids = infos.map(\.id)
+                        out.text = zip(infos, out.sources).map { SourceFormatter.block($0, content: $1.content) }.joined(separator: "\n")
+                    }
+                    let record = ToolCallRecord(id: call.id, name: call.name, arguments: call.arguments,
+                                                result: out.text, isError: out.isError, sourceIDs: ids)
+                    records.append(record)
+                    outputs.append(out)
+                    checkpoint.pendingResults?.removeAll { $0.callID == call.id }
+                    try onEvent(.toolFinished(record))
+                    appended = true
                 }
-                let record = ToolCallRecord(id: call.id, name: call.name, arguments: call.arguments,
-                                            result: out.text, isError: out.isError, sourceIDs: ids)
-                records.append(record)
-                outputs.append(out)
-                try onEvent(.toolFinished(record))
-                checkpoint.records = records
+                if appended {
+                    checkpoint.records = records
+                    if checkpoint.pendingResults?.isEmpty == true { checkpoint.pendingResults = nil }
+                }
+            }
+
+            try Task.checkCancellation()
+            try appendReady() // results restored from a checkpoint
+            try await ToolRound.execute(calls, indices: toRun, tools: tools, limit: maxConcurrentTools) { index, out in
+                finished[index] = out
+                checkpoint.pendingResults = (checkpoint.pendingResults ?? []) + [RawToolResult(callID: calls[index].id, output: out)]
+                try appendReady()
                 try onEvent(.checkpoint(checkpoint))
             }
+            try Task.checkCancellation()
             MessageAssembler.appendToolRound(to: &messages, assistantContent: acc.content, calls: calls, results: outputs)
             steps.append(ToolStep(assistantContent: acc.content, calls: records))
             round += 1

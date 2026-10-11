@@ -312,6 +312,15 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.stream_tool_call(f"call_f{rounds}", "web_fetch", json.dumps({"url": f"https://developer.apple.com/documentation/swiftui/page{rounds}"}))
             usage = {"prompt_tokens": prompt_tokens, "completion_tokens": 40}
+        elif "parallel" in user_text.lower() and rounds == 0:
+            # One round with several calls at once: a search, two different pages and a repeat of the first.
+            self.stream_reasoning("Several lookups are independent, so ask for them together.\n\n")
+            base = "https://developer.apple.com/documentation/swiftui/"
+            self.stream_tool_call("call_p1", "web_search", json.dumps({"query": "liquid glass"}), index=0)
+            self.stream_tool_call("call_p2", "web_fetch", json.dumps({"url": base + "applying-liquid-glass-to-custom-views"}), index=1)
+            self.stream_tool_call("call_p3", "web_fetch", json.dumps({"url": base + "glasseffect"}), index=2)
+            self.stream_tool_call("call_p4", "web_fetch", json.dumps({"url": base + "applying-liquid-glass-to-custom-views"}), index=3)
+            usage = {"prompt_tokens": prompt_tokens, "completion_tokens": 80}
         elif plain:
             self.stream_text("Quick thought: this is a simple request.\n\n", PLAIN)
             usage = {"prompt_tokens": 120, "completion_tokens": 90,
@@ -321,7 +330,7 @@ class Handler(BaseHTTPRequestHandler):
             self.stream_content("Let me search for the official guidance.")
             self.stream_tool_call("call_s1", "web_search", json.dumps({"query": "SwiftUI liquid glass guidelines"}))
             usage = {"prompt_tokens": prompt_tokens, "completion_tokens": 60, "completion_tokens_details": {"reasoning_tokens": 40}}
-        elif rounds == 1 and not many:
+        elif rounds == 1 and not many and "parallel" not in user_text.lower():
             self.stream_reasoning(REASONING_1)
             self.stream_tool_call("call_f1", "web_fetch", json.dumps({"url": "https://developer.apple.com/documentation/swiftui/applying-liquid-glass-to-custom-views"}))
             usage = {"prompt_tokens": prompt_tokens, "completion_tokens": 50, "completion_tokens_details": {"reasoning_tokens": 30}}
@@ -360,10 +369,10 @@ class Handler(BaseHTTPRequestHandler):
         self.stream_reasoning(reasoning)
         self.stream_content(content)
 
-    def stream_tool_call(self, call_id, name, args):
-        sse(self, chunk({"tool_calls": [{"index": 0, "id": call_id, "type": "function", "function": {"name": name, "arguments": ""}}]}))
+    def stream_tool_call(self, call_id, name, args, index=0):
+        sse(self, chunk({"tool_calls": [{"index": index, "id": call_id, "type": "function", "function": {"name": name, "arguments": ""}}]}))
         for p in pieces(args, sizes=(6, 9, 4)):
-            sse(self, chunk({"tool_calls": [{"index": 0, "function": {"arguments": p}}]}))
+            sse(self, chunk({"tool_calls": [{"index": index, "function": {"arguments": p}}]}))
             time.sleep(0.02)
 
 

@@ -33,6 +33,7 @@ final class CheckpointPersister {
     private var lastFlushAt: TimeInterval?
     private var lastStreamDone = false
     private var lastRecords = 0
+    private var lastPending = 0
     private var trailing: Task<Void, Never>?
     private var observers: [NSObjectProtocol] = []
     private var closed = false
@@ -64,7 +65,7 @@ final class CheckpointPersister {
         dirty = true
         let t = now()
         let structural = checkpoint.staticKey != lastKey || checkpoint.streamDone != lastStreamDone
-            || checkpoint.records.count != lastRecords
+            || checkpoint.records.count != lastRecords || (checkpoint.pendingResults?.count ?? 0) != lastPending
         if structural || lastFlushAt == nil || t - (lastFlushAt ?? 0) >= minInterval {
             flush()
         } else if autoTrailing, trailing == nil {
@@ -92,6 +93,7 @@ final class CheckpointPersister {
         guard let dynamicData = try? JSONEncoder().encode(checkpoint.dynamicPart) else { return }
         lastStreamDone = checkpoint.streamDone
         lastRecords = checkpoint.records.count
+        lastPending = checkpoint.pendingResults?.count ?? 0
         lastFlushAt = now()
         writeCount += 1
         write(Snapshot(checkpoint: checkpoint, staticData: staticData, dynamicData: dynamicData))

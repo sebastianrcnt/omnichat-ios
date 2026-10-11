@@ -220,6 +220,8 @@ struct WebFetchTool {
     /// Test seam; `nil` loads with the hidden web view.
     var loader: PageLoader?
     var timeouts = FetchTimeouts.standard
+    /// Loads under way; fetches of the same page in one round share one. `nil` uses the shared registry.
+    var inFlight: InFlightLoads?
 
     /// Runs in the page. `Readability` comes from the user script the fetch views carry. The text is cut to
     /// `maxCharacters` here, so nothing larger is ever sent back to the app.
@@ -278,7 +280,10 @@ struct WebFetchTool {
             page = cached
         } else {
             do {
-                page = try await (loader ?? Self.loadWithWebView(resolver: resolver, timeouts: timeouts))(url)
+                let load = loader ?? Self.loadWithWebView(resolver: resolver, timeouts: timeouts)
+                page = try await (inFlight ?? .shared).load(key: SourceStore.key(for: url.absoluteString), callID: ToolContext.callID) { sink in
+                    try await ToolContext.$progressSink.withValue(sink) { try await load(url) }
+                }
             } catch {
                 return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true)
             }
@@ -308,10 +313,8 @@ struct WebFetchTool {
             let view = pool.acquire(reader: true, resolver: resolver)
             var reusable = false
             defer { pool.release(view, reusable: reusable) }
-            let id = ToolContext.callID
-            let page = try await FetchPipeline.fetch(url, page: view, timeouts: timeouts) { value in
-                if let id { ToolProgress.shared.report(id, value) }
-            }
+            let sink = ToolContext.progressSink
+            let page = try await FetchPipeline.fetch(url, page: view, timeouts: timeouts) { value in sink?(value) }
             reusable = true
             return page
         }

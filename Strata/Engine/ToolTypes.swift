@@ -1,7 +1,7 @@
 import Foundation
 
 /// A web result a tool found. The turn runner turns these into numbered `<source>` blocks.
-struct SourceCandidate: Sendable, Equatable {
+struct SourceCandidate: Sendable, Equatable, Codable {
     var title: String
     var url: String
     var content: String
@@ -14,6 +14,24 @@ struct ToolOutput: Sendable, Equatable {
     /// Web results behind `text`. When present and a `SourceStore` is available, `text` is replaced by
     /// `<source id="N" ...>` blocks with conversation-wide stable ids.
     var sources: [SourceCandidate] = []
+}
+
+/// A tool result that finished before the results ahead of it in the round, held (and checkpointed) until it can be
+/// numbered in call order.
+struct RawToolResult: Codable, Sendable, Equatable {
+    var callID: String
+    var text: String
+    var isError: Bool
+    var sources: [SourceCandidate]
+
+    init(callID: String, output: ToolOutput) {
+        self.callID = callID
+        text = output.text
+        isError = output.isError
+        sources = output.sources
+    }
+
+    var output: ToolOutput { ToolOutput(text: text, isError: isError, sources: sources) }
 }
 
 protocol ToolExecuting: Sendable {

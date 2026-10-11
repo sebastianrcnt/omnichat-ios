@@ -15,6 +15,9 @@ struct TurnCheckpoint: Codable, Sendable {
     var streamDone = false
     var steps: [ToolStep] = []
     var records: [ToolCallRecord] = []
+    /// Results of this round's calls that finished ahead of an earlier call (calls run in parallel). Kept apart from
+    /// `records` until they can be numbered in call order. Optional so older saved checkpoints still decode.
+    var pendingResults: [RawToolResult]?
     var priorReasoning = ""
 
     init(messages: [APIMessage]) throws {
@@ -97,16 +100,18 @@ struct CheckpointDynamic: Codable, Sendable {
     var streamDone: Bool
     var steps: [ToolStep] = []
     var records: [ToolCallRecord] = []
+    var pendingResults: [RawToolResult]?
     var priorReasoning = ""
 
     init(requestID: String?, lastSequence: Int, accumulator: StreamAccumulator, streamDone: Bool,
-         steps: [ToolStep], records: [ToolCallRecord], priorReasoning: String) {
+         steps: [ToolStep], records: [ToolCallRecord], pendingResults: [RawToolResult]? = nil, priorReasoning: String) {
         self.requestID = requestID
         self.lastSequence = lastSequence
         self.accumulator = accumulator
         self.streamDone = streamDone
         self.steps = steps
         self.records = records
+        self.pendingResults = pendingResults
         self.priorReasoning = priorReasoning
     }
 }
@@ -133,7 +138,7 @@ private enum StaticFormat {
 extension TurnCheckpoint {
     var dynamicPart: CheckpointDynamic {
         CheckpointDynamic(requestID: requestID, lastSequence: lastSequence, accumulator: accumulator, streamDone: streamDone,
-                          steps: steps, records: records, priorReasoning: priorReasoning)
+                          steps: steps, records: records, pendingResults: pendingResults, priorReasoning: priorReasoning)
     }
 
     var staticKey: CheckpointStaticKey {
@@ -151,6 +156,7 @@ extension TurnCheckpoint {
         streamDone = dynamic.streamDone
         steps = dynamic.steps
         records = dynamic.records
+        pendingResults = dynamic.pendingResults
         priorReasoning = dynamic.priorReasoning
     }
 
