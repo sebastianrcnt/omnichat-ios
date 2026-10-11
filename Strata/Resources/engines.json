@@ -1,0 +1,14 @@
+[
+  {
+    "id": "duckduckgo",
+    "name": "DuckDuckGo",
+    "urlTemplate": "https://html.duckduckgo.com/html/?q={query}",
+    "resultsXPath": "//div[@id=\"links\"]/div[contains(@class,\"web-result\")]",
+    "titleXPath": ".//h2/a",
+    "urlXPath": ".//h2/a/@href",
+    "snippetXPath": ".//a[contains(@class,\"result__snippet\")]",
+    "challengeXPath": "//form[@id='challenge-form']",
+    "urlTransform": "ddg_redirect",
+    "maxResults": 8
+  }
+]
