@@ -97,13 +97,13 @@ struct MessageLayoutTests {
         #expect(states.last == [.summary, .divider, .text])
     }
 
-    @Test func inlineExpansionIsCappedAndOrdered() {
+    @Test func preamblesAreNotShownSeparately() {
+        // Preamble text lives only in the segments (shown in the Timeline), never as its own row.
         let segments = manyRounds(8)
-        let shown = ProcessSummaryBlock.visible(segments)
-        #expect(shown.count == ProcessSummaryBlock.inlineLimit)
-        #expect(shown.map(\.index) == Array(0..<12))
+        let items = MessageLayout.items(segmentCount: segments.count, tail: .none, isStreaming: false, hasAnswer: true)
+        #expect(items.count == 3)
         let preambles = segments.filter { $0.kind == .text }.map(\.text)
-        #expect(Set(preambles).count == preambles.count, "each preamble appears once")
+        #expect(Set(preambles).count == preambles.count)
     }
 }
 

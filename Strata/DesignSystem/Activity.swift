@@ -145,7 +145,7 @@ struct ActivityRow: View {
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 HStack(spacing: DS.Spacing.sm) {
                     icon("magnifyingglass")
-                    Text("“\(query)”").font(DS.Typography.uiSmall).foregroundStyle(theme.textPrimary).lineLimit(1)
+                    Text(query).font(DS.Typography.uiSmall).foregroundStyle(theme.textPrimary).lineLimit(1)
                     if entry.isRunning {
                         ProgressView().controlSize(.mini)
                     } else if entry.isError {
@@ -263,7 +263,6 @@ struct ActivityStatusLine: View {
 struct ActivitySummaryRow: View {
     @Environment(\.theme) private var theme
     let summary: ProcessSummary
-    var expanded = false
     let action: () -> Void
 
     var body: some View {
@@ -277,14 +276,13 @@ struct ActivitySummaryRow: View {
                     .animation(DS.Motion.enter, value: summary)
                 Image(systemName: "chevron.right")
                     .font(.system(size: DS.IconSize.sm, weight: .semibold)).foregroundStyle(theme.textTertiary)
-                    .rotationEffect(.degrees(expanded ? 90 : 0))
                 Spacer(minLength: 0)
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(.isButton)
-        .accessibilityValue(Text(expanded ? "Expanded" : "Collapsed"))
+        .accessibilityHint(Text("Opens the timeline"))
     }
 }
 

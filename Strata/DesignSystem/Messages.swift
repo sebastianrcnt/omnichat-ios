@@ -203,9 +203,8 @@ struct AssistantMessage: View {
     private func itemView(_ item: MessageLayout.Item) -> some View {
         switch item {
         case .summary:
-            ProcessSummaryBlock(segments: content.segments,
-                                summary: ProcessSummary(segments: content.segments, fallbackSeconds: content.thinkingSeconds),
-                                onOpenTimeline: onOpenTimeline)
+            ActivitySummaryRow(summary: ProcessSummary(segments: content.segments, fallbackSeconds: content.thinkingSeconds),
+                               action: onOpenTimeline)
         case .liveThinking:
             LiveThinkingTail(label: phaseLabel, start: content.turnStart ?? .now, reasoning: render.reasoning, action: onOpenTimeline)
         case .liveTools:

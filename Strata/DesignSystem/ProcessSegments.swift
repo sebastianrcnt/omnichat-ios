@@ -27,80 +27,7 @@ extension AnyTransition {
     }
 }
 
-/// Everything before the final answer as ONE row ("Thought for 1m 22s . 8 searches . 4 pages"). Tapping expands it
-/// in place into the ordered steps: thinking blocks, search and visit cards, and the text written between rounds.
-struct ProcessSummaryBlock: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    let segments: [ProcessSegment]
-    let summary: ProcessSummary
-    var onOpenTimeline: () -> Void = {}
-    @State private var expanded = ProcessSummaryBlock.startsExpanded
-
-    /// Longest list shown inline; beyond it the Timeline sheet has the rest.
-    static let inlineLimit = 12
-
-    /// Debug launch argument `-StrataExpandSegments 1` starts expanded (simulator screenshots).
-    static var startsExpanded: Bool {
-        #if DEBUG
-        DebugHooks.value("StrataExpandSegments") != nil
-        #else
-        false
-        #endif
-    }
-
-    static func visible(_ segments: [ProcessSegment]) -> [ProcessSegment] { Array(segments.prefix(inlineLimit)) }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            ActivitySummaryRow(summary: summary, expanded: expanded) {
-                withAnimation(reduceMotion ? nil : DS.Motion.enter) { expanded.toggle() }
-            }
-            if expanded {
-                VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                    ForEach(Array(Self.visible(segments).enumerated()), id: \.element.index) { i, segment in
-                        ProcessSegmentDetail(segment: segment)
-                            .transition(.enter(index: i, reduceMotion: reduceMotion))
-                    }
-                    Button(segments.count > Self.inlineLimit ? "Show all \(segments.count) steps" : "Open timeline", action: onOpenTimeline)
-                        .font(DS.Typography.uiSmall)
-                        .buttonStyle(.plain)
-                        .modifier(AccentText())
-                        .transition(.enter(index: Self.visible(segments).count, reduceMotion: reduceMotion))
-                }
-                .padding(.leading, DS.Spacing.xl)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-private struct AccentText: ViewModifier {
-    @Environment(\.theme) private var theme
-    func body(content: Content) -> some View { content.foregroundStyle(theme.accent) }
-}
-
-/// One step in the expanded list.
-struct ProcessSegmentDetail: View {
-    @Environment(\.citations) private var citations
-    let segment: ProcessSegment
-
-    var body: some View {
-        switch segment.kind {
-        case .thinking:
-            ThinkingCard(text: segment.text, seconds: segment.seconds)
-        case .text:
-            PreambleText(text: segment.text)
-        case .toolRound:
-            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                ForEach(segment.calls, id: \.id) { call in
-                    ActivityCard(entry: ActivityEntry(call: call, sources: citations.sources))
-                }
-            }
-        }
-    }
-}
-
-/// Raw reasoning as a card, matching the search and visit cards.
+/// Raw reasoning as a card, matching the search and visit cards (Timeline sheet).
 struct ThinkingCard: View {
     @Environment(\.theme) private var theme
     let text: String
@@ -113,7 +40,7 @@ struct ThinkingCard: View {
                 Text(seconds.map { String(localized: "Thought for \(ProcessSummary.duration($0))") } ?? String(localized: "Thinking"))
                     .font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
             }
-            Text(text)
+            Text(ReasoningSpaces.collapse(text))
                 .font(DS.Typography.uiSmall)
                 .lineSpacing(DS.Typography.answerLineSpacing)
                 .foregroundStyle(theme.textSecondary)
@@ -180,21 +107,6 @@ struct LiveToolsTail: View {
     }
 }
 
-/// Text the model wrote between tool rounds.
-struct PreambleText: View {
-    @Environment(\.theme) private var theme
-    let text: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-            ForEach(Array(text.components(separatedBy: "\n\n").enumerated()), id: \.offset) { _, paragraph in
-                InlineMarkdownText(source: paragraph.replacingOccurrences(of: "\n", with: " "),
-                                   font: DS.Typography.answer, color: theme.textPrimary)
-            }
-        }
-    }
-}
-
 #Preview("Light · Purple") { segmentsPreview.previewStyle(.light) }
 #Preview("Dark · Purple") { segmentsPreview.previewStyle(.dark) }
 #Preview("Dark · Orange") { segmentsPreview.previewStyle(.dark, accent: Color(hex: "#F97316")) }
@@ -204,12 +116,13 @@ struct PreambleText: View {
                    2: SourceInfo(id: 2, title: "HWS", url: "https://www.hackingwithswift.com/", snippet: "")]
     let search = ToolCallRecord(id: "a", name: "web_search", arguments: "{\"query\":\"liquid glass\"}", result: "", isError: false, sourceIDs: [1, 2])
     let segments: [ProcessSegment] = [
-        .init(index: 0, kind: .thinking, text: "The user wants current information.\n\nI should search first.", seconds: 7),
-        .init(index: 1, kind: .text, text: "Let me look at the official docs."),
-        .init(index: 2, kind: .toolRound, calls: [search]),
+        .init(index: 0, kind: .thinking, text: "The user wants current information.\n\nI should search first.", seconds: 82),
+        .init(index: 1, kind: .toolRound, calls: [search]),
     ]
     return VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-        ProcessSummaryBlock(segments: segments, summary: ProcessSummary(segments: segments))
+        ActivitySummaryRow(summary: ProcessSummary(segments: segments)) {}
+        ThinkingCard(text: segments[0].text, seconds: 82)
+        ActivityCard(entry: ActivityEntry(call: search, sources: Dictionary(uniqueKeysWithValues: sources.map { ($0.key, $0.value) })))
         ProcessDivider()
         Text("Final answer").font(DS.Typography.answer)
     }
