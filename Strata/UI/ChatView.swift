@@ -281,6 +281,12 @@ struct ChatView: View {
         })
     }
 
+    /// Saved calls plus calls finished in the running round, each id once.
+    static func liveCalls(_ saved: [ToolCallRecord], inRound: [ToolCallRecord]) -> [ToolCallRecord] {
+        let known = Set(saved.map(\.id))
+        return saved + inRound.filter { !known.contains($0.id) }
+    }
+
     @ViewBuilder
     private func row(_ message: Message, isLast: Bool) -> some View {
         switch message.role {
@@ -291,7 +297,7 @@ struct ChatView: View {
             AssistantMessage(
                 content: AssistantContent(
                     thinkingSeconds: message.thinkingSeconds,
-                    calls: message.steps.flatMap(\.calls),
+                    calls: Self.liveCalls(message.steps.flatMap(\.calls), inRound: active ? controller.roundRecords : []),
                     segments: message.segments,
                     pending: active ? controller.pendingCalls : [],
                     isStreaming: active,

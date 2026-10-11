@@ -27,6 +27,8 @@ final class ChatController {
     private(set) var activeMessageID: UUID?
     private(set) var phase: Phase = .idle
     private(set) var pendingCalls: [PendingToolCall] = []
+    /// Calls that finished in the round still running, so the live feed keeps them before the round's step is saved.
+    private(set) var roundRecords: [ToolCallRecord] = []
     private(set) var turnStart: Date?
     /// Sources of the running turn (conversation-wide ids), updated as tools finish.
     private(set) var liveSources: [SourceInfo] = []
@@ -275,6 +277,7 @@ final class ChatController {
         case .roundStarted(let n):
             tracker.beginRound(n)
             pendingCalls = []
+            roundRecords = []
             phase = n == 0 ? .waiting : .waiting
         case .reasoning(let r):
             tracker.addReasoning(r)
@@ -290,6 +293,7 @@ final class ChatController {
         case .toolFinished(let record):
             tracker.completeTool(record)
             if let store = sourceStore { liveSources = store.items }
+            roundRecords.append(record)
             pendingCalls.removeAll { $0.id == record.id }
             if let next = pendingCalls.first { phase = .tool(name: next.name, argument: next.primaryArgument) }
         case .usage(let u):
@@ -315,6 +319,7 @@ final class ChatController {
         #endif
         phase = .idle
         pendingCalls = []
+        roundRecords = []
         activeMessageID = nil
         activeConversationID = nil
         turnStart = nil

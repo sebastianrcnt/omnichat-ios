@@ -95,3 +95,39 @@ struct ProcessSegmentTurnTests {
         #expect(segs[2].calls.map(\.id) == ["c1"])
     }
 }
+
+@MainActor
+struct LiveFeedRowTests {
+    private func record(_ id: String) -> ToolCallRecord {
+        ToolCallRecord(id: id, name: "web_search", arguments: "{\"query\":\"q\(id)\"}", result: "", isError: false, sourceIDs: [1])
+    }
+    private func pending(_ id: String) -> PendingToolCall {
+        PendingToolCall(id: id, name: "web_search", primaryArgument: "q\(id)")
+    }
+
+    @Test func aRunningEntryKeepsItsIdAndPositionWhenItFinishes() {
+        let running = ActivityEntry.entries(calls: [record("a")], pending: [pending("b")], sources: [:])
+        let finished = ActivityEntry.entries(calls: [record("a"), record("b")], pending: [], sources: [:])
+        #expect(running.map(\.id) == ["a", "b"] && finished.map(\.id) == ["a", "b"])
+        #expect(running[1].isRunning && !finished[1].isRunning)
+        #expect(LiveActivityFeed.visibleEntries(running).map(\.id) == LiveActivityFeed.visibleEntries(finished).map(\.id))
+    }
+
+    @Test func visibleRowsAreTheLastTwoRegardlessOfRunningState() {
+        let all = ActivityEntry.entries(calls: [record("a"), record("b")], pending: [pending("c")], sources: [:])
+        #expect(LiveActivityFeed.visibleEntries(all).map(\.id) == ["b", "c"])
+        let done = ActivityEntry.entries(calls: [record("a"), record("b"), record("c")], pending: [], sources: [:])
+        #expect(LiveActivityFeed.visibleEntries(done).map(\.id) == ["b", "c"], "finishing does not change the row count or identity")
+        #expect(LiveActivityFeed.visibleEntries(Array(done.prefix(1))).count == 1)
+    }
+
+    @Test func anIdListedAsFinishedAndRunningAppearsOnce() {
+        let e = ActivityEntry.entries(calls: [record("a")], pending: [pending("a")], sources: [:])
+        #expect(e.count == 1 && !e[0].isRunning)
+    }
+
+    @Test func callsFinishedInTheRunningRoundStayVisibleBeforeTheStepIsSaved() {
+        let live = ChatView.liveCalls([record("a")], inRound: [record("b"), record("a")])
+        #expect(live.map(\.id) == ["a", "b"])
+    }
+}

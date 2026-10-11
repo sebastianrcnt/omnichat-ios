@@ -412,30 +412,51 @@ struct ReasoningTail: View {
     }
 }
 
-/// One-line live preview of the latest thought (inline Markdown, head-truncated, fading in as it is revealed).
+/// One-line live preview of the sentence being thought: shown from its start, tail-truncated, and replaced
+/// (with a short crossfade) only when a new sentence begins, at most about once every 1.2 s.
 struct ReasoningLinePreview: View {
     @Environment(\.theme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    let model: ReasoningChunkModel
+    let model: ReasoningChunkModel?
+    /// Hides the text but keeps the slot's height, so the layout around it never moves.
+    var isVisible = true
+    @State private var gate = ThoughtPreviewGate()
+    @State private var shown: ThoughtSentence?
+    @State private var deadline: Double?
+
+    private static var now: Double { ProcessInfo.processInfo.systemUptime }
 
     var body: some View {
-        let line = model.lastLine
-        if !line.isEmpty {
-            Group {
-                if model.freshSpans.isEmpty || reduceMotion {
-                    Text(InlineMarkdownText.attributed(line, isOpen: true))
-                } else {
-                    TimelineView(.animation) { context in
-                        Text(InlineMarkdownText.faded(InlineMarkdownText.attributed(line, isOpen: true),
-                                                      spans: model.freshSpans, color: theme.textTertiary, now: context.date))
-                    }
-                }
+        ZStack(alignment: .leading) {
+            Text(" ").font(DS.Typography.uiSmall).lineLimit(1).hidden() // reserves one line
+            if let shown, isVisible {
+                Text(InlineMarkdownText.attributed(shown.text, isOpen: true))
+                    .font(DS.Typography.uiSmall)
+                    .foregroundStyle(theme.textTertiary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .id(shown.start)
+                    .transition(.opacity)
             }
-            .font(DS.Typography.uiSmall)
-            .foregroundStyle(theme.textTertiary)
-            .lineLimit(1)
-            .truncationMode(.head)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isVisible)
+        .onChange(of: model?.thought, initial: true) { _, latest in apply(latest) }
+        .task(id: deadline) {
+            guard let deadline else { return }
+            try? await Task.sleep(for: .seconds(max(0, deadline - Self.now)))
+            apply(model?.thought)
+        }
+    }
+
+    private func apply(_ latest: ThoughtSentence?) {
+        gate.update(latest: latest, now: Self.now)
+        deadline = gate.nextSwitchAt
+        guard let next = gate.displayed, next != shown else { return }
+        if let shown, shown.start != next.start, !reduceMotion {
+            withAnimation(.easeInOut(duration: 0.2)) { self.shown = next }
+        } else {
+            shown = next
         }
     }
 }

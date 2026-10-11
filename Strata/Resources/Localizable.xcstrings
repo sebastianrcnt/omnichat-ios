@@ -2,6 +2,7 @@
   "sourceLanguage": "en",
   "strings": {
     "": {},
+    " ": {},
     "%@ (recommended)": {},
     "%@ of %@ (%lld%%)": {},
     "%@ of %@ tokens used": {},

@@ -64,8 +64,9 @@ network delta -> RevealController (smoothing) -> IncrementalBlockParser (backgro
   past 18 lines, and opens a full-screen viewer. No syntax highlighting.
 - **Reasoning** (`ReasoningChunkModel`): the raw chain is split by paragraph; finalized paragraphs are
   cached equatable views, only the tail paragraph changes. Same reveal controller and the same ~150 ms
-  fade on the newly revealed span (`freshSpans`, off with Reduce Motion). `lastLine` drives the live
-  one-line thought preview. The Timeline sheet renders finalized chunks plus a separate tail view and
+  fade on the newly revealed span (`freshSpans`, off with Reduce Motion). `thought` (the sentence being written, from `ThoughtSentences.latest`) drives the live
+  one-line preview: tail-truncated, replaced only when a new sentence begins and at most every 1.2 s
+  (`ThoughtPreviewGate`, clock-free), crossfaded. The Timeline sheet renders finalized chunks plus a separate tail view and
   follows the bottom only while the user is at the bottom.
 - **Performance check**: `StrataTests/StreamingPerfTests` replays a markdown answer at 100 tok/s into a
   `UIHostingController` and logs apply, layout and run-loop-turn p95 (10k tokens on the Simulator:

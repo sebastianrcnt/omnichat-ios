@@ -202,6 +202,8 @@ final class ReasoningChunkModel {
     private(set) var finalized: [Chunk] = []
     private(set) var tail = ""
     private(set) var lastLine = ""
+    /// The sentence being written now (drives the one-line preview).
+    private(set) var thought: ThoughtSentence?
     private(set) var hasContent = false
     /// Recently revealed spans for the tail fade-in (same 150 ms ramp as answers).
     private(set) var freshSpans: [StreamingMarkdownModel.FreshSpan] = []
@@ -221,6 +223,7 @@ final class ReasoningChunkModel {
         finalized = []
         tail = ""
         text = ""
+        thought = nil
         freshSpans = []
         reveal = RevealController()
         consume(newText)
@@ -284,6 +287,8 @@ final class ReasoningChunkModel {
         tail = buffer
         let line = Self.lastNonEmptyLine(buffer) ?? finalized.last.flatMap { Self.lastNonEmptyLine($0.text) } ?? ""
         if line != lastLine { lastLine = line }
+        let sentence = ThoughtSentences.latest(in: text)
+        if sentence != thought { thought = sentence }
         if !hasContent, !text.isEmpty { hasContent = true }
     }
 

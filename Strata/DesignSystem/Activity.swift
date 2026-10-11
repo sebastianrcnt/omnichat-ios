@@ -109,8 +109,14 @@ struct ActivityEntry: Identifiable, Equatable {
         }
     }
 
+    /// Finished calls then running ones. A call keeps the same id while running and when done, and an id
+    /// that appears twice (a finished call still listed as running) is shown once.
     static func entries(calls: [ToolCallRecord], pending: [PendingToolCall], sources: [Int: SourceInfo]) -> [ActivityEntry] {
-        calls.map { ActivityEntry(call: $0, sources: sources) } + pending.map { ActivityEntry(pending: $0) }
+        var seen = Set<String>()
+        var out: [ActivityEntry] = []
+        for call in calls where seen.insert(call.id).inserted { out.append(ActivityEntry(call: call, sources: sources)) }
+        for call in pending where seen.insert(call.id).inserted { out.append(ActivityEntry(pending: call)) }
+        return out
     }
 }
 
@@ -250,25 +256,30 @@ struct LiveActivityFeed: View {
     var reasoning: ReasoningChunkModel?
     let action: () -> Void
 
-    static let height: CGFloat = 132
+    /// Status line, the thought slot and two activity rows. The layout never depends on running state.
+    static let height: CGFloat = 156
+    static let visibleRows = 2
 
-    /// The thought preview shows while nothing is running; it takes one row of the fixed-height area.
-    private var showsPreview: Bool { (reasoning?.hasContent ?? false) && !entries.contains(where: \.isRunning) }
-    private var visibleRows: Int { showsPreview ? 1 : 2 }
+    /// The rows shown: always the latest two. Rows change only when an entry is added; a running entry that
+    /// finishes keeps its id and position.
+    static func visibleEntries(_ entries: [ActivityEntry]) -> [ActivityEntry] { Array(entries.suffix(visibleRows)) }
+
+    /// The thought text hides while a tool runs, but its slot keeps its height.
+    private var thoughtVisible: Bool { (reasoning?.hasContent ?? false) && !entries.contains(where: \.isRunning) }
 
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
                 ActivityStatusLine(label: label, start: start)
-                if showsPreview, let reasoning { ReasoningLinePreview(model: reasoning) }
+                ReasoningLinePreview(model: reasoning, isVisible: thoughtVisible)
                 VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                    ForEach(entries.suffix(visibleRows)) { entry in
+                    ForEach(Self.visibleEntries(entries)) { entry in
                         ActivityRow(entry: entry)
                             .transition(.asymmetric(insertion: .opacity.combined(with: .move(edge: .bottom)),
                                                     removal: .opacity.combined(with: .move(edge: .top))))
                     }
                 }
-                .animation(DS.Motion.snappy, value: entries.suffix(visibleRows).map(\.id))
+                .animation(DS.Motion.snappy, value: Self.visibleEntries(entries).map(\.id))
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
             .frame(height: Self.height, alignment: .topLeading)
