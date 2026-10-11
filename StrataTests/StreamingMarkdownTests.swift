@@ -368,6 +368,29 @@ struct StreamingModelTests {
         #expect(m.text == "First thought.\n\nSecond thought continues.\n\nThird")
     }
 
+    @Test func reasoningFadeSpansAppearWhileSmoothingAndClearAfterwards() async {
+        let m = ReasoningChunkModel(smoothing: true)
+        m.append(String(repeating: "word ", count: 40))
+        await waitUntil { !m.freshSpans.isEmpty }
+        #expect(m.freshSpans.allSatisfy { $0.length > 0 })
+        m.revealAll()
+        #expect(m.freshSpans.isEmpty)
+        let plain = ReasoningChunkModel(smoothing: false)
+        plain.append("no fade here")
+        await waitUntil { plain.hasContent }
+        #expect(plain.freshSpans.isEmpty)
+    }
+
+    @Test func timelineKeepsToolCardsInStreamOrderAroundLiveChunks() {
+        let call = ToolCallRecord(id: "c1", name: "web_search", arguments: "{\"query\":\"q\"}", result: "", isError: false)
+        let step = ToolStep(assistantContent: "", calls: [call], reasoningParagraphs: 1)
+        let items = TimelineItem.build(chunks: ["first", "second"], steps: [step], pending: [], sources: [:])
+        #expect(items.map(\.id) == ["t0", "c1", "t1"])
+        // The live tail is not part of the list, so streaming never changes it.
+        let m = ReasoningChunkModel(text: "first\n\nsecond\n\ngrowing")
+        #expect(m.finalized.count == 2 && m.tail == "growing")
+    }
+
     @Test func reasoningLoadedFromHistory() {
         let m = ReasoningChunkModel(text: "a\n\nb\n\nc")
         #expect(m.finalized.count == 2 && m.tail == "c")

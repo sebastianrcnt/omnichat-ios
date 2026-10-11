@@ -381,13 +381,61 @@ struct ReasoningChunkView: View, Equatable {
     nonisolated static func == (a: Self, b: Self) -> Bool { a.chunk == b.chunk }
 }
 
-private struct ReasoningTail: View {
+/// The growing reasoning paragraph: plain text with the same 150 ms fade on newly revealed characters.
+/// Only this view reads `tail`, so finalized paragraphs are never re-rendered while streaming.
+struct ReasoningTail: View {
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let model: ReasoningChunkModel
+    /// Called whenever the tail grows (the timeline uses it to keep following the bottom).
+    var onGrow: () -> Void = {}
+
     var body: some View {
-        if !model.tail.isEmpty {
-            Text(model.tail).font(DS.Typography.monoSmall).lineSpacing(DS.Typography.answerLineSpacing).foregroundStyle(theme.textSecondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        Group {
+            if !model.tail.isEmpty {
+                if model.freshSpans.isEmpty || reduceMotion {
+                    text(AttributedString(model.tail))
+                } else {
+                    TimelineView(.animation) { context in
+                        text(InlineMarkdownText.faded(AttributedString(model.tail), spans: model.freshSpans,
+                                                      color: theme.textSecondary, now: context.date))
+                    }
+                }
+            }
+        }
+        .onChange(of: model.tail.utf8.count) { _, _ in onGrow() }
+    }
+
+    private func text(_ s: AttributedString) -> some View {
+        Text(s).font(DS.Typography.monoSmall).lineSpacing(DS.Typography.answerLineSpacing).foregroundStyle(theme.textSecondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// One-line live preview of the latest thought (inline Markdown, head-truncated, fading in as it is revealed).
+struct ReasoningLinePreview: View {
+    @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let model: ReasoningChunkModel
+
+    var body: some View {
+        let line = model.lastLine
+        if !line.isEmpty {
+            Group {
+                if model.freshSpans.isEmpty || reduceMotion {
+                    Text(InlineMarkdownText.attributed(line, isOpen: true))
+                } else {
+                    TimelineView(.animation) { context in
+                        Text(InlineMarkdownText.faded(InlineMarkdownText.attributed(line, isOpen: true),
+                                                      spans: model.freshSpans, color: theme.textTertiary, now: context.date))
+                    }
+                }
+            }
+            .font(DS.Typography.uiSmall)
+            .foregroundStyle(theme.textTertiary)
+            .lineLimit(1)
+            .truncationMode(.head)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

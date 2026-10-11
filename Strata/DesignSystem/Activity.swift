@@ -210,22 +210,29 @@ struct LiveActivityFeed: View {
     let label: String
     let start: Date
     let entries: [ActivityEntry]
+    /// Live reasoning, for the one-line preview of the latest thought.
+    var reasoning: ReasoningChunkModel?
     let action: () -> Void
 
     static let height: CGFloat = 132
+
+    /// The thought preview shows while nothing is running; it takes one row of the fixed-height area.
+    private var showsPreview: Bool { (reasoning?.hasContent ?? false) && !entries.contains(where: \.isRunning) }
+    private var visibleRows: Int { showsPreview ? 1 : 2 }
 
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
                 ActivityStatusLine(label: label, start: start)
+                if showsPreview, let reasoning { ReasoningLinePreview(model: reasoning) }
                 VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                    ForEach(entries.suffix(2)) { entry in
+                    ForEach(entries.suffix(visibleRows)) { entry in
                         ActivityRow(entry: entry)
                             .transition(.asymmetric(insertion: .opacity.combined(with: .move(edge: .bottom)),
                                                     removal: .opacity.combined(with: .move(edge: .top))))
                     }
                 }
-                .animation(DS.Motion.snappy, value: entries.suffix(2).map(\.id))
+                .animation(DS.Motion.snappy, value: entries.suffix(visibleRows).map(\.id))
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
             .frame(height: Self.height, alignment: .topLeading)
@@ -302,7 +309,8 @@ enum TimelineItem: Identifiable, Equatable {
     }
 }
 
-/// Sheet with the raw thinking interleaved with tool cards; follows the bottom while live.
+/// Sheet with the raw thinking interleaved with tool cards. While live it streams the reasoning with the
+/// same reveal pipeline as answers and follows the bottom, until the user scrolls away.
 struct TimelineSheet: View {
     @Environment(\.theme) private var theme
     let reasoning: ReasoningChunkModel
@@ -311,42 +319,45 @@ struct TimelineSheet: View {
     let sources: [Int: SourceInfo]
     let isLive: Bool
     var seconds: Double?
+    @State private var following = true
 
+    /// Finalized paragraphs and tool cards only. The growing tail is a separate view, so streaming never
+    /// rebuilds this list. (A tool round flushes the tail first, so the tail is always last.)
     private var items: [TimelineItem] {
-        let chunks = reasoning.finalized.map(\.text) + (reasoning.tail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : [reasoning.tail])
-        return TimelineItem.build(chunks: chunks, steps: steps, pending: pending, sources: sources)
+        TimelineItem.build(chunks: reasoning.finalized.map(\.text), steps: steps, pending: pending, sources: sources)
     }
 
     var body: some View {
-        SheetScaffold(title: titleKey) {
+        SheetScaffold(title: titleKey, followsBottom: $following) {
             ScrollViewReader { proxy in
                 let items = items
-                if items.isEmpty {
+                if items.isEmpty && reasoning.tail.isEmpty {
                     Text("Waiting for the model to think…")
                         .font(DS.Typography.monoSmall).foregroundStyle(theme.textTertiary)
                 }
                 VStack(alignment: .leading, spacing: DS.Spacing.lg) {
                     ForEach(items) { item in
                         switch item {
-                        case .thinking(_, let text):
-                            Text(text).font(DS.Typography.monoSmall).foregroundStyle(theme.textSecondary)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                        case .thinking(let id, let text):
+                            ReasoningChunkView(chunk: .init(id: Int(id.dropFirst()) ?? 0, text: text)).equatable()
                         case .activity(let entry):
                             ActivityRow(entry: entry, wrapsChips: true)
                                 .padding(DS.Spacing.md)
                                 .background(theme.surface, in: RoundedRectangle(cornerRadius: DS.Radius.md))
                         }
                     }
+                    ReasoningTail(model: reasoning) { follow(proxy) }
                 }
                 Color.clear.frame(height: 1).id("end")
-                    .onChange(of: items) { _, _ in
-                        if isLive { proxy.scrollTo("end", anchor: .bottom) }
-                    }
+                    .onChange(of: items) { _, _ in follow(proxy) }
             }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+
+    private func follow(_ proxy: ScrollViewProxy) {
+        if isLive && following { proxy.scrollTo("end", anchor: .bottom) }
     }
 
     private var titleKey: LocalizedStringKey {

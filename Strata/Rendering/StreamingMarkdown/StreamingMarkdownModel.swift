@@ -203,6 +203,8 @@ final class ReasoningChunkModel {
     private(set) var tail = ""
     private(set) var lastLine = ""
     private(set) var hasContent = false
+    /// Recently revealed spans for the tail fade-in (same 150 ms ramp as answers).
+    private(set) var freshSpans: [StreamingMarkdownModel.FreshSpan] = []
 
     /// Everything revealed so far.
     @ObservationIgnored private(set) var text = ""
@@ -219,6 +221,7 @@ final class ReasoningChunkModel {
         finalized = []
         tail = ""
         text = ""
+        freshSpans = []
         reveal = RevealController()
         consume(newText)
     }
@@ -238,6 +241,7 @@ final class ReasoningChunkModel {
     func revealAll() {
         let rest = reveal.flushAll()
         if !rest.isEmpty { consume(rest) }
+        if !freshSpans.isEmpty { freshSpans = [] }
     }
 
     private func scheduleTick() {
@@ -252,8 +256,17 @@ final class ReasoningChunkModel {
     private func tick() {
         tickScheduled = false
         let delta = smoothing ? reveal.tick(dt: StreamingMarkdownModel.publishInterval.seconds) : reveal.flushAll()
-        if !delta.isEmpty { consume(delta) }
-        if reveal.hasBacklog { scheduleTick() }
+        if !delta.isEmpty {
+            consume(delta)
+            if smoothing {
+                let now = Date()
+                freshSpans = freshSpans.filter { now.timeIntervalSince($0.born) <= StreamingMarkdownModel.fadeDuration }
+                freshSpans.append(.init(length: delta.count, born: now))
+            }
+        }
+        let now = Date()
+        if !freshSpans.isEmpty, freshSpans.allSatisfy({ now.timeIntervalSince($0.born) > StreamingMarkdownModel.fadeDuration }) { freshSpans = [] }
+        if reveal.hasBacklog || !freshSpans.isEmpty { scheduleTick() }
     }
 
     private func consume(_ delta: String) {

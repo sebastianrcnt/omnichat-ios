@@ -182,7 +182,14 @@ struct ChatView: View {
                 try? await Task.sleep(for: .milliseconds(150))
                 composerFocused = true
             }
-            .task { persistAutoSelection(); await debugActions() }
+            .task {
+                persistAutoSelection()
+                await debugActions()
+            }
+            #if DEBUG
+            // The view is recreated when the first chat is created, so timeline debugging runs from the live view.
+            .task(id: controller.activeMessageID) { await debugTimeline() }
+            #endif
             .onChange(of: connections.allModels.count) { _, _ in persistAutoSelection() }
     }
 
@@ -360,6 +367,19 @@ struct ChatView: View {
         controller.send(text: text, images: images, conversation: target, context: context)
         withAnimation(DS.Motion.spring) { position.scrollTo(edge: .bottom) }
     }
+
+    #if DEBUG
+    private func debugTimeline() async {
+        guard let sheet = DebugHooks.openSheet, sheet.hasPrefix("timeline") else { return }
+        if sheet == "timelinelive" {
+            guard let id = controller.activeMessageID else { return }
+            try? await Task.sleep(for: .seconds(2.5))
+            timelineMessage = conversation?.messages.first { $0.id == id }
+        } else if controller.activeMessageID == nil {
+            timelineMessage = conversation?.messages.filter { $0.role == .assistant }.max { $0.sortIndex < $1.sortIndex }
+        }
+    }
+    #endif
 
     private func debugActions() async {
         #if DEBUG

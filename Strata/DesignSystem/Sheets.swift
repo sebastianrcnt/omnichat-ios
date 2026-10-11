@@ -9,6 +9,8 @@ struct SheetScaffold<Trailing: View, Content: View>: View {
 
     let title: LocalizedStringKey
     var leading: Leading = .close
+    /// When set, tracks whether the user left the bottom (updated when a user scroll ends).
+    var followsBottom: Binding<Bool>?
     @ViewBuilder var trailing: () -> Trailing
     @ViewBuilder var content: () -> Content
 
@@ -36,6 +38,12 @@ struct SheetScaffold<Trailing: View, Content: View>: View {
                     .padding(.horizontal, DS.Spacing.lg)
                     .padding(.bottom, DS.Spacing.xl)
             }
+            .onScrollPhaseChange { old, new, context in
+                // Only a user scroll that just ended decides; programmatic scrolls never unpin.
+                guard let followsBottom, new == .idle, old == .interacting || old == .decelerating else { return }
+                let g = context.geometry
+                followsBottom.wrappedValue = g.visibleRect.maxY >= g.contentSize.height - 40
+            }
         }
         .background(theme.background.ignoresSafeArea())
         .presentationBackground(theme.background)
@@ -44,8 +52,9 @@ struct SheetScaffold<Trailing: View, Content: View>: View {
 }
 
 extension SheetScaffold where Trailing == EmptyView {
-    init(title: LocalizedStringKey, leading: Leading = .close, @ViewBuilder content: @escaping () -> Content) {
-        self.init(title: title, leading: leading, trailing: { EmptyView() }, content: content)
+    init(title: LocalizedStringKey, leading: Leading = .close, followsBottom: Binding<Bool>? = nil,
+         @ViewBuilder content: @escaping () -> Content) {
+        self.init(title: title, leading: leading, followsBottom: followsBottom, trailing: { EmptyView() }, content: content)
     }
 }
 

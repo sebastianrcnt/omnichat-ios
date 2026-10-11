@@ -192,7 +192,7 @@ struct AssistantMessage: View {
             if isLive {
                 LiveActivityFeed(label: phaseLabel, start: content.turnStart ?? .now,
                                  entries: ActivityEntry.entries(calls: content.calls, pending: content.pending, sources: citations.sources),
-                                 action: onOpenTimeline)
+                                 reasoning: render.reasoning, action: onOpenTimeline)
             } else if render.reasoning.hasContent || !content.calls.isEmpty {
                 ActivitySummaryRow(seconds: render.reasoning.hasContent ? content.thinkingSeconds : nil,
                                    searches: searches, pages: pages, action: onOpenTimeline)
