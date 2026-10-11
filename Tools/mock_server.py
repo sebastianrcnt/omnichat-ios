@@ -13,10 +13,19 @@ Streaming is deliberately bursty (small and large chunks) and tool-call argument
 No auth is checked; the API key is never logged.
 """
 import json
+import copy
+import os
+import threading
+import uuid
+from urllib.parse import urlparse, parse_qs
 import re
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+RESUMABLE = "--resumable" in sys.argv
+DROP_AFTER = int(os.environ.get("MOCK_DROP_AFTER", "0"))
+STREAMS = {}
 
 REASONING_0 = ("The user wants current information, so I should search the web first.\n\n"
                "I will look for official documentation and a good tutorial.\n\n")
@@ -98,12 +107,29 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
+        parsed = urlparse(self.path)
+        if parsed.path.startswith("/v1/streams/"):
+            rid = parsed.path.split("/")[3]
+            stream = STREAMS.get(rid)
+            if not stream:
+                return self._json(404, {"error": {"message": "expired"}})
+            if parsed.path.endswith("/status"):
+                return self._json(200, {"state": stream.state, "last_seq": len(stream.events)})
+            after = int(parse_qs(parsed.query).get("after", [self.headers.get("Last-Event-ID", "0")])[0])
+            return self.replay(rid, stream, after)
         if self.path.rstrip("/").endswith("/models"):
             self._json(200, {"object": "list", "data": [{"id": "strata-mock", "object": "model", "max_model_len": 262144}]})
         else:
             self._json(404, {"error": {"message": "not found"}})
 
     def do_POST(self):
+        if self.path.endswith("/cancel"):
+            rid = self.path.split("/")[3]
+            stream = STREAMS.get(rid)
+            if not stream:
+                return self._json(404, {})
+            stream.cancelled = True
+            return self._json(200, {"state": "cancelled", "last_seq": len(stream.events)})
         length = int(self.headers.get("Content-Length", "0"))
         req = json.loads(self.rfile.read(length) or b"{}")
         msgs = req.get("messages", [])
@@ -122,6 +148,21 @@ class Handler(BaseHTTPRequestHandler):
         rounds = sum(1 for m in tail if m.get("role") == "assistant" and m.get("tool_calls"))
         tools_enabled = bool(req.get("tools")) and req.get("tool_choice") != "none"
 
+        if RESUMABLE and self.headers.get("X-Strata-Resumable") == "1":
+            rid = "req_" + uuid.uuid4().hex[:24]
+            stream = ReplayBuffer()
+            STREAMS[rid] = stream
+            worker = copy.copy(self)
+            worker.wfile = stream
+            def produce():
+                try:
+                    worker.generate(req, user_text, tail, rounds, tools_enabled)
+                except InterruptedError:
+                    stream.state = "cancelled"
+                finally:
+                    stream.close()
+            threading.Thread(target=produce, daemon=True).start()
+            return self.replay(rid, stream, 0, drop_after=DROP_AFTER)
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
@@ -129,7 +170,41 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         raw_wfile = self.wfile
         self.wfile = _Chunked(raw_wfile)
+        try:
+            self.generate(req, user_text, tail, rounds, tools_enabled)
+        finally:
+            self.wfile = raw_wfile
 
+    def replay(self, rid, stream, after, drop_after=0):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("X-Billing-Request-Id", rid)
+        self.send_header("Transfer-Encoding", "chunked")
+        self.end_headers()
+        writer = _Chunked(self.wfile)
+        sent = 0
+        try:
+            while True:
+                with stream.condition:
+                    if after >= len(stream.events) and not stream.done:
+                        stream.condition.wait(timeout=1)
+                    events = stream.events[after:]
+                    done = stream.done
+                for event in events:
+                    after += 1
+                    writer.write(f"id: {after}\n".encode() + event)
+                    writer.flush()
+                    sent += 1
+                    if drop_after and sent >= drop_after:
+                        self.close_connection = True
+                        return
+                if done:
+                    writer.close()
+                    return
+        except (BrokenPipeError, ConnectionResetError):
+            self.close_connection = True
+
+    def generate(self, req, user_text, tail, rounds, tools_enabled):
         plain = "plain" in user_text.lower() or not tools_enabled
         prompt_tokens = 400 + 900 * rounds
         if plain:
@@ -161,7 +236,6 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(b"data: [DONE]\n\n")
         self.wfile.flush()
         self.wfile.close()
-        self.wfile = raw_wfile  # keep-alive: the next request on this connection needs the raw writer
 
     def stream_reasoning(self, text):
         for p in pieces(text):
@@ -184,6 +258,36 @@ class Handler(BaseHTTPRequestHandler):
             time.sleep(0.02)
 
 
+class ReplayBuffer:
+    def __init__(self):
+        self.condition = threading.Condition()
+        self.events = []
+        self.done = False
+        self.cancelled = False
+        self.state = "running"
+
+    def write(self, data):
+        with self.condition:
+            if self.cancelled:
+                raise InterruptedError("cancelled")
+            self.events.append(data)
+            self.condition.notify_all()
+
+    def flush(self):
+        pass
+
+    def close(self):
+        with self.condition:
+            if self.done:
+                return
+            if not self.events or self.events[-1] != b"data: [DONE]\n\n":
+                self.events.append(b"data: [DONE]\n\n")
+            self.done = True
+            if self.state == "running":
+                self.state = "done"
+            self.condition.notify_all()
+
+
 class _Chunked:
     """Minimal chunked-transfer writer around the socket file."""
     def __init__(self, raw):
@@ -202,7 +306,7 @@ class _Chunked:
 
 
 if __name__ == "__main__":
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
+    port = next((int(arg) for arg in sys.argv[1:] if arg.isdigit()), 8765)
     srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     print(f"mock gateway on http://127.0.0.1:{port}/v1", flush=True)
     srv.serve_forever()

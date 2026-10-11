@@ -8,6 +8,7 @@ enum TurnEvent: Sendable {
     case usage(Usage)
     /// A new request is about to start (round 0 is the first).
     case roundStarted(Int)
+    case checkpoint(TurnCheckpoint)
 }
 
 struct TurnOutcome: Sendable, Equatable {
@@ -31,15 +32,17 @@ struct TurnRunner: Sendable {
              messages initial: [APIMessage],
              effort: Effort?,
              sources: SourceStore? = nil,
+             checkpoint restored: TurnCheckpoint? = nil,
              onEvent: @MainActor (TurnEvent) -> Void) async throws -> TurnOutcome {
-        var messages = initial
-        var steps: [ToolStep] = []
+        var checkpoint = try restored ?? TurnCheckpoint(messages: initial)
+        var messages = try checkpoint.messages
+        var steps: [ToolStep] = checkpoint.steps
         var lastUsage: Usage?
         var hitCap = false
         var finalReasoning = ""
         let toolsEnabled = endpoint.model.supportsTools
 
-        var round = 0
+        var round = checkpoint.round
         while true {
             try Task.checkCancellation()
             let capped = round >= Self.maxToolRounds
@@ -52,13 +55,36 @@ struct TurnRunner: Sendable {
             }
             onEvent(.roundStarted(round))
 
-            var acc = StreamAccumulator()
-            for try await delta in streamer.stream(request, endpoint: endpoint) {
-                if let r = delta.reasoning, !r.isEmpty { onEvent(.reasoning(r)) }
-                if let c = delta.content, !c.isEmpty { onEvent(.content(c)) }
-                acc.apply(delta)
-                if let u = delta.usage { onEvent(.usage(u)) }
+            if restored != nil && round == restored?.round {
+                if !checkpoint.accumulator.reasoning.isEmpty { onEvent(.reasoning(checkpoint.accumulator.reasoning)) }
+                if !checkpoint.accumulator.content.isEmpty { onEvent(.content(checkpoint.accumulator.content)) }
             }
+            onEvent(.checkpoint(checkpoint))
+            if !checkpoint.streamDone {
+                if endpoint.supportsResumable && restored?.round == round && checkpoint.submissionStarted && checkpoint.requestID == nil {
+                    throw APIError.transport(String(localized: "The reply connection was lost before the server returned its request id. It cannot be safely retried automatically."))
+                }
+                checkpoint.submissionStarted = true
+                onEvent(.checkpoint(checkpoint))
+                let stream: AsyncThrowingStream<ChatDelta, Error>
+                if endpoint.supportsResumable, let resumable = streamer as? any ResumableChatStreaming {
+                    stream = resumable.stream(request, endpoint: endpoint, checkpoint: checkpoint)
+                } else {
+                    stream = streamer.stream(request, endpoint: endpoint)
+                }
+                for try await delta in stream {
+                    try Task.checkCancellation()
+                    guard try checkpoint.apply(delta) else { continue }
+                    if let r = delta.reasoning, !r.isEmpty { onEvent(.reasoning(r)) }
+                    if let c = delta.content, !c.isEmpty { onEvent(.content(c)) }
+                    if let u = delta.usage { onEvent(.usage(u)) }
+                    onEvent(.checkpoint(checkpoint))
+                }
+                try Task.checkCancellation()
+                checkpoint.streamDone = true
+                onEvent(.checkpoint(checkpoint))
+            }
+            let acc = checkpoint.accumulator
             if let u = acc.usage { lastUsage = u }
             finalReasoning = acc.reasoning
 
@@ -69,11 +95,14 @@ struct TurnRunner: Sendable {
             }
 
             onEvent(.toolsRequested(calls))
-            var records: [ToolCallRecord] = []
-            var outputs: [ToolOutput] = []
+            var records: [ToolCallRecord] = checkpoint.records
+            var outputs = records.map { ToolOutput(text: $0.result, isError: $0.isError) }
+            for record in records { onEvent(.toolFinished(record)) }
             for call in calls {
+                if records.contains(where: { $0.id == call.id }) { continue }
                 try Task.checkCancellation()
-                var out = await tools.execute(name: call.name, arguments: call.arguments)
+                var out = try await ToolExecutionRecovery.execute(call, using: tools)
+                try Task.checkCancellation()
                 var ids: [Int] = []
                 if let sources, !out.sources.isEmpty, !out.isError {
                     let infos = out.sources.map { sources.assign($0) }
@@ -85,10 +114,18 @@ struct TurnRunner: Sendable {
                 records.append(record)
                 outputs.append(out)
                 onEvent(.toolFinished(record))
+                checkpoint.records = records
+                onEvent(.checkpoint(checkpoint))
             }
             MessageAssembler.appendToolRound(to: &messages, assistantContent: acc.content, calls: calls, results: outputs)
             steps.append(ToolStep(assistantContent: acc.content, calls: records))
             round += 1
+            let priorReasoning = checkpoint.priorReasoning + acc.reasoning + "\n\n"
+            checkpoint = try TurnCheckpoint(messages: messages)
+            checkpoint.round = round
+            checkpoint.steps = steps
+            checkpoint.priorReasoning = priorReasoning
+            onEvent(.checkpoint(checkpoint))
         }
     }
 }

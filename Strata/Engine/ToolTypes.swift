@@ -17,8 +17,12 @@ struct ToolOutput: Sendable, Equatable {
 }
 
 protocol ToolExecuting: Sendable {
+    /// WebKit tools may need to wait for an active scene if no continued-processing lease is available.
+    var usesWebKit: Bool { get }
     func execute(name: String, arguments: String) async -> ToolOutput
 }
+
+extension ToolExecuting { var usesWebKit: Bool { false } }
 
 /// A persisted tool call plus its result, shown in the tool row and replayed in later requests.
 struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {

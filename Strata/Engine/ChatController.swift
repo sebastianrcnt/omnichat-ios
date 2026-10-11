@@ -37,6 +37,11 @@ final class ChatController {
     private var task: Task<Void, Never>?
     private var renderStates: [UUID: MessageRenderState] = [:]
     private var sourceStore: SourceStore?
+    private var activeMessage: Message?
+    private var activeContext: ModelContext?
+    private var activeEndpoint: Endpoint?
+    private var cancelTasks: [UUID: Task<Void, Never>] = [:]
+    private let background = ReplyBackgroundExecution()
 
     init(connections: ConnectionStore, settings: AppSettings,
          streamer: any ChatStreaming = ChatClient(), tools: any ToolExecuting = ToolRouter()) {
@@ -44,6 +49,7 @@ final class ChatController {
         self.settings = settings
         self.streamer = streamer
         self.tools = tools
+        ReplyBackgroundExecution.prepareNotifications()
     }
 
     /// Streaming-aware render models for a message, cached so finalized blocks keep their identity.
@@ -106,7 +112,59 @@ final class ChatController {
 
     func stop() {
         revealAllNow()
+        if let message = activeMessage, let context = activeContext, let endpoint = activeEndpoint {
+            message.stoppedByUser = true
+            message.cancelPending = message.resumeData != nil
+            try? context.save()
+            if message.cancelPending { cancelOnServer(message, endpoint: endpoint, context: context) }
+        }
         task?.cancel()
+    }
+
+    private func cancelOnServer(_ message: Message, endpoint: Endpoint, context: ModelContext) {
+        guard cancelTasks[message.id] == nil else { return }
+        guard let data = message.resumeData,
+              let checkpoint = try? JSONDecoder().decode(TurnCheckpoint.self, from: data),
+              let id = checkpoint.requestID,
+              let client = streamer as? any ResumableChatStreaming else {
+            message.cancelPending = false
+            message.resumeData = nil
+            try? context.save()
+            return
+        }
+        cancelTasks[message.id] = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await client.cancel(requestID: id, endpoint: endpoint)
+                    message.cancelPending = false
+                    message.resumeData = nil
+                    try? context.save()
+                    break
+                } catch {
+                    try? await RecoverySignals.shared.wait(seconds: 5)
+                }
+            }
+            self?.cancelTasks[message.id] = nil
+        }
+    }
+
+    /// Called at launch and foreground. Existing live tasks reconnect themselves.
+    func restorePending(context: ModelContext) {
+        guard let messages = try? context.fetch(FetchDescriptor<Message>()) else { return }
+        for message in messages where message.cancelPending {
+            if let conversation = message.conversation,
+               let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID) {
+                cancelOnServer(message, endpoint: endpoint, context: context)
+            }
+        }
+        guard !isStreaming else { return }
+        if let message = messages.sorted(by: { $0.createdAt < $1.createdAt }).first(where: {
+            $0.resumeData != nil && !$0.stoppedByUser && !$0.cancelPending
+        }), let conversation = message.conversation,
+           let data = message.resumeData,
+           let checkpoint = try? JSONDecoder().decode(TurnCheckpoint.self, from: data) {
+            generate(conversation: conversation, context: context, restoring: message, checkpoint: checkpoint)
+        }
     }
 
     // MARK: Generation
@@ -115,10 +173,10 @@ final class ChatController {
         (conversation.messages.map(\.sortIndex).max() ?? -1) + 1
     }
 
-    private func generate(conversation: Conversation, context: ModelContext) {
-        let assistant = Message(role: .assistant, sortIndex: nextIndex(conversation))
+    private func generate(conversation: Conversation, context: ModelContext, restoring: Message? = nil, checkpoint: TurnCheckpoint? = nil) {
+        let assistant = restoring ?? Message(role: .assistant, sortIndex: nextIndex(conversation))
         assistant.conversation = conversation
-        context.insert(assistant)
+        if restoring == nil { context.insert(assistant) }
         try? context.save()
 
         let render = MessageRenderState(smoothing: settings.smoothStreaming)
@@ -142,6 +200,10 @@ final class ChatController {
             finish(assistant, conversation: conversation, context: context, error: APIError.missingAPIKey(connection: endpoint.connectionName))
             return
         }
+        activeMessage = assistant
+        activeContext = context
+        activeEndpoint = endpoint
+        background.begin()
         let runner = TurnRunner(streamer: streamer, tools: tools)
         let effort = conversation.effort
         let messages = MessageAssembler.apiMessages(from: history, systemPrompt: endpoint.systemPrompt)
@@ -149,17 +211,18 @@ final class ChatController {
 
         task = Task { @MainActor [weak self] in
             guard let self else { return }
-            let tracker = TurnTracker(message: assistant, conversation: conversation, render: render)
+            let tracker = TurnTracker(message: assistant, conversation: conversation, render: render, checkpoint: checkpoint)
             self.sourceStore = sourceStore
             do {
-                let outcome = try await runner.run(endpoint: endpoint, messages: messages, effort: effort, sources: sourceStore) { event in
-                    self.handle(event, tracker: tracker)
+                let outcome = try await runner.run(endpoint: endpoint, messages: messages, effort: effort, sources: sourceStore, checkpoint: checkpoint) { event in
+                    self.handle(event, tracker: tracker, context: context)
                 }
                 tracker.finishThinking()
                 conversation.sources = sourceStore.items
                 tracker.complete(finalText: outcome.finalContent)
                 assistant.steps = tracker.completedSteps
                 if let usage = outcome.lastUsage { conversation.apply(usage) }
+                ReplyBackgroundExecution.notifyCompletion()
                 self.finish(assistant, conversation: conversation, context: context, error: nil, tracker: tracker)
             } catch is CancellationError {
                 tracker.finishThinking()
@@ -178,8 +241,20 @@ final class ChatController {
         }
     }
 
-    private func handle(_ event: TurnEvent, tracker: TurnTracker) {
+    private func handle(_ event: TurnEvent, tracker: TurnTracker, context: ModelContext) {
+        background.advance()
         switch event {
+        case .checkpoint(let checkpoint):
+            if activeEndpoint?.supportsResumable == true {
+                tracker.message.resumeData = try? JSONEncoder().encode(checkpoint)
+                tracker.message.text = checkpoint.accumulator.content
+                tracker.message.reasoning = checkpoint.priorReasoning + checkpoint.accumulator.reasoning
+                tracker.conversation.sources = sourceStore?.items ?? tracker.conversation.sources
+                try? context.save()
+                #if DEBUG
+                DebugHooks.recordResumeSmoke(tracker.message, checkpoint: checkpoint)
+                #endif
+            }
         case .roundStarted(let n):
             tracker.beginRound(n)
             pendingCalls = []
@@ -211,8 +286,16 @@ final class ChatController {
             message.errorText = error.localizedDescription
             message.errorNeedsSettings = (error as? APIError)?.needsSettings ?? false
         }
+        if !message.cancelPending { message.resumeData = nil }
+        background.end(success: error == nil && !message.stoppedByUser)
+        activeMessage = nil
+        activeContext = nil
+        activeEndpoint = nil
         conversation.updatedAt = .now
         try? context.save()
+        #if DEBUG
+        DebugHooks.recordResumeSmoke(message)
+        #endif
         phase = .idle
         pendingCalls = []
         activeMessageID = nil
@@ -224,7 +307,7 @@ final class ChatController {
 }
 
 /// Feeds streamed deltas into the render models and measures thinking time.
-/// Persisted fields (`text`, `reasoning`) are written once, when the turn ends.
+/// Resumable turns checkpoint persisted fields at each applied SSE boundary.
 @MainActor
 final class TurnTracker {
     let message: Message
@@ -240,10 +323,14 @@ final class TurnTracker {
     private var finishedRecords: [ToolCallRecord] = []
     private(set) var completedSteps: [ToolStep] = []
 
-    init(message: Message, conversation: Conversation, render: MessageRenderState) {
+    init(message: Message, conversation: Conversation, render: MessageRenderState, checkpoint: TurnCheckpoint? = nil) {
         self.message = message
         self.conversation = conversation
         self.render = render
+        completedSteps = checkpoint?.steps ?? []
+        reasoningAll = checkpoint?.priorReasoning ?? ""
+        if !reasoningAll.isEmpty { render.reasoning.append(reasoningAll) }
+        thinkingTotal = message.thinkingSeconds ?? 0
     }
 
     func beginRound(_ n: Int) {

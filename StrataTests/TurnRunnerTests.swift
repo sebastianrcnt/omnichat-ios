@@ -47,6 +47,7 @@ struct TurnRunnerTests {
         var events: [String] = []
         let outcome = try await runner.run(endpoint: endpoint(), messages: [.user("hi")], effort: .high) { e in
             switch e {
+            case .checkpoint: break
             case .reasoning: events.append("reasoning")
             case .content: events.append("content")
             case .toolsRequested: events.append("tools")

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Partial tool call from a streamed delta.
-struct ToolCallDelta: Equatable, Sendable {
+struct ToolCallDelta: Codable, Equatable, Sendable {
     var index: Int
     var id: String?
     var name: String?
@@ -16,6 +16,8 @@ struct ChatDelta: Equatable, Sendable {
     var usage: Usage?
     var finishReason: String?
     var isDone = false
+    var requestID: String?
+    var sequence: Int?
 
     var isEmpty: Bool {
         (content ?? "").isEmpty && (reasoning ?? "").isEmpty && toolCalls.isEmpty && usage == nil && finishReason == nil
@@ -81,7 +83,7 @@ enum ChatChunkDecoder {
 }
 
 /// Accumulates streamed deltas into the final content, reasoning, tool calls and usage.
-struct StreamAccumulator: Sendable {
+struct StreamAccumulator: Codable, Sendable {
     private(set) var content = ""
     private(set) var reasoning = ""
     private(set) var usage: Usage?

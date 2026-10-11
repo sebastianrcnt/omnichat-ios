@@ -3,6 +3,7 @@ import SwiftData
 
 /// Chat plus a left drawer with the history.
 struct RootView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.theme) private var theme
     @Environment(\.modelContext) private var context
     @Environment(ConnectionStore.self) private var connections
@@ -56,14 +57,28 @@ struct RootView: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .sheet(isPresented: $showSettings) { SettingsView() }
         .task {
+            controller.restorePending(context: context)
+            selectRecoveredConversation()
             // Fetch models for connections that have a key but no models yet.
             for c in connections.connections where c.models.isEmpty && connections.apiKey(for: c.id) != nil {
                 _ = try? await connections.refreshModels(for: c.id)
             }
         }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                controller.restorePending(context: context)
+                selectRecoveredConversation()
+            }
+        }
         .onChange(of: selected?.id) { _, _ in
             controller.forgetRenderStates(except: Set((selected?.messages ?? []).map(\.id)))
         }
+    }
+
+    private func selectRecoveredConversation() {
+        guard selected == nil, let id = controller.activeConversationID,
+              let conversations = try? context.fetch(FetchDescriptor<Conversation>()) else { return }
+        selected = conversations.first { $0.id == id }
     }
 
     private func openSettings() {
