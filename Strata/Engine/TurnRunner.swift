@@ -9,6 +9,19 @@ enum TurnEvent: Sendable {
     /// A new request is about to start (round 0 is the first).
     case roundStarted(Int)
     case checkpoint(TurnCheckpoint)
+    /// The conversation is about to be summarized (the request is being sent).
+    case compactionStarted
+    /// The notes are written. `anchorSteps` is how many tool steps of this turn the summary covers; `preTurn` says it
+    /// was made before the turn's own request, so it covers the history up to (not including) the user message.
+    case compacted(CompactionOutcome, anchorSteps: Int, preTurn: Bool)
+}
+
+/// Turns on compaction for a turn.
+struct CompactionSettings: Sendable {
+    var window: Int
+    var maxOutput: Int?
+    /// The context size before the turn's own message (see `ContextMeter`).
+    var meter: ContextMeter
 }
 
 struct TurnOutcome: Sendable, Equatable {
@@ -33,6 +46,8 @@ struct TurnRunner: Sendable {
     var tools: any ToolExecuting
     /// How many calls of one round run at once.
     var maxConcurrentTools = ToolRound.maxConcurrent
+    /// Compacts the history before a request when it has grown to the model's limit. Off when nil.
+    var compaction: CompactionSettings?
     /// Told about each request actually sent (not the replay of one restored from a checkpoint).
     var requestLog: (@MainActor @Sendable (RequestLogEvent) -> Void)?
 
@@ -52,18 +67,54 @@ struct TurnRunner: Sendable {
         var finalReasoning = ""
         let toolsEnabled = endpoint.model.supportsTools
 
-        var round = checkpoint.round
-        while true {
-            try Task.checkCancellation()
-            let capped = round >= Self.maxToolRounds
-            if capped { hitCap = true }
+        var meter = compaction?.meter ?? ContextMeter()
+        if restored != nil { meter = .estimate(messages) }
+        let compactionLimit = compaction.map { Compaction.limit(window: $0.window, maxOutput: $0.maxOutput) } ?? 0
+
+        func makeRequest(_ messages: [APIMessage], capped: Bool) -> ChatRequest {
             var request = ChatRequest(model: endpoint.model.id, messages: messages)
             if endpoint.model.supportsEffort, let effort { request.reasoningEffort = effort.apiValue }
             if toolsEnabled {
                 request.tools = ToolDefinition.standard // identical on every request
                 if capped { request.toolChoice = "none" }
             }
+            return request
+        }
+
+        var round = checkpoint.round
+        while true {
+            try Task.checkCancellation()
+            let capped = round >= Self.maxToolRounds
+            if capped { hitCap = true }
             try onEvent(.roundStarted(round))
+
+            // Checked before the turn and before each continuation: the history is summarized when the last reported
+            // usage plus what was appended since has reached the limit. A request already built (a replayed round) is
+            // never rebuilt.
+            if let compaction, compactionLimit > 0, checkpoint.requestData == nil, !checkpoint.streamDone {
+                let preTurn = round == 0 && restored == nil
+                let system = messages.first?.role == "system" ? [messages[0]] : []
+                var pending: APIMessage?
+                if preTurn, let last = messages.last, last.role == "user" { pending = last }
+                let history = messages.count - system.count - (pending == nil ? 0 : 1)
+                if (!preTurn || pending != nil), history > 0,
+                   Compaction.needsCompaction(meter, limit: compactionLimit, extraChars: pending.map(Compaction.messageChars) ?? 0) {
+                    try onEvent(.compactionStarted)
+                    let base = makeRequest(pending == nil ? messages : Array(messages.dropLast()), capped: capped)
+                    let log = requestLog
+                    let url = endpoint.baseURL.appendingPathComponent("chat/completions").absoluteString
+                    let outcome = try await Compactor(streamer: streamer).compact(
+                        endpoint: endpoint, base: base, meter: meter, window: compaction.window,
+                        extra: pending.map { [$0] } ?? []) { request in
+                        if let log, let body = try? request.encoded() { log(.sent(id: UUID(), url: url, body: body)) }
+                    }
+                    messages = system + outcome.replacement + (pending.map { [$0] } ?? [])
+                    meter = .estimate(messages)
+                    lastUsage = nil // what was reported belongs to the history before it
+                    try onEvent(.compacted(outcome, anchorSteps: steps.count, preTurn: preTurn))
+                }
+            }
+            let request = makeRequest(messages, capped: capped)
 
             if restored != nil && round == restored?.round {
                 if !checkpoint.accumulator.reasoning.isEmpty { try onEvent(.reasoning(checkpoint.accumulator.reasoning)) }
@@ -103,7 +154,7 @@ struct TurnRunner: Sendable {
                     guard try checkpoint.apply(delta) else { continue }
                     if let r = delta.reasoning, !r.isEmpty { try onEvent(.reasoning(r)) }
                     if let c = delta.content, !c.isEmpty { try onEvent(.content(c)) }
-                    if let u = delta.usage { try onEvent(.usage(u)) }
+                    if let u = delta.usage { meter.record(u); try onEvent(.usage(u)) }
                     try onEvent(.checkpoint(checkpoint))
                 }
                 try Task.checkCancellation()
@@ -112,6 +163,7 @@ struct TurnRunner: Sendable {
             }
             let acc = checkpoint.accumulator
             if let u = acc.usage { lastUsage = u }
+            let usageCounted = acc.usage.map { $0.promptTokens > 0 || $0.completionTokens > 0 } ?? false
             finalReasoning = acc.reasoning
 
             let calls = capped || !toolsEnabled ? [] : acc.toolCalls
@@ -171,7 +223,10 @@ struct TurnRunner: Sendable {
                 try onEvent(.checkpoint(checkpoint))
             }
             try Task.checkCancellation()
+            let before = messages.count
             MessageAssembler.appendToolRound(to: &messages, assistantContent: acc.content, calls: calls, results: outputs)
+            // The reported usage already counts the assistant message that made the calls; the results are new.
+            for m in messages[before...] where !(usageCounted && m.role == "assistant") { meter.append(m) }
             steps.append(ToolStep(assistantContent: acc.content, calls: records))
             round += 1
             let priorReasoning = checkpoint.priorReasoning + acc.reasoning + "\n\n"

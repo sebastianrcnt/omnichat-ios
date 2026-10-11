@@ -21,6 +21,8 @@ final class ChatController {
         case thinking
         case tool(name: String, argument: String)
         case writing
+        /// The model is writing handoff notes to summarize the conversation.
+        case compacting
     }
 
     private(set) var activeConversationID: UUID?
@@ -34,7 +36,11 @@ final class ChatController {
     private(set) var turnStart: Date?
     /// Sources of the running turn (conversation-wide ids), updated as tools finish.
     private(set) var liveSources: [SourceInfo] = []
-    var isStreaming: Bool { activeMessageID != nil }
+    var isStreaming: Bool { activeMessageID != nil || compactingConversationID != nil }
+    /// Set while "Summarize now" runs (an automatic compaction belongs to the turn that triggers it).
+    private(set) var compactingConversationID: UUID?
+    /// Why the last "Summarize now" failed, for the chat to show once.
+    var compactionError: String?
     /// For the diagnostics panel.
     var backgroundStateDescription: String { background.stateDescription }
 
@@ -274,10 +280,7 @@ final class ChatController {
         turnStart = .now
         liveSources = conversation.sources
 
-        let history = conversation.path(to: assistant.parentID)
-            .filter { $0.id != assistant.id }
-            .filter { $0.role == .user || !$0.text.isEmpty || !$0.steps.isEmpty }
-            .map(\.historyMessage)
+        let path = conversation.path(to: assistant.parentID).filter { $0.id != assistant.id }
         guard let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID) else {
             finish(assistant, conversation: conversation, context: context, error: APIError.missingModel)
             return
@@ -306,7 +309,8 @@ final class ChatController {
         }
         DiagnosticCounters.shared.beginTurn(conversation: conversation.id)
         let effort = conversation.effort
-        let messages = MessageAssembler.apiMessages(from: history, systemPrompt: ConversationDate.systemPrompt(base: endpoint.systemPrompt, day: conversation.systemDay))
+        let messages = apiHistory(path: path, conversation: conversation, endpoint: endpoint)
+        runner.compaction = compactionSettings(conversation: conversation, endpoint: endpoint, messages: messages, path: path)
         let sourceStore = SourceStore(items: conversation.sources)
 
         task = Task { @MainActor [weak self] in
@@ -373,6 +377,115 @@ final class ChatController {
             if let next = pendingCalls.first { phase = .tool(name: next.name, argument: next.primaryArgument) }
         case .usage(let u):
             tracker.conversation.apply(u)
+            tracker.conversation.lastUsageMessageID = tracker.message.id
+        case .compactionStarted:
+            tracker.finishThinking()
+            phase = .compacting
+        case .compacted(let outcome, let steps, let preTurn):
+            storeCompaction(outcome, conversation: tracker.conversation, anchor: preTurn
+                            ? tracker.conversation.message(id: tracker.message.parentID)?.parentID : tracker.message.id,
+                            anchorSteps: preTurn ? -1 : steps, automatic: true, context: context)
+            tracker.conversation.lastUsageMessageID = tracker.message.id
+            phase = .waiting
+        }
+    }
+
+    // MARK: Compaction
+
+    /// The messages to send for `path`: the conversation's latest compaction on it, then what follows its anchor.
+    private func apiHistory(path: [Message], conversation: Conversation, endpoint: Endpoint) -> [APIMessage] {
+        let system = ConversationDate.systemPrompt(base: endpoint.systemPrompt, day: conversation.systemDay)
+        if let compacted = conversation.compactedHistory(path: path) {
+            return MessageAssembler.apiMessages(from: compacted.rest, systemPrompt: system, replacing: compacted.replacement)
+        }
+        let history = path.filter { $0.role == .user || !$0.text.isEmpty || !$0.steps.isEmpty }.map(\.historyMessage)
+        return MessageAssembler.apiMessages(from: history, systemPrompt: system)
+    }
+
+    /// The window, the room for an answer and the context size before this turn's own message.
+    private func contextWindow(for endpoint: Endpoint) -> Int {
+        var window = endpoint.model.effectiveContextLength(default: settings.defaultContextLength)
+        #if DEBUG
+        if let n = Int(DebugHooks.value("StrataContextWindow") ?? ""), n > 0 { window = n }
+        #endif
+        return window
+    }
+
+    private func compactionSettings(conversation: Conversation, endpoint: Endpoint, messages: [APIMessage], path: [Message]) -> CompactionSettings {
+        let window = contextWindow(for: endpoint)
+        // The last reported usage belongs to the request that ended just before this turn's user message, when it was
+        // made on this branch; otherwise everything is an estimate.
+        let history = messages.last?.role == "user" ? Array(messages.dropLast()) : messages
+        var meter = ContextMeter.estimate(history)
+        if let usage = conversation.lastUsage, let id = conversation.lastUsageMessageID,
+           path.dropLast().last?.id == id {
+            meter = ContextMeter(usage: usage)
+        }
+        return CompactionSettings(window: window, maxOutput: endpoint.model.maxOutputTokens, meter: meter)
+    }
+
+    /// Saves a compaction, replacing one made at the same point (a turn restored after the notes were written), and
+    /// moves the context ring to the size after it.
+    func storeCompaction(_ outcome: CompactionOutcome, conversation: Conversation, anchor: UUID?, anchorSteps: Int,
+                         automatic: Bool, context: ModelContext) {
+        conversation.apply(Usage(promptTokens: outcome.tokensAfter, completionTokens: 0))
+        guard let anchor else { return }
+        for old in conversation.compactions where old.anchorMessageID == anchor && old.anchorSteps == anchorSteps {
+            context.delete(old)
+        }
+        guard let record = try? CompactionRecord(anchorMessageID: anchor, anchorSteps: anchorSteps, notes: outcome.notes,
+                                                 replacement: outcome.replacement, tokensBefore: outcome.tokensBefore,
+                                                 tokensAfter: outcome.tokensAfter, isAutomatic: automatic) else { return }
+        context.insert(record)
+        record.conversation = conversation
+        try? context.save()
+    }
+
+    /// "Summarize now": compacts the conversation as it stands, without a turn.
+    func compactNow(conversation: Conversation, context: ModelContext) {
+        guard !isStreaming else { return }
+        conversation.ensureTree()
+        let path = conversation.activePath
+        guard let leaf = path.last,
+              let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID),
+              !Self.needsKey(endpoint, connections: connections) else { return }
+        let messages = apiHistory(path: path, conversation: conversation, endpoint: endpoint)
+        let window = contextWindow(for: endpoint)
+        var request = ChatRequest(model: endpoint.model.id, messages: messages)
+        if endpoint.model.supportsEffort { request.reasoningEffort = conversation.effort.apiValue }
+        if endpoint.model.supportsTools { request.tools = ToolDefinition.standard }
+        compactingConversationID = conversation.id
+        activeConversationID = conversation.id
+        phase = .compacting
+        turnStart = .now
+        compactionError = nil
+        let streamer = streamer
+        let ring = requestRing
+        let conversationID = conversation.id
+        let url = endpoint.baseURL.appendingPathComponent("chat/completions").absoluteString
+        let meter = ContextMeter.estimate(messages)
+        let usable = conversation.lastUsage.flatMap { conversation.lastUsageMessageID == leaf.id ? $0 : nil }
+        task = Task { @MainActor [weak self] in
+            defer {
+                self?.compactingConversationID = nil
+                self?.activeConversationID = nil
+                self?.phase = .idle
+                self?.turnStart = nil
+                self?.task = nil
+            }
+            do {
+                let outcome = try await Compactor(streamer: streamer).compact(
+                    endpoint: endpoint, base: request, meter: usable.map { ContextMeter(usage: $0) } ?? meter, window: window) { sent in
+                    if let body = try? sent.encoded() { ring.record(conversationID: conversationID, url: url, body: body, id: UUID()) }
+                }
+                self?.storeCompaction(outcome, conversation: conversation, anchor: leaf.id, anchorSteps: -1, automatic: false, context: context)
+                conversation.lastUsageMessageID = leaf.id
+                try? context.save()
+            } catch is CancellationError {
+                // Stopped: nothing changed.
+            } catch {
+                self?.compactionError = error.localizedDescription
+            }
         }
     }
 

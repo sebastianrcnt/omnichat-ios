@@ -238,6 +238,7 @@ struct AssistantMessage: View {
     private var phaseLabel: String {
         switch content.phase {
         case .tool(let name, _): name == ToolNames.webSearch ? String(localized: "Searching") : String(localized: "Reading")
+        case .compacting: String(localized: "Summarizing conversation…")
         default: String(localized: "Thinking")
         }
     }

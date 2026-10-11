@@ -82,6 +82,7 @@ final class ConnectionStore {
         var merged: [ModelInfo] = entries.map { entry in
             if var existing = conn.models.first(where: { $0.id == entry.id }) {
                 existing.fetchedContextLength = entry.contextLength ?? existing.fetchedContextLength
+                existing.maxOutputTokens = entry.maxOutputTokens ?? existing.maxOutputTokens
                 if !existing.supportsImagesUserSet, let images = entry.supportsImages ?? (conn.isStrata ? true : nil) {
                     existing.supportsImages = images
                 }

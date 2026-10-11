@@ -140,10 +140,12 @@ struct HistoryMessage: Sendable, Equatable {
 
 enum MessageAssembler {
     /// Convert stored conversation messages to API messages, expanding tool steps.
-    static func apiMessages(from history: [HistoryMessage], systemPrompt: String = "") -> [APIMessage] {
+    /// - Parameter replacing: messages that stand for the history before `history` (a compaction's replacement).
+    static func apiMessages(from history: [HistoryMessage], systemPrompt: String = "", replacing: [APIMessage] = []) -> [APIMessage] {
         var out: [APIMessage] = []
         let trimmedPrompt = systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedPrompt.isEmpty { out.append(.system(trimmedPrompt)) }
+        out.append(contentsOf: replacing)
         for m in history {
             switch m.role {
             case "user":

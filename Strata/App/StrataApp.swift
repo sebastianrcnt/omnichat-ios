@@ -16,7 +16,7 @@ struct StrataApp: App {
         DebugHooks.applyLaunchConfiguration(connections: connections, settings: settings)
         #endif
         do {
-            container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self)
+            container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self, CompactionRecord.self)
         } catch {
             fatalError("Could not create the SwiftData container: \(error)")
         }

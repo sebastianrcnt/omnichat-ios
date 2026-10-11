@@ -7,6 +7,8 @@ struct ModelInfo: Codable, Identifiable, Hashable, Sendable {
     var fetchedContextLength: Int?
     /// User override of the context length.
     var contextLength: Int?
+    /// The largest answer the model can give, when `/models` says (compaction keeps room for it).
+    var maxOutputTokens: Int?
     var supportsImages: Bool
     /// The user set `supportsImages` by hand; `/models` never overrides it.
     var supportsImagesUserSet: Bool = false
@@ -35,6 +37,7 @@ struct ModelInfo: Codable, Identifiable, Hashable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
         fetchedContextLength = try c.decodeIfPresent(Int.self, forKey: .fetchedContextLength)
+        maxOutputTokens = try c.decodeIfPresent(Int.self, forKey: .maxOutputTokens)
         contextLength = try c.decodeIfPresent(Int.self, forKey: .contextLength)
         supportsImages = try c.decodeIfPresent(Bool.self, forKey: .supportsImages) ?? false
         supportsImagesUserSet = try c.decodeIfPresent(Bool.self, forKey: .supportsImagesUserSet) ?? false

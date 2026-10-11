@@ -301,10 +301,26 @@ class Handler(BaseHTTPRequestHandler):
 
     def generate(self, req, user_text, tail, rounds, tools_enabled):
         plain = "plain" in user_text.lower() or not tools_enabled
+        finished = False
         prompt_tokens = 400 + 900 * rounds
         many = "many" in user_text.lower() and not plain  # 7 tool rounds with a preamble each, then the answer
         last_tool_round = 6 if many else 1
-        if many and rounds <= last_tool_round:
+        if user_text.startswith("Context checkpoint"):
+            # Handoff notes (compaction): a short, well-formed set, ending in a list, not a heading.
+            self.stream_reasoning("Writing the handoff notes.\n\n")
+            self.stream_content("## Goal\nThe user is researching Liquid Glass in SwiftUI and wants practical guidance.\n\n"
+                                "## Progress\n- Searched the web and read Apple's page on applying Liquid Glass to custom views [1].\n"
+                                "- Learned: use glassEffect on controls, group them in a GlassEffectContainer, morph with glassEffectID; never put body text on glass.\n\n"
+                                "## Remaining\n- Answer the latest question using these findings.\n\n"
+                                "## Sources\n- [1] Applying Liquid Glass to custom views - https://developer.apple.com/documentation/swiftui/applying-liquid-glass-to-custom-views\n")
+            usage = {"prompt_tokens": 300, "completion_tokens": 160}
+            finished = True
+        elif user_text.startswith("[Strata handoff notes]"):
+            self.stream_reasoning("The notes already hold the findings.\n\n")
+            self.stream_content("Continuing from the notes: use Liquid Glass on **controls** only, grouped in a container, never behind body text [1].")
+            usage = {"prompt_tokens": 500, "completion_tokens": 40}
+            finished = True
+        elif many and rounds <= last_tool_round:
             self.stream_reasoning(f"Round {rounds + 1}: decide what to look at next.\n\n")
             self.stream_content(f"Checking source set {rounds + 1}.")
             if rounds % 2 == 0:
@@ -348,7 +364,7 @@ class Handler(BaseHTTPRequestHandler):
             usage = {"prompt_tokens": prompt_tokens, "completion_tokens": 420,
                      "prompt_tokens_details": {"cached_tokens": prompt_tokens - 300},
                      "completion_tokens_details": {"reasoning_tokens": 80}}
-        sse(self, chunk({}, finish="tool_calls" if (not plain and rounds <= (last_tool_round if many else 1)) else "stop"))
+        sse(self, chunk({}, finish="tool_calls" if (not finished and not plain and rounds <= (last_tool_round if many else 1)) else "stop"))
         if req.get("stream_options", {}).get("include_usage"):
             sse(self, {"id": "mock", "object": "chat.completion.chunk", "model": "strata-mock", "choices": [], "usage": usage})
         self.wfile.write(b"data: [DONE]\n\n")

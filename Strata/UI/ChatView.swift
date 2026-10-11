@@ -30,6 +30,7 @@ struct ChatView: View {
     @State private var editing: Message?
     @State private var savedDraft: (text: String, attachments: [ComposerAttachment])?
     @State private var timelineMessage: Message?
+    @State private var compactionNotes: CompactionRecord?
     @State private var citationItem: SourceListItem?
     @State private var sourcesItem: SourceListItem?
     @State private var showRename = false
@@ -147,6 +148,15 @@ struct ChatView: View {
                               seconds: message.thinkingSeconds)
                     .environment(\.theme, theme)
             }
+            .sheet(item: $compactionNotes) { record in
+                CompactionNotesSheet(notes: record.notes, tokensBefore: record.tokensBefore, tokensAfter: record.tokensAfter,
+                                     date: record.createdAt, isAutomatic: record.isAutomatic)
+                    .environment(\.theme, theme)
+            }
+            .alert("Couldn't summarize", isPresented: Binding(get: { controller.compactionError != nil },
+                                                               set: { if !$0 { controller.compactionError = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: { Text(controller.compactionError ?? "") }
             .sheet(item: $citationItem) { item in
                 SourcesSheet(title: item.sources.count == 1 ? "Source" : "Sources", sources: item.sources)
             }
@@ -255,6 +265,10 @@ struct ChatView: View {
             }
             .disabled(controller.isStreaming)
             ShareLink(item: c.transcript) { Label("Share as text", systemImage: "square.and.arrow.up") }
+            Button("Summarize now", systemImage: "text.line.first.and.arrowtriangle.forward") {
+                controller.compactNow(conversation: c, context: context)
+            }
+            .disabled(controller.isStreaming || c.activePath.isEmpty)
             Button("Conversation details", systemImage: "info.circle") { showDetails = true }
             Button("Delete", systemImage: "trash", role: .destructive) { confirmDelete = true }
             Divider()
@@ -272,8 +286,15 @@ struct ChatView: View {
                 if let conversation {
                     let tree = conversation.treeIndex
                     let items = conversation.activePath
+                    let summaries = conversation.compactions(anchoredIn: items)
                     ForEach(items) { message in
                         row(message, isLast: message.id == items.last?.id, branch: tree.branch(of: message.id))
+                        ForEach(summaries[message.id] ?? []) { record in
+                            CompactionDivider { compactionNotes = record }
+                        }
+                    }
+                    if controller.compactingConversationID == conversation.id {
+                        CompactionStatusRow(start: controller.turnStart ?? .now)
                     }
                 }
                 Color.clear.frame(height: DS.Spacing.lg).id("bottom")
@@ -461,7 +482,18 @@ struct ChatView: View {
             }
             return
         }
-        guard let sheet = DebugHooks.openSheet, sheet.hasPrefix("timeline") || ["usage", "rename", "details"].contains(sheet) else { return }
+        guard let sheet = DebugHooks.openSheet, sheet.hasPrefix("timeline") || ["usage", "rename", "details", "compaction", "summarize"].contains(sheet) else { return }
+        if sheet == "compaction" {
+            if controller.activeMessageID == nil, let r = conversation?.sortedCompactions.last { compactionNotes = r }
+            return
+        }
+        if sheet == "summarize" { // "Summarize now" once the first answer is in
+            if controller.activeMessageID == nil, !branchDebugDone, let c = conversation, c.leafMessage?.role == .assistant {
+                branchDebugDone = true
+                controller.compactNow(conversation: c, context: context)
+            }
+            return
+        }
         if sheet == "rename" {
             if controller.activeMessageID == nil, let c = conversation, c.messages.contains(where: { $0.role == .assistant }) {
                 renameText = "score가 NULL인 행은 어떻게 처리되는지 SQL 집계 함수 동작 정리"

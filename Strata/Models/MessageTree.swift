@@ -6,8 +6,9 @@ import Foundation
 /// from the root to the leaf, so continuing any branch replays exactly the messages that were on it, byte for byte, and
 /// the provider's prompt cache still matches.
 ///
-/// Context compaction (later) must be a node on this path, not a rewrite of history: the summary becomes part of the
-/// path and the messages before it stay in the tree.
+/// Context compaction does not rewrite history. A `CompactionRecord` is anchored to a message on the path: the history
+/// sent from there on is the record's replacement followed by the messages after the anchor, and the messages before it
+/// stay in the tree (and on screen). A branch that does not pass through the anchor is not affected by it.
 
 /// What the tree logic needs of a message.
 struct TreeNode: Equatable, Sendable {

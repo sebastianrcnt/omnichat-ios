@@ -89,6 +89,7 @@ enum ModelsAPI {
     struct Entry: Sendable, Equatable {
         var id: String
         var contextLength: Int?
+        var maxOutputTokens: Int?
         /// From `architecture.input_modalities` / `architecture.modality`; nil when the server does not say.
         var supportsImages: Bool?
     }
@@ -121,7 +122,12 @@ enum ModelsAPI {
                 if let d = item[k] as? Double { ctx = Int(d); break }
             }
             if ctx == nil, let meta = item["meta"] as? [String: Any], let n = meta["n_ctx_train"] as? Int { ctx = n }
-            return Entry(id: id, contextLength: ctx, supportsImages: imageSupport(in: item))
+            var maxOut: Int?
+            for k in ["max_output_tokens", "max_completion_tokens", "max_tokens"] {
+                if let n = item[k] as? Int, n > 0 { maxOut = n; break }
+            }
+            if maxOut == nil, let top = item["top_provider"] as? [String: Any], let n = top["max_completion_tokens"] as? Int, n > 0 { maxOut = n }
+            return Entry(id: id, contextLength: ctx, maxOutputTokens: maxOut, supportsImages: imageSupport(in: item))
         }
     }
 

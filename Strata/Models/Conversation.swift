@@ -27,10 +27,14 @@ final class Conversation {
     var lastCompletionTokens: Int?
     var lastCachedTokens: Int?
     var lastReasoningTokens: Int?
+    /// The answer whose request that usage belongs to, so a branch that did not produce it does not trust it.
+    var lastUsageMessageID: UUID?
     /// JSON-encoded `[SourceInfo]`: web sources numbered across the whole conversation.
     @Attribute(.externalStorage) var sourcesData: Data?
     @Relationship(deleteRule: .cascade, inverse: \Message.conversation)
     var messages: [Message] = []
+    @Relationship(deleteRule: .cascade, inverse: \CompactionRecord.conversation)
+    var compactions: [CompactionRecord] = []
 
     init(title: String = "", connectionID: UUID? = nil, modelID: String? = nil, effort: Effort = .default) {
         self.id = UUID()
