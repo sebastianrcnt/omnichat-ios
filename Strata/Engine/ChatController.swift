@@ -46,6 +46,9 @@ final class ChatController {
         self.tools = tools
     }
 
+    /// Wait for the running turn to end (tests).
+    func waitUntilIdle() async { await task?.value }
+
     /// Streaming-aware render models for a message, cached so finalized blocks keep their identity.
     func renderState(for message: Message) -> MessageRenderState {
         if let existing = renderStates[message.id] { return existing }
@@ -161,7 +164,8 @@ final class ChatController {
                 assistant.steps = tracker.completedSteps
                 if let usage = outcome.lastUsage { conversation.apply(usage) }
                 self.finish(assistant, conversation: conversation, context: context, error: nil, tracker: tracker)
-            } catch is CancellationError {
+            } catch where error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
+                // Stop in any state (first byte, thinking, writing, tool): keep what is there, mark it Stopped.
                 tracker.finishThinking()
                 tracker.complete(finalText: nil)
                 conversation.sources = sourceStore.items

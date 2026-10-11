@@ -59,6 +59,8 @@ struct TurnRunner: Sendable {
                 acc.apply(delta)
                 if let u = delta.usage { onEvent(.usage(u)) }
             }
+            // A cancelled stream finishes quietly; make that visible as a cancellation, not a complete answer.
+            try Task.checkCancellation()
             if let u = acc.usage { lastUsage = u }
             finalReasoning = acc.reasoning
 
@@ -74,6 +76,7 @@ struct TurnRunner: Sendable {
             for call in calls {
                 try Task.checkCancellation()
                 var out = await tools.execute(name: call.name, arguments: call.arguments)
+                try Task.checkCancellation() // stopped mid-tool: drop the half-finished result
                 var ids: [Int] = []
                 if let sources, !out.sources.isEmpty, !out.isError {
                     let infos = out.sources.map { sources.assign($0) }
