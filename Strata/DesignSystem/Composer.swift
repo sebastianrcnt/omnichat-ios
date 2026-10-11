@@ -89,7 +89,7 @@ struct ComposerBar<Chip: View>: View {
         if isStreaming {
             Button(action: onStop) {
                 Image(systemName: "stop.fill").font(.system(size: DS.IconSize.composerIcon, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(theme.onAccent)
                     .frame(width: d, height: d)
                     .glassEffect(.regular.tint(theme.accent).interactive(), in: Circle())
                     .contentShape(Circle().inset(by: -4))
@@ -99,7 +99,7 @@ struct ComposerBar<Chip: View>: View {
         } else {
             Button(action: onSend) {
                 Image(systemName: "arrow.up").font(.system(size: DS.IconSize.composerIcon, weight: .bold))
-                    .foregroundStyle(canSend ? Color.white : theme.textSecondary)
+                    .foregroundStyle(canSend ? theme.onAccent : theme.textSecondary)
                     .frame(width: d, height: d)
                     .background {
                         if canSend {

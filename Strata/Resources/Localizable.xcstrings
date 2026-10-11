@@ -114,6 +114,7 @@
     "Add model": {},
     "Add photo": {},
     "Add photos": {},
+    "Answer body, serif": {},
     "Any OpenAI-compatible endpoint. API keys are stored in the Keychain.": {},
     "Assistant": {},
     "Back": {},
@@ -126,6 +127,7 @@
     "Camera": {},
     "Cancel": {},
     "Capabilities": {},
+    "Caption": {},
     "Clear search": {},
     "Close": {},
     "Code": {},
@@ -178,6 +180,7 @@
       }
     },
     "Fetching…": {},
+    "Fields": {},
     "Final answer": {},
     "Green": {},
     "HTTP %lld: %@": {},
@@ -258,6 +261,7 @@
     "Reset to default": {},
     "Resumable replies": {},
     "Reveal text at a steady pace instead of in bursts.": {},
+    "Reveal text at a steady pace.": {},
     "Save": {},
     "Save key": {},
     "Saved": {},
@@ -317,6 +321,8 @@
     "Title": {},
     "Today": {},
     "Turn on image support": {},
+    "UI small": {},
+    "UI text": {},
     "Unexpected response from /models.": {},
     "Unpin": {},
     "Usage": {},
@@ -337,9 +343,11 @@
     "https://host/v1": {
       "shouldTranslate": false
     },
+    "let mono = 1": {},
     "model-id": {
       "shouldTranslate": false
     },
+    "sk-": {},
     "sk-…": {
       "shouldTranslate": false
     },

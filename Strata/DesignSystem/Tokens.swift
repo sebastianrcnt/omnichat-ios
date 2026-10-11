@@ -14,6 +14,8 @@ enum DS {
         static let xxl: CGFloat = 32
         /// Horizontal page margin for chat content.
         static let page: CGFloat = 16
+        /// Space kept clear above the composer for the jump-to-bottom button.
+        static let composerClearance: CGFloat = 150
     }
 
     // MARK: Corner radii
@@ -62,6 +64,8 @@ enum DS {
         /// Composer chip label.
         static let chip = Font.system(size: 15)
         static let uiCaption = Font.system(.caption)
+        /// Initial in a monogram disc (the favicon fallback).
+        static let monogram = Font.system(size: 10, weight: .bold)
         static let sectionHeader = Font.system(.footnote).weight(.medium)
         static let title = Font.system(.headline)
         static let largeTitle = Font.system(.title2, design: .serif).weight(.medium)
@@ -125,6 +129,10 @@ struct DSTheme: Equatable {
     /// Subtle fill for disabled controls.
     /// Capsule behind inline citation chips.
     var chipFill: Color { fillTertiary }
+    /// Glyph on an accent-filled control (send, stop, selected swatch).
+    var onAccent: Color { .white }
+    /// Dark backing for badges drawn over photos.
+    var photoBadgeBackdrop: Color { .black.opacity(0.6) }
     /// Light disc behind a site icon so dark glyphs stay visible in dark mode.
     var faviconBackdrop: Color { Color(light: 0xFFFFFF, dark: 0xF2F2F2) }
     var fillTertiary: Color { Color(light: 0xE4E4E8, dark: 0x2E2E32) }
@@ -175,5 +183,47 @@ extension View {
             .tint(accent)
             .preferredColorScheme(scheme)
             .background(DSTheme(accent: accent).background)
+    }
+}
+
+
+// MARK: - Previews
+
+#Preview("Tokens · Light") { TokensPreview().previewStyle(.light) }
+#Preview("Tokens · Dark") { TokensPreview().previewStyle(.dark) }
+#Preview("Tokens · Dark · Orange") { TokensPreview().previewStyle(.dark, accent: Color(hex: "#F97316")) }
+
+/// Every color role and type role in one place.
+private struct TokensPreview: View {
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        let colors: [(String, Color)] = [
+            ("accent", theme.accent), ("accentMuted", theme.accentMuted), ("accentOnTint", theme.accentOnTint),
+            ("background", theme.background), ("surface", theme.surface), ("surfaceRaised", theme.surfaceRaised),
+            ("bubble", theme.bubble), ("separator", theme.separator), ("chipFill", theme.chipFill),
+            ("textPrimary", theme.textPrimary), ("textSecondary", theme.textSecondary), ("textTertiary", theme.textTertiary),
+            ("destructive", theme.destructive), ("warning", theme.warning), ("onAccent", theme.onAccent),
+            ("faviconBackdrop", theme.faviconBackdrop),
+        ]
+        ScrollView {
+            VStack(alignment: .leading, spacing: DS.Spacing.lg) {
+                FlowLayout(spacing: DS.Spacing.sm) {
+                    ForEach(colors, id: \.0) { name, color in
+                        HStack(spacing: DS.Spacing.xs) {
+                            RoundedRectangle(cornerRadius: DS.Radius.thumbnail / 2).fill(color).frame(width: DS.IconSize.md, height: DS.IconSize.md)
+                                .overlay(RoundedRectangle(cornerRadius: DS.Radius.thumbnail / 2).stroke(theme.separator))
+                            Text(name).font(DS.Typography.uiCaption).foregroundStyle(theme.textSecondary)
+                        }
+                    }
+                }
+                Text("Answer body, serif").font(DS.Typography.answer).foregroundStyle(theme.textPrimary)
+                Text("UI text").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
+                Text("UI small").font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary)
+                Text("Caption").font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
+                Text("let mono = 1").font(DS.Typography.mono).foregroundStyle(theme.textPrimary)
+            }
+            .padding()
+        }
     }
 }

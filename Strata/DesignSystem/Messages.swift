@@ -250,6 +250,13 @@ struct AssistantMessage: View {
                                canRegenerate: true),
                 render: MessageRenderState(text: "No. Naver does **not** expose order history [1][2].\n\n- Login API [1]\n- Blog API [9]\n\n```swift\nlet x = 1\n```",
                                            reasoning: "Checking the docs."))
+            AssistantMessage(
+                content: .init(segments: [
+                    .init(index: 0, kind: .thinking, text: "Need current docs.", seconds: 7),
+                    .init(index: 1, kind: .text, text: "Let me check the official guidance."),
+                    .init(index: 2, kind: .toolRound, calls: [.init(id: "2", name: "web_search", arguments: "{\"query\":\"liquid glass\"}", result: "", isError: false, sourceIDs: [1, 2])]),
+                ]),
+                render: MessageRenderState(text: "Use glass on **controls** only [1]."))
             AssistantMessage(content: .init(isStreaming: true, phase: .thinking, turnStart: .now),
                              render: MessageRenderState(reasoning: "Let me think about the plan"))
             AssistantMessage(content: .init(errorText: "Add an API key for Strata in Settings.", errorNeedsSettings: true), render: MessageRenderState())

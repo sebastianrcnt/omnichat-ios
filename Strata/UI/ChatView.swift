@@ -322,7 +322,7 @@ struct ChatView: View {
                 .transition(.scale.combined(with: .opacity))
             }
         }
-        .padding(.bottom, 150)
+        .padding(.bottom, DS.Spacing.composerClearance)
         .animation(DS.Motion.snappy, value: atBottom)
     }
 

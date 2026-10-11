@@ -311,8 +311,13 @@ struct CodeViewer: View {
     }
 }
 
-#Preview("Light · collapsed") { codePreview.previewStyle(.light) }
-#Preview("Dark · streaming") { codePreview.previewStyle(.dark, accent: Color(hex: "#F97316")) }
+#Preview("Light · Purple") { codePreview.previewStyle(.light) }
+#Preview("Dark · Purple") { codePreview.previewStyle(.dark) }
+#Preview("Dark · Orange") { codePreview.previewStyle(.dark, accent: Color(hex: "#F97316")) }
+#Preview("Viewer · Dark") {
+    CodeViewer(content: .init(language: "swift", code: (1...30).map { "let step\($0) = configure(glassEffect: .regular, id: \($0))" }.joined(separator: "\n")))
+        .previewStyle(.dark)
+}
 
 @MainActor private var codePreview: some View {
     let long = (1...40).map { "let value\($0) = compute(\($0)) // a fairly long line to scroll horizontally" }.joined(separator: "\n")

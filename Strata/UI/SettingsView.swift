@@ -86,7 +86,7 @@ struct SettingsView: View {
                     Circle().fill(Color(hex: preset.hex))
                         .frame(width: DS.IconSize.lg + DS.Spacing.sm, height: DS.IconSize.lg + DS.Spacing.sm)
                         .overlay {
-                            if selected { Image(systemName: "checkmark").font(.system(size: DS.IconSize.sm, weight: .bold)).foregroundStyle(.white) }
+                            if selected { Image(systemName: "checkmark").font(.system(size: DS.IconSize.sm, weight: .bold)).foregroundStyle(theme.onAccent) }
                         }
                 }
                 .buttonStyle(.plain)

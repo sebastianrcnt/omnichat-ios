@@ -252,6 +252,11 @@ struct UsageCard: View {
         GroupedSection(header: "Context") {
             UsageCard(title: "Context window", valueText: "37% used", fraction: 0.37, caption: "149k of 400k tokens used")
         }
+        GroupedSection(header: "Fields") {
+            SettingsToggleRow(title: "Smooth streaming", subtitle: "Reveal text at a steady pace.", isOn: .constant(true))
+            SettingsFieldRow(title: "Name", prompt: "Strata", text: .constant("My gateway"))
+            SettingsFieldRow(title: "API key", prompt: "sk-", text: .constant("secret"), isSecure: true)
+        }
         GroupedSection(header: "Effort", footer: "Higher effort thinks longer.") {
             SettingsRow(title: "Medium", subtitle: "Recommended", isChecked: true, action: {})
             SettingsRow(title: "High", value: "8,192", showsChevron: true, action: {})

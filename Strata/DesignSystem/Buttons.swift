@@ -124,7 +124,7 @@ struct AttachmentThumbnail: View {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: DS.IconSize.md))
                         .symbolRenderingMode(.palette)
-                        .foregroundStyle(.white, .black.opacity(0.6))
+                        .foregroundStyle(theme.onAccent, theme.photoBadgeBackdrop)
                 }
                 .padding(DS.Spacing.xs)
                 .accessibilityLabel(Text("Remove photo"))
@@ -156,8 +156,21 @@ struct AttachmentThumbnail: View {
                 ContextRingButton(fraction: f) {}
             }
         }
+        HStack(spacing: DS.Spacing.md) {
+            GlassIconMenu(systemName: "ellipsis", label: "More") { Button("New chat") {}; Button("Rename") {} }
+            GlassIconMenuPlain(systemName: "ellipsis", label: "More") { Button("Copy") {} }
+            AttachmentThumbnail(data: previewJPEG(.systemTeal)) {}
+            AttachmentThumbnail(data: previewJPEG(.systemOrange), size: DS.IconSize.cameraTile / 2)
+        }
     }
     .padding()
+}
+
+@MainActor private func previewJPEG(_ color: UIColor) -> Data {
+    let renderer = UIGraphicsImageRenderer(size: CGSize(width: 96, height: 96))
+    return renderer.jpegData(withCompressionQuality: 0.8) { ctx in
+        color.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: 96, height: 96))
+    }
 }
 
 /// Circular glass button that opens a menu.

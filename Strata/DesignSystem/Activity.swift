@@ -40,7 +40,7 @@ struct FaviconView: View {
                     .clipShape(Circle())
             } else {
                 Text(String(host.first.map { Character($0.uppercased()) } ?? "?"))
-                    .font(.system(size: 10, weight: .bold))
+                    .font(DS.Typography.monogram)
                     .foregroundStyle(theme.accentOnTint)
                     .frame(width: DS.IconSize.favicon, height: DS.IconSize.favicon)
                     .background(theme.accentMuted, in: Circle())
@@ -480,6 +480,19 @@ struct SourcesSheet: View {
 @MainActor private var previewSources: [SourceInfo] {
     [SourceInfo(id: 1, title: "Applying Liquid Glass", url: "https://developer.apple.com/documentation/swiftui", snippet: "Configure, combine, and morph views."),
      SourceInfo(id: 2, title: "Hacking with Swift", url: "https://www.hackingwithswift.com/", snippet: "Learn SwiftUI.")]
+}
+
+#Preview("Timeline · Dark") { timelinePreview.previewStyle(.dark) }
+#Preview("Timeline · Light · Orange") { timelinePreview.previewStyle(.light, accent: Color(hex: "#F97316")) }
+#Preview("Sources sheet · Dark") { SourcesSheet(title: "Sources", sources: previewSources).previewStyle(.dark) }
+
+@MainActor private var timelinePreview: some View {
+    let sources = Dictionary(uniqueKeysWithValues: previewSources.map { ($0.id, $0) })
+    let call = ToolCallRecord(id: "a", name: "web_search", arguments: "{\"query\":\"liquid glass\"}", result: "", isError: false, sourceIDs: [1, 2])
+    return TimelineSheet(reasoning: ReasoningChunkModel(text: "The user wants current information.\n\nI should search first.\n\nNow compare the results"),
+                         steps: [ToolStep(assistantContent: "", calls: [call], reasoningParagraphs: 2)],
+                         pending: [.init(id: "b", name: "web_fetch", primaryArgument: "https://developer.apple.com/documentation/swiftui")],
+                         sources: sources, isLive: true)
 }
 
 @MainActor private var activityPreview: some View {
