@@ -94,6 +94,45 @@ let step1 = configure(glassEffect: .regular, id: 1) // a long line to make this 
 **한국어 요약:** **"글래스"**는 컨트롤에만 쓰고, **본문(텍스트)**는 유리 위에 올리지 않는 것이 좋습니다 [{a}] [{unknown}].
 """
 
+CODE_SAMPLE = """Here are three small examples.
+
+```swift
+struct GlassButton: View {
+    let title: String
+    var action: () -> Void = {}
+    var body: some View {
+        Button(title, systemImage: "arrow.up") { action() } // send it
+            .buttonStyle(.glassProminent)
+            .padding(12)
+    }
+}
+```
+
+```python
+import json
+
+def fib(n: int) -> int:
+    \"\"\"Return the n-th Fibonacci number.\"\"\"
+    return n if n < 2 else fib(n - 1) + fib(n - 2)
+
+print(json.dumps({"fib": [fib(i) for i in range(10)], "ok": True}))
+```
+
+```json
+{"name": "strata", "version": 1.5, "tags": ["chat", "ios"], "beta": null}
+```
+
+```
+no language given: guessed from the code if it is short
+x = 5
+```
+
+```mermaid
+graph TD; A-->B;
+```
+"""
+
+
 PLAIN = """Sure. Here is a plain answer with **bold**, *italic*, `inline code` and a [link](https://example.com).
 
 - First item
@@ -319,6 +358,12 @@ class Handler(BaseHTTPRequestHandler):
             self.stream_reasoning("The notes already hold the findings.\n\n")
             self.stream_content("Continuing from the notes: use Liquid Glass on **controls** only, grouped in a container, never behind body text [1].")
             usage = {"prompt_tokens": 500, "completion_tokens": 40}
+            finished = True
+        elif "codesample" in user_text.lower():
+            # An answer that is mostly code, to look at syntax highlighting.
+            self.stream_reasoning("Show a few languages.\n\n")
+            self.stream_content(CODE_SAMPLE)
+            usage = {"prompt_tokens": 200, "completion_tokens": 120}
             finished = True
         elif many and rounds <= last_tool_round:
             self.stream_reasoning(f"Round {rounds + 1}: decide what to look at next.\n\n")

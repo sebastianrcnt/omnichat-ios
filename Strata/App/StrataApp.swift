@@ -10,6 +10,7 @@ struct StrataApp: App {
 
     init() {
         MemoryPurge.install()
+        HighlightService.registerForPurge()
         let settings = AppSettings()
         let connections = ConnectionStore()
         #if DEBUG

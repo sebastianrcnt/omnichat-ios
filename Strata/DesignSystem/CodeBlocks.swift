@@ -147,6 +147,12 @@ private struct CodeBlockBody: View {
     @State private var expanded = false
     @State private var copied = false
     @State private var showViewer = false
+    /// Colours arrive after the block has closed; the coloured text fades in over the plain one.
+    @State private var highlighted: HighlightedCode?
+    @State private var fade = 0.0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private struct HighlightTrigger: Equatable { var content: CodeBlockContent; var streaming: Bool }
 
     private var collapsed: Bool { !isStreaming && content.isCollapsible && !expanded }
     private var lineHeight: CGFloat { 18 }
@@ -162,6 +168,26 @@ private struct CodeBlockBody: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .onLongPressGesture(minimumDuration: 0.6) { if !isStreaming { showViewer = true } }
         .fullScreenCover(isPresented: $showViewer) { CodeViewer(content: content).inAppLinks() }
+        .task(id: HighlightTrigger(content: content, streaming: isStreaming)) { await loadHighlight() }
+    }
+
+    /// Only after the fence has closed: a block being written stays plain.
+    private func loadHighlight() async {
+        guard !isStreaming else {
+            if highlighted != nil { highlighted = nil; fade = 0 }
+            return
+        }
+        if let cached = HighlightService.cachedValue(language: content.language, code: content.code) {
+            highlighted = cached
+            fade = 1
+            return
+        }
+        highlighted = nil
+        fade = 0
+        guard let result = await HighlightService.highlighted(language: content.language, code: content.code),
+              !Task.isCancelled else { return }
+        highlighted = result
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.15)) { fade = 1 }
     }
 
     private var header: some View {
@@ -202,11 +228,23 @@ private struct CodeBlockBody: View {
         } else {
             let shown = collapsed ? content.preview : content.code
             ScrollView(.horizontal) {
-                Text(shown)
-                    .font(DS.Typography.monoSmall)
-                    .foregroundStyle(theme.textPrimary)
-                    .fixedSize(horizontal: true, vertical: true)
-                    .padding(DS.Spacing.md)
+                ZStack(alignment: .topLeading) {
+                    if fade < 1 || highlighted == nil {
+                        Text(shown)
+                            .font(DS.Typography.monoSmall)
+                            .foregroundStyle(theme.textPrimary)
+                            .fixedSize(horizontal: true, vertical: true)
+                            .opacity(1 - fade)
+                    }
+                    if let highlighted {
+                        Text(collapsed ? highlighted.preview : highlighted.full)
+                            .font(DS.Typography.monoSmall)
+                            .foregroundStyle(theme.textPrimary)
+                            .fixedSize(horizontal: true, vertical: true)
+                            .opacity(fade)
+                    }
+                }
+                .padding(DS.Spacing.md)
             }
             .scrollBounceBehavior(.basedOnSize)
             .overlay(alignment: .bottom) {
@@ -292,6 +330,8 @@ struct CodeViewer: View {
     /// gesture ends, not on every frame.
     @State private var pinchSize: Double?
     @State private var pinchBase: Double?
+    /// Shared with the inline block through `HighlightService`'s cache.
+    @State private var highlighted: HighlightedCode?
 
     private static let sizes = 9.0...28.0
     private var shownSize: Double { pinchSize ?? fontSize }
@@ -302,6 +342,13 @@ struct CodeViewer: View {
             viewer
         }
         .background(theme.background.ignoresSafeArea())
+        .task(id: content) {
+            highlighted = HighlightService.cachedValue(language: content.language, code: content.code)
+            if highlighted == nil {
+                let result = await HighlightService.highlighted(language: content.language, code: content.code)
+                if !Task.isCancelled { withAnimation(.easeInOut(duration: 0.15)) { highlighted = result } }
+            }
+        }
     }
 
     private var bar: some View {
@@ -342,10 +389,11 @@ struct CodeViewer: View {
                     Text(String(index + 1))
                         .foregroundStyle(theme.textTertiary)
                         .frame(width: CGFloat(digits) * shownSize * 0.62, alignment: .trailing)
+                    let text = lineText(line, index: index)
                     if wrap {
-                        Text(line.isEmpty ? " " : line).fixedSize(horizontal: false, vertical: true)
+                        text.fixedSize(horizontal: false, vertical: true)
                     } else {
-                        Text(line.isEmpty ? " " : line).fixedSize(horizontal: true, vertical: false)
+                        text.fixedSize(horizontal: true, vertical: false)
                     }
                     if wrap { Spacer(minLength: 0) }
                 }
@@ -354,6 +402,12 @@ struct CodeViewer: View {
             }
         }
         .padding(DS.Spacing.md)
+    }
+
+    /// A line of code, coloured when the highlighter has run (its lines match `content.lines`).
+    private func lineText(_ line: String, index: Int) -> Text {
+        if let highlighted, highlighted.lines.indices.contains(index), !line.isEmpty { return Text(highlighted.lines[index]) }
+        return Text(line.isEmpty ? " " : line)
     }
 
     @ViewBuilder

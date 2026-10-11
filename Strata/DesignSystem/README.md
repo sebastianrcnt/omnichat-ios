@@ -33,6 +33,8 @@ flows through `DSTheme(accent:)`; `accentOnTint` is the accent re-balanced to re
 | `ProcessSegments.swift` | `ThinkingCard`, `ActivityCard`, `LiveThinkingTail`, `LiveToolsTail`, `ProcessDivider` |
 | `Activity.swift` | `SourceChip`, `FaviconView`, `ActivityRow`, `ActivityStatusLine`, `ActivitySummaryRow`, `TimelineSheet`, `SourcesRow`, `SourceCard`, `SourcesSheet`, `FlowLayout`, `TrailingFade` |
 | `CodeBlocks.swift` | `CodeBlockView` (collapse, copy, expand), `CodeViewer` (full screen, pinch zoom, wrap, share) |
+| `SyntaxText.swift` | `DSTheme.syntax(_:)`, `HighlightedCode`, `SyntaxText.build`, `HighlightService` (highlight.js runs off the main thread; palette in `Syntax/SyntaxTokens.swift`) |
+| `CompactionViews.swift` | `CompactionDivider`, `CompactionStatusRow`, `CompactionNotesSheet` |
 | `Sheets.swift` | `SheetScaffold`, `GroupedSection`, `SettingsRow`, `SettingsToggleRow`, `SettingsFieldRow`, `UsageCard` |
 
 Streaming Markdown rendering lives in `Rendering/StreamingMarkdown` (see its README); the design system
