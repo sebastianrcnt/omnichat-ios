@@ -286,6 +286,7 @@ struct ResumeTests {
         if beforeHeaders { snapshot.submissionStarted = true }
         else { _ = try snapshot.apply(ChatDelta(content: "partial", requestID: rid, sequence: 1)) }
         message.resumeData = try JSONEncoder().encode(snapshot)
+        message.hasResume = true
         context.insert(conversation); context.insert(message); try context.save()
         let streamer = RecoveryStreamer(waits: true, lookupID: beforeHeaders ? rid : nil)
         let controller = ChatController(connections: connections, settings: AppSettings(defaults: defaults), streamer: streamer, tools: FakeTools())

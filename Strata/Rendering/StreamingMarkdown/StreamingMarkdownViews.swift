@@ -241,11 +241,14 @@ struct InlineMarkdownText: View {
     }
 
     var body: some View {
+        // The expensive inline pipeline runs once per body (that is, per reveal tick); a frame only applies the fade.
+        let attributed = make()
         if spans.isEmpty {
-            styled(make())
+            styled(attributed)
         } else {
-            TimelineView(.animation) { context in
-                styled(Self.faded(make(), spans: spans, color: color, now: context.date), selectable: false)
+            let allFaded = spans.allSatisfy { Date().timeIntervalSince($0.born) > StreamingMarkdownModel.fadeDuration }
+            TimelineView(.animation(paused: allFaded)) { context in
+                styled(Self.faded(attributed, spans: spans, color: color, now: context.date), selectable: false)
             }
         }
     }

@@ -12,6 +12,7 @@
 		0AA8B19E1FBC8AA1CD5BFA3F /* Conversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCFE8ACA7DF44925496D753 /* Conversation.swift */; };
 		0CC2BD255DF2D13E88ABF0EC /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8466A7CDF21ACE56C1F711D2 /* AppSettings.swift */; };
 		0E9E153E53EB4F8BC58069E1 /* ddg-challenge.html in Resources */ = {isa = PBXBuildFile; fileRef = BBF73B4F94D85C972052389E /* ddg-challenge.html */; };
+		13F18EEAA4D0AA7EAD7A2407 /* PerformanceFixesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69EA84DD75CFA6988FD9FBA5 /* PerformanceFixesTests.swift */; };
 		15556FA5C78CC8AEBD250884 /* Tokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76F833CD45E5B92CAEB723F3 /* Tokens.swift */; };
 		1729AFFABF5AFCDEF8AA5FC7 /* SSE.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B655A48CCD825D9D0172DEE /* SSE.swift */; };
 		1738810C75BCDF68FDBD652F /* AutoRenameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EADB3352B26461738C5DAF17 /* AutoRenameTests.swift */; };
@@ -49,6 +50,7 @@
 		70E34A401D6455FC3E2DC067 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 9DF5CC77FC1395D564A9F6FF /* Localizable.xcstrings */; };
 		72AAA62A9D9A009F58388B18 /* CheckpointPersister.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA664C3216587A234466E7CA /* CheckpointPersister.swift */; };
 		74D5CBABE658F86593159318 /* Sheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E13E8A51F7C4E74067F7367 /* Sheets.swift */; };
+		78592FCE02A576640C947C03 /* ReasoningSpaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D076370B98BDA6E9EC30D9D /* ReasoningSpaces.swift */; };
 		796035B400885F19288917B2 /* ThoughtSentence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1311BB3FAFBD1EC5F5DAA45E /* ThoughtSentence.swift */; };
 		7A4AB033521DA71E829776C9 /* MarkdownBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = C48316140F6C91D3CBA80AB7 /* MarkdownBlock.swift */; };
 		80FB68A6CB6FB981F24CE359 /* Composer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89E7EBEA258EC160E400C807 /* Composer.swift */; };
@@ -138,6 +140,7 @@
 		648F250AFB2520ECD6FBA4E7 /* Effort.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Effort.swift; sourceTree = "<group>"; };
 		66B56A8CE4450D02BB8C0419 /* StreamingMarkdownViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamingMarkdownViews.swift; sourceTree = "<group>"; };
 		6946DA516AFD242CE9D85CF0 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
+		69EA84DD75CFA6988FD9FBA5 /* PerformanceFixesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceFixesTests.swift; sourceTree = "<group>"; };
 		6B27DE42F1884B7DB8E59F70 /* StreamingPerfTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamingPerfTests.swift; sourceTree = "<group>"; };
 		6E08F0D934A25CA44E443328 /* ImageProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageProcessor.swift; sourceTree = "<group>"; };
 		6EFA02B98F9B308CB4726D0F /* Readability.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = Readability.js; sourceTree = "<group>"; };
@@ -160,6 +163,7 @@
 		917024912CE32D2FB4F90CBC /* Buttons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
 		9B655A48CCD825D9D0172DEE /* SSE.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSE.swift; sourceTree = "<group>"; };
 		9CE7DDF672A184EEA699E6B6 /* ModelSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelSelection.swift; sourceTree = "<group>"; };
+		9D076370B98BDA6E9EC30D9D /* ReasoningSpaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReasoningSpaces.swift; sourceTree = "<group>"; };
 		9DF5CC77FC1395D564A9F6FF /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		9EDDB9156BDFEC4520B3C1E0 /* WebTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebTools.swift; sourceTree = "<group>"; };
 		9F060271B290FC6006ED6EB6 /* URLGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLGuard.swift; sourceTree = "<group>"; };
@@ -240,6 +244,7 @@
 				BCE2F3453923C02BEC5F259D /* MemoryTests.swift */,
 				13423FE5A72BA79F03249F91 /* MessageLayoutTests.swift */,
 				B3BBC86C33779550DEC50E5F /* ModelSelectionTests.swift */,
+				69EA84DD75CFA6988FD9FBA5 /* PerformanceFixesTests.swift */,
 				8D35FCBD9685D8FFD316494C /* ProcessSegmentTests.swift */,
 				DE43918539189B11FD7FA06F /* ResumeTests.swift */,
 				886C8F6D9B0406EB7F52AB97 /* SSEAndStreamTests.swift */,
@@ -416,6 +421,7 @@
 				EFEB12E3B760901977A8D37F /* LenientEmphasis.swift */,
 				C48316140F6C91D3CBA80AB7 /* MarkdownBlock.swift */,
 				CC6552AF2BEE1F09D11AB234 /* OptimisticCloser.swift */,
+				9D076370B98BDA6E9EC30D9D /* ReasoningSpaces.swift */,
 				E6863F41588D64F67CDFE471 /* RevealController.swift */,
 				7C929987DC91950E8AAA365D /* StreamingMarkdownModel.swift */,
 				66B56A8CE4450D02BB8C0419 /* StreamingMarkdownViews.swift */,
@@ -557,6 +563,7 @@
 				DD499E4391CDDB9EAAB7602C /* MemoryTests.swift in Sources */,
 				6758F027C7489205BE19642E /* MessageLayoutTests.swift in Sources */,
 				FEB93A1A5A5DA4035142363C /* ModelSelectionTests.swift in Sources */,
+				13F18EEAA4D0AA7EAD7A2407 /* PerformanceFixesTests.swift in Sources */,
 				34E022A9049E6A1924ECD5C0 /* ProcessSegmentTests.swift in Sources */,
 				BE08AB7DE04F0AA49A4F084A /* ResumeTests.swift in Sources */,
 				A27748A1CA53762E03335950 /* SSEAndStreamTests.swift in Sources */,
@@ -611,6 +618,7 @@
 				9C1C73FFF8779F2488DAA12B /* OptimisticCloser.swift in Sources */,
 				29825640B2033A6C4B739BE7 /* ProcessSegmentModel.swift in Sources */,
 				1B2572A99F43D2C2B5132BEB /* ProcessSegments.swift in Sources */,
+				78592FCE02A576640C947C03 /* ReasoningSpaces.swift in Sources */,
 				62B9EC1233EF8AEB7B92500C /* ReplyBackgroundExecution.swift in Sources */,
 				30735106D1E50BC0D3716028 /* RevealController.swift in Sources */,
 				30DAAE4077EE5DDA1B272DC2 /* RootView.swift in Sources */,

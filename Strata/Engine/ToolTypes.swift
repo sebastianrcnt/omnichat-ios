@@ -77,6 +77,11 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
     }
 
     var toolCall: ToolCall { ToolCall(id: id, name: name, arguments: arguments) }
+
+    /// The record without its result text: all a process row needs, so segments never hold fetched page bodies.
+    var displayOnly: ToolCallRecord {
+        ToolCallRecord(id: id, name: name, arguments: arguments, result: "", isError: isError, sourceIDs: sourceIDs)
+    }
 }
 
 /// One tool round: the assistant message that requested tools, and the results.

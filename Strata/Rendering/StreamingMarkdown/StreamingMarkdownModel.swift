@@ -201,7 +201,6 @@ final class ReasoningChunkModel {
 
     private(set) var finalized: [Chunk] = []
     private(set) var tail = ""
-    private(set) var lastLine = ""
     /// The sentence being written now (drives the one-line preview).
     private(set) var thought: ThoughtSentence?
     private(set) var hasContent = false
@@ -272,49 +271,57 @@ final class ReasoningChunkModel {
         if reveal.hasBacklog || !freshSpans.isEmpty { scheduleTick() }
     }
 
-    private func consume(_ delta: String) {
+    private func consume(_ raw: String) {
+        // Display-only: runs of ASCII spaces collapse to one, also across the join with what is already shown.
+        let delta = ReasoningSpaces.collapse(raw, after: text.last)
+        guard !delta.isEmpty else { return }
         text += delta
-        var buffer = tail + delta
+        let buffer = tail + delta
         var newChunks: [Chunk] = []
-        while let range = buffer.range(of: "\n\n") {
-            let paragraph = String(buffer[..<range.lowerBound])
-            buffer = String(buffer[range.upperBound...])
+        var searchFrom = buffer.startIndex
+        var paragraphStart = buffer.startIndex
+        // One pass over the buffer: paragraphs are cut at blank lines without re-copying the remainder.
+        while let range = buffer.range(of: "\n\n", range: searchFrom..<buffer.endIndex) {
+            let paragraph = buffer[paragraphStart..<range.lowerBound]
             if !paragraph.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                newChunks.append(Chunk(id: finalized.count + newChunks.count, text: paragraph))
+                newChunks.append(Chunk(id: finalized.count + newChunks.count, text: String(paragraph)))
             }
+            paragraphStart = range.upperBound
+            searchFrom = range.upperBound
         }
         if !newChunks.isEmpty { finalized.append(contentsOf: newChunks) }
-        tail = buffer
-        let line = Self.lastNonEmptyLine(buffer) ?? finalized.last.flatMap { Self.lastNonEmptyLine($0.text) } ?? ""
-        if line != lastLine { lastLine = line }
+        tail = String(buffer[paragraphStart...])
         let sentence = ThoughtSentences.latest(in: text)
         if sentence != thought { thought = sentence }
         if !hasContent, !text.isEmpty { hasContent = true }
     }
 
-    static func lastNonEmptyLine(_ s: String) -> String? {
-        for line in s.split(whereSeparator: \.isNewline).reversed() {
-            let t = line.trimmingCharacters(in: .whitespaces)
-            if !t.isEmpty { return t }
-        }
-        return nil
-    }
 }
 
 /// Everything needed to render one message's streamed parts.
 @MainActor
 final class MessageRenderState {
     let markdown: StreamingMarkdownModel
-    let reasoning: ReasoningChunkModel
+    private let initialReasoning: String
+    private let smoothing: Bool
+    /// Built on first use: history rows never need it, so their reasoning is not parsed while scrolling.
+    var reasoning: ReasoningChunkModel {
+        if let existing = builtReasoning { return existing }
+        let model = ReasoningChunkModel(text: initialReasoning, smoothing: smoothing)
+        builtReasoning = model
+        return model
+    }
+    private var builtReasoning: ReasoningChunkModel?
 
     init(text: String = "", reasoning: String = "", smoothing: Bool = true) {
         markdown = StreamingMarkdownModel(text: text, smoothing: smoothing)
-        self.reasoning = ReasoningChunkModel(text: reasoning, smoothing: smoothing)
+        initialReasoning = reasoning
+        self.smoothing = smoothing
     }
 
     /// Show everything received so far (stream finished, stopped, or the user scrolled away).
     func revealAll() {
         markdown.revealAll()
-        reasoning.revealAll()
+        builtReasoning?.revealAll()
     }
 }

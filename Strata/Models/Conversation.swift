@@ -42,7 +42,10 @@ final class Conversation {
     }
 
     var sources: [SourceInfo] {
-        get { sourcesData.flatMap { try? JSONDecoder().decode([SourceInfo].self, from: $0) } ?? [] }
+        get {
+            guard let data = sourcesData else { return [] }
+            return DecodeCache.sources.value(for: id, source: data) { try? JSONDecoder().decode([SourceInfo].self, from: data) } ?? []
+        }
         set { sourcesData = newValue.isEmpty ? nil : try? JSONEncoder().encode(newValue) }
     }
 
@@ -101,6 +104,28 @@ final class Conversation {
     }
 }
 
+/// A small cache of JSON decodes, keyed by object id and validated against the bytes they were decoded from,
+/// so a changed value is never served stale.
+final class DecodeCache<Value>: @unchecked Sendable {
+    private final class Box { let source: Data; let value: Value; init(_ s: Data, _ v: Value) { source = s; value = v } }
+    private let cache = NSCache<NSUUID, Box>()
+    init(limit: Int = 300) { cache.countLimit = limit }
+
+    func value(for id: UUID, source: Data, _ decode: () -> Value?) -> Value? {
+        if let hit = cache.object(forKey: id as NSUUID), hit.source == source { return hit.value }
+        guard let v = decode() else { return nil }
+        cache.setObject(Box(source, v), forKey: id as NSUUID)
+        return v
+    }
+}
+
+extension DecodeCache where Value == [ToolStep] { static let steps = DecodeCache<[ToolStep]>() }
+extension DecodeCache where Value == [ProcessSegment] {
+    static let segments = DecodeCache<[ProcessSegment]>()
+    static let derived = DecodeCache<[ProcessSegment]>()
+}
+extension DecodeCache where Value == [SourceInfo] { static let sources = DecodeCache<[SourceInfo]>() }
+
 enum MessageRole: String, Codable, Sendable { case user, assistant }
 
 @Model
@@ -119,6 +144,8 @@ final class Message {
     /// The small, fast-changing half of the checkpoint (cursor and accumulator), written about once a second.
     /// `resumeData` holds the large half and is rewritten only when it changes.
     var resumeDynamicData: Data?
+    /// True while an unfinished turn has a checkpoint: lets launch and foreground find it with a predicate.
+    var hasResume: Bool = false
     var cancelPending: Bool = false
     var stoppedByUser: Bool
     @Attribute(.externalStorage) var stepsData: Data?
@@ -149,18 +176,30 @@ final class Message {
     func clearResume() {
         resumeData = nil
         resumeDynamicData = nil
+        hasResume = false
     }
 
+    /// Decoded once per stored value (the transcript reads this on every redraw).
     var steps: [ToolStep] {
-        get { stepsData.flatMap { try? JSONDecoder().decode([ToolStep].self, from: $0) } ?? [] }
+        get {
+            guard let data = stepsData else { return [] }
+            return DecodeCache.steps.value(for: id, source: data) { try? JSONDecoder().decode([ToolStep].self, from: data) } ?? []
+        }
         set { stepsData = newValue.isEmpty ? nil : try? JSONEncoder().encode(newValue) }
     }
 
-    /// Persisted segments, or a derivation from `steps` and `reasoning` for older messages.
+    /// Persisted segments, or a derivation from `steps` and `reasoning` for older messages. Segments keep display data
+    /// only (tool results are stripped), and the decoded value is cached.
     var segments: [ProcessSegment] {
         get {
-            if let data = segmentsData, let saved = try? JSONDecoder().decode([ProcessSegment].self, from: data) { return saved }
-            return ProcessSegments.derive(steps: steps, reasoning: reasoning, thinkingSeconds: thinkingSeconds)
+            if let data = segmentsData {
+                if let saved = DecodeCache.segments.value(for: id, source: data, { try? JSONDecoder().decode([ProcessSegment].self, from: data) }) { return saved }
+            }
+            // Older messages: derived from steps and reasoning, cached on a small key (those fields no longer change).
+            let key = Data("\(stepsData?.count ?? 0):\(reasoning.utf8.count):\(thinkingSeconds ?? -1)".utf8)
+            return DecodeCache.derived.value(for: id, source: key) {
+                ProcessSegments.derive(steps: self.steps, reasoning: self.reasoning, thinkingSeconds: self.thinkingSeconds)
+            } ?? []
         }
         set { segmentsData = newValue.isEmpty ? nil : try? JSONEncoder().encode(newValue) }
     }

@@ -34,8 +34,8 @@ struct TurnRunner: Sendable {
              sources: SourceStore? = nil,
              checkpoint restored: TurnCheckpoint? = nil,
              onEvent: @MainActor (TurnEvent) throws -> Void) async throws -> TurnOutcome {
-        var checkpoint = try restored ?? TurnCheckpoint(messages: initial)
-        var messages = try checkpoint.messages
+        var checkpoint = restored ?? TurnCheckpoint()
+        var messages = try restored?.messages ?? initial // the history stays in memory: nothing is encoded and decoded back
         var steps: [ToolStep] = checkpoint.steps
         var lastUsage: Usage?
         var hitCap = false
@@ -127,7 +127,7 @@ struct TurnRunner: Sendable {
             steps.append(ToolStep(assistantContent: acc.content, calls: records))
             round += 1
             let priorReasoning = checkpoint.priorReasoning + acc.reasoning + "\n\n"
-            checkpoint = try TurnCheckpoint(messages: messages)
+            checkpoint = TurnCheckpoint()
             checkpoint.round = round
             checkpoint.steps = steps
             checkpoint.priorReasoning = priorReasoning

@@ -65,7 +65,7 @@ enum ProcessSegments {
             thinking(upTo: step.reasoningParagraphs)
             let preamble = step.assistantContent.trimmingCharacters(in: .whitespacesAndNewlines)
             if !preamble.isEmpty { add(.text, text: preamble) }
-            if !step.calls.isEmpty { add(.toolRound, calls: step.calls) }
+            if !step.calls.isEmpty { add(.toolRound, calls: step.calls.map(\.displayOnly)) }
         }
         thinking(upTo: chunks.count)
         // Only one thinking segment: its time is the whole message's thinking time.

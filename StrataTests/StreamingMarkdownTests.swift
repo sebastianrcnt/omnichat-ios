@@ -359,7 +359,6 @@ struct StreamingModelTests {
         await waitUntil { m.hasContent && m.finalized.count == 1 }
         #expect(m.finalized.map(\.text) == ["First thought."])
         #expect(m.tail == "Second thou")
-        #expect(m.lastLine == "Second thou")
         m.append("ght continues.\n\nThird")
         await waitUntil { m.finalized.count == 2 }
         #expect(m.finalized.map(\.id) == [0, 1])

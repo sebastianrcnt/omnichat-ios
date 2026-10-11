@@ -15,8 +15,8 @@ struct ChatView: View {
     /// Bumped by the root to ask for composer focus (New Chat).
     var focusToken = 0
 
-    @State private var draft = ""
-    @State private var attachments: [ComposerAttachment] = []
+    /// Reference-typed so typing never invalidates this view: only `ComposerHost` reads the text.
+    @State private var draft = ComposerDraft()
     @State private var position = ScrollPosition(edge: .bottom)
     @State private var atBottom = true
     @State private var showAttach = false
@@ -99,11 +99,6 @@ struct ChatView: View {
         conversation.map { controller.isStreaming($0) } ?? false
     }
 
-    /// Sending is allowed whenever there is something to send; missing key or model is reported inline.
-    private var canSend: Bool {
-        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty
-    }
-
     // MARK: Body
 
     var body: some View {
@@ -113,7 +108,7 @@ struct ChatView: View {
             .overlay(alignment: .bottom) { jumpButton }
             .sheet(isPresented: $showAttach) {
                 AttachSheet(supportsImages: selectedModel?.supportsImages ?? false, modelName: selection.modelID,
-                            onPick: { jpegs in attachments.append(contentsOf: jpegs.map { ComposerAttachment(id: UUID(), jpeg: $0) }) },
+                            onPick: { jpegs in draft.attachments.append(contentsOf: jpegs.map { ComposerAttachment(id: UUID(), jpeg: $0) }) },
                             onEnableImages: enableImagesForSelectedModel)
             }
             .sheet(isPresented: $showModelPicker) {
@@ -302,11 +297,12 @@ struct ChatView: View {
             MessageBubble(text: message.text, images: ThumbnailBackfill.thumbnails(for: message))
         case .assistant:
             let active = controller.activeMessageID == message.id
+            let segments = message.segments // decoded once per stored value
             AssistantMessage(
                 content: AssistantContent(
                     thinkingSeconds: message.thinkingSeconds,
-                    calls: Self.liveCalls(message.steps.flatMap(\.calls), inRound: active ? controller.roundRecords : []),
-                    segments: message.segments,
+                    calls: Self.liveCalls(segments.flatMap(\.calls), inRound: active ? controller.roundRecords : []),
+                    segments: segments,
                     pending: active ? controller.pendingCalls : [],
                     roundRequested: active ? controller.roundRequested : [],
                     roundFinished: active ? controller.roundRecords : [],
@@ -345,15 +341,12 @@ struct ChatView: View {
     // MARK: Composer
 
     private var composer: some View {
-        ComposerBar(
-            text: $draft,
-            attachments: attachments,
-            placeholder: "Message",
+        ComposerHost(
+            draft: draft,
             isStreaming: isStreamingHere,
-            canSend: canSend && !controller.isStreaming,
+            isBusy: controller.isStreaming,
             plusDimmed: !(selectedModel?.supportsImages ?? false),
             onAttach: { composerFocused = false; showAttach = true },
-            onRemoveAttachment: { id in attachments.removeAll { $0.id == id } },
             onSend: send,
             onStop: { controller.stop() },
             chip: {
@@ -377,10 +370,10 @@ struct ChatView: View {
             context.insert(target)
             conversation = target
         }
-        let text = draft
-        let images = attachments.map(\.jpeg)
-        draft = ""
-        attachments = []
+        let text = draft.text
+        let images = draft.attachments.map(\.jpeg)
+        draft.text = ""
+        draft.attachments = []
         controller.send(text: text, images: images, conversation: target, context: context)
         withAnimation(DS.Motion.spring) { position.scrollTo(edge: .bottom) }
     }
@@ -424,12 +417,12 @@ struct ChatView: View {
         if DebugHooks.autoPickRecent {
             showAttach = true
             try? await Task.sleep(for: .seconds(4)) // the strip picks a photo and the sheet closes
-            if let text = DebugHooks.autoSend { draft = text; send() }
+            if let text = DebugHooks.autoSend { draft.text = text; send() }
             return
         }
         if let text = DebugHooks.autoSend, conversation == nil {
             try? await Task.sleep(for: .seconds(1.5))
-            draft = text
+            draft.text = text
             send()
             for _ in 0..<200 {
                 try? await Task.sleep(for: .milliseconds(200))
@@ -449,4 +442,46 @@ struct ChatView: View {
 struct SourceListItem: Identifiable {
     let sources: [SourceInfo]
     var id: String { sources.map { String($0.id) }.joined(separator: ",") }
+}
+
+/// The composer's text and attachments. Observable and separate from `ChatView` on purpose.
+@MainActor
+@Observable
+final class ComposerDraft {
+    var text = ""
+    var attachments: [ComposerAttachment] = []
+
+    /// Sending is allowed whenever there is something to send; missing key or model is reported inline.
+    var canSend: Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty
+    }
+}
+
+/// Reads the draft so `ChatView` does not: a keystroke re-renders only the composer.
+private struct ComposerHost<Chip: View>: View {
+    @Bindable var draft: ComposerDraft
+    let isStreaming: Bool
+    let isBusy: Bool
+    let plusDimmed: Bool
+    let onAttach: () -> Void
+    let onSend: () -> Void
+    let onStop: () -> Void
+    @ViewBuilder let chip: () -> Chip
+    var isFocused: FocusState<Bool>.Binding
+
+    var body: some View {
+        ComposerBar(
+            text: $draft.text,
+            attachments: draft.attachments,
+            placeholder: "Message",
+            isStreaming: isStreaming,
+            canSend: draft.canSend && !isBusy,
+            plusDimmed: plusDimmed,
+            onAttach: onAttach,
+            onRemoveAttachment: { id in draft.attachments.removeAll { $0.id == id } },
+            onSend: onSend,
+            onStop: onStop,
+            chip: chip,
+            isFocused: isFocused)
+    }
 }

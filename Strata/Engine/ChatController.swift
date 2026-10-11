@@ -40,16 +40,18 @@ final class ChatController {
     private let settings: AppSettings
     private let streamer: any ChatStreaming
     private let tools: any ToolExecuting
-    private var task: Task<Void, Never>?
-    private var renderStates: [UUID: MessageRenderState] = [:]
-    private var sourceStore: SourceStore?
-    private var activeMessage: Message?
-    private var activeContext: ModelContext?
-    private var activeEndpoint: Endpoint?
-    private var persister: CheckpointPersister?
+    @ObservationIgnored private var task: Task<Void, Never>?
+    /// Not observed: `renderState(for:)` inserts here while a view body runs.
+    @ObservationIgnored private var renderStates: [UUID: MessageRenderState] = [:]
+    @ObservationIgnored private var sourceStore: SourceStore?
+    @ObservationIgnored private var activeMessage: Message?
+    @ObservationIgnored private var activeContext: ModelContext?
+    @ObservationIgnored private var activeEndpoint: Endpoint?
+    @ObservationIgnored private var persister: CheckpointPersister?
+    @ObservationIgnored private var persistedSourceCount = -1
     /// Bytes handed to the store by each checkpoint write (large half only when it changed). Instrumentation for tests.
-    var onCheckpointWrite: ((Int) -> Void)?
-    private var cancelTasks: [UUID: Task<Void, Never>] = [:]
+    @ObservationIgnored var onCheckpointWrite: ((Int) -> Void)?
+    @ObservationIgnored private var cancelTasks: [UUID: Task<Void, Never>] = [:]
     private let background = ReplyBackgroundExecution()
 
     init(connections: ConnectionStore, settings: AppSettings,
@@ -191,7 +193,7 @@ final class ChatController {
 
     /// Called at launch and foreground. Existing live tasks reconnect themselves.
     func restorePending(context: ModelContext) {
-        guard let messages = try? context.fetch(FetchDescriptor<Message>()) else { return }
+        let messages = Self.pendingMessages(context: context)
         for message in messages where message.cancelPending {
             if let conversation = message.conversation,
                let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID) {
@@ -205,6 +207,22 @@ final class ChatController {
            let checkpoint = message.resumeCheckpoint {
             generate(conversation: conversation, context: context, restoring: message, checkpoint: checkpoint)
         }
+    }
+
+    /// Unfinished turns only, found by a predicate (not by loading every message on each foreground).
+    /// Turns saved before the `hasResume` flag existed are flagged once.
+    static func pendingMessages(context: ModelContext, defaults: UserDefaults = .standard) -> [Message] {
+        let key = "strata.resumeFlagMigrated.v1"
+        if !defaults.bool(forKey: key) {
+            for message in (try? context.fetch(FetchDescriptor<Message>())) ?? [] where message.resumeData != nil && !message.hasResume {
+                message.hasResume = true
+            }
+            try? context.save()
+            defaults.set(true, forKey: key)
+        }
+        var descriptor = FetchDescriptor<Message>(predicate: #Predicate<Message> { $0.cancelPending || $0.hasResume })
+        descriptor.fetchLimit = 20
+        return (try? context.fetch(descriptor)) ?? []
     }
 
     // MARK: Generation
@@ -244,6 +262,7 @@ final class ChatController {
         activeContext = context
         activeEndpoint = endpoint
         persister?.close()
+        persistedSourceCount = -1
         persister = endpoint.supportsResumable ? CheckpointPersister { [weak self] snapshot in
             self?.persist(snapshot, message: assistant, conversation: conversation, context: context)
         } : nil
@@ -323,15 +342,18 @@ final class ChatController {
     /// One throttled checkpoint write: the large half only when it changed, the small half always, together.
     private func persist(_ snapshot: CheckpointPersister.Snapshot, message: Message, conversation: Conversation, context: ModelContext) {
         if let data = snapshot.staticData { message.resumeData = data }
+        if !message.hasResume { message.hasResume = true }
         message.resumeDynamicData = snapshot.dynamicData
         onCheckpointWrite?((snapshot.staticData?.count ?? 0) + snapshot.dynamicData.count)
-        let checkpoint = snapshot.checkpoint
-        message.text = checkpoint.accumulator.content
-        message.reasoning = checkpoint.priorReasoning + checkpoint.accumulator.reasoning
-        conversation.sources = sourceStore?.items ?? conversation.sources
+        // Text and reasoning live in the dynamic half (the accumulator); they are copied into their columns when the
+        // turn ends. Sources are written only when new ones arrived, so the sidebar's query is not invalidated.
+        if let items = sourceStore?.items, items.count != persistedSourceCount {
+            persistedSourceCount = items.count
+            conversation.sources = items
+        }
         try? context.save()
         #if DEBUG
-        DebugHooks.recordResumeSmoke(message, checkpoint: checkpoint)
+        DebugHooks.recordResumeSmoke(message, checkpoint: snapshot.checkpoint)
         #endif
     }
 
@@ -460,7 +482,7 @@ final class TurnTracker {
         if finishedRecords.count == requested.count {
             completedSteps.append(ToolStep(assistantContent: roundContent, calls: finishedRecords, reasoningParagraphs: stepParagraphs))
             message.steps = completedSteps
-            append(.init(index: 0, kind: .toolRound, calls: finishedRecords))
+            append(.init(index: 0, kind: .toolRound, calls: finishedRecords.map(\.displayOnly)))
         }
     }
 

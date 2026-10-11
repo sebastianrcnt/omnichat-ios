@@ -85,10 +85,22 @@ enum LenientEmphasis {
     }
 
     static func stripZeroWidth(_ text: AttributedString) -> AttributedString {
-        var out = text
-        while let range = out.characters.firstIndex(of: zeroWidth).map({ $0..<out.characters.index(after: $0) }) {
-            out.removeSubrange(range)
+        // One pass: copy the stretches between zero-width characters (attributes travel with the slices).
+        var cuts: [Range<AttributedString.Index>] = []
+        var i = text.characters.startIndex
+        while i < text.characters.endIndex {
+            let next = text.characters.index(after: i)
+            if text.characters[i] == zeroWidth { cuts.append(i..<next) }
+            i = next
         }
+        guard !cuts.isEmpty else { return text }
+        var out = AttributedString()
+        var start = text.startIndex
+        for cut in cuts {
+            if start < cut.lowerBound { out.append(text[start..<cut.lowerBound]) }
+            start = cut.upperBound
+        }
+        if start < text.endIndex { out.append(text[start..<text.endIndex]) }
         return out
     }
 }

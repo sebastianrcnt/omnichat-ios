@@ -134,7 +134,9 @@
     "Clear search": {},
     "Close": {},
     "Code": {},
-    "Collapsed": {},
+    "Collapsed": {
+      "extractionState": "stale"
+    },
     "Connection": {},
     "Connections": {},
     "Context": {},
@@ -156,7 +158,9 @@
     "Done": {},
     "Effort": {},
     "Enable only for gateways supporting Strata stream replay.": {},
-    "Expanded": {},
+    "Expanded": {
+      "extractionState": "stale"
+    },
     "Extra": {},
     "Fetch length": {},
     "Fetch models": {},
@@ -232,7 +236,10 @@
     "Open": {},
     "Open Settings": {},
     "Open full screen": {},
-    "Open timeline": {},
+    "Open timeline": {
+      "extractionState": "stale"
+    },
+    "Opens the timeline": {},
     "Orange": {},
     "Output tokens": {},
     "Page script failed: %@": {},
@@ -286,7 +293,9 @@
     "Show all": {
       "extractionState": "stale"
     },
-    "Show all %lld steps": {},
+    "Show all %lld steps": {
+      "extractionState": "stale"
+    },
     "Show all (%lld lines)": {},
     "Show less": {},
     "Sidebar": {},
@@ -365,7 +374,9 @@
     "sk-…": {
       "shouldTranslate": false
     },
-    "“%@”": {}
+    "“%@”": {
+      "extractionState": "stale"
+    }
   },
   "version": "1.0"
 }

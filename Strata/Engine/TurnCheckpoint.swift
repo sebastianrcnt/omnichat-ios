@@ -22,8 +22,21 @@ struct TurnCheckpoint: Codable, Sendable {
         idempotencyKey = UUID().uuidString.lowercased()
     }
 
+    /// A checkpoint whose history is held by the caller (the turn runner keeps the messages in memory and the request
+    /// body already contains them), so nothing is encoded here.
+    init(historyHeldByCaller: Void = ()) {
+        messagesData = Data()
+        idempotencyKey = UUID().uuidString.lowercased()
+    }
+
     var messages: [APIMessage] {
-        get throws { try JSONDecoder().decode([APIMessage].self, from: messagesData) }
+        get throws {
+            if messagesData.isEmpty, let body = requestData {
+                struct Envelope: Decodable { var messages: [APIMessage] }
+                return try JSONDecoder().decode(Envelope.self, from: body).messages
+            }
+            return try JSONDecoder().decode([APIMessage].self, from: messagesData)
+        }
     }
 
     /// Returns false for replayed/duplicate events; includes id-only comments in the cursor.
@@ -105,13 +118,16 @@ struct CheckpointStaticKey: Hashable, Sendable {
     var requestBytes: Int?
 }
 
-/// What is persisted for the large half. The request body already contains the whole history, so the history is not
-/// stored a second time; `messages` are read back out of the body.
+/// What is persisted for the large half: a small JSON header and then the request body as raw bytes (no base64).
+/// The body already contains the whole history, so the history is not stored a second time.
 private struct PersistedStatic: Codable {
-    var requestData: Data
     var idempotencyKey: String?
     var round: Int
     var submissionStarted: Bool
+}
+
+private enum StaticFormat {
+    static let magic = Data("STRATA-CKPT1\n".utf8)
 }
 
 extension TurnCheckpoint {
@@ -141,24 +157,33 @@ extension TurnCheckpoint {
     /// Encodes the large half once per round.
     static func encodeStatic(_ checkpoint: TurnCheckpoint) throws -> Data {
         guard let body = checkpoint.requestData else { return try JSONEncoder().encode(checkpoint) }
-        return try JSONEncoder().encode(PersistedStatic(requestData: body, idempotencyKey: checkpoint.idempotencyKey,
-                                                        round: checkpoint.round, submissionStarted: checkpoint.submissionStarted))
+        let header = try JSONEncoder().encode(PersistedStatic(idempotencyKey: checkpoint.idempotencyKey, round: checkpoint.round,
+                                                              submissionStarted: checkpoint.submissionStarted))
+        var out = StaticFormat.magic
+        out.reserveCapacity(out.count + header.count + 1 + body.count)
+        out.append(header)
+        out.append(0x0A)
+        out.append(body)
+        return out
     }
 
     /// Rebuilds a checkpoint from its two persisted parts. A whole checkpoint saved before the split restores as is.
     static func restore(staticData: Data, dynamicData: Data?) throws -> TurnCheckpoint {
         var checkpoint: TurnCheckpoint
-        if let whole = try? JSONDecoder().decode(TurnCheckpoint.self, from: staticData) {
-            checkpoint = whole
-        } else {
-            let persisted = try JSONDecoder().decode(PersistedStatic.self, from: staticData)
+        if staticData.starts(with: StaticFormat.magic) {
+            let rest = staticData.dropFirst(StaticFormat.magic.count)
+            guard let newline = rest.firstIndex(of: 0x0A) else { throw APIError.server("Unreadable checkpoint.") }
+            let persisted = try JSONDecoder().decode(PersistedStatic.self, from: rest[rest.startIndex..<newline])
+            let body = Data(rest[rest.index(after: newline)...])
             struct Envelope: Decodable { var messages: [APIMessage] }
-            let messages = try JSONDecoder().decode(Envelope.self, from: persisted.requestData).messages
+            let messages = try JSONDecoder().decode(Envelope.self, from: body).messages
             checkpoint = try TurnCheckpoint(messages: messages)
-            checkpoint.requestData = persisted.requestData
+            checkpoint.requestData = body
             checkpoint.idempotencyKey = persisted.idempotencyKey
             checkpoint.round = persisted.round
             checkpoint.submissionStarted = persisted.submissionStarted
+        } else {
+            checkpoint = try JSONDecoder().decode(TurnCheckpoint.self, from: staticData)
         }
         if let dynamicData, let dynamic = try? JSONDecoder().decode(CheckpointDynamic.self, from: dynamicData) {
             checkpoint.overlay(dynamic)
