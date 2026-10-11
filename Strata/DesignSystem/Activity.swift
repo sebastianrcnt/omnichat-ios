@@ -10,11 +10,7 @@ struct SourceChip: View {
 
     var body: some View {
         let chip = HStack(spacing: DS.Spacing.xs) {
-            Text(String(host.first.map { Character($0.uppercased()) } ?? "?"))
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(theme.accentOnTint)
-                .frame(width: 16, height: 16)
-                .background(theme.accentMuted, in: Circle())
+            FaviconView(host: host)
             Text(DomainFormatter.short(host))
                 .font(DS.Typography.uiCaption)
                 .foregroundStyle(theme.textSecondary)
@@ -26,6 +22,46 @@ struct SourceChip: View {
         .background(theme.chipFill, in: Capsule())
         .fixedSize() // a chip is one unit: it moves to the next line, it never wraps
         if let url { Link(destination: url) { chip } } else { chip }
+    }
+}
+
+/// 16 pt circular site icon, loaded lazily; the host's monogram until (or unless) a real icon arrives.
+struct FaviconView: View {
+    @Environment(\.theme) private var theme
+    let host: String
+    @State private var image: UIImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image).resizable().scaledToFill()
+                    .frame(width: DS.IconSize.favicon, height: DS.IconSize.favicon)
+                    .background(theme.faviconBackdrop)
+                    .clipShape(Circle())
+            } else {
+                Text(String(host.first.map { Character($0.uppercased()) } ?? "?"))
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(theme.accentOnTint)
+                    .frame(width: DS.IconSize.favicon, height: DS.IconSize.favicon)
+                    .background(theme.accentMuted, in: Circle())
+            }
+        }
+        .task(id: host) { image = await FaviconImages.image(for: host) }
+        .accessibilityHidden(true)
+    }
+}
+
+/// Decoded icons for the session, so scrolling back never flashes the monogram.
+@MainActor
+enum FaviconImages {
+    private static let cache = NSCache<NSString, UIImage>()
+
+    static func image(for host: String) async -> UIImage? {
+        guard let key = FaviconStore.key(for: host) else { return nil }
+        if let hit = cache.object(forKey: key as NSString) { return hit }
+        guard let data = await FaviconStore.shared.iconData(for: host), let image = UIImage(data: data) else { return nil }
+        cache.setObject(image, forKey: key as NSString)
+        return image
     }
 }
 

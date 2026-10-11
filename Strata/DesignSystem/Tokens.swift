@@ -41,6 +41,8 @@ enum DS {
         /// Minimum touch target, kept via `contentShape` even where the visual is smaller.
         static let minHitTarget: CGFloat = 44
         static let ring: CGFloat = 20
+        /// Site icon in a source chip.
+        static let favicon: CGFloat = 16
         static let ringStroke: CGFloat = 2.5
         static let thumbnail: CGFloat = 64
         static let cameraTile: CGFloat = 112
@@ -123,6 +125,8 @@ struct DSTheme: Equatable {
     /// Subtle fill for disabled controls.
     /// Capsule behind inline citation chips.
     var chipFill: Color { fillTertiary }
+    /// Light disc behind a site icon so dark glyphs stay visible in dark mode.
+    var faviconBackdrop: Color { Color(light: 0xFFFFFF, dark: 0xF2F2F2) }
     var fillTertiary: Color { Color(light: 0xE4E4E8, dark: 0x2E2E32) }
 
     // Text
