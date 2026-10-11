@@ -290,7 +290,7 @@ struct ChatView: View {
             LazyVStack(alignment: .leading, spacing: DS.Spacing.xl) {
                 if let conversation {
                     let tree = conversation.treeIndex
-                    let items = conversation.activePath
+                    let items = conversation.activePath.filter { !$0.isHiddenInTranscript }
                     let summaries = conversation.compactions(anchoredIn: items)
                     ForEach(items) { message in
                         row(message, isLast: message.id == items.last?.id, branch: tree.branch(of: message.id))
@@ -366,7 +366,11 @@ struct ChatView: View {
                     errorNeedsSettings: message.errorNeedsSettings,
                     stopped: message.stoppedByUser,
                     canRegenerate: isLast && !controller.isStreaming,
-                    translation: translation),
+                    translation: translation,
+                    canAnswerNow: active && controller.canAnswerNow,
+                    completedToolRounds: active ? controller.completedToolRounds : 0,
+                    cutForEarlyAnswer: message.cutForEarlyAnswer,
+                    answeredEarly: message.answeredEarly),
                 render: controller.renderState(for: message),
                 onOpenTimeline: { timelineMessage = message },
                 onOpenSources: { sourcesItem = SourceListItem(sources: $0) },
@@ -378,6 +382,7 @@ struct ChatView: View {
                 onCopyRaw: { UIPasteboard.general.string = shownText },
                 onTranslate: { controller.translation.translate(message, context: context, isStreaming: active) },
                 onToggleTranslation: { controller.translation.toggle(message, context: context) },
+                onAnswerNow: { controller.answerNow() },
                 branch: branch,
                 branchEnabled: !controller.isStreaming,
                 onSwitchBranch: { switchBranch(message, by: $0) })

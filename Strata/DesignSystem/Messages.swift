@@ -222,6 +222,13 @@ struct AssistantContent: Equatable {
     var stopped = false
     var canRegenerate = false
     var translation = TranslationUI.none
+    /// "Answer now" can be offered for this running turn (the pill still waits for its timing), and how many tool
+    /// rounds have finished.
+    var canAnswerNow = false
+    var completedToolRounds = 0
+    /// The run an early answer cut short, and the answer written after it.
+    var cutForEarlyAnswer = false
+    var answeredEarly = false
 }
 
 struct AssistantMessage: View {
@@ -238,6 +245,7 @@ struct AssistantMessage: View {
     /// Translates the answer, or flips between the translation and the original.
     var onTranslate: () -> Void = {}
     var onToggleTranslation: () -> Void = {}
+    var onAnswerNow: () -> Void = {}
     var branch: BranchPosition?
     var branchEnabled = true
     var onSwitchBranch: (Int) -> Void = { _ in }
@@ -320,8 +328,15 @@ struct AssistantMessage: View {
                     .transition(.enter(reduceMotion: reduceMotion))
             }
             .animation(reduceMotion ? nil : DS.Motion.enter, value: items)
-            if content.stopped {
+            if content.isStreaming && content.canAnswerNow {
+                AnswerNowPill(start: content.turnStart ?? .now, completedToolRounds: content.completedToolRounds,
+                              phase: content.phase, action: onAnswerNow)
+            }
+            if content.stopped && !content.cutForEarlyAnswer {
                 Text("Stopped").font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
+            }
+            if content.answeredEarly && !content.isStreaming {
+                Text("Answered early").font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
             }
             if let error = content.errorText {
                 HStack(alignment: .top, spacing: DS.Spacing.sm) {
@@ -349,6 +364,32 @@ struct AssistantMessage: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// Offers to cut a long run short. Appears once the run has gone on for a while (or has searched a couple of times).
+struct AnswerNowPill: View {
+    @Environment(\.theme) private var theme
+    let start: Date
+    let completedToolRounds: Int
+    let phase: ChatController.Phase
+    let action: () -> Void
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            if AnswerNow.isOffered(elapsed: context.date.timeIntervalSince(start), completedToolRounds: completedToolRounds, phase: phase) {
+                Button(action: action) {
+                    Label("Answer now", systemImage: "forward.end.fill")
+                        .font(DS.Typography.uiSmall)
+                        .padding(.horizontal, DS.Spacing.md)
+                        .padding(.vertical, DS.Spacing.sm)
+                }
+                .buttonStyle(.glass)
+                .foregroundStyle(theme.textPrimary)
+                .transition(.opacity)
+                .accessibilityHint(Text("Stops searching and answers from what has been found"))
+            }
+        }
     }
 }
 

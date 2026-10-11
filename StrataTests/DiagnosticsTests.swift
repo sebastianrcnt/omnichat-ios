@@ -183,9 +183,13 @@ struct RequestRingTests {
         #expect(r.recent(for: conv).isEmpty && r.totalBytes == 0)
     }
 
+    /// Automatic naming saves after the turn, so the container has to outlive the test.
+    nonisolated(unsafe) private static var keptContainers: [ModelContainer] = []
+
     @Test func theControllerLogsEachRequestOfATurnWithItsNote() async throws {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
                                            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        Self.keptContainers.append(container)
         let context = container.mainContext
         let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
         let connections = ConnectionStore(defaults: defaults, keys: InMemoryKeyStore())

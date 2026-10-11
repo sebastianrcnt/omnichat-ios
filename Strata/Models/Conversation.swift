@@ -80,7 +80,7 @@ final class Conversation {
 
     /// Texts for the naming request: answer text only (no reasoning or tool results), in order.
     var namingLines: [AutoRename.Line] {
-        activePath.filter { !$0.text.isEmpty }.map { AutoRename.Line(role: $0.role, text: $0.text) }
+        activePath.filter { !$0.text.isEmpty && !$0.hiddenInstruction }.map { AutoRename.Line(role: $0.role, text: $0.text) }
     }
 
     /// Answers that finished with text, not stopped or failed ones.
@@ -115,7 +115,7 @@ final class Conversation {
     /// Plain-text transcript for sharing.
     var transcript: String {
         var out = [displayTitle, ""]
-        for m in activePath where !m.text.isEmpty {
+        for m in activePath where !m.text.isEmpty && !m.hiddenInstruction {
             out.append((m.role == .user ? String(localized: "You") : String(localized: "Assistant")) + ":")
             out.append(m.text)
             out.append("")
@@ -205,6 +205,12 @@ final class Message {
     var translationTarget: String?
     /// Whether the translation is the version on screen.
     var showingTranslation: Bool = false
+    /// The instruction sent by "Answer now". It is on the path (so later requests carry it) but never shown.
+    var hiddenInstruction: Bool = false
+    /// The run that "Answer now" cut short; it keeps the results gathered so far.
+    var cutForEarlyAnswer: Bool = false
+    /// The answer written after "Answer now".
+    var answeredEarly: Bool = false
     @Attribute(.externalStorage) var stepsData: Data?
     /// Ordered process segments (thinking, preamble text, tool rounds). Nil on messages saved before they existed.
     @Attribute(.externalStorage) var segmentsData: Data?
@@ -223,6 +229,11 @@ final class Message {
     }
 
     var role: MessageRole { MessageRole(rawValue: roleRaw) ?? .assistant }
+
+    /// Not drawn in the transcript: the early-answer instruction, and a run cut short before it produced anything.
+    var isHiddenInTranscript: Bool {
+        hiddenInstruction || (cutForEarlyAnswer && text.isEmpty && stepsData == nil && reasoning.isEmpty)
+    }
 
     /// The persisted checkpoint of an unfinished resumable turn.
     var resumeCheckpoint: TurnCheckpoint? {

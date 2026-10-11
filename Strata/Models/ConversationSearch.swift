@@ -11,7 +11,7 @@ enum ConversationSearch {
     static func matchingConversationIDs(query: String, context: ModelContext) -> Set<UUID> {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return [] }
-        var descriptor = FetchDescriptor<Message>(predicate: #Predicate<Message> { $0.text.localizedStandardContains(q) })
+        var descriptor = FetchDescriptor<Message>(predicate: #Predicate<Message> { $0.text.localizedStandardContains(q) && !$0.hiddenInstruction })
         descriptor.fetchLimit = contentLimit
         let messages = (try? context.fetch(descriptor)) ?? []
         return Set(messages.compactMap { $0.conversation?.id })

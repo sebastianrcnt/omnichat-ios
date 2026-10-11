@@ -37,6 +37,14 @@ final class ChatController {
     /// Sources of the running turn (conversation-wide ids), updated as tools finish.
     private(set) var liveSources: [SourceInfo] = []
     var isStreaming: Bool { activeMessageID != nil || compactingConversationID != nil }
+    /// Tool rounds finished in the running turn, and whether it is already an early answer (for the "Answer now" pill).
+    private(set) var completedToolRounds = 0
+    private(set) var activeIsEarly = false
+    /// Whether the running turn can still be cut short for an early answer (the pill still waits for its own timing).
+    var canAnswerNow: Bool {
+        activeMessageID != nil && !activeIsEarly && compactingConversationID == nil
+    }
+    @ObservationIgnored private var earlyAnswerRequested = false
     /// Set while "Summarize now" runs (an automatic compaction belongs to the turn that triggers it).
     private(set) var compactingConversationID: UUID?
     /// Why the last "Summarize now" failed, for the chat to show once.
@@ -80,7 +88,13 @@ final class ChatController {
     }
 
     /// Wait for the running turn to end (tests).
-    func waitUntilIdle() async { await task?.value }
+    func waitUntilIdle() async {
+        // A turn can hand over to another (an early answer follows the run it cut short).
+        while let current = task {
+            await current.value
+            guard let next = task, next != current else { return }
+        }
+    }
 
     /// Streaming-aware render models for a message, cached so finalized blocks keep their identity.
     func renderState(for message: Message) -> MessageRenderState {
@@ -182,6 +196,25 @@ final class ChatController {
         task?.cancel()
     }
 
+    /// "Answer now": stops the running request the way Stop does (the gateway is told to cancel it too), keeps the
+    /// tool results gathered so far and the reasoning written, drops the call that was still open, and then sends one
+    /// continuation that asks for the answer without tools.
+    func answerNow() {
+        guard canAnswerNow, activeMessage != nil else { return }
+        earlyAnswerRequested = true
+        stop()
+    }
+
+    /// The hidden instruction goes on the path after the cut-short run; the answer follows it.
+    private func continueEarly(after cut: Message, conversation: Conversation, context: ModelContext) {
+        let instruction = Message(role: .user, text: AnswerNow.instruction, sortIndex: nextIndex(conversation))
+        instruction.hiddenInstruction = true
+        context.insert(instruction)
+        conversation.attach(instruction, parent: cut)
+        try? context.save()
+        generate(conversation: conversation, context: context, under: instruction)
+    }
+
     static let cancelRetryWindow: TimeInterval = 600
 
     private func cancelOnServer(_ message: Message, endpoint: Endpoint, context: ModelContext) {
@@ -270,6 +303,8 @@ final class ChatController {
         conversation.ensureTree()
         let assistant = restoring ?? Message(role: .assistant, sortIndex: nextIndex(conversation))
         if restoring == nil {
+            // After the hidden instruction: an early answer (also when it is regenerated).
+            assistant.answeredEarly = (parent ?? conversation.leafMessage)?.hiddenInstruction == true
             context.insert(assistant)
             conversation.attach(assistant, parent: parent ?? conversation.leafMessage)
         } else {
@@ -281,6 +316,9 @@ final class ChatController {
         renderStates[assistant.id] = render
         activeConversationID = conversation.id
         activeMessageID = assistant.id
+        activeIsEarly = assistant.answeredEarly
+        completedToolRounds = 0
+        earlyAnswerRequested = false
         phase = .waiting
         pendingCalls = []
         turnStart = .now
@@ -305,6 +343,7 @@ final class ChatController {
         } : nil
         background.begin()
         var runner = TurnRunner(streamer: streamer, tools: tools)
+        runner.toolsDisabled = assistant.answeredEarly
         let ring = requestRing
         let conversationID = conversation.id
         runner.requestLog = { event in
@@ -336,12 +375,16 @@ final class ChatController {
                 self.finish(assistant, conversation: conversation, context: context, error: nil, tracker: tracker)
             } catch where error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
                 // Stop in any state (first byte, thinking, writing, tool): keep what is there, mark it Stopped.
+                let early = self.earlyAnswerRequested
+                if early { tracker.keepFinishedCallsOfOpenRound() }
                 tracker.finishThinking()
                 tracker.complete(finalText: nil)
                 conversation.sources = sourceStore.items
                 assistant.stoppedByUser = true
+                assistant.cutForEarlyAnswer = early
                 assistant.steps = tracker.completedSteps
                 self.finish(assistant, conversation: conversation, context: context, error: nil, tracker: tracker)
+                if early { self.continueEarly(after: assistant, conversation: conversation, context: context) }
             } catch {
                 tracker.finishThinking()
                 conversation.sources = sourceStore.items
@@ -358,6 +401,7 @@ final class ChatController {
         case .checkpoint(let checkpoint):
             persister?.update(checkpoint)
         case .roundStarted(let n):
+            completedToolRounds = n
             tracker.beginRound(n)
             pendingCalls = []
             roundRecords = []
@@ -547,6 +591,8 @@ final class ChatController {
             autoRename(conversation: conversation, context: context, force: false)
         }
         activeMessageID = nil
+        activeIsEarly = false
+        earlyAnswerRequested = false
         activeConversationID = nil
         turnStart = nil
         sourceStore = nil
@@ -642,6 +688,17 @@ final class TurnTracker {
             message.steps = completedSteps
             append(.init(index: 0, kind: .toolRound, calls: finishedRecords.map(\.displayOnly)))
         }
+    }
+
+    /// For an early answer: a round cut short keeps the calls that did finish, each with its result, and drops the rest
+    /// (a call without a result cannot be sent back). A round with nothing finished is dropped whole.
+    func keepFinishedCallsOfOpenRound() {
+        guard !requested.isEmpty, !finishedRecords.isEmpty, finishedRecords.count < requested.count else { return }
+        completedSteps.append(ToolStep(assistantContent: roundContent, calls: finishedRecords, reasoningParagraphs: stepParagraphs))
+        message.steps = completedSteps
+        append(.init(index: 0, kind: .toolRound, calls: finishedRecords.map(\.displayOnly)))
+        requested = []
+        finishedRecords = []
     }
 
     private func append(_ segment: ProcessSegment) {

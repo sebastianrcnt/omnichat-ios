@@ -46,6 +46,9 @@ struct TurnRunner: Sendable {
     var tools: any ToolExecuting
     /// How many calls of one round run at once.
     var maxConcurrentTools = ToolRound.maxConcurrent
+    /// Tools stay in the request (so the prefix is the same) but are not to be called: `tool_choice: "none"` on every
+    /// request, and any call the model makes anyway is ignored. Used for the early answer.
+    var toolsDisabled = false
     /// Compacts the history before a request when it has grown to the model's limit. Off when nil.
     var compaction: CompactionSettings?
     /// Told about each request actually sent (not the replay of one restored from a checkpoint).
@@ -84,8 +87,8 @@ struct TurnRunner: Sendable {
         var round = checkpoint.round
         while true {
             try Task.checkCancellation()
-            let capped = round >= Self.maxToolRounds
-            if capped { hitCap = true }
+            let capped = toolsDisabled || round >= Self.maxToolRounds
+            if capped && !toolsDisabled { hitCap = true }
             try onEvent(.roundStarted(round))
 
             // Checked before the turn and before each continuation: the history is summarized when the last reported
