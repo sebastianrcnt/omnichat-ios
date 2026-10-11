@@ -9,6 +9,7 @@ struct StrataApp: App {
     @State private var controller: ChatController
 
     init() {
+        MemoryPurge.install()
         let settings = AppSettings()
         let connections = ConnectionStore()
         #if DEBUG

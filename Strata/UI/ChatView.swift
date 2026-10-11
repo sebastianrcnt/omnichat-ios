@@ -299,7 +299,7 @@ struct ChatView: View {
     private func row(_ message: Message, isLast: Bool) -> some View {
         switch message.role {
         case .user:
-            MessageBubble(text: message.text, images: message.sortedAttachments.map(\.jpegData))
+            MessageBubble(text: message.text, images: ThumbnailBackfill.thumbnails(for: message))
         case .assistant:
             let active = controller.activeMessageID == message.id
             AssistantMessage(

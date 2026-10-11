@@ -116,6 +116,9 @@ final class Message {
     var errorNeedsSettings: Bool = false
     /// Atomic turn checkpoint, including request id, cursor and tool accumulator.
     @Attribute(.externalStorage) var resumeData: Data?
+    /// The small, fast-changing half of the checkpoint (cursor and accumulator), written about once a second.
+    /// `resumeData` holds the large half and is rewritten only when it changes.
+    var resumeDynamicData: Data?
     var cancelPending: Bool = false
     var stoppedByUser: Bool
     @Attribute(.externalStorage) var stepsData: Data?
@@ -137,6 +140,17 @@ final class Message {
 
     var role: MessageRole { MessageRole(rawValue: roleRaw) ?? .assistant }
 
+    /// The persisted checkpoint of an unfinished resumable turn.
+    var resumeCheckpoint: TurnCheckpoint? {
+        guard let data = resumeData else { return nil }
+        return try? TurnCheckpoint.restore(staticData: data, dynamicData: resumeDynamicData)
+    }
+
+    func clearResume() {
+        resumeData = nil
+        resumeDynamicData = nil
+    }
+
     var steps: [ToolStep] {
         get { stepsData.flatMap { try? JSONDecoder().decode([ToolStep].self, from: $0) } ?? [] }
         set { stepsData = newValue.isEmpty ? nil : try? JSONEncoder().encode(newValue) }
@@ -156,7 +170,9 @@ final class Message {
     }
 
     var historyMessage: HistoryMessage {
-        HistoryMessage(role: role.rawValue, text: text, images: sortedAttachments.map(\.jpegData), steps: steps)
+        HistoryMessage(role: role.rawValue, text: text,
+                       imageDataURLs: sortedAttachments.map { a in ImageDataURLCache.shared.dataURL(id: a.id) { a.jpegData } },
+                       steps: steps)
     }
 }
 
@@ -164,12 +180,16 @@ final class Message {
 final class Attachment {
     @Attribute(.unique) var id: UUID
     @Attribute(.externalStorage) var jpegData: Data
+    /// Small preview (about 10-30 KB) that transcript bubbles read, so scrolling never faults the full JPEG.
+    /// Nil on attachments saved before it existed; `ThumbnailBackfill` fills it lazily.
+    var thumbnailData: Data?
     var sortIndex: Int
     var message: Message?
 
     init(jpegData: Data, sortIndex: Int) {
         self.id = UUID()
         self.jpegData = jpegData
+        self.thumbnailData = ImageProcessor.thumbnailData(from: jpegData)
         self.sortIndex = sortIndex
     }
 }

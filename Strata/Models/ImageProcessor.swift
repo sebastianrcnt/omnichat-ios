@@ -1,4 +1,5 @@
 import UIKit
+import ImageIO
 
 enum ImageProcessor {
     static let maxLongSide: CGFloat = 1568
@@ -24,5 +25,21 @@ enum ImageProcessor {
     static func jpegData(from data: Data) -> Data? {
         guard let image = UIImage(data: data) else { return nil }
         return jpegData(from: image)
+    }
+
+    /// Long side of a stored preview: about twice the largest size a bubble draws, on a 3x screen.
+    static let thumbnailLongSide: CGFloat = 240
+
+    /// A small JPEG preview made with ImageIO, which never decodes the full-size image.
+    static func thumbnailData(from jpeg: Data, longSide: CGFloat = thumbnailLongSide, quality: CGFloat = 0.7) -> Data? {
+        guard let source = CGImageSourceCreateWithData(jpeg as CFData, [kCGImageSourceShouldCache: false] as CFDictionary) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: longSide,
+        ]
+        guard let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        return UIImage(cgImage: cg).jpegData(compressionQuality: quality)
     }
 }

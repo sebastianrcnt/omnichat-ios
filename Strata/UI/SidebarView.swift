@@ -16,12 +16,11 @@ struct SidebarView: View {
     @State private var renaming: Conversation?
     @State private var renameText = ""
 
+    /// Conversations whose message text matches the current query, found by the store (not by loading messages here).
+    @State private var contentMatches: Set<UUID> = []
+
     private var filtered: [Conversation] {
-        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !q.isEmpty else { return conversations }
-        return conversations.filter { c in
-            c.title.localizedStandardContains(q) || c.messages.contains { $0.text.localizedStandardContains(q) }
-        }
+        ConversationSearch.filter(conversations, query: query, contentMatches: contentMatches)
     }
 
     var body: some View {
@@ -71,6 +70,13 @@ struct SidebarView: View {
             .padding(DS.Spacing.lg)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .task(id: query) {
+            let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !q.isEmpty else { contentMatches = []; return }
+            try? await Task.sleep(for: .milliseconds(250)) // typing debounce; a new query cancels this task
+            guard !Task.isCancelled else { return }
+            contentMatches = ConversationSearch.matchingConversationIDs(query: q, context: context)
+        }
         .alert("Rename chat", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("Title", text: $renameText)
             Button("Cancel", role: .cancel) { renaming = nil }

@@ -110,6 +110,8 @@ struct HistoryMessage: Sendable, Equatable {
     var role: String          // "user" | "assistant"
     var text: String
     var images: [Data] = []   // JPEG
+    /// Ready-made data URLs for persisted attachments (from `ImageDataURLCache`); used instead of `images` when set.
+    var imageDataURLs: [String] = []
     var steps: [ToolStep] = []
 }
 
@@ -122,10 +124,11 @@ enum MessageAssembler {
         for m in history {
             switch m.role {
             case "user":
-                if m.images.isEmpty {
+                let urls = m.imageDataURLs.isEmpty ? m.images.map { ContentPart.dataURLString(jpeg: $0) } : m.imageDataURLs
+                if urls.isEmpty {
                     out.append(.user(m.text))
                 } else {
-                    var parts: [ContentPart] = m.images.map { ContentPart.jpegDataURL($0) }
+                    var parts: [ContentPart] = urls.map { ContentPart.imageURL($0) }
                     if !m.text.isEmpty { parts.append(.text(m.text)) }
                     out.append(.user(parts: parts))
                 }

@@ -44,6 +44,9 @@ final class ChatController {
     private var activeMessage: Message?
     private var activeContext: ModelContext?
     private var activeEndpoint: Endpoint?
+    private var persister: CheckpointPersister?
+    /// Bytes handed to the store by each checkpoint write (large half only when it changed). Instrumentation for tests.
+    var onCheckpointWrite: ((Int) -> Void)?
     private var cancelTasks: [UUID: Task<Void, Never>] = [:]
     private let background = ReplyBackgroundExecution()
 
@@ -137,6 +140,7 @@ final class ChatController {
 
     func stop() {
         revealAllNow()
+        persister?.flush() // the cancel request needs the newest request id and cursor
         if let message = activeMessage, let context = activeContext, let endpoint = activeEndpoint {
             message.stoppedByUser = true
             message.cancelPending = message.resumeData != nil
@@ -148,12 +152,11 @@ final class ChatController {
 
     private func cancelOnServer(_ message: Message, endpoint: Endpoint, context: ModelContext) {
         guard cancelTasks[message.id] == nil else { return }
-        guard let data = message.resumeData,
-              let checkpoint = try? JSONDecoder().decode(TurnCheckpoint.self, from: data),
+        guard let checkpoint = message.resumeCheckpoint,
               checkpoint.requestID != nil || (checkpoint.idempotencyKey != nil && checkpoint.submissionStarted),
               let client = streamer as? any ResumableChatStreaming else {
             message.cancelPending = false
-            message.resumeData = nil
+            message.clearResume()
             try? context.save()
             return
         }
@@ -173,7 +176,7 @@ final class ChatController {
                         continue
                     }
                     message.cancelPending = false
-                    message.resumeData = nil
+                    message.clearResume()
                     try? context.save()
                     break
                 } catch {
@@ -197,8 +200,7 @@ final class ChatController {
         if let message = messages.sorted(by: { $0.createdAt < $1.createdAt }).first(where: {
             $0.resumeData != nil && !$0.stoppedByUser && !$0.cancelPending
         }), let conversation = message.conversation,
-           let data = message.resumeData,
-           let checkpoint = try? JSONDecoder().decode(TurnCheckpoint.self, from: data) {
+           let checkpoint = message.resumeCheckpoint {
             generate(conversation: conversation, context: context, restoring: message, checkpoint: checkpoint)
         }
     }
@@ -239,6 +241,10 @@ final class ChatController {
         activeMessage = assistant
         activeContext = context
         activeEndpoint = endpoint
+        persister?.close()
+        persister = endpoint.supportsResumable ? CheckpointPersister { [weak self] snapshot in
+            self?.persist(snapshot, message: assistant, conversation: conversation, context: context)
+        } : nil
         background.begin()
         let runner = TurnRunner(streamer: streamer, tools: tools)
         let effort = conversation.effort
@@ -282,16 +288,7 @@ final class ChatController {
         background.advance()
         switch event {
         case .checkpoint(let checkpoint):
-            if activeEndpoint?.supportsResumable == true {
-                tracker.message.resumeData = try? JSONEncoder().encode(checkpoint)
-                tracker.message.text = checkpoint.accumulator.content
-                tracker.message.reasoning = checkpoint.priorReasoning + checkpoint.accumulator.reasoning
-                tracker.conversation.sources = sourceStore?.items ?? tracker.conversation.sources
-                try context.save()
-                #if DEBUG
-                DebugHooks.recordResumeSmoke(tracker.message, checkpoint: checkpoint)
-                #endif
-            }
+            persister?.update(checkpoint)
         case .roundStarted(let n):
             tracker.beginRound(n)
             pendingCalls = []
@@ -319,13 +316,30 @@ final class ChatController {
         }
     }
 
+    /// One throttled checkpoint write: the large half only when it changed, the small half always, together.
+    private func persist(_ snapshot: CheckpointPersister.Snapshot, message: Message, conversation: Conversation, context: ModelContext) {
+        if let data = snapshot.staticData { message.resumeData = data }
+        message.resumeDynamicData = snapshot.dynamicData
+        onCheckpointWrite?((snapshot.staticData?.count ?? 0) + snapshot.dynamicData.count)
+        let checkpoint = snapshot.checkpoint
+        message.text = checkpoint.accumulator.content
+        message.reasoning = checkpoint.priorReasoning + checkpoint.accumulator.reasoning
+        conversation.sources = sourceStore?.items ?? conversation.sources
+        try? context.save()
+        #if DEBUG
+        DebugHooks.recordResumeSmoke(message, checkpoint: checkpoint)
+        #endif
+    }
+
     private func finish(_ message: Message, conversation: Conversation, context: ModelContext,
                         error: Error?, tracker: TurnTracker? = nil) {
+        persister?.close()
+        persister = nil
         if let error {
             message.errorText = error.localizedDescription
             message.errorNeedsSettings = (error as? APIError)?.needsSettings ?? false
         }
-        if !message.cancelPending { message.resumeData = nil }
+        if !message.cancelPending { message.clearResume() }
         background.end(success: error == nil && !message.stoppedByUser)
         activeMessage = nil
         activeContext = nil
@@ -338,7 +352,11 @@ final class ChatController {
         phase = .idle
         pendingCalls = []
         roundRecords = []
-        if error == nil, !message.stoppedByUser,
+        var autoNaming = true
+        #if DEBUG
+        autoNaming = DebugHooks.value("StrataNoAutoRename") == nil // keeps request-count smoke tests exact
+        #endif
+        if error == nil, !message.stoppedByUser, autoNaming,
            AutoRename.shouldRunAutomatically(titleIsUserSet: conversation.titleIsUserSet, alreadyAutoNamed: conversation.autoRenameDone,
                                              completedAnswers: conversation.completedAnswerCount) {
             autoRename(conversation: conversation, context: context, force: false)

@@ -30,9 +30,9 @@ extension ContentPart: Encodable {
         }
     }
 
-    static func jpegDataURL(_ jpeg: Data) -> ContentPart {
-        .imageURL("data:image/jpeg;base64," + jpeg.base64EncodedString())
-    }
+    static func jpegDataURL(_ jpeg: Data) -> ContentPart { .imageURL(dataURLString(jpeg: jpeg)) }
+
+    static func dataURLString(jpeg: Data) -> String { "data:image/jpeg;base64," + jpeg.base64EncodedString() }
 }
 
 enum APIContent: Sendable, Equatable {

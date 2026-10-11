@@ -74,7 +74,7 @@ def main():
         subprocess.run(["xcrun", "simctl", "uninstall", device, bundle], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         sim(device, "install", str(Path(args.app).resolve()))
         base = f"http://127.0.0.1:{server.server_port}/v1"
-        common = ["-StrataMockBaseURL", base, "-StrataMockKey", "test-only-key", "-StrataFakeTools", "1", "-StrataResumeReport", "1"]
+        common = ["-StrataMockBaseURL", base, "-StrataMockKey", "test-only-key", "-StrataFakeTools", "1", "-StrataResumeReport", "1", "-StrataNoAutoRename", "1"]
         sim(device, "launch", bundle, *common, "-StrataAutoSend", "Describe Liquid Glass with sources")
         data = Path(sim(device, "get_app_container", bundle, "data")) / "Documents"
         checkpoint_path = data / "resume-checkpoint.json"
@@ -112,7 +112,7 @@ def main():
         if args.before_headers or args.drop_before_headers:
             assert len(posts) >= 4, "Header-gap test did not re-POST"
         else:
-            assert len(posts) == 3, "Unexpected extra POST after id-based recovery"
+            assert len(posts) == 3, f"Unexpected extra POST after id-based recovery: {requests} admissions={admissions}"
         assert any(first_id in p for p in resumes), "Relaunch did not resume stored request id"
         assert len(resumes) >= 3, "Forced drop was not recovered in every tool round"
         sim(device, "io", "screenshot", "/tmp/strata-resume-smoke.png")

@@ -107,6 +107,31 @@ struct ResumeTests {
         #expect(streamer.checkpoints.first?.lastSequence == 1)
     }
 
+    @Test func resumeFromAStalePersistedPairLosesAndDuplicatesNothing() async throws {
+        // The app was killed after "ABC" streamed but only the seq 1 / "A" pair had been written.
+        var live = try TurnCheckpoint(messages: [.user("hi")])
+        live.requestData = try ChatRequest(model: "m", messages: [.user("hi")]).encoded()
+        live.submissionStarted = true
+        var snapshots: [CheckpointPersister.Snapshot] = []
+        let persister = CheckpointPersister(minInterval: 1, now: { 0 }, center: NotificationCenter(), autoTrailing: false) { snapshots.append($0) }
+        for (i, piece) in ["A", "B", "C"].enumerated() {
+            _ = try live.apply(ChatDelta(content: piece, requestID: rid, sequence: i + 1))
+            persister.update(live)
+        }
+        #expect(snapshots.count == 1) // only the first pair was written
+        let staticData = try #require(snapshots[0].staticData)
+        let restored = try TurnCheckpoint.restore(staticData: staticData, dynamicData: snapshots[0].dynamicData)
+        #expect(restored.lastSequence == 1 && restored.accumulator.content == "A")
+        let streamer = RecoveryStreamer(deltas: [ChatDelta(content: "A", sequence: 1), ChatDelta(content: "B", sequence: 2),
+                                                ChatDelta(content: "C", sequence: 3), ChatDelta(isDone: true, sequence: 4)])
+        var text = ""
+        let outcome = try await TurnRunner(streamer: streamer, tools: FakeTools()).run(
+            endpoint: endpoint(), messages: [], effort: nil, checkpoint: restored) { event in
+                if case .content(let value) = event { text += value }
+            }
+        #expect(text == "ABC" && outcome.finalContent == "ABC")
+    }
+
     @Test func cursorIncludesCommentsAndRejectsMissingEvents() throws {
         var parser = SSEParser(includeIDOnlyEvents: true)
         let events = parser.feed("id: 1\n: keepalive\n\nid: 2\ndata: [DONE]\n\n")

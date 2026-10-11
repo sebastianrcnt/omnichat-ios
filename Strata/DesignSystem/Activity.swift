@@ -55,6 +55,7 @@ struct FaviconView: View {
 @MainActor
 enum FaviconImages {
     private static let cache = NSCache<NSString, UIImage>()
+    static func purge() { cache.removeAllObjects() }
 
     static func image(for host: String) async -> UIImage? {
         guard let key = FaviconStore.key(for: host) else { return nil }

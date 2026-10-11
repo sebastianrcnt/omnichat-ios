@@ -72,3 +72,97 @@ extension ContentPart: Decodable {
         }
     }
 }
+
+// MARK: - Static / dynamic split
+
+/// The small, fast-changing part of a checkpoint (cursor, accumulator, this turn's finished tool rounds and results).
+/// Always written as one unit, so the cursor and the accumulator it belongs to can never disagree.
+struct CheckpointDynamic: Codable, Sendable {
+    var requestID: String?
+    var lastSequence: Int
+    var accumulator: StreamAccumulator
+    var streamDone: Bool
+    var steps: [ToolStep] = []
+    var records: [ToolCallRecord] = []
+    var priorReasoning = ""
+
+    init(requestID: String?, lastSequence: Int, accumulator: StreamAccumulator, streamDone: Bool,
+         steps: [ToolStep], records: [ToolCallRecord], priorReasoning: String) {
+        self.requestID = requestID
+        self.lastSequence = lastSequence
+        self.accumulator = accumulator
+        self.streamDone = streamDone
+        self.steps = steps
+        self.records = records
+        self.priorReasoning = priorReasoning
+    }
+}
+
+/// Cheap fingerprint of the large part: the exact request body of the current round. Every field is an O(1) read.
+struct CheckpointStaticKey: Hashable, Sendable {
+    var round: Int
+    var idempotencyKey: String?
+    var requestBytes: Int?
+}
+
+/// What is persisted for the large half. The request body already contains the whole history, so the history is not
+/// stored a second time; `messages` are read back out of the body.
+private struct PersistedStatic: Codable {
+    var requestData: Data
+    var idempotencyKey: String?
+    var round: Int
+    var submissionStarted: Bool
+}
+
+extension TurnCheckpoint {
+    var dynamicPart: CheckpointDynamic {
+        CheckpointDynamic(requestID: requestID, lastSequence: lastSequence, accumulator: accumulator, streamDone: streamDone,
+                          steps: steps, records: records, priorReasoning: priorReasoning)
+    }
+
+    var staticKey: CheckpointStaticKey {
+        CheckpointStaticKey(round: round, idempotencyKey: idempotencyKey, requestBytes: requestData?.count)
+    }
+
+    /// Only a checkpoint whose request was submitted is worth persisting: before that, the turn is recoverable
+    /// from the previous round's checkpoint (or, for the first round, from the saved conversation).
+    var isPersistable: Bool { submissionStarted && requestData != nil }
+
+    mutating func overlay(_ dynamic: CheckpointDynamic) {
+        requestID = dynamic.requestID
+        lastSequence = dynamic.lastSequence
+        accumulator = dynamic.accumulator
+        streamDone = dynamic.streamDone
+        steps = dynamic.steps
+        records = dynamic.records
+        priorReasoning = dynamic.priorReasoning
+    }
+
+    /// Encodes the large half once per round.
+    static func encodeStatic(_ checkpoint: TurnCheckpoint) throws -> Data {
+        guard let body = checkpoint.requestData else { return try JSONEncoder().encode(checkpoint) }
+        return try JSONEncoder().encode(PersistedStatic(requestData: body, idempotencyKey: checkpoint.idempotencyKey,
+                                                        round: checkpoint.round, submissionStarted: checkpoint.submissionStarted))
+    }
+
+    /// Rebuilds a checkpoint from its two persisted parts. A whole checkpoint saved before the split restores as is.
+    static func restore(staticData: Data, dynamicData: Data?) throws -> TurnCheckpoint {
+        var checkpoint: TurnCheckpoint
+        if let whole = try? JSONDecoder().decode(TurnCheckpoint.self, from: staticData) {
+            checkpoint = whole
+        } else {
+            let persisted = try JSONDecoder().decode(PersistedStatic.self, from: staticData)
+            struct Envelope: Decodable { var messages: [APIMessage] }
+            let messages = try JSONDecoder().decode(Envelope.self, from: persisted.requestData).messages
+            checkpoint = try TurnCheckpoint(messages: messages)
+            checkpoint.requestData = persisted.requestData
+            checkpoint.idempotencyKey = persisted.idempotencyKey
+            checkpoint.round = persisted.round
+            checkpoint.submissionStarted = persisted.submissionStarted
+        }
+        if let dynamicData, let dynamic = try? JSONDecoder().decode(CheckpointDynamic.self, from: dynamicData) {
+            checkpoint.overlay(dynamic)
+        }
+        return checkpoint
+    }
+}
