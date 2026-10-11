@@ -144,7 +144,7 @@ struct InlineMarkdownText: View {
     let color: Color
     var spans: [StreamingMarkdownModel.FreshSpan] = []
 
-    static func attributed(_ source: String) -> AttributedString {
+    nonisolated static func attributed(_ source: String) -> AttributedString {
         let closed = OptimisticCloser.closeInline(CJKEmphasisFixer.fix(source))
         let options = AttributedString.MarkdownParsingOptions(allowsExtendedAttributes: false,
                                                               interpretedSyntax: .inlineOnly,

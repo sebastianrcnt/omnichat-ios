@@ -16,6 +16,20 @@ struct SearchEngine: Codable, Sendable, Identifiable, Equatable {
     var urlTransform: String?
     var maxResults: Int = 8
 
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        urlTemplate = try c.decode(String.self, forKey: .urlTemplate)
+        resultsXPath = try c.decode(String.self, forKey: .resultsXPath)
+        titleXPath = try c.decode(String.self, forKey: .titleXPath)
+        urlXPath = try c.decode(String.self, forKey: .urlXPath)
+        snippetXPath = try c.decode(String.self, forKey: .snippetXPath)
+        challengeXPath = try c.decodeIfPresent(String.self, forKey: .challengeXPath)
+        urlTransform = try c.decodeIfPresent(String.self, forKey: .urlTransform)
+        maxResults = try c.decodeIfPresent(Int.self, forKey: .maxResults) ?? 8
+    }
+
     func searchURL(for query: String) -> URL? {
         var allowed = CharacterSet.alphanumerics
         allowed.insert(charactersIn: "-._~")

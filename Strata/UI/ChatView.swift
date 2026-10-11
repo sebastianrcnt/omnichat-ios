@@ -199,10 +199,10 @@ struct ChatView: View {
             .padding(.top, DS.Spacing.md)
         }
         .scrollPosition($position)
-        .defaultScrollAnchor(.bottom)
+        .defaultScrollAnchor(conversation == nil ? .center : .bottom)
         .scrollDismissesKeyboard(.interactively)
         .onScrollGeometryChange(for: Bool.self) { geo in
-            geo.contentSize.height - (geo.contentOffset.y + geo.containerSize.height) < 80
+            geo.contentSize.height + geo.contentInsets.bottom - (geo.contentOffset.y + geo.containerSize.height) < 80
         } action: { _, newValue in
             atBottom = newValue
         }
@@ -223,7 +223,6 @@ struct ChatView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 120)
     }
 
     @ViewBuilder
@@ -254,7 +253,7 @@ struct ChatView: View {
 
     private var jumpButton: some View {
         Group {
-            if !atBottom {
+            if !atBottom && conversation != nil {
                 GlassIconButton(systemName: "arrow.down", label: "Jump to bottom", diameter: DS.IconSize.compactControlDiameter + 4) {
                     withAnimation(DS.Motion.spring) { position.scrollTo(edge: .bottom) }
                 }
