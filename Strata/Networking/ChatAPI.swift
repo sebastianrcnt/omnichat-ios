@@ -140,8 +140,10 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
 
     static let webFetch = ToolDefinition(function: .init(
         name: "web_fetch",
-        description: "Fetch a web page by URL and return its title and main text content.",
-        parameters: .init(properties: ["url": .init(description: "The absolute http(s) URL to fetch.")], required: ["url"])))
+        description: "Fetch a web page by URL and return its title and main text content. Long pages are returned in slices: when the result ends with a note that more is available, call again with the same url and the given offset to continue.",
+        parameters: .init(properties: ["url": .init(description: "The absolute http(s) URL to fetch."),
+                                       "offset": .init(type: "integer", description: "Character offset into the page text to start from. Defaults to 0.")],
+                          required: ["url"])))
 
     static let standard: [ToolDefinition] = [webSearch, webFetch]
 }

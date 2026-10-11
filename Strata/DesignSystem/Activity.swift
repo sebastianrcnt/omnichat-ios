@@ -42,6 +42,8 @@ struct ActivityEntry: Identifiable, Equatable {
     var kind: Kind
     var isRunning: Bool
     var isError: Bool
+    /// A `web_fetch` with an offset: shown as "Read more of <domain>".
+    var isContinuation = false
 
     static func host(of url: String) -> String {
         guard let h = URL(string: url)?.host(percentEncoded: false) else { return url }
@@ -56,6 +58,7 @@ struct ActivityEntry: Identifiable, Equatable {
             kind = .search(query: call.primaryArgument, sources: call.sourceIDs.compactMap { sources[$0] })
         } else {
             kind = .visit(url: call.primaryArgument, host: Self.host(of: call.primaryArgument))
+            isContinuation = call.fetchOffset > 0
         }
     }
 
@@ -67,6 +70,7 @@ struct ActivityEntry: Identifiable, Equatable {
             kind = .search(query: pending.primaryArgument, sources: [])
         } else {
             kind = .visit(url: pending.primaryArgument, host: Self.host(of: pending.primaryArgument))
+            isContinuation = pending.offset > 0
         }
     }
 
@@ -114,10 +118,10 @@ struct ActivityRow: View {
             HStack(spacing: DS.Spacing.sm) {
                 icon("globe")
                 if wrapsChips, let u = URL(string: url) {
-                    Text("Visited").font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary)
+                    Text(entry.isContinuation ? "Read more of" : "Visited").font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary)
                     SourceChip(host: host, url: u)
                 } else {
-                    Text("Visited \(host)").font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary).lineLimit(1)
+                    Text(entry.isContinuation ? "Read more of \(host)" : "Visited \(host)").font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary).lineLimit(1)
                 }
                 if entry.isRunning { ProgressView().controlSize(.mini) }
                 Spacer(minLength: 0)

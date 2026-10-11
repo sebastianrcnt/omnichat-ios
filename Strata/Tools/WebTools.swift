@@ -108,6 +108,13 @@ enum PageTextFormatter {
 
     /// Collapse whitespace runs and truncate to the character budget.
     static func normalize(_ text: String, limit: Int = maxCharacters) -> String {
+        let joined = normalizeFull(text)
+        guard joined.count > limit else { return joined }
+        return String(joined.prefix(limit)) + "\n\n[Truncated: page text exceeded \(limit) characters.]"
+    }
+
+    /// Collapse whitespace runs, keeping the whole text (slicing happens later, per `web_fetch` call).
+    static func normalizeFull(_ text: String) -> String {
         var lines: [String] = []
         var blank = 0
         for raw in text.components(separatedBy: .newlines) {
@@ -120,14 +127,77 @@ enum PageTextFormatter {
                 lines.append(line)
             }
         }
-        let joined = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard joined.count > limit else { return joined }
-        return String(joined.prefix(limit)) + "\n\n[Truncated: page text exceeded \(limit) characters.]"
+        return lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
+/// Slices extracted page text for `web_fetch(url, offset)`.
+enum PageSlicer {
+    enum Result: Equatable {
+        case slice(text: String, footer: String)
+        case offsetPastEnd(offset: Int, total: Int)
+    }
+
+    /// Returns `[offset, offset+limit)` of `text` plus a footer telling the model how to continue.
+    static func slice(_ text: String, offset: Int, limit: Int) -> Result {
+        let total = text.count
+        let start = max(0, offset)
+        if start > 0 && start >= total { return .offsetPastEnd(offset: start, total: total) }
+        let end = min(total, start + max(1, limit))
+        let from = text.index(text.startIndex, offsetBy: start)
+        let to = text.index(from, offsetBy: end - start)
+        let body = String(text[from..<to])
+        let footer = end >= total
+            ? "[End of page, \(total) characters total.]"
+            : "[Showing characters \(start)\u{2013}\(end) of \(total). Call web_fetch with the same url and offset=\(end) to read more.]"
+        return .slice(text: body, footer: footer)
+    }
+}
+
+/// A page's extracted text, kept so continuation calls do not reload it.
+struct FetchedPage: Sendable, Equatable {
+    var title: String
+    var url: String
+    var text: String
+}
+
+/// In-memory cache of extracted pages (about 10 minutes).
+final class PageCache: @unchecked Sendable {
+    static let shared = PageCache()
+    var timeToLive: TimeInterval = 600
+    var capacity = 16
+
+    private let lock = NSLock()
+    private var entries: [String: (page: FetchedPage, stored: Date)] = [:]
+
+    func page(for url: URL, now: Date = .now) -> FetchedPage? {
+        let key = SourceStore.key(for: url.absoluteString)
+        return lock.withLock {
+            guard let e = entries[key], now.timeIntervalSince(e.stored) < timeToLive else { return nil }
+            return e.page
+        }
+    }
+
+    func store(_ page: FetchedPage, for url: URL, now: Date = .now) {
+        let key = SourceStore.key(for: url.absoluteString)
+        lock.withLock {
+            entries[key] = (page, now)
+            if entries.count > capacity, let oldest = entries.min(by: { $0.value.stored < $1.value.stored })?.key { entries[oldest] = nil }
+        }
+    }
+
+    func removeAll() { lock.withLock { entries.removeAll() } }
+}
+
+typealias PageLoader = @MainActor @Sendable (URL) async throws -> FetchedPage
+
 struct WebFetchTool {
     var resolver: any HostResolving = SystemHostResolver()
+    var cache: PageCache = .shared
+    /// Characters returned per call (Settings > Fetch length).
+    var limit: Int = AppSettings.currentFetchLength
+    /// Test seam; `nil` loads with the hidden web view.
+    var loader: PageLoader?
 
     private static var readabilitySource: String? {
         for bundle in [Bundle.main] {
@@ -160,32 +230,56 @@ struct WebFetchTool {
     }
 
     @MainActor
-    func run(urlString: String) async -> ToolOutput {
+    func run(urlString: String, offset: Int = 0) async -> ToolOutput {
         let url: URL
         do { url = try await Self.prepare(urlString, resolver: resolver) }
         catch { return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true) }
-        guard let readability = Self.readabilitySource else {
-            return ToolOutput(text: "Error: the page reader is missing from the app bundle.", isError: true)
+        if offset < 0 {
+            return ToolOutput(text: "Error: offset must be zero or a positive character offset.", isError: true)
         }
-        let page = HiddenWebView(resolver: resolver)
-        defer { page.dispose() }
-        do {
+
+        let page: FetchedPage
+        if let cached = cache.page(for: url) {
+            page = cached
+        } else {
+            do {
+                page = try await (loader ?? Self.loadWithWebView(resolver: resolver))(url)
+            } catch {
+                return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true)
+            }
+            cache.store(page, for: url)
+        }
+
+        switch PageSlicer.slice(page.text, offset: offset, limit: limit) {
+        case .offsetPastEnd(let off, let total):
+            return ToolOutput(text: "Error: offset \(off) is past the end of the page (\(total) characters). Use an offset below \(total).", isError: true)
+        case .slice(let body, let footer):
+            let content = body + "\n\n" + footer
+            let header = offset == 0 ? "Title: \(page.title)\nURL: \(page.url)\n\n" : "URL: \(page.url)\n\n"
+            return ToolOutput(text: header + content,
+                              sources: [SourceCandidate(title: page.title.isEmpty ? page.url : page.title, url: page.url, content: content)])
+        }
+    }
+
+    /// The real loader: hidden web view plus Readability.
+    @MainActor
+    static func loadWithWebView(resolver: any HostResolving) -> PageLoader {
+        { url in
+            guard let readability = Self.readabilitySource else { throw WebToolError.script("the page reader is missing from the app bundle.") }
+            let page = HiddenWebView(resolver: resolver)
+            defer { page.dispose() }
             try await page.load(url, timeout: .seconds(15))
             try? await Task.sleep(for: .milliseconds(600)) // let client-side rendering settle
             _ = try await page.evaluateString(readability + "\n;'ok'")
             let json = try await page.evaluateString(Self.extractionScript)
             struct Extracted: Decodable { var title: String; var text: String }
             guard let data = json.data(using: .utf8), let e = try? JSONDecoder().decode(Extracted.self, from: data) else {
-                return ToolOutput(text: "Error: could not read the page.", isError: true)
+                throw WebToolError.script("could not read the page.")
             }
-            let body = PageTextFormatter.normalize(e.text)
-            if body.isEmpty { return ToolOutput(text: "Error: the page has no readable text.", isError: true) }
+            let body = PageTextFormatter.normalizeFull(e.text)
+            if body.isEmpty { throw WebToolError.script("the page has no readable text.") }
             let finalURL = page.webView.url?.absoluteString ?? url.absoluteString
-            let title = e.title.trimmingCharacters(in: .whitespacesAndNewlines)
-            return ToolOutput(text: "Title: \(title)\nURL: \(finalURL)\n\n\(body)",
-                              sources: [SourceCandidate(title: title.isEmpty ? finalURL : title, url: finalURL, content: body)])
-        } catch {
-            return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true)
+            return FetchedPage(title: e.title.trimmingCharacters(in: .whitespacesAndNewlines), url: finalURL, text: body)
         }
     }
 }
@@ -209,7 +303,8 @@ struct ToolRouter: ToolExecuting {
             guard let url = args["url"] as? String else {
                 return ToolOutput(text: "Error: missing required argument \"url\".", isError: true)
             }
-            return await WebFetchTool().run(urlString: url)
+            let offset = (args["offset"] as? Int) ?? (args["offset"] as? Double).map(Int.init) ?? Int((args["offset"] as? String) ?? "") ?? 0
+            return await WebFetchTool().run(urlString: url, offset: offset)
         default:
             return ToolOutput(text: "Error: unknown tool \"\(name)\".", isError: true)
         }

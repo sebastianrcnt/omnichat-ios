@@ -41,6 +41,14 @@ extension Color {
 @Observable
 final class AppSettings {
     static let defaultContextLength = 262_144
+    nonisolated static let fetchLengthOptions = [12_000, 24_000, 48_000, 96_000]
+    nonisolated static let defaultFetchLength = 24_000
+
+    /// Read by the tools off the main actor.
+    nonisolated static var currentFetchLength: Int {
+        let v = UserDefaults.standard.integer(forKey: "fetchLength")
+        return fetchLengthOptions.contains(v) ? v : defaultFetchLength
+    }
 
     private let defaults: UserDefaults
 
@@ -48,6 +56,7 @@ final class AppSettings {
     var defaultContextLength: Int { didSet { defaults.set(defaultContextLength, forKey: "defaultContextLength") } }
     var lastConnectionID: UUID? { didSet { defaults.set(lastConnectionID?.uuidString, forKey: "lastConnectionID") } }
     var lastModelID: String? { didSet { defaults.set(lastModelID, forKey: "lastModelID") } }
+    var fetchLength: Int { didSet { defaults.set(fetchLength, forKey: "fetchLength") } }
     var smoothStreaming: Bool { didSet { defaults.set(smoothStreaming, forKey: "smoothStreaming") } }
     var lastEffortRaw: String { didSet { defaults.set(lastEffortRaw, forKey: "lastEffort") } }
 
@@ -58,6 +67,8 @@ final class AppSettings {
         defaultContextLength = ctx > 0 ? ctx : Self.defaultContextLength
         lastConnectionID = defaults.string(forKey: "lastConnectionID").flatMap(UUID.init(uuidString:))
         lastModelID = defaults.string(forKey: "lastModelID")
+        let fl = defaults.integer(forKey: "fetchLength")
+        fetchLength = Self.fetchLengthOptions.contains(fl) ? fl : Self.defaultFetchLength
         smoothStreaming = defaults.object(forKey: "smoothStreaming") as? Bool ?? true
         lastEffortRaw = defaults.string(forKey: "lastEffort") ?? Effort.default.rawValue
     }

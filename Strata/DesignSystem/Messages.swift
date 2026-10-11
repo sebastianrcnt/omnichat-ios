@@ -178,7 +178,7 @@ struct AssistantMessage: View {
     }
 
     private var searches: Int { content.calls.filter { $0.name == ToolNames.webSearch }.count }
-    private var pages: Int { content.calls.filter { $0.name == ToolNames.webFetch }.count }
+    private var pages: Int { content.calls.filter { $0.name == ToolNames.webFetch && $0.fetchOffset == 0 }.count }
 
     /// Visited pages plus cited results, for the "Sources" list.
     private var usedSources: [SourceInfo] {

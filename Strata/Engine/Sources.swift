@@ -46,7 +46,7 @@ final class SourceStore {
         return info
     }
 
-    static func key(for url: String) -> String {
+    nonisolated static func key(for url: String) -> String {
         guard var comps = URLComponents(string: url.trimmingCharacters(in: .whitespacesAndNewlines)) else { return url }
         comps.fragment = nil
         comps.host = comps.host?.lowercased()

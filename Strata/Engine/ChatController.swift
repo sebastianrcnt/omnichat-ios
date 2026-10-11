@@ -7,6 +7,8 @@ struct PendingToolCall: Identifiable, Equatable {
     var id: String
     var name: String
     var primaryArgument: String
+    /// `web_fetch` offset; above zero it is a continuation of an earlier read.
+    var offset: Int = 0
 }
 
 /// Drives generation for the app: persists messages, runs the turn, publishes live state for the UI.
@@ -197,7 +199,7 @@ final class ChatController {
         case .toolsRequested(let calls):
             tracker.finishThinking()
             tracker.beginTools(calls)
-            pendingCalls = calls.map { PendingToolCall(id: $0.id, name: $0.name, primaryArgument: ToolCallRecord(id: $0.id, name: $0.name, arguments: $0.arguments, result: "", isError: false).primaryArgument) }
+            pendingCalls = calls.map { PendingToolCall(id: $0.id, name: $0.name, primaryArgument: ToolCallRecord(id: $0.id, name: $0.name, arguments: $0.arguments, result: "", isError: false).primaryArgument, offset: ToolCallRecord.fetchOffset(in: $0.arguments)) }
             if let first = pendingCalls.first { phase = .tool(name: first.name, argument: first.primaryArgument) }
         case .toolFinished(let record):
             tracker.completeTool(record)

@@ -41,6 +41,20 @@ struct SettingsView: View {
                                           isOn: $settings.smoothStreaming)
                     }
 
+                    GroupedSection(header: "Web tools", footer: "How much of a page web_fetch returns per call. Longer pages continue in further calls.") {
+                        HStack {
+                            Text("Fetch length").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
+                            Spacer()
+                            Picker("Fetch length", selection: $settings.fetchLength) {
+                                ForEach(AppSettings.fetchLengthOptions, id: \.self) { Text("\($0 / 1000)k characters").tag($0) }
+                            }
+                            .labelsHidden()
+                            .tint(theme.textSecondary)
+                        }
+                        .padding(.horizontal, DS.Spacing.lg)
+                        .padding(.vertical, DS.Spacing.sm)
+                    }
+
                     GroupedSection(header: "Context", footer: "Used for the context ring when a model does not report its context length.") {
                         SettingsFieldRow(title: "Default length", prompt: "262144",
                                          text: Binding(

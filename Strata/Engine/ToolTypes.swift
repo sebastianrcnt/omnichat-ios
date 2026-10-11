@@ -60,6 +60,18 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
         }
     }
 
+    /// `offset` argument of a `web_fetch` call (0 for a first read).
+    var fetchOffset: Int { Self.fetchOffset(in: arguments) }
+
+    static func fetchOffset(in arguments: String) -> Int {
+        guard let data = arguments.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return 0 }
+        if let n = obj["offset"] as? Int { return n }
+        if let d = obj["offset"] as? Double { return Int(d) }
+        if let s = obj["offset"] as? String, let n = Int(s) { return n }
+        return 0
+    }
+
     var toolCall: ToolCall { ToolCall(id: id, name: name, arguments: arguments) }
 }
 

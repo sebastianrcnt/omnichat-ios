@@ -6,6 +6,7 @@
     "%@ of %@ (%lld%%)": {},
     "%@ of %@ tokens used": {},
     "%@ · %llds": {},
+    "%@%@": {},
     "%lld": {
       "shouldTranslate": false
     },
@@ -98,6 +99,7 @@
       }
     },
     "%lld%% used": {},
+    "%lldk characters": {},
     "262144": {
       "shouldTranslate": false
     },
@@ -133,6 +135,7 @@
     "Context: %lld%% used": {},
     "Context: no usage yet": {},
     "Copy": {},
+    "Copy raw Markdown": {},
     "Could not read the search results page.": {},
     "Could not resolve the host %@.": {},
     "Custom color": {},
@@ -143,6 +146,7 @@
     "Done": {},
     "Effort": {},
     "Extra": {},
+    "Fetch length": {},
     "Fetch models": {},
     "Fetched %lld models.": {
       "localizations": {
@@ -173,6 +177,7 @@
     "High": {},
     "Higher effort lets the model think longer. It costs more time and tokens. Limits are the engine's thinking-token caps.": {},
     "Higher effort thinks longer.": {},
+    "How much of a page web_fetch returns per call. Longer pages continue in further calls.": {},
     "Image": {},
     "Images": {},
     "Input tokens": {},
@@ -218,6 +223,8 @@
     "Pinned": {},
     "Prompt": {},
     "Purple": {},
+    "Read more of": {},
+    "Read more of %@": {},
     "Reading": {},
     "Reasoning tokens": {},
     "Recent": {},
