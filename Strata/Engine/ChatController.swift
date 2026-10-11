@@ -100,7 +100,7 @@ final class ChatController {
 
     /// Sends a user message. With `editing`, the new message is a sibling of that one (same parent): the old branch stays
     /// and the leaf moves to the new message.
-    func send(text: String, images: [Data], conversation: Conversation, context: ModelContext, editing: Message? = nil) {
+    func send(text: String, images: [Data], thumbnails: [Data?] = [], conversation: Conversation, context: ModelContext, editing: Message? = nil) {
         guard !isStreaming else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !images.isEmpty else { return }
@@ -110,7 +110,8 @@ final class ChatController {
         context.insert(user)
         conversation.attach(user, parent: parent)
         for (i, data) in images.enumerated() {
-            let a = Attachment(jpegData: data, sortIndex: i)
+            // The thumbnail was made when the photo was added; without one, the bubble's backfill makes it (never here, on main).
+            let a = Attachment(jpegData: data, sortIndex: i, thumbnailData: thumbnails.indices.contains(i) ? thumbnails[i] : nil)
             a.message = user
             context.insert(a)
         }
@@ -169,6 +170,8 @@ final class ChatController {
         task?.cancel()
     }
 
+    static let cancelRetryWindow: TimeInterval = 600
+
     private func cancelOnServer(_ message: Message, endpoint: Endpoint, context: ModelContext) {
         guard cancelTasks[message.id] == nil else { return }
         guard let checkpoint = message.resumeCheckpoint,
@@ -181,7 +184,9 @@ final class ChatController {
         }
         cancelTasks[message.id] = Task { @MainActor [weak self] in
             let lookupDeadline = Date().addingTimeInterval(30)
-            while !Task.isCancelled {
+            // Bounded: after this long the flag stays set and the next foreground retries (restorePending).
+            let giveUp = Date().addingTimeInterval(Self.cancelRetryWindow)
+            while !Task.isCancelled, Date() < giveUp {
                 do {
                     var id = checkpoint.requestID
                     if id == nil, let key = checkpoint.idempotencyKey {

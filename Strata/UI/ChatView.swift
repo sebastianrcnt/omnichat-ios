@@ -115,7 +115,7 @@ struct ChatView: View {
             .overlay(alignment: .bottom) { jumpButton }
             .sheet(isPresented: $showAttach) {
                 AttachSheet(supportsImages: selectedModel?.supportsImages ?? false, modelName: selection.modelID,
-                            onPick: { jpegs in draft.attachments.append(contentsOf: jpegs.map { ComposerAttachment(id: UUID(), jpeg: $0) }) },
+                            onPick: addAttachments,
                             onEnableImages: enableImagesForSelectedModel)
             }
             .sheet(isPresented: $showModelPicker) {
@@ -353,6 +353,18 @@ struct ChatView: View {
         }
     }
 
+    /// Adds photos to the composer and makes their thumbnails in the background.
+    private func addAttachments(_ jpegs: [Data]) {
+        for jpeg in jpegs {
+            let attachment = ComposerAttachment(id: UUID(), jpeg: jpeg)
+            draft.attachments.append(attachment)
+            Task {
+                let thumbnail = await Task.detached(priority: .utility) { ImageProcessor.thumbnailData(from: jpeg) }.value
+                if let i = draft.attachments.firstIndex(where: { $0.id == attachment.id }) { draft.attachments[i].thumbnail = thumbnail }
+            }
+        }
+    }
+
     // MARK: Branches and editing
 
     private func switchBranch(_ message: Message, by offset: Int) {
@@ -367,7 +379,7 @@ struct ChatView: View {
         if editing == nil { savedDraft = (draft.text, draft.attachments) }
         editing = message
         draft.text = message.text
-        draft.attachments = message.sortedAttachments.map { ComposerAttachment(id: UUID(), jpeg: $0.jpegData) }
+        draft.attachments = message.sortedAttachments.map { ComposerAttachment(id: UUID(), jpeg: $0.jpegData, thumbnail: $0.thumbnailData) }
         composerFocused = true
     }
 
@@ -427,6 +439,7 @@ struct ChatView: View {
         }
         let text = draft.text
         let images = draft.attachments.map(\.jpeg)
+        let thumbnails = draft.attachments.map(\.thumbnail)
         let edited = editing
         draft.text = ""
         draft.attachments = []
@@ -435,7 +448,7 @@ struct ChatView: View {
             if let saved = savedDraft { draft.text = saved.text; draft.attachments = saved.attachments }
             savedDraft = nil
         }
-        controller.send(text: text, images: images, conversation: target, context: context, editing: edited)
+        controller.send(text: text, images: images, thumbnails: thumbnails, conversation: target, context: context, editing: edited)
         withAnimation(DS.Motion.spring) { position.scrollTo(edge: .bottom) }
     }
 

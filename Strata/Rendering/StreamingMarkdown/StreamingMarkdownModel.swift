@@ -22,6 +22,9 @@ final class StreamingMarkdownModel {
     @ObservationIgnored private(set) var text = ""
     @ObservationIgnored private var reveal = RevealController()
     @ObservationIgnored private var tickScheduled = false
+    @ObservationIgnored private let activation = ActivationFlush()
+    /// Whether anyone can see the screen; replaced in tests.
+    @ObservationIgnored var isDisplayActive: () -> Bool = { DisplayActivity.isActive() }
     @ObservationIgnored private var pipeline: Pipeline?
     @ObservationIgnored var smoothing: Bool
     /// Called on the main actor after each publish with the time spent applying it (perf harness hook).
@@ -46,8 +49,16 @@ final class StreamingMarkdownModel {
         guard !delta.isEmpty else { return }
         text += delta
         reveal.receive(delta)
-        scheduleTick()
+        if isDisplayActive() {
+            scheduleTick()
+        } else {
+            // Nobody is looking: no display timer. What arrived is revealed when the app is active again.
+            activation.arm { [weak self] in self?.revealAll() }
+        }
     }
+
+    /// Characters received but not yet shown.
+    var unrevealedCount: Int { reveal.backlogCount }
 
     /// Reveal everything received so far right now (stream end, stop, or the user scrolled away).
     func revealAll() {
@@ -99,6 +110,10 @@ final class StreamingMarkdownModel {
 
     private func tick() {
         tickScheduled = false
+        if !isDisplayActive() { // went to the background with a tick pending: show everything, stop
+            revealAll()
+            return
+        }
         let dt = Self.publishInterval.seconds
         let delta = smoothing ? reveal.tick(dt: dt) : reveal.flushAll()
         if !delta.isEmpty { publish(delta, fresh: smoothing) }
@@ -211,12 +226,18 @@ final class ReasoningChunkModel {
     @ObservationIgnored private(set) var text = ""
     @ObservationIgnored private var reveal = RevealController()
     @ObservationIgnored private var tickScheduled = false
+    @ObservationIgnored private let activation = ActivationFlush()
+    /// Whether anyone can see the screen; replaced in tests.
+    @ObservationIgnored var isDisplayActive: () -> Bool = { DisplayActivity.isActive() }
     @ObservationIgnored var smoothing: Bool
 
     init(text: String = "", smoothing: Bool = true) {
         self.smoothing = smoothing
         if !text.isEmpty { load(text) }
     }
+
+    /// Characters received but not yet shown.
+    var unrevealedCount: Int { reveal.backlogCount }
 
     func load(_ newText: String) {
         finalized = []
@@ -231,7 +252,11 @@ final class ReasoningChunkModel {
     func append(_ delta: String) {
         guard !delta.isEmpty else { return }
         reveal.receive(delta)
-        scheduleTick()
+        if isDisplayActive() {
+            scheduleTick()
+        } else {
+            activation.arm { [weak self] in self?.revealAll() }
+        }
     }
 
     /// Start a new reasoning section (a new tool round).
@@ -257,6 +282,10 @@ final class ReasoningChunkModel {
 
     private func tick() {
         tickScheduled = false
+        if !isDisplayActive() {
+            revealAll()
+            return
+        }
         let delta = smoothing ? reveal.tick(dt: StreamingMarkdownModel.publishInterval.seconds) : reveal.flushAll()
         if !delta.isEmpty {
             consume(delta)

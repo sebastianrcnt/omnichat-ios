@@ -272,6 +272,14 @@ final class Attachment {
     var sortIndex: Int
     var message: Message?
 
+    /// For code already off the main thread, or with a thumbnail in hand. A nil thumbnail is made later by `ThumbnailBackfill`.
+    init(jpegData: Data, sortIndex: Int, thumbnailData: Data?) {
+        self.id = UUID()
+        self.jpegData = jpegData
+        self.thumbnailData = thumbnailData
+        self.sortIndex = sortIndex
+    }
+
     init(jpegData: Data, sortIndex: Int) {
         self.id = UUID()
         self.jpegData = jpegData

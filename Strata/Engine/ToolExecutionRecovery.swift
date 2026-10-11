@@ -14,8 +14,9 @@ enum ToolExecutionRecovery {
 
     @MainActor
     private static func waitForForeground() async throws {
+        // Woken by the foreground signal; the long timeout is only a safety net, not a poll.
         while UIApplication.shared.applicationState != .active {
-            try await Task.sleep(for: .milliseconds(250))
+            try await RecoverySignals.shared.wait(seconds: 30)
         }
         try Task.checkCancellation()
     }

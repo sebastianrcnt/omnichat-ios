@@ -266,8 +266,13 @@ struct AttachSheet: View {
         }
         .sheet(isPresented: $showCamera) {
             CameraPicker { image in
-                if let data = ImageProcessor.jpegData(from: image) { onPick([data]) }
                 dismiss()
+                // Resizing a full camera frame takes tens of milliseconds: not on the main thread.
+                Task {
+                    if let data = await Task.detached(priority: .userInitiated, operation: { ImageProcessor.jpegData(from: image) }).value {
+                        onPick([data])
+                    }
+                }
             }
             .ignoresSafeArea()
         }

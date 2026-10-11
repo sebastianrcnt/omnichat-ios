@@ -28,6 +28,8 @@ struct ModelEffortChip: View {
 struct ComposerAttachment: Identifiable, Equatable {
     let id: UUID
     let jpeg: Data
+    /// Small preview, made off the main thread after the photo is added. Shown here and stored with the message.
+    var thumbnail: Data?
 }
 
 /// Floating glass composer: attachments, text field, plus button, chip slot, send/stop.
@@ -71,7 +73,7 @@ struct ComposerBar<Chip: View>: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: DS.Spacing.sm) {
                             ForEach(attachments) { a in
-                                AttachmentThumbnail(data: a.jpeg) { onRemoveAttachment(a.id) }
+                                AttachmentThumbnail(data: a.thumbnail ?? a.jpeg) { onRemoveAttachment(a.id) }
                             }
                         }
                     }

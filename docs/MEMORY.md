@@ -54,3 +54,12 @@ What remains linear: each round writes its request body once, so a round costs a
 - Always running: the request ring (the last 6 request bodies per conversation, deflated in the background, 2 MB total; the newest request is kept even if alone over the cap) and a few counters (`DiagnosticCounters`).
 - Save debug bundle writes `Documents/Debug/<yyyyMMdd-HHmmss>/` with `report.json`, `index.txt`, `memstats.txt` and `requests/<conv>-<n>.json`. Authorization values and API keys are always removed; inline images become `<image N bytes>` unless "Strip images" is off.
 - Pull it from a device: `xcrun devicectl device copy from --device <id> --domain-type appDataContainer --domain-identifier cc.coolservices.strata --source Documents/Debug --destination ./debug`.
+
+## P2 performance items
+
+- Streaming code blocks render only their last 40 lines and count lines with a byte scan (`CodeBlockContent.streaming`); the full parse happens once, when the fence closes.
+- The code viewer shares through `Transferable` (the file is written when the share sheet asks) and keeps the pinch size in view state, writing the setting when the gesture ends.
+- Recovery: a reply gives up reconnecting after 10 minutes without data (`StreamRecoveryPolicy.maxOutage`); `RecoverySignals.wait` is a timer plus a signal (no polling); the server-cancel retry stops after 10 minutes and leaves `cancelPending` set for the next foreground; waiting for the foreground uses the same signal.
+- The system's progress object for the background task is written at most once a second (`RateLimiter`). The background task identifier is registered once per turn (never per delta).
+- In the background no display timer runs: streamed text is revealed when the app is visible again (or at once when the turn ends).
+- Camera photos are resized off the main thread, and thumbnails are made in the background when a photo is added (the send path no longer does image work).

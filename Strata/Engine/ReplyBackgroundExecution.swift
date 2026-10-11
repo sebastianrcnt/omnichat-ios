@@ -11,10 +11,13 @@ final class ReplyBackgroundExecution {
     private var identifier: String?
     private var active = false
     private var units: Int64 = 0
+    /// Every delta advances the count, but the system's progress object is written about once a second.
+    private var progressLimiter = RateLimiter(interval: .seconds(1))
 
     func begin() {
         guard !active else { return }
         active = true
+        progressLimiter.reset()
         fallback = UIApplication.shared.beginBackgroundTask(withName: "Strata reply") { [weak self] in
             Task { @MainActor in self?.endFallback() }
         }
@@ -64,7 +67,7 @@ final class ReplyBackgroundExecution {
 
     func advance(by count: Int = 1) {
         units += Int64(max(1, count))
-        if let continued {
+        if let continued, progressLimiter.allow() {
             continued.progress.totalUnitCount = units + 1000 // generation length is unknown
             continued.progress.completedUnitCount = units
         }

@@ -13,30 +13,84 @@ extension ResumableChatStreaming {
     func requestID(forIdempotencyKey key: String, endpoint: Endpoint) async throws -> String? { nil }
 }
 
-/// Foreground and path changes wake reconnect backoff, without owning the turn.
+enum StreamRecoveryPolicy {
+    /// How long a reply keeps trying to reconnect without receiving anything.
+    nonisolated(unsafe) static var maxOutage: TimeInterval = 600
+}
+
+/// Foreground and path changes wake reconnect backoff, without owning the turn. A waiter sleeps on a timer and is
+/// resumed early by a signal; nothing polls.
 final class RecoverySignals: @unchecked Sendable {
     static let shared = RecoverySignals()
     private let lock = NSLock()
-    private var revision = 0
-    private let monitor = NWPathMonitor()
+    private var waiters: [UUID: CheckedContinuation<Void, Never>] = [:]
+    private var cancelledEarly = Set<UUID>()
+    /// Waiters currently sleeping (tests).
+    var waiterCount: Int { lock.withLock { waiters.count } }
+    private var monitor: NWPathMonitor?
     private var observer: NSObjectProtocol?
 
-    private init() {
+    /// `observing: false` makes a signal source that only `signal()` drives (tests).
+    init(observing: Bool = true) {
+        guard observing else { return }
+        let monitor = NWPathMonitor()
         monitor.pathUpdateHandler = { [weak self] path in
             if path.status == .satisfied { self?.signal() }
         }
         monitor.start(queue: DispatchQueue(label: "Strata.networkRecovery"))
+        self.monitor = monitor
         observer = NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification,
                                                           object: nil, queue: nil) { [weak self] _ in self?.signal() }
     }
-    private func signal() { lock.withLock { revision += 1 } }
-    func wait(seconds: Double) async throws {
-        let initial = lock.withLock { revision }
-        let deadline = Date().addingTimeInterval(seconds)
-        while Date() < deadline {
-            try await Task.sleep(for: .milliseconds(250))
-            if lock.withLock({ revision != initial }) { return }
+
+    deinit {
+        monitor?.cancel()
+        if let observer { NotificationCenter.default.removeObserver(observer) }
+    }
+
+    /// Wakes everything waiting now.
+    func signal() {
+        let all = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            defer { waiters.removeAll() }
+            return Array(waiters.values)
         }
+        for w in all { w.resume() }
+    }
+
+    /// Returns after `seconds`, or as soon as a signal arrives. Throws `CancellationError` when cancelled.
+    func wait(seconds: Double) async throws {
+        let id = UUID()
+        let timer = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(seconds))
+            self?.resume(id)
+        }
+        defer {
+            timer.cancel()
+            lock.withLock { _ = cancelledEarly.remove(id) }
+        }
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+                let early = lock.withLock { () -> Bool in
+                    if cancelledEarly.remove(id) != nil { return true }
+                    waiters[id] = cont
+                    return false
+                }
+                if early { cont.resume() }
+            }
+        } onCancel: {
+            let cont = lock.withLock { () -> CheckedContinuation<Void, Never>? in
+                if let w = waiters.removeValue(forKey: id) { return w }
+                cancelledEarly.insert(id) // cancelled before it began waiting
+                return nil
+            }
+            cont?.resume()
+        }
+        try Task.checkCancellation()
+    }
+
+    private func resume(_ id: UUID) {
+        let cont = lock.withLock { waiters.removeValue(forKey: id) }
+        cont?.resume()
     }
 }
 
@@ -70,6 +124,7 @@ extension ChatClient: ResumableChatStreaming {
                 var requestID = checkpoint.requestID
                 var lastSequence = checkpoint.lastSequence
                 var attempt = 0
+                var failingSince: Date?
                 do {
                     let postBody = try checkpoint.requestData ?? request.encoded()
                     while true {
@@ -119,6 +174,7 @@ extension ChatClient: ResumableChatStreaming {
                                     delta.sequence = seq
                                     lastSequence = seq
                                     attempt = 0
+                                    failingSince = nil
                                     continuation.yield(delta)
                                     if delta.isDone { continuation.finish(); return }
                                 }
@@ -133,6 +189,12 @@ extension ChatClient: ResumableChatStreaming {
                                 if case .http(let status, _) = api, status >= 500 || status == 429 {} else { throw error }
                             } else if !(error is URLError) { throw error }
                             attempt += 1
+                            // Give up after a long outage; the saved checkpoint still lets the next launch resume.
+                            let since = failingSince ?? Date()
+                            failingSince = since
+                            if Date().timeIntervalSince(since) > StreamRecoveryPolicy.maxOutage {
+                                throw APIError.transport(String(localized: "Could not reconnect to the server for \(Int(StreamRecoveryPolicy.maxOutage / 60)) minutes."))
+                            }
                             DiagnosticCounters.shared.recoveryWaitStarted()
                             defer { DiagnosticCounters.shared.recoveryWaitEnded() }
                             try await RecoverySignals.shared.wait(seconds: min(15, pow(2, Double(min(attempt, 4)))))

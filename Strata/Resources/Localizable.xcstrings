@@ -169,6 +169,7 @@
     "Copy code": {},
     "Copy raw Markdown": {},
     "Could not read the search results page.": {},
+    "Could not reconnect to the server for %lld minutes.": {},
     "Could not resolve the host %@.": {},
     "Could not save: %@": {},
     "Counters": {},

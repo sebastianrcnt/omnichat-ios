@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - Model
 
@@ -13,10 +14,74 @@ struct CodeBlockContent: Equatable, Sendable {
     static let previewLines = 12
     /// Visible lines while a block is still streaming.
     static let streamingLines = 12
+    /// A streaming block renders only this many of its last lines (the box shows 12 and follows its bottom).
+    static let streamingTailLines = 40
+
+    /// Lines of the whole block. For a streaming block `code` holds only the tail, so this is kept separately.
+    private(set) var lineCount: Int
 
     init(language: String = "", code: String) {
         self.language = language
         self.code = code
+        self.lineCount = Self.countLines(code)
+    }
+
+    private init(language: String, tail: String, lineCount: Int) {
+        self.language = language
+        self.code = tail
+        self.lineCount = lineCount
+    }
+
+    /// Number of lines in `text`: newlines plus one, 0 when empty. A byte scan; nothing is allocated.
+    static func countLines(_ text: String) -> Int {
+        if text.isEmpty { return 0 }
+        var text = text
+        let newlines = text.withUTF8 { buffer in buffer.reduce(0) { $1 == 0x0A ? $0 + 1 : $0 } }
+        return newlines + 1
+    }
+
+    /// The cheap form used while a block is still being written: the language from the opening fence, the line count
+    /// from a byte scan, and only the last `streamingTailLines` lines as text. No per-line strings are made, so a
+    /// token costs about as much as the scan, however long the block has grown.
+    static func streaming(blockText text: String, tailLines: Int = streamingTailLines) -> CodeBlockContent {
+        var text = text
+        var result = text.withUTF8 { bytes -> CodeBlockContent in
+            let newline = UInt8(ascii: "\n")
+            guard let firstEnd = bytes.firstIndex(of: newline) else {
+                return CodeBlockContent(language: Self.info(String(decoding: bytes, as: UTF8.self)), tail: "", lineCount: 0)
+            }
+            let language = Self.info(String(decoding: bytes[..<firstEnd], as: UTF8.self))
+            let bodyStart = firstEnd + 1
+            guard bodyStart < bytes.endIndex else { return CodeBlockContent(language: language, tail: "", lineCount: 0) }
+            var lines = 1
+            var tailStart = bodyStart
+            var i = bytes.endIndex - 1
+            while i >= bodyStart {
+                if bytes[i] == newline {
+                    lines += 1
+                    if lines == tailLines + 1 { tailStart = i + 1 }
+                }
+                i -= 1
+            }
+            if lines <= tailLines { tailStart = bodyStart }
+            return CodeBlockContent(language: language, tail: String(decoding: bytes[tailStart...], as: UTF8.self), lineCount: lines)
+        }
+        // A closing fence on the last line is not code.
+        let lastLine = result.code.split(separator: "\n", omittingEmptySubsequences: false).last.map(String.init) ?? ""
+        let trimmed = lastLine.trimmingCharacters(in: .whitespaces)
+        if trimmed.count >= 3, trimmed.allSatisfy({ $0 == "`" }) || trimmed.allSatisfy({ $0 == "~" }) {
+            result.code = String(result.code.dropLast(lastLine.count + (result.lineCount > 1 ? 1 : 0)))
+            result.lineCount = max(0, result.lineCount - 1)
+        }
+        return result
+    }
+
+    /// The language word of an opening fence line.
+    private static func info(_ line: String) -> String {
+        let s = line.drop(while: { $0 == " " })
+        guard let fence = s.first, fence == "`" || fence == "~" else { return "" }
+        let info = s.drop(while: { $0 == fence }).trimmingCharacters(in: .whitespaces)
+        return info.split(separator: " ").first.map(String.init) ?? ""
     }
 
     /// From the raw block text: the opening fence's info string and the body without fences.
@@ -33,7 +98,6 @@ struct CodeBlockContent: Equatable, Sendable {
     }
 
     var lines: [String] { code.isEmpty ? [] : code.components(separatedBy: "\n") }
-    var lineCount: Int { lines.count }
     var isCollapsible: Bool { lineCount > Self.collapseThreshold }
     var preview: String { lines.prefix(Self.previewLines).joined(separator: "\n") }
     var displayLanguage: String { language.isEmpty ? String(localized: "Code") : language.lowercased() }
@@ -224,9 +288,13 @@ struct CodeViewer: View {
     @AppStorage("codeViewerFontSize") private var fontSize = 14.0
     @AppStorage("codeViewerWrap") private var wrap = false
     @State private var copied = false
+    /// Font size while a pinch is in progress. Kept in view state so the stored setting is written once, when the
+    /// gesture ends, not on every frame.
+    @State private var pinchSize: Double?
     @State private var pinchBase: Double?
 
     private static let sizes = 9.0...28.0
+    private var shownSize: Double { pinchSize ?? fontSize }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -252,7 +320,8 @@ struct CodeViewer: View {
                 copied = true
                 Task { try? await Task.sleep(for: .seconds(1.5)); copied = false }
             }
-            ShareLink(item: shareURL) {
+            ShareLink(item: CodeFile(code: content.code, fileExtension: content.fileExtension),
+                      preview: SharePreview(String(localized: "Code"))) {
                 Image(systemName: "square.and.arrow.up")
                     .font(.system(size: DS.IconSize.headerIcon, weight: .medium))
                     .frame(width: DS.IconSize.controlDiameter, height: DS.IconSize.controlDiameter)
@@ -272,7 +341,7 @@ struct CodeViewer: View {
                 HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.md) {
                     Text(String(index + 1))
                         .foregroundStyle(theme.textTertiary)
-                        .frame(width: CGFloat(digits) * fontSize * 0.62, alignment: .trailing)
+                        .frame(width: CGFloat(digits) * shownSize * 0.62, alignment: .trailing)
                     if wrap {
                         Text(line.isEmpty ? " " : line).fixedSize(horizontal: false, vertical: true)
                     } else {
@@ -280,7 +349,7 @@ struct CodeViewer: View {
                     }
                     if wrap { Spacer(minLength: 0) }
                 }
-                .font(.system(size: fontSize, design: .monospaced))
+                .font(.system(size: shownSize, design: .monospaced))
                 .foregroundStyle(theme.textPrimary)
             }
         }
@@ -299,16 +368,27 @@ struct CodeViewer: View {
         .gesture(MagnifyGesture()
             .onChanged { value in
                 if pinchBase == nil { pinchBase = fontSize }
-                fontSize = min(Self.sizes.upperBound, max(Self.sizes.lowerBound, (pinchBase ?? fontSize) * value.magnification))
+                pinchSize = min(Self.sizes.upperBound, max(Self.sizes.lowerBound, (pinchBase ?? fontSize) * value.magnification))
             }
-            .onEnded { _ in pinchBase = nil })
+            .onEnded { _ in
+                if let pinchSize { fontSize = pinchSize }
+                pinchSize = nil
+                pinchBase = nil
+            })
     }
+}
 
-    /// The code written to a temporary file with the right extension.
-    private var shareURL: URL {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("code.\(content.fileExtension)")
-        try? content.code.write(to: url, atomically: true, encoding: .utf8)
-        return url
+/// The code as a file with the right extension. The file is written only when the share sheet asks for it.
+struct CodeFile: Transferable {
+    let code: String
+    let fileExtension: String
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(exportedContentType: .plainText) { file in
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("code.\(file.fileExtension)")
+            try file.code.write(to: url, atomically: true, encoding: .utf8)
+            return SentTransferredFile(url)
+        }
     }
 }
 

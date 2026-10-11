@@ -125,7 +125,7 @@ struct OpenBlockView: View {
         switch block.kind {
         case .code:
             // Streaming: capped height, follows its own bottom; the full block (collapse, header) appears once the fence closes.
-            CodeBlockView(content: CodeBlockContent(blockText: block.text), isStreaming: true)
+            CodeBlockView(content: CodeBlockContent.streaming(blockText: block.text), isStreaming: true)
         case .table:
             plainCode(block.text)
         case .thematicBreak:
