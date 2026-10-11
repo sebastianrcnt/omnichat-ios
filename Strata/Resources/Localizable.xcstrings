@@ -1,1 +1,300 @@
-{"sourceLanguage":"en","strings":{},"version":"1.0"}
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "": {},
+    "%@ (recommended)": {},
+    "%@ of %@ (%lld%%)": {},
+    "%@ of %@ tokens used": {},
+    "%@ · %llds": {},
+    "%lld": {
+      "shouldTranslate": false
+    },
+    "%lld models": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld model"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld models"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld pages": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld page"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld pages"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld results": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld result"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld results"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld searches": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld search"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld searches"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld%% used": {},
+    "262144": {
+      "shouldTranslate": false
+    },
+    "A key is saved in the Keychain. Enter a new one to replace it.": {},
+    "API key": {},
+    "Accent color": {},
+    "Add": {},
+    "Add a connection in Settings, then fetch its models or add one by hand.": {},
+    "Add an API key for %@ in Settings.": {},
+    "Add connection": {},
+    "Add model": {},
+    "Add photo": {},
+    "Add photos": {},
+    "Any OpenAI-compatible endpoint. API keys are stored in the Keychain.": {},
+    "Assistant": {},
+    "Back": {},
+    "Balance": {},
+    "Balance applies to the Strata connection only.": {},
+    "Base URL": {},
+    "Blocked: %@ is a private, local or loopback address.": {},
+    "Blue": {},
+    "Cache hit": {},
+    "Camera": {},
+    "Cancel": {},
+    "Capabilities": {},
+    "Clear search": {},
+    "Close": {},
+    "Connection": {},
+    "Connections": {},
+    "Context": {},
+    "Context length": {},
+    "Context window": {},
+    "Context: %lld%% used": {},
+    "Context: no usage yet": {},
+    "Copy": {},
+    "Could not read the search results page.": {},
+    "Could not resolve the host %@.": {},
+    "Custom color": {},
+    "Default length": {},
+    "Delete": {},
+    "Delete connection": {},
+    "Delete this chat?": {},
+    "Done": {},
+    "Effort": {},
+    "Extra": {},
+    "Fetch models": {},
+    "Fetched %lld models.": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Fetched %lld model."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Fetched %lld models."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Fetching…": {},
+    "Green": {},
+    "HTTP %lld: %@": {},
+    "Headers": {},
+    "High": {},
+    "Higher effort lets the model think longer. It costs more time and tokens. Limits are the engine's thinking-token caps.": {},
+    "Higher effort thinks longer.": {},
+    "Image": {},
+    "Images": {},
+    "Input tokens": {},
+    "Jump to bottom": {},
+    "Key": {},
+    "Keychain error %lld": {},
+    "Last request": {},
+    "Loading…": {},
+    "Low": {},
+    "Manage connections": {},
+    "Max": {},
+    "Medium": {},
+    "Message": {},
+    "Model and effort": {},
+    "Models": {},
+    "More": {},
+    "Name": {},
+    "Name: value": {
+      "shouldTranslate": false
+    },
+    "New chat": {},
+    "New connection": {},
+    "No chats yet": {},
+    "No matches": {},
+    "No messages yet": {},
+    "No model available. Add an API key in Settings so models can be fetched, then pick one.": {},
+    "No models yet": {},
+    "No thinking limit": {},
+    "None": {},
+    "Not available": {},
+    "Not reported": {},
+    "Only http and https URLs can be fetched (got %@).": {},
+    "Open": {},
+    "Open Settings": {},
+    "Orange": {},
+    "Output tokens": {},
+    "Page script failed: %@": {},
+    "Pasted keys are stored in the Keychain, never in the app's files.": {},
+    "Pin": {},
+    "Pink": {},
+    "Pinned": {},
+    "Prompt": {},
+    "Purple": {},
+    "Reading": {},
+    "Reasoning tokens": {},
+    "Recent": {},
+    "Red": {},
+    "Refresh": {},
+    "Regenerate": {},
+    "Remove key": {},
+    "Remove model": {},
+    "Remove photo": {},
+    "Rename": {},
+    "Rename chat": {},
+    "Reset to default": {},
+    "Reveal text at a steady pace instead of in bursts.": {},
+    "Save": {},
+    "Save key": {},
+    "Saved": {},
+    "Search": {},
+    "Searching": {},
+    "Select model": {},
+    "Send": {},
+    "Sends reasoning_effort with each request.": {},
+    "Sends the web_search and web_fetch tools.": {},
+    "Sent as the first message. Leave empty to send none. The default asks for [N] citations and tells the model not to invent ids.": {},
+    "Settings": {},
+    "Share as text": {},
+    "Sidebar": {},
+    "Smooth streaming": {},
+    "Source": {},
+    "Sources": {},
+    "Stop": {},
+    "Stopped": {},
+    "Strata": {},
+    "Streaming": {},
+    "Supports images": {},
+    "Supports reasoning effort": {},
+    "Supports tools": {},
+    "System prompt": {},
+    "Teal": {},
+    "The URL is not valid.": {},
+    "The base URL is not valid.": {},
+    "The page failed to load: %@": {},
+    "The page took too long to load.": {},
+    "The search engine showed a bot challenge (CAPTCHA), so no results could be read. Try again later or answer without searching.": {},
+    "The selected model is not marked as supporting images. Pick a different model, or turn on image support for it in Settings > Connections.": {},
+    "The server reported an error.": {},
+    "The server reports %@ tokens. Leave blank to use it.": {},
+    "The server returned HTTP %lld.": {},
+    "Thinking": {},
+    "Thinks up to %@ tokens": {},
+    "This chat": {},
+    "Thought for %llds": {},
+    "Thoughts": {},
+    "Timeline": {},
+    "Title": {},
+    "Today": {},
+    "Unexpected response from /models.": {},
+    "Unpin": {},
+    "Usage": {},
+    "Used for the context ring when a model does not report its context length.": {},
+    "Visited": {},
+    "Visited %@": {},
+    "Waiting for the model to think…": {},
+    "Web tools": {},
+    "Working…": {},
+    "You": {},
+    "[%lld]": {
+      "shouldTranslate": false
+    },
+    "failed": {},
+    "https://host/v1": {
+      "shouldTranslate": false
+    },
+    "model-id": {
+      "shouldTranslate": false
+    },
+    "sk-…": {
+      "shouldTranslate": false
+    },
+    "“%@”": {}
+  },
+  "version": "1.0"
+}

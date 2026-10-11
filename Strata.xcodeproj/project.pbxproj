@@ -34,6 +34,7 @@
 		5B97326687D39CF393E05AF1 /* ImageProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E08F0D934A25CA44E443328 /* ImageProcessor.swift */; };
 		639FD6541E20101AC43D58A5 /* CitationParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = FECE9D6C44DB462F37226F03 /* CitationParser.swift */; };
 		658B0AD45FA5E4C321488938 /* article.html in Resources */ = {isa = PBXBuildFile; fileRef = CF397966E028F30C37940F09 /* article.html */; };
+		65AF7F6213082A75DC48632D /* ChatControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E74E7C1ABCB884139F97BED1 /* ChatControllerTests.swift */; };
 		68E90130CDAE128AD08FAB8F /* KeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 225A9D52503C945DAD353346 /* KeyStore.swift */; };
 		69F48892C13E96F27066826F /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 6946DA516AFD242CE9D85CF0 /* InfoPlist.xcstrings */; };
 		6A5C08E10E0175A18CE665DB /* TurnRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5939AEB1A666782A72840E /* TurnRunnerTests.swift */; };
@@ -136,6 +137,7 @@
 		CF397966E028F30C37940F09 /* article.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = article.html; sourceTree = "<group>"; };
 		D9B7287789884909C961D282 /* engines.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = engines.json; sourceTree = "<group>"; };
 		E6863F41588D64F67CDFE471 /* RevealController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RevealController.swift; sourceTree = "<group>"; };
+		E74E7C1ABCB884139F97BED1 /* ChatControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatControllerTests.swift; sourceTree = "<group>"; };
 		EC3A5A90BF9ACE5ED7A72FE7 /* StrataTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = StrataTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		EF5B920549D60E7E1258E825 /* ChatAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatAPI.swift; sourceTree = "<group>"; };
 		F173CD1AFECF4061B2C00C83 /* LICENSE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = LICENSE.md; sourceTree = "<group>"; };
@@ -178,6 +180,7 @@
 		056F37FF61E5CDD72E63C746 /* StrataTests */ = {
 			isa = PBXGroup;
 			children = (
+				E74E7C1ABCB884139F97BED1 /* ChatControllerTests.swift */,
 				356D2C4E7A2EABEB01B7390B /* CitationTests.swift */,
 				15B124318CAF255390485525 /* EncodingAndKeyTests.swift */,
 				B3BBC86C33779550DEC50E5F /* ModelSelectionTests.swift */,
@@ -471,6 +474,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				65AF7F6213082A75DC48632D /* ChatControllerTests.swift in Sources */,
 				3A79078DBEED211FAF36CD36 /* CitationTests.swift in Sources */,
 				3D5A4CD6748AFA5EB5CB0598 /* EncodingAndKeyTests.swift in Sources */,
 				FEB93A1A5A5DA4035142363C /* ModelSelectionTests.swift in Sources */,
