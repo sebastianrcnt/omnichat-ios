@@ -135,6 +135,7 @@ struct ActivityEntry: Identifiable, Equatable {
 /// One activity row: search (magnifier, quoted query, result count, source chips) or visit (globe, "Visited domain").
 struct ActivityRow: View {
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let entry: ActivityEntry
     /// Show every source chip (timeline) instead of a single scrolling line.
     var wrapsChips = false
@@ -157,7 +158,14 @@ struct ActivityRow: View {
                 }
                 if !sources.isEmpty {
                     if wrapsChips {
-                        FlowLayout(spacing: DS.Spacing.xs) { ForEach(sources) { SourceChip(host: $0.host, url: URL(string: $0.url)) } }
+                        // Chips arrive one by one; the card grows with a spring instead of jumping.
+                        FlowLayout(spacing: DS.Spacing.xs) {
+                            ForEach(Array(sources.enumerated()), id: \.element.id) { i, source in
+                                SourceChip(host: source.host, url: URL(string: source.url))
+                                    .transition(.chipIn(index: i, reduceMotion: reduceMotion))
+                            }
+                        }
+                        .padding(.top, DS.Spacing.sm)
                     } else {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: DS.Spacing.xs) { ForEach(sources) { SourceChip(host: $0.host) } }
@@ -168,6 +176,7 @@ struct ActivityRow: View {
                     }
                 }
             }
+            .animation(reduceMotion ? nil : DS.Motion.enter, value: sources.count)
         case .visit(let url, let host):
             HStack(spacing: DS.Spacing.sm) {
                 icon("globe")
@@ -317,10 +326,75 @@ enum TimelineItem: Identifiable, Equatable {
     }
 }
 
+/// Consecutive thinking paragraphs form one block; tool calls are their own cards.
+enum TimelineGroup: Identifiable, Equatable {
+    case thinking(id: String, chunks: [ReasoningChunkModel.Chunk])
+    case activity(ActivityEntry)
+
+    var id: String {
+        switch self {
+        case .thinking(let id, _): id
+        case .activity(let e): e.id
+        }
+    }
+
+    static func group(_ items: [TimelineItem]) -> [TimelineGroup] {
+        var out: [TimelineGroup] = []
+        for item in items {
+            switch item {
+            case .thinking(let id, let text):
+                let chunk = ReasoningChunkModel.Chunk(id: Int(id.dropFirst()) ?? 0, text: text)
+                if case .thinking(let gid, let chunks)? = out.last { out[out.count - 1] = .thinking(id: gid, chunks: chunks + [chunk]) }
+                else { out.append(.thinking(id: id, chunks: [chunk])) }
+            case .activity(let entry):
+                out.append(.activity(entry))
+            }
+        }
+        return out
+    }
+}
+
+/// At most one animated follow-scroll per interval, with a trailing one so the last growth is never missed.
+struct FollowThrottle: Equatable {
+    var minInterval: Double = 0.1
+    private var last: Double?
+
+    /// Returns 0 to follow now, or the delay after which to try again.
+    mutating func request(now: Double) -> Double {
+        guard let last else { self.last = now; return 0 }
+        let wait = last + minInterval - now
+        if wait <= 0 { self.last = now; return 0 }
+        return wait
+    }
+}
+
+/// A thinking block: the card the Timeline shows for a stretch of reasoning. While live, the growing tail sits inside it.
+private struct ThinkingBlock: View {
+    @Environment(\.theme) private var theme
+    let chunks: [ReasoningChunkModel.Chunk]
+    var live: ReasoningChunkModel?
+    var onGrow: () -> Void = {}
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            HStack(spacing: DS.Spacing.sm) {
+                Image(systemName: "clock").font(.system(size: DS.IconSize.sm)).foregroundStyle(theme.textTertiary)
+                Text("Thinking").font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
+            }
+            ForEach(chunks) { ReasoningChunkView(chunk: $0).equatable() }
+            if let live { ReasoningTail(model: live, onGrow: onGrow) }
+        }
+        .padding(DS.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(theme.surface, in: RoundedRectangle(cornerRadius: DS.Radius.md))
+    }
+}
+
 /// Sheet with the raw thinking interleaved with tool cards. While live it streams the reasoning with the
 /// same reveal pipeline as answers and follows the bottom, until the user scrolls away.
 struct TimelineSheet: View {
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let reasoning: ReasoningChunkModel
     let steps: [ToolStep]
     let pending: [PendingToolCall]
@@ -328,6 +402,8 @@ struct TimelineSheet: View {
     let isLive: Bool
     var seconds: Double?
     @State private var following = true
+    @State private var throttle = FollowThrottle()
+    @State private var trailing: Task<Void, Never>?
 
     /// Finalized paragraphs and tool cards only. The growing tail is a separate view, so streaming never
     /// rebuilds this list. (A tool round flushes the tail first, so the tail is always last.)
@@ -338,34 +414,53 @@ struct TimelineSheet: View {
     var body: some View {
         SheetScaffold(title: titleKey, followsBottom: $following) {
             ScrollViewReader { proxy in
-                let items = items
-                if items.isEmpty && reasoning.tail.isEmpty {
+                let groups = TimelineGroup.group(items)
+                let tailInLast: Bool = { if case .thinking? = groups.last { return true } else { return false } }()
+                if groups.isEmpty && reasoning.tail.isEmpty {
                     Text("Waiting for the model to think…")
-                        .font(DS.Typography.monoSmall).foregroundStyle(theme.textTertiary)
+                        .font(DS.Typography.uiSmall).foregroundStyle(theme.textTertiary)
                 }
-                VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                    ForEach(items) { item in
-                        switch item {
-                        case .thinking(let id, let text):
-                            ReasoningChunkView(chunk: .init(id: Int(id.dropFirst()) ?? 0, text: text)).equatable()
-                        case .activity(let entry):
-                            ActivityRow(entry: entry, wrapsChips: true)
-                                .padding(DS.Spacing.md)
-                                .background(theme.surface, in: RoundedRectangle(cornerRadius: DS.Radius.md))
+                VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                    ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
+                        Group {
+                            switch group {
+                            case .thinking(_, let chunks):
+                                ThinkingBlock(chunks: chunks, live: index == groups.count - 1 && tailInLast ? reasoning : nil) { follow(proxy) }
+                            case .activity(let entry):
+                                ActivityCard(entry: entry)
+                            }
                         }
+                        .transition(.enter(reduceMotion: reduceMotion))
                     }
-                    ReasoningTail(model: reasoning) { follow(proxy) }
+                    if !tailInLast && !reasoning.tail.isEmpty {
+                        ThinkingBlock(chunks: [], live: reasoning) { follow(proxy) }
+                            .transition(.enter(reduceMotion: reduceMotion))
+                    }
                 }
+                .animation(reduceMotion ? nil : DS.Motion.enter, value: groups.map(\.id))
                 Color.clear.frame(height: 1).id("end")
-                    .onChange(of: items) { _, _ in follow(proxy) }
+                    .onChange(of: groups.map(\.id)) { _, _ in follow(proxy) }
             }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .onDisappear { trailing?.cancel() }
     }
 
+    /// Animated follow-scroll, coalesced to one per ~100 ms; Reduce Motion scrolls instantly.
     private func follow(_ proxy: ScrollViewProxy) {
-        if isLive && following { proxy.scrollTo("end", anchor: .bottom) }
+        guard isLive && following else { return }
+        let wait = throttle.request(now: ProcessInfo.processInfo.systemUptime)
+        if wait <= 0 {
+            withAnimation(reduceMotion ? nil : DS.Motion.follow) { proxy.scrollTo("end", anchor: .bottom) }
+        } else if trailing == nil {
+            trailing = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(wait))
+                trailing = nil
+                guard !Task.isCancelled else { return }
+                follow(proxy)
+            }
+        }
     }
 
     private var titleKey: LocalizedStringKey {

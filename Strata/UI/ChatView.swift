@@ -264,6 +264,7 @@ struct ChatView: View {
         }
         .scrollPosition($position)
         .defaultScrollAnchor(.bottom)
+        .defaultScrollAnchor(.bottom, for: .sizeChanges) // growing content keeps the pinned bottom in step with its animation
         .scrollDismissesKeyboard(.interactively)
         .scrollEdgeEffectStyle(.soft, for: .top)
         .scrollEdgeEffectStyle(.soft, for: .bottom)

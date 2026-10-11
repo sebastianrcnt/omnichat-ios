@@ -377,7 +377,7 @@ struct ReasoningChunkView: View, Equatable {
     @Environment(\.theme) private var theme
     let chunk: ReasoningChunkModel.Chunk
     var body: some View {
-        Text(chunk.text).font(DS.Typography.monoSmall).lineSpacing(DS.Typography.answerLineSpacing).foregroundStyle(theme.textSecondary)
+        Text(chunk.text).font(DS.Typography.uiSmall).lineSpacing(DS.Typography.answerLineSpacing).foregroundStyle(theme.textSecondary)
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -410,7 +410,7 @@ struct ReasoningTail: View {
     }
 
     private func text(_ s: AttributedString) -> some View {
-        Text(s).font(DS.Typography.monoSmall).lineSpacing(DS.Typography.answerLineSpacing).foregroundStyle(theme.textSecondary)
+        Text(s).font(DS.Typography.uiSmall).lineSpacing(DS.Typography.answerLineSpacing).foregroundStyle(theme.textSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

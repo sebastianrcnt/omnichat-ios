@@ -21,6 +21,13 @@ extension AnyTransition {
             .animation(DS.Motion.enter.delay(Double(index) * DS.Motion.stagger))
     }
 
+    /// A source chip arriving: fades and grows a little, delayed by its position.
+    static func chipIn(index: Int, reduceMotion: Bool) -> AnyTransition {
+        if reduceMotion { return .opacity }
+        return AnyTransition.opacity.combined(with: .scale(scale: 0.88))
+            .animation(DS.Motion.enter.delay(Double(index) * DS.Motion.stagger))
+    }
+
     /// A live tail folding into the summary: fades and shrinks toward the top.
     static func fold(reduceMotion: Bool) -> AnyTransition {
         reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96, anchor: .topLeading))

@@ -12,6 +12,9 @@ final class Conversation {
     var titleIsUserSet: Bool = false
     /// Automatic naming already ran once for this conversation.
     var autoRenameDone: Bool = false
+    /// The local day (yyyy-MM-dd) the conversation was created. The model is told this date and it never changes, so the
+    /// system message, and with it the cached prefix, stays byte-identical across turns and midnights.
+    var createdDay: String = ""
     var connectionID: UUID?
     var modelID: String?
     var effortRaw: String
@@ -30,10 +33,18 @@ final class Conversation {
         self.title = title
         self.createdAt = .now
         self.updatedAt = .now
+        self.createdDay = ConversationDate.day(for: .now)
         self.isPinned = false
         self.connectionID = connectionID
         self.modelID = modelID
         self.effortRaw = effort.rawValue
+    }
+
+    /// The frozen day for this conversation's system message. Conversations from before the field existed take the
+    /// day of their creation, once.
+    var systemDay: String {
+        if createdDay.isEmpty { createdDay = ConversationDate.day(for: createdAt) }
+        return createdDay
     }
 
     var effort: Effort {
@@ -125,6 +136,33 @@ extension DecodeCache where Value == [ProcessSegment] {
     static let derived = DecodeCache<[ProcessSegment]>()
 }
 extension DecodeCache where Value == [SourceInfo] { static let sources = DecodeCache<[SourceInfo]>() }
+
+/// The date line appended to the system message.
+enum ConversationDate {
+    /// yyyy-MM-dd in the given calendar's time zone (the user's, by default).
+    static func day(for date: Date, calendar: Calendar = .current) -> String {
+        let c = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", c.year ?? 1970, c.month ?? 1, c.day ?? 1)
+    }
+
+    /// "Current date: 2026-10-11 (Sunday)." The weekday comes from the day itself, in English, so it is deterministic.
+    static func line(day: String) -> String {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(secondsFromGMT: 0)!
+        let parts = day.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3, let date = utc.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2])) else {
+            return "Current date: \(day)."
+        }
+        let names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+        return "Current date: \(day) (\(names[utc.component(.weekday, from: date) - 1]))."
+    }
+
+    /// The conversation's system message: the user's prompt (if any) and the frozen date line.
+    static func systemPrompt(base: String, day: String) -> String {
+        let trimmed = base.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? line(day: day) : trimmed + "\n\n" + line(day: day)
+    }
+}
 
 enum MessageRole: String, Codable, Sendable { case user, assistant }
 

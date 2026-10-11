@@ -269,7 +269,7 @@ final class ChatController {
         background.begin()
         let runner = TurnRunner(streamer: streamer, tools: tools)
         let effort = conversation.effort
-        let messages = MessageAssembler.apiMessages(from: history, systemPrompt: endpoint.systemPrompt)
+        let messages = MessageAssembler.apiMessages(from: history, systemPrompt: ConversationDate.systemPrompt(base: endpoint.systemPrompt, day: conversation.systemDay))
         let sourceStore = SourceStore(items: conversation.sources)
 
         task = Task { @MainActor [weak self] in
