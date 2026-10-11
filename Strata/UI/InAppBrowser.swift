@@ -1,0 +1,49 @@
+import SwiftUI
+import SafariServices
+
+/// Every http(s) link in the app opens in an in-app Safari view controller, presented over whatever is
+/// on screen (including sheets). Other schemes (mailto:, tel:) go to the system.
+@MainActor
+enum InAppBrowser {
+    static var tint: UIColor?
+
+    static func isWeb(_ url: URL) -> Bool {
+        let s = url.scheme?.lowercased()
+        return s == "http" || s == "https"
+    }
+
+    static func present(_ url: URL) {
+        guard isWeb(url), let top = topViewController() else { return }
+        let vc = SFSafariViewController(url: url)
+        vc.view.tintColor = tint
+        top.present(vc, animated: true)
+    }
+
+    private static func topViewController() -> UIViewController? {
+        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive } ?? UIApplication.shared.connectedScenes.first as? UIWindowScene
+        var top = scene?.windows.first(where: \.isKeyWindow)?.rootViewController ?? scene?.windows.first?.rootViewController
+        while let presented = top?.presentedViewController, !presented.isBeingDismissed { top = presented }
+        return top
+    }
+}
+
+private struct InAppLinks: ViewModifier {
+    @Environment(\.theme) private var theme
+
+    func body(content: Content) -> some View {
+        content
+            .environment(\.openURL, OpenURLAction { url in
+                guard InAppBrowser.isWeb(url) else { return .systemAction }
+                InAppBrowser.tint = UIColor(theme.accent)
+                InAppBrowser.present(url)
+                return .handled
+            })
+            .onAppear { InAppBrowser.tint = UIColor(theme.accent) }
+    }
+}
+
+extension View {
+    /// Routes links to the in-app browser. Apply at the root and on every sheet (sheets can lose the environment).
+    func inAppLinks() -> some View { modifier(InAppLinks()) }
+}

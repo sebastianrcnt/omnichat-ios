@@ -52,6 +52,7 @@
 		96356C4B9DC084D4279FBEEA /* IncrementalBlockParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = B72613A56D557C2C034E2812 /* IncrementalBlockParser.swift */; };
 		9861341F2C0BB3B90B251976 /* TurnRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5BF573BD32EBB71EEDC79EF /* TurnRunner.swift */; };
 		9C1C73FFF8779F2488DAA12B /* OptimisticCloser.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC6552AF2BEE1F09D11AB234 /* OptimisticCloser.swift */; };
+		A0079D46C532FE3AD770AF6F /* InAppBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81C2248B079061A57AC26B63 /* InAppBrowser.swift */; };
 		A27748A1CA53762E03335950 /* SSEAndStreamTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 886C8F6D9B0406EB7F52AB97 /* SSEAndStreamTests.swift */; };
 		A9CC45A9AA351A2C398F1EEA /* StreamingMarkdownTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23D74F0D9535BDC2282EFC76 /* StreamingMarkdownTests.swift */; };
 		ACC1F1202CF5DEBC51C2D4AD /* DebugHooks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62C6E50D199A95EB9EB282FD /* DebugHooks.swift */; };
@@ -113,6 +114,7 @@
 		78839B98DAD55E4352AEA1E3 /* StrataApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrataApp.swift; sourceTree = "<group>"; };
 		7C929987DC91950E8AAA365D /* StreamingMarkdownModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamingMarkdownModel.swift; sourceTree = "<group>"; };
 		81709F6490BA7E350860A9CA /* Strata.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Strata.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		81C2248B079061A57AC26B63 /* InAppBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InAppBrowser.swift; sourceTree = "<group>"; };
 		8466A7CDF21ACE56C1F711D2 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		86A1F27D001B4C15E57543DF /* CJKEmphasisFixer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CJKEmphasisFixer.swift; sourceTree = "<group>"; };
 		880B1A8F1B7D8A2BA0ACE28E /* LenientEmphasisTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LenientEmphasisTests.swift; sourceTree = "<group>"; };
@@ -224,6 +226,7 @@
 			children = (
 				BEFDD2635D65A30491DC9A0F /* ChatView.swift */,
 				3E6C287262866F59E11F85B0 /* FeatureSheets.swift */,
+				81C2248B079061A57AC26B63 /* InAppBrowser.swift */,
 				FFC8B1300DC3FB01ECF19A2F /* Keyboard.swift */,
 				646AF29BDCBE1A29EF30D4FB /* RootView.swift */,
 				3679B0A33CF9361A48693580 /* SettingsView.swift */,
@@ -520,6 +523,7 @@
 				EFF810B3B3F84B6BA2220727 /* FeatureSheets.swift in Sources */,
 				AD63799B477EBC2957D18D39 /* HiddenWebView.swift in Sources */,
 				5B97326687D39CF393E05AF1 /* ImageProcessor.swift in Sources */,
+				A0079D46C532FE3AD770AF6F /* InAppBrowser.swift in Sources */,
 				96356C4B9DC084D4279FBEEA /* IncrementalBlockParser.swift in Sources */,
 				68E90130CDAE128AD08FAB8F /* KeyStore.swift in Sources */,
 				92274183A5485DFE9F9AA180 /* Keyboard.swift in Sources */,

@@ -39,6 +39,7 @@ struct SheetScaffold<Trailing: View, Content: View>: View {
         }
         .background(theme.background.ignoresSafeArea())
         .presentationBackground(theme.background)
+        .inAppLinks()
     }
 }
 

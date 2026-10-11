@@ -101,6 +101,18 @@ struct DSTheme: Equatable {
 
     var accentMuted: Color { accent.opacity(0.16) }
     var accentStrong: Color { accent.opacity(0.9) }
+    /// Accent for small text on `accentMuted`: darkened in light mode, lightened in dark mode so it reads at 4.5:1.
+    var accentOnTint: Color {
+        let base = UIColor(accent)
+        return Color(UIColor { trait in
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            base.resolvedColor(with: trait).getRed(&r, green: &g, blue: &b, alpha: &a)
+            let dark = trait.userInterfaceStyle == .dark
+            let t: CGFloat = dark ? 0.45 : 0.5          // blend toward white (dark) or black (light)
+            let target: CGFloat = dark ? 1 : 0
+            return UIColor(red: r + (target - r) * t, green: g + (target - g) * t, blue: b + (target - b) * t, alpha: 1)
+        })
+    }
 
     // Surfaces
     var background: Color { Color(light: 0xFFFFFF, dark: 0x121212) }

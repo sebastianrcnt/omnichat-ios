@@ -11,6 +11,9 @@ struct ChatView: View {
     @Binding var conversation: Conversation?
     let onOpenSidebar: () -> Void
     let onOpenSettings: () -> Void
+    var onNewChat: () -> Void = {}
+    /// Bumped by the root to ask for composer focus (New Chat).
+    var focusToken = 0
 
     @State private var draft = ""
     @State private var attachments: [ComposerAttachment] = []
@@ -166,6 +169,11 @@ struct ChatView: View {
                 // Keep the latest message visible when the keyboard opens.
                 if focused && atBottom { withAnimation(DS.Motion.spring) { position.scrollTo(edge: .bottom) } }
             }
+            .task(id: focusToken) {
+                guard focusToken > 0 else { return }
+                try? await Task.sleep(for: .milliseconds(150))
+                composerFocused = true
+            }
             .task { persistAutoSelection(); await debugActions() }
             .onChange(of: connections.allModels.count) { _, _ in persistAutoSelection() }
     }
@@ -193,12 +201,14 @@ struct ChatView: View {
                 GlassIconMenu(systemName: "ellipsis", label: "More") { menuContent }
             }
             .padding(.horizontal, DS.Spacing.md)
-            .padding(.top, DS.Spacing.xs)
+            .padding(.vertical, DS.Spacing.sm) // 8pt below the 44pt buttons, clear of the blur edge
         }
     }
 
     @ViewBuilder
     private var menuContent: some View {
+        Button("New Chat", systemImage: "square.and.pencil", action: onNewChat)
+        Divider()
         if let c = conversation {
             Button(c.isPinned ? "Unpin" : "Pin", systemImage: c.isPinned ? "pin.slash" : "pin") {
                 c.isPinned.toggle()
@@ -237,12 +247,18 @@ struct ChatView: View {
         .scrollPosition($position)
         .defaultScrollAnchor(.bottom)
         .scrollDismissesKeyboard(.interactively)
+        .scrollEdgeEffectStyle(.soft, for: .top)
+        .scrollEdgeEffectStyle(.soft, for: .bottom)
         .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
         .background(theme.background.ignoresSafeArea())
         .environment(\.citations, citationContext)
         .environment(\.openURL, OpenURLAction { url in
             let ids = CitationParser.ids(from: url)
-            guard !ids.isEmpty else { return .systemAction }
+            guard !ids.isEmpty else {
+                guard InAppBrowser.isWeb(url) else { return .systemAction }
+                InAppBrowser.present(url)
+                return .handled
+            }
             let known = citationContext.sources
             let list = ids.compactMap { known[$0] }
             if !list.isEmpty { citationItem = SourceListItem(sources: list) }

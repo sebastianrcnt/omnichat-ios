@@ -1,5 +1,4 @@
 import SwiftUI
-import SafariServices
 
 // MARK: - Source chips
 
@@ -13,7 +12,7 @@ struct SourceChip: View {
         let chip = HStack(spacing: DS.Spacing.xs) {
             Text(String(host.first.map { Character($0.uppercased()) } ?? "?"))
                 .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(theme.accent)
+                .foregroundStyle(theme.accentOnTint)
                 .frame(width: 16, height: 16)
                 .background(theme.accentMuted, in: Circle())
             Text(DomainFormatter.short(host))
@@ -110,6 +109,7 @@ struct ActivityRow: View {
                             HStack(spacing: DS.Spacing.xs) { ForEach(sources) { SourceChip(host: $0.host) } }
                         }
                         .scrollDisabled(true)
+                        .mask(alignment: .leading) { TrailingFade() }
                         .padding(.leading, DS.Spacing.xl)
                     }
                 }
@@ -134,6 +134,17 @@ struct ActivityRow: View {
             .font(.system(size: DS.IconSize.sm))
             .foregroundStyle(entry.isError ? theme.warning : theme.textTertiary)
             .frame(width: DS.IconSize.md)
+    }
+}
+
+/// Opaque mask with a short fade at the right edge, so a clipped chip row reads as scrollable.
+struct TrailingFade: View {
+    var width: CGFloat = 24
+    var body: some View {
+        HStack(spacing: 0) {
+            Rectangle().fill(.black)
+            LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: width)
+        }
     }
 }
 
@@ -215,10 +226,10 @@ struct LiveActivityFeed: View {
                     }
                 }
                 .animation(DS.Motion.snappy, value: entries.suffix(2).map(\.id))
-                .mask(LinearGradient(colors: [.clear, .black, .black], startPoint: .top, endPoint: .init(x: 0.5, y: 0.25)))
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
             .frame(height: Self.height, alignment: .topLeading)
+            .clipped()
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -398,29 +409,18 @@ struct SourceCard: View {
     }
 }
 
-struct SafariDestination: Identifiable { let url: URL; var id: URL { url } }
-
-struct SafariView: UIViewControllerRepresentable {
-    let url: URL
-    func makeUIViewController(context: Context) -> SFSafariViewController { SFSafariViewController(url: url) }
-    func updateUIViewController(_ controller: SFSafariViewController, context: Context) {}
-}
-
 /// Sheet for tapped citation chips (title, domain, snippet, Open) and the answer's Sources list.
 struct SourcesSheet: View {
     let title: LocalizedStringKey
     let sources: [SourceInfo]
-    @State private var safari: SafariDestination?
-
     var body: some View {
         SheetScaffold(title: title) {
             ForEach(sources) { source in
-                SourceCard(source: source) { safari = SafariDestination(url: $0) }
+                SourceCard(source: source) { InAppBrowser.present($0) }
             }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        .fullScreenCover(item: $safari) { SafariView(url: $0.url).ignoresSafeArea() }
     }
 }
 

@@ -11,6 +11,7 @@ struct RootView: View {
     @State private var selected: Conversation?
     @State private var sidebarOpen = false
     @State private var showSettings = false
+    @State private var focusToken = 0
 
     @State private var width: CGFloat = 390
     /// Live finger translation while dragging; zero otherwise.
@@ -29,7 +30,8 @@ struct RootView: View {
             SidebarView(selected: $selected, onNewChat: newChat, onSettings: { openSettings() }, close: closeSidebar)
                 .frame(width: sidebarWidth)
 
-            ChatView(conversation: $selected, onOpenSidebar: { setSidebar(true) }, onOpenSettings: { openSettings() })
+            ChatView(conversation: $selected, onOpenSidebar: { setSidebar(true) }, onOpenSettings: { openSettings() },
+                     onNewChat: newChat, focusToken: focusToken)
                 .id(selected?.id)
                 .background(theme.background.ignoresSafeArea())
                 .clipShape(RoundedRectangle(cornerRadius: DS.Radius.xl * progress))
@@ -54,7 +56,8 @@ struct RootView: View {
             }))
         .background(theme.background.ignoresSafeArea())
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-        .sheet(isPresented: $showSettings) { SettingsView() }
+        .sheet(isPresented: $showSettings) { SettingsView().inAppLinks() }
+        .inAppLinks()
         .task {
             // Refresh models (and capability flags such as image input) for every connection with a key.
             for c in connections.connections where connections.apiKey(for: c.id) != nil {
@@ -78,8 +81,10 @@ struct RootView: View {
 
     private func closeSidebar() { setSidebar(false) }
 
+    /// Starts an empty chat. Conversations are created on first send, so an already-empty chat only gets focus.
     private func newChat() {
         selected = nil
         closeSidebar()
+        focusToken += 1
     }
 }
