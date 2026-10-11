@@ -337,7 +337,7 @@ struct ConversationDiagnosticsTests {
 
         let d = ConversationDiagnostics.make(for: c, window: 1000, ring: RequestRing(), counters: DiagnosticCounters())
         #expect(d.structure.messages == 2 && d.structure.userMessages == 1 && d.structure.assistantMessages == 1)
-        #expect(d.structure.activePathLength == 2 && d.structure.branches == nil)
+        #expect(d.structure.activePathLength == 2 && d.structure.branches == 1)
         #expect(d.storage.textBytes == 12 && d.storage.reasoningBytes == 5 && d.storage.stepsBytes == 10)
         #expect(d.storage.attachments == 1 && d.storage.attachmentFullBytes == 200_000)
         #expect(d.storage.externalValues == 1 && d.storage.externalBytes == 200_000)

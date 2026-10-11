@@ -106,6 +106,9 @@ final class ReplyBackgroundExecution {
     }
 
     private static func deliverPendingNotification() {
+        #if DEBUG
+        if DebugHooks.value("StrataNoNotifications") != nil { return } // keeps the permission prompt out of screenshots
+        #endif
         guard UserDefaults.standard.bool(forKey: notificationPendingKey), !deliveringNotification else { return }
         deliveringNotification = true
         Task { @MainActor in

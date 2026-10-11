@@ -23,6 +23,12 @@ struct ChatView: View {
     @State private var showModelPicker = false
     @State private var showUsage = false
     @State private var showDetails = false
+    #if DEBUG
+    @State private var branchDebugDone = false
+    #endif
+    /// The sent message being edited, and what the composer held before editing began.
+    @State private var editing: Message?
+    @State private var savedDraft: (text: String, attachments: [ComposerAttachment])?
     @State private var timelineMessage: Message?
     @State private var citationItem: SourceListItem?
     @State private var sourcesItem: SourceListItem?
@@ -185,6 +191,10 @@ struct ChatView: View {
                 try? await Task.sleep(for: .milliseconds(150))
                 composerFocused = true
             }
+            .task(id: conversation?.id) { // opening a chat: link one saved before branching; leaving one ends an edit
+                cancelEdit()
+                conversation?.ensureTree()
+            }
             .task {
                 persistAutoSelection()
                 await debugActions()
@@ -260,9 +270,10 @@ struct ChatView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: DS.Spacing.xl) {
                 if let conversation {
-                    let items = conversation.sortedMessages
+                    let tree = conversation.treeIndex
+                    let items = conversation.activePath
                     ForEach(items) { message in
-                        row(message, isLast: message.id == items.last?.id)
+                        row(message, isLast: message.id == items.last?.id, branch: tree.branch(of: message.id))
                     }
                 }
                 Color.clear.frame(height: DS.Spacing.lg).id("bottom")
@@ -301,10 +312,14 @@ struct ChatView: View {
     }
 
     @ViewBuilder
-    private func row(_ message: Message, isLast: Bool) -> some View {
+    private func row(_ message: Message, isLast: Bool, branch: BranchPosition?) -> some View {
         switch message.role {
         case .user:
-            MessageBubble(text: message.text, images: ThumbnailBackfill.thumbnails(for: message))
+            MessageBubble(text: message.text, images: ThumbnailBackfill.thumbnails(for: message),
+                          branch: branch, branchEnabled: !controller.isStreaming,
+                          onSwitchBranch: { switchBranch(message, by: $0) },
+                          onCopy: { UIPasteboard.general.string = message.text },
+                          onEdit: controller.isStreaming ? nil : { beginEdit(message) })
         case .assistant:
             let active = controller.activeMessageID == message.id
             let segments = message.segments // decoded once per stored value
@@ -331,8 +346,37 @@ struct ChatView: View {
                     if let c = conversation { controller.regenerate(conversation: c, context: context) }
                 },
                 onOpenSettings: onOpenSettings,
-                onCopyRaw: { UIPasteboard.general.string = message.text })
+                onCopyRaw: { UIPasteboard.general.string = message.text },
+                branch: branch,
+                branchEnabled: !controller.isStreaming,
+                onSwitchBranch: { switchBranch(message, by: $0) })
         }
+    }
+
+    // MARK: Branches and editing
+
+    private func switchBranch(_ message: Message, by offset: Int) {
+        guard !controller.isStreaming, let conversation else { return }
+        cancelEdit()
+        if conversation.switchBranch(of: message, by: offset) { try? context.save() }
+    }
+
+    /// Puts a sent message back into the composer; sending creates a sibling and leaves the old branch in place.
+    private func beginEdit(_ message: Message) {
+        guard !controller.isStreaming else { return }
+        if editing == nil { savedDraft = (draft.text, draft.attachments) }
+        editing = message
+        draft.text = message.text
+        draft.attachments = message.sortedAttachments.map { ComposerAttachment(id: UUID(), jpeg: $0.jpegData) }
+        composerFocused = true
+    }
+
+    /// Leaves edit mode and puts back what was in the composer before it began.
+    private func cancelEdit() {
+        guard editing != nil else { return }
+        editing = nil
+        if let saved = savedDraft { draft.text = saved.text; draft.attachments = saved.attachments }
+        savedDraft = nil
     }
 
     private var jumpButton: some View {
@@ -359,6 +403,7 @@ struct ChatView: View {
             onAttach: { composerFocused = false; showAttach = true },
             onSend: send,
             onStop: { controller.stop() },
+            onCancelEdit: editing == nil ? nil : { withAnimation(DS.Motion.snappy) { cancelEdit() } },
             chip: {
                 ModelEffortChip(
                     modelName: selection.modelID ?? String(localized: "Select model"),
@@ -382,14 +427,27 @@ struct ChatView: View {
         }
         let text = draft.text
         let images = draft.attachments.map(\.jpeg)
+        let edited = editing
         draft.text = ""
         draft.attachments = []
-        controller.send(text: text, images: images, conversation: target, context: context)
+        if edited != nil { // the composer goes back to what it held before the edit
+            editing = nil
+            if let saved = savedDraft { draft.text = saved.text; draft.attachments = saved.attachments }
+            savedDraft = nil
+        }
+        controller.send(text: text, images: images, conversation: target, context: context, editing: edited)
         withAnimation(DS.Motion.spring) { position.scrollTo(edge: .bottom) }
     }
 
     #if DEBUG
     private func debugTimeline() async {
+        if DebugHooks.value("StrataDebugBranch") != nil {
+            if controller.activeMessageID == nil, !branchDebugDone, conversation?.leafMessage?.role == .assistant {
+                branchDebugDone = true
+                Task { await debugBranching() } // not tied to this task: it is cancelled when the turn starts
+            }
+            return
+        }
         guard let sheet = DebugHooks.openSheet, sheet.hasPrefix("timeline") || ["usage", "rename", "details"].contains(sheet) else { return }
         if sheet == "rename" {
             if controller.activeMessageID == nil, let c = conversation, c.messages.contains(where: { $0.role == .assistant }) {
@@ -415,6 +473,24 @@ struct ChatView: View {
         }
     }
     #endif
+
+    /// `-StrataDebugBranch switch`: edits the first question and regenerates the answer, so the switchers show.
+    /// `-StrataDebugBranch editbar`: puts the first question into the composer in edit mode.
+    private func debugBranching() async {
+        guard let mode = DebugHooks.value("StrataDebugBranch"), let c = conversation,
+              let first = c.activePath.first(where: { $0.role == .user }) else { return }
+        func settle() async {
+            for _ in 0..<200 {
+                try? await Task.sleep(for: .milliseconds(200))
+                if !controller.isStreaming { break }
+            }
+        }
+        if mode == "editbar" { beginEdit(first); return }
+        controller.send(text: "An edited version of the first question", images: [], conversation: c, context: context, editing: first)
+        await settle()
+        controller.regenerate(conversation: c, context: context)
+        await settle()
+    }
 
     private func debugActions() async {
         #if DEBUG
@@ -480,6 +556,7 @@ private struct ComposerHost<Chip: View>: View {
     let onAttach: () -> Void
     let onSend: () -> Void
     let onStop: () -> Void
+    var onCancelEdit: (() -> Void)?
     @ViewBuilder let chip: () -> Chip
     var isFocused: FocusState<Bool>.Binding
 
@@ -493,6 +570,7 @@ private struct ComposerHost<Chip: View>: View {
             plusDimmed: plusDimmed,
             onAttach: onAttach,
             onRemoveAttachment: { id in draft.attachments.removeAll { $0.id == id } },
+            onCancelEdit: onCancelEdit,
             onSend: onSend,
             onStop: onStop,
             chip: chip,

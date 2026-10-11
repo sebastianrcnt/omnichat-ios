@@ -42,6 +42,8 @@ struct ComposerBar<Chip: View>: View {
     var plusDimmed = false
     var onAttach: () -> Void
     var onRemoveAttachment: (UUID) -> Void = { _ in }
+    /// Set while a sent message is being edited: shows the "Editing message" bar.
+    var onCancelEdit: (() -> Void)?
     var onSend: () -> Void
     var onStop: () -> Void
     @ViewBuilder var chip: () -> Chip
@@ -50,6 +52,21 @@ struct ComposerBar<Chip: View>: View {
     var body: some View {
         GlassEffectContainer(spacing: DS.Spacing.md) {
             VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                if let onCancelEdit {
+                    HStack(spacing: DS.Spacing.sm) {
+                        Image(systemName: "pencil").font(.system(size: DS.IconSize.sm, weight: .semibold))
+                        Text("Editing message").font(DS.Typography.uiCaption)
+                        Spacer(minLength: 0)
+                        Button(action: onCancelEdit) {
+                            Image(systemName: "xmark.circle.fill").font(.system(size: DS.IconSize.md))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(Text("Cancel editing"))
+                    }
+                    .foregroundStyle(theme.textSecondary)
+                    .padding(.horizontal, DS.Spacing.xs)
+                    .transition(.opacity)
+                }
                 if !attachments.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: DS.Spacing.sm) {

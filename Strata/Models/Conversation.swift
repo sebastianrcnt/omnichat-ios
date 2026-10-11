@@ -15,6 +15,10 @@ final class Conversation {
     /// The local day (yyyy-MM-dd) the conversation was created. The model is told this date and it never changes, so the
     /// system message, and with it the cached prefix, stays byte-identical across turns and midnights.
     var createdDay: String = ""
+    /// The message whose path from the root is shown and sent (nil before the first message).
+    var leafID: UUID?
+    /// False for conversations saved before branching: `ensureTree()` links them in creation order, once.
+    var treeLinked: Bool = false
     var connectionID: UUID?
     var modelID: String?
     var effortRaw: String
@@ -34,6 +38,7 @@ final class Conversation {
         self.createdAt = .now
         self.updatedAt = .now
         self.createdDay = ConversationDate.day(for: .now)
+        self.treeLinked = true
         self.isPinned = false
         self.connectionID = connectionID
         self.modelID = modelID
@@ -71,12 +76,12 @@ final class Conversation {
 
     /// Texts for the naming request: answer text only (no reasoning or tool results), in order.
     var namingLines: [AutoRename.Line] {
-        sortedMessages.filter { !$0.text.isEmpty }.map { AutoRename.Line(role: $0.role, text: $0.text) }
+        activePath.filter { !$0.text.isEmpty }.map { AutoRename.Line(role: $0.role, text: $0.text) }
     }
 
     /// Answers that finished with text, not stopped or failed ones.
     var completedAnswerCount: Int {
-        messages.filter { $0.role == .assistant && !$0.text.isEmpty && $0.errorText == nil && !$0.stoppedByUser }.count
+        activePath.filter { $0.role == .assistant && !$0.text.isEmpty && $0.errorText == nil && !$0.stoppedByUser }.count
     }
 
     /// Sets a user-typed title; automatic naming leaves it alone from now on.
@@ -106,7 +111,7 @@ final class Conversation {
     /// Plain-text transcript for sharing.
     var transcript: String {
         var out = [displayTitle, ""]
-        for m in sortedMessages where !m.text.isEmpty {
+        for m in activePath where !m.text.isEmpty {
             out.append((m.role == .user ? String(localized: "You") : String(localized: "Assistant")) + ":")
             out.append(m.text)
             out.append("")
@@ -185,6 +190,10 @@ final class Message {
     /// True while an unfinished turn has a checkpoint: lets launch and foreground find it with a predicate.
     var hasResume: Bool = false
     var cancelPending: Bool = false
+    /// The message this one follows (nil for a first message). A user message edited later gets a sibling here.
+    var parentID: UUID?
+    /// Which child was showing last, so returning to this message lands where the reader left.
+    var lastActiveChildID: UUID?
     var stoppedByUser: Bool
     @Attribute(.externalStorage) var stepsData: Data?
     /// Ordered process segments (thinking, preamble text, tool rounds). Nil on messages saved before they existed.

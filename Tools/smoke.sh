@@ -9,9 +9,10 @@ APP=build/Build/Products/Debug-iphonesimulator/Strata.app
 xcrun simctl terminate booted cc.coolservices.strata 2>/dev/null || true
 xcrun simctl ui booted appearance "$APPEARANCE"
 xcrun simctl install booted "$APP"
-ARGS=(-StrataMockBaseURL http://127.0.0.1:8765/v1 -StrataMockKey test-key -StrataFakeTools 1)
+ARGS=(-StrataNoNotifications 1 -StrataMockBaseURL http://127.0.0.1:8765/v1 -StrataMockKey test-key -StrataFakeTools 1)
 [ -n "$PROMPT" ] && ARGS+=(-StrataAutoSend "$PROMPT")
 [ -n "$SHEET" ] && ARGS+=(-StrataOpenSheet "$SHEET")
+[ -n "$BRANCH" ] && ARGS+=(-StrataDebugBranch "$BRANCH")
 [ -n "$PICK_RECENT" ] && ARGS+=(-StrataAutoPickRecent 1)
 xcrun simctl launch booted cc.coolservices.strata "${ARGS[@]}" >/dev/null
 sleep "$WAIT"

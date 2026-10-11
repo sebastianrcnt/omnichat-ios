@@ -98,13 +98,17 @@ final class ChatController {
 
     // MARK: Entry points
 
-    func send(text: String, images: [Data], conversation: Conversation, context: ModelContext) {
+    /// Sends a user message. With `editing`, the new message is a sibling of that one (same parent): the old branch stays
+    /// and the leaf moves to the new message.
+    func send(text: String, images: [Data], conversation: Conversation, context: ModelContext, editing: Message? = nil) {
         guard !isStreaming else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !images.isEmpty else { return }
+        conversation.ensureTree()
+        let parent = editing.map { conversation.message(id: $0.parentID) } ?? conversation.leafMessage
         let user = Message(role: .user, text: trimmed, sortIndex: nextIndex(conversation))
-        user.conversation = conversation
         context.insert(user)
+        conversation.attach(user, parent: parent)
         for (i, data) in images.enumerated() {
             let a = Attachment(jpegData: data, sortIndex: i)
             a.message = user
@@ -120,12 +124,19 @@ final class ChatController {
 
     func regenerate(conversation: Conversation, context: ModelContext) {
         guard !isStreaming else { return }
-        let messages = conversation.sortedMessages
-        if let last = messages.last, last.role == .assistant {
-            context.delete(last)
+        conversation.ensureTree()
+        guard let leaf = conversation.leafMessage else { return }
+        guard leaf.role == .assistant else {
+            generate(conversation: conversation, context: context, under: leaf)
+            return
+        }
+        let parent = conversation.message(id: leaf.parentID)
+        if leaf.text.isEmpty && leaf.steps.isEmpty && leaf.reasoning.isEmpty {
+            // A failed or stopped attempt with nothing in it is replaced rather than kept as a branch.
+            context.delete(leaf)
             try? context.save()
         }
-        generate(conversation: conversation, context: context)
+        generate(conversation: conversation, context: context, under: parent)
     }
 
     /// Names the conversation with a standalone side request, in the background. Failure keeps the old title.
@@ -235,10 +246,18 @@ final class ChatController {
         (conversation.messages.map(\.sortIndex).max() ?? -1) + 1
     }
 
-    private func generate(conversation: Conversation, context: ModelContext, restoring: Message? = nil, checkpoint: TurnCheckpoint? = nil) {
+    /// - Parameter parent: the message the answer follows (default: the current leaf). Regenerating passes the user message
+    ///   the old answer followed, so the new answer becomes its sibling.
+    private func generate(conversation: Conversation, context: ModelContext, restoring: Message? = nil,
+                          checkpoint: TurnCheckpoint? = nil, under parent: Message? = nil) {
+        conversation.ensureTree()
         let assistant = restoring ?? Message(role: .assistant, sortIndex: nextIndex(conversation))
-        assistant.conversation = conversation
-        if restoring == nil { context.insert(assistant) }
+        if restoring == nil {
+            context.insert(assistant)
+            conversation.attach(assistant, parent: parent ?? conversation.leafMessage)
+        } else {
+            assistant.conversation = conversation
+        }
         try? context.save()
 
         let render = MessageRenderState(smoothing: settings.smoothStreaming)
@@ -250,7 +269,7 @@ final class ChatController {
         turnStart = .now
         liveSources = conversation.sources
 
-        let history = conversation.sortedMessages
+        let history = conversation.path(to: assistant.parentID)
             .filter { $0.id != assistant.id }
             .filter { $0.role == .user || !$0.text.isEmpty || !$0.steps.isEmpty }
             .map(\.historyMessage)

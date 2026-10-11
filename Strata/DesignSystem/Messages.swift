@@ -6,6 +6,12 @@ struct MessageBubble: View {
     @Environment(\.theme) private var theme
     let text: String
     var images: [Data] = []
+    var branch: BranchPosition?
+    var branchEnabled = true
+    var onSwitchBranch: (Int) -> Void = { _ in }
+    var onCopy: (() -> Void)?
+    /// Nil hides Edit (while a reply is streaming).
+    var onEdit: (() -> Void)?
 
     var body: some View {
         HStack {
@@ -22,13 +28,50 @@ struct MessageBubble: View {
                     Text(text)
                         .font(DS.Typography.ui)
                         .foregroundStyle(theme.textPrimary)
-                        .textSelection(.enabled)
                         .padding(.horizontal, DS.Spacing.lg)
                         .padding(.vertical, DS.Spacing.md)
                         .background(theme.bubble, in: RoundedRectangle(cornerRadius: DS.Radius.bubble))
+                        .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: DS.Radius.bubble))
+                        .contextMenu {
+                            if let onCopy { Button("Copy", systemImage: "doc.on.doc", action: onCopy) }
+                            if let onEdit { Button("Edit", systemImage: "pencil", action: onEdit) }
+                        }
+                }
+                if let branch {
+                    BranchSwitcher(position: branch, isEnabled: branchEnabled, onSwitch: onSwitchBranch)
                 }
             }
         }
+    }
+}
+
+/// `‹ 1 / 2 ›`: which version of a message is showing, with arrows to the others.
+struct BranchSwitcher: View {
+    @Environment(\.theme) private var theme
+    let position: BranchPosition
+    var isEnabled = true
+    let onSwitch: (Int) -> Void
+
+    var body: some View {
+        HStack(spacing: DS.Spacing.xs) {
+            Button { onSwitch(-1) } label: { Image(systemName: "chevron.left").frame(width: 28, height: 28) }
+                .disabled(!isEnabled || position.index <= 1)
+                .accessibilityLabel(Text("Previous version"))
+            Text("\(position.index) / \(position.count)")
+                .font(DS.Typography.uiCaption)
+                .monospacedDigit()
+                .foregroundStyle(theme.textSecondary)
+                .accessibilityHidden(true)
+            Button { onSwitch(1) } label: { Image(systemName: "chevron.right").frame(width: 28, height: 28) }
+                .disabled(!isEnabled || position.index >= position.count)
+                .accessibilityLabel(Text("Next version"))
+        }
+        .font(.system(size: DS.IconSize.sm, weight: .semibold))
+        .foregroundStyle(theme.textSecondary)
+        .buttonStyle(.plain)
+        .opacity(isEnabled ? 1 : 0.4)
+        .accessibilityElement(children: .contain)
+        .accessibilityValue(Text("\(position.index) of \(position.count)"))
     }
 }
 
@@ -110,6 +153,9 @@ struct MessageActionBar: View {
     let onCopy: () -> Void
     var onCopyRaw: (() -> Void)?
     var onRegenerate: (() -> Void)?
+    var branch: BranchPosition?
+    var branchEnabled = true
+    var onSwitchBranch: (Int) -> Void = { _ in }
     @State private var copied = false
 
     private func flash() {
@@ -119,6 +165,7 @@ struct MessageActionBar: View {
 
     var body: some View {
         HStack(spacing: DS.Spacing.lg) {
+            if let branch { BranchSwitcher(position: branch, isEnabled: branchEnabled, onSwitch: onSwitchBranch) }
             Menu {
                 Button("Copy", systemImage: "doc.on.doc") { onCopy(); flash() }
                 if let onCopyRaw {
@@ -172,6 +219,9 @@ struct AssistantMessage: View {
     var onRegenerate: () -> Void = {}
     var onOpenSettings: () -> Void = {}
     var onCopyRaw: (() -> Void)?
+    var branch: BranchPosition?
+    var branchEnabled = true
+    var onSwitchBranch: (Int) -> Void = { _ in }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -248,7 +298,8 @@ struct AssistantMessage: View {
                 if !used.isEmpty { SourcesRow(count: used.count) { onOpenSources(used) } }
             }
             if !content.isStreaming && (render.markdown.hasContent || content.errorText != nil) {
-                MessageActionBar(onCopy: onCopy, onCopyRaw: onCopyRaw, onRegenerate: content.canRegenerate ? onRegenerate : nil)
+                MessageActionBar(onCopy: onCopy, onCopyRaw: onCopyRaw, onRegenerate: content.canRegenerate ? onRegenerate : nil,
+                                 branch: branch, branchEnabled: branchEnabled, onSwitchBranch: onSwitchBranch)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -38,7 +38,7 @@ struct ConversationDiagnostics: Codable, Equatable, Sendable {
         var messages = 0
         var userMessages = 0
         var assistantMessages = 0
-        /// Nil until conversations can branch.
+        /// Leaves of the message tree: 1 for a conversation that never branched.
         var branches: Int?
         var activePathLength = 0
     }
@@ -113,7 +113,7 @@ struct ConversationDiagnostics: Codable, Equatable, Sendable {
         d.structure = Structure(messages: messages.count,
                                 userMessages: messages.filter { $0.role == .user }.count,
                                 assistantMessages: messages.filter { $0.role == .assistant }.count,
-                                branches: nil, activePathLength: messages.count)
+                                branches: conversation.treeIndex.leafCount, activePathLength: conversation.activePath.count)
 
         var s = Storage()
         func external(_ bytes: Int) {

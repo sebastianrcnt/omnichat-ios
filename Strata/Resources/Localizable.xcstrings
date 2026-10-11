@@ -12,6 +12,7 @@
     "%lld": {
       "shouldTranslate": false
     },
+    "%lld / %lld": {},
     "%lld lines": {},
     "%lld models": {
       "localizations": {
@@ -35,6 +36,7 @@
         }
       }
     },
+    "%lld of %lld": {},
     "%lld pages": {
       "localizations": {
         "en": {
@@ -139,6 +141,7 @@
     "Caches": {},
     "Camera": {},
     "Cancel": {},
+    "Cancel editing": {},
     "Capabilities": {},
     "Caption": {},
     "Chat database": {},
@@ -152,6 +155,7 @@
       "extractionState": "stale"
     },
     "Compaction": {},
+    "Completion tokens": {},
     "Connection": {},
     "Connections": {},
     "Context": {},
@@ -178,16 +182,25 @@
     "Developer mode": {},
     "Diagnostics": {},
     "Done": {},
+    "Dynamic size": {},
+    "Edit": {},
+    "Editing message": {},
     "Effort": {},
     "Enable only for gateways supporting Strata stream replay.": {},
     "Estimate": {},
     "Expanded": {
       "extractionState": "stale"
     },
-    "External files (est.)": {},
+    "External bytes (est.)": {},
+    "External files": {},
+    "External files (est.)": {
+      "extractionState": "stale"
+    },
     "External storage": {},
+    "External values (est.)": {},
     "Extra": {},
     "Favicon cache": {},
+    "Favicon files": {},
     "Favicon images": {},
     "Fetch length": {},
     "Fetch models": {},
@@ -228,8 +241,11 @@
     "How much of a page web_fetch returns per call. Longer pages continue in further calls.": {},
     "Image": {},
     "Image and favicon counts are upper bounds: the system cache evicts without saying so.": {},
+    "Image cache limit": {},
     "Image data URLs": {},
     "Images": {},
+    "Images, full size": {},
+    "Images, thumbnails": {},
     "Input tokens": {},
     "Invalid HTTP response": {},
     "Jump to bottom": {},
@@ -262,6 +278,7 @@
     "New Chat": {},
     "New chat": {},
     "New connection": {},
+    "Next version": {},
     "No chats yet": {},
     "No matches": {},
     "No messages yet": {},
@@ -282,6 +299,7 @@
     "Opens the timeline": {},
     "Orange": {},
     "Output tokens": {},
+    "Page characters": {},
     "Page script failed: %@": {},
     "Pages": {},
     "Pasted keys are stored in the Keychain, never in the app's files.": {},
@@ -292,7 +310,9 @@
     "Pink": {},
     "Pinned": {},
     "Preparing reply": {},
+    "Previous version": {},
     "Prompt": {},
+    "Prompt tokens": {},
     "Purple": {},
     "Read %lld pages": {},
     "Read 1 page": {},
@@ -321,7 +341,11 @@
     "Requests sent from this device since the app started appear here.": {},
     "Reset to default": {},
     "Resumable replies": {},
-    "Resume data": {},
+    "Resume data": {
+      "extractionState": "stale"
+    },
+    "Resume data, dynamic": {},
+    "Resume data, static": {},
     "Reveal text at a steady pace instead of in bursts.": {},
     "Reveal text at a steady pace.": {},
     "Save": {},
@@ -358,7 +382,10 @@
     "Smooth streaming": {},
     "Source": {},
     "Sources": {},
-    "Static / dynamic": {},
+    "Static / dynamic": {
+      "extractionState": "stale"
+    },
+    "Static size": {},
     "Steps": {},
     "Stop": {},
     "Stopped": {},
