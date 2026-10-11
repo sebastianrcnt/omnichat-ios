@@ -34,15 +34,30 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", required=True)
     parser.add_argument("--app", required=True)
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--before-headers", action="store_true", help="Kill after admission but before response headers")
+    modes.add_argument("--drop-before-headers", action="store_true", help="Drop before headers; verify automatic live retry")
     args = parser.parse_args()
     mock_server.RESUMABLE = True
     mock_server.DROP_AFTER = 5
+    mock_server.DROP_BEFORE_HEADERS = 1 if args.drop_before_headers else 0
     requests = []
+    admissions = []
+    admitted = threading.Event()
+    release_headers = threading.Event()
 
     class Handler(mock_server.Handler):
         def do_POST(self):
             requests.append(("POST", self.path))
             super().do_POST()
+        def before_stream_headers(self, rid, stream, created):
+            if created:
+                admissions.append((rid, stream.key))
+                if args.before_headers and len(admissions) == 1:
+                    admitted.set()
+                    release_headers.wait(timeout=45)
+                    return False  # original socket closes; generation remains owned by the registry
+            return super().before_stream_headers(rid, stream, created)
         def do_GET(self):
             requests.append(("GET", self.path))
             super().do_GET()
@@ -67,13 +82,22 @@ def main():
             if not checkpoint_path.exists():
                 return None
             value = json.loads(checkpoint_path.read_text())
+            if args.before_headers:
+                return value if value.get("submission_started") and value.get("idempotency_key") and not value.get("request_id") else None
             return value if value.get("seq", 0) >= 3 else None
         initial = wait_for(checkpoint)
-        first_id = initial["request_id"]
+        if args.before_headers:
+            assert admitted.wait(timeout=10), "Server did not admit the first generation"
+            first_id, first_key = admissions[0]
+            assert initial["idempotency_key"] == first_key and initial["seq"] == 0
+        else:
+            first_id = initial["request_id"]
         assert first_id.startswith("req_")
-        sim(device, "terminate", bundle)
-        time.sleep(1)  # producer continues even while no app process exists
-        sim(device, "launch", bundle, *common)
+        if not args.drop_before_headers:
+            sim(device, "terminate", bundle)
+            release_headers.set()
+            time.sleep(1)  # producer continues even while no app process exists
+            sim(device, "launch", bundle, *common)
         completed_path = data / "resume-completion.json"
         result = wait_for(lambda: json.loads(completed_path.read_text()) if completed_path.exists() else None)
         assert not result["error"], result["error"]
@@ -83,12 +107,18 @@ def main():
         assert result["text"] == expected, "Final text differs (missing/duplicate chunks)"
         posts = [p for m, p in requests if m == "POST" and p == "/v1/chat/completions"]
         resumes = [p for m, p in requests if m == "GET" and p.startswith("/v1/streams/")]
-        assert len(posts) == 3, "Duplicated generation request after relaunch"
+        assert len(admissions) == 3, "Duplicate generation admitted after header loss"
+        assert len({key for _, key in admissions}) == 3, "Tool rounds reused an idempotency key"
+        if args.before_headers or args.drop_before_headers:
+            assert len(posts) >= 4, "Header-gap test did not re-POST"
+        else:
+            assert len(posts) == 3, "Unexpected extra POST after id-based recovery"
         assert any(first_id in p for p in resumes), "Relaunch did not resume stored request id"
         assert len(resumes) >= 3, "Forced drop was not recovered in every tool round"
         sim(device, "io", "screenshot", "/tmp/strata-resume-smoke.png")
-        print(f"PASS: app kill + relaunch, {len(posts)} tool-loop POSTs, {len(resumes)} replay GETs, exact final text")
+        print(f"PASS: {'pre-header crash' if args.before_headers else 'pre-header network drop' if args.drop_before_headers else 'app kill + relaunch'}, {len(posts)} POST attempts, {len(admissions)} generations, {len(resumes)} replay GETs, exact final text")
     finally:
+        release_headers.set()
         server.shutdown()
         server.server_close()
 

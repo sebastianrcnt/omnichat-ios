@@ -53,6 +53,8 @@ enum DebugHooks {
         if let checkpoint {
             fields["request_id"] = checkpoint.requestID ?? ""
             fields["seq"] = checkpoint.lastSequence
+            fields["idempotency_key"] = checkpoint.idempotencyKey ?? ""
+            fields["submission_started"] = checkpoint.submissionStarted
         }
         let name = checkpoint == nil ? "resume-completion.json" : "resume-checkpoint.json"
         if let data = try? JSONSerialization.data(withJSONObject: fields, options: [.sortedKeys]) {

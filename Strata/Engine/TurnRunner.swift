@@ -33,7 +33,7 @@ struct TurnRunner: Sendable {
              effort: Effort?,
              sources: SourceStore? = nil,
              checkpoint restored: TurnCheckpoint? = nil,
-             onEvent: @MainActor (TurnEvent) -> Void) async throws -> TurnOutcome {
+             onEvent: @MainActor (TurnEvent) throws -> Void) async throws -> TurnOutcome {
         var checkpoint = try restored ?? TurnCheckpoint(messages: initial)
         var messages = try checkpoint.messages
         var steps: [ToolStep] = checkpoint.steps
@@ -53,19 +53,25 @@ struct TurnRunner: Sendable {
                 request.tools = ToolDefinition.standard // identical on every request
                 if capped { request.toolChoice = "none" }
             }
-            onEvent(.roundStarted(round))
+            try onEvent(.roundStarted(round))
 
             if restored != nil && round == restored?.round {
-                if !checkpoint.accumulator.reasoning.isEmpty { onEvent(.reasoning(checkpoint.accumulator.reasoning)) }
-                if !checkpoint.accumulator.content.isEmpty { onEvent(.content(checkpoint.accumulator.content)) }
+                if !checkpoint.accumulator.reasoning.isEmpty { try onEvent(.reasoning(checkpoint.accumulator.reasoning)) }
+                if !checkpoint.accumulator.content.isEmpty { try onEvent(.content(checkpoint.accumulator.content)) }
             }
-            onEvent(.checkpoint(checkpoint))
+            try onEvent(.checkpoint(checkpoint))
             if !checkpoint.streamDone {
-                if endpoint.supportsResumable && restored?.round == round && checkpoint.submissionStarted && checkpoint.requestID == nil {
-                    throw APIError.transport(String(localized: "The reply connection was lost before the server returned its request id. It cannot be safely retried automatically."))
+                if endpoint.supportsResumable && checkpoint.idempotencyKey == nil {
+                    // Legacy checkpoints created before the gateway supported idempotency.
+                    // Never invent a key for an unidentified request already sent without one.
+                    if checkpoint.submissionStarted && checkpoint.requestID == nil {
+                        throw APIError.transport(String(localized: "This reply was started before idempotency support and has no recovery key."))
+                    }
+                    checkpoint.idempotencyKey = UUID().uuidString.lowercased()
                 }
+                if checkpoint.requestData == nil { checkpoint.requestData = try request.encoded() }
                 checkpoint.submissionStarted = true
-                onEvent(.checkpoint(checkpoint))
+                try onEvent(.checkpoint(checkpoint))
                 let stream: AsyncThrowingStream<ChatDelta, Error>
                 if endpoint.supportsResumable, let resumable = streamer as? any ResumableChatStreaming {
                     stream = resumable.stream(request, endpoint: endpoint, checkpoint: checkpoint)
@@ -75,14 +81,14 @@ struct TurnRunner: Sendable {
                 for try await delta in stream {
                     try Task.checkCancellation()
                     guard try checkpoint.apply(delta) else { continue }
-                    if let r = delta.reasoning, !r.isEmpty { onEvent(.reasoning(r)) }
-                    if let c = delta.content, !c.isEmpty { onEvent(.content(c)) }
-                    if let u = delta.usage { onEvent(.usage(u)) }
-                    onEvent(.checkpoint(checkpoint))
+                    if let r = delta.reasoning, !r.isEmpty { try onEvent(.reasoning(r)) }
+                    if let c = delta.content, !c.isEmpty { try onEvent(.content(c)) }
+                    if let u = delta.usage { try onEvent(.usage(u)) }
+                    try onEvent(.checkpoint(checkpoint))
                 }
                 try Task.checkCancellation()
                 checkpoint.streamDone = true
-                onEvent(.checkpoint(checkpoint))
+                try onEvent(.checkpoint(checkpoint))
             }
             let acc = checkpoint.accumulator
             if let u = acc.usage { lastUsage = u }
@@ -94,10 +100,10 @@ struct TurnRunner: Sendable {
                                    lastUsage: lastUsage, hitToolCap: hitCap)
             }
 
-            onEvent(.toolsRequested(calls))
+            try onEvent(.toolsRequested(calls))
             var records: [ToolCallRecord] = checkpoint.records
             var outputs = records.map { ToolOutput(text: $0.result, isError: $0.isError) }
-            for record in records { onEvent(.toolFinished(record)) }
+            for record in records { try onEvent(.toolFinished(record)) }
             for call in calls {
                 if records.contains(where: { $0.id == call.id }) { continue }
                 try Task.checkCancellation()
@@ -113,9 +119,9 @@ struct TurnRunner: Sendable {
                                             result: out.text, isError: out.isError, sourceIDs: ids)
                 records.append(record)
                 outputs.append(out)
-                onEvent(.toolFinished(record))
+                try onEvent(.toolFinished(record))
                 checkpoint.records = records
-                onEvent(.checkpoint(checkpoint))
+                try onEvent(.checkpoint(checkpoint))
             }
             MessageAssembler.appendToolRound(to: &messages, assistantContent: acc.content, calls: calls, results: outputs)
             steps.append(ToolStep(assistantContent: acc.content, calls: records))
@@ -125,7 +131,7 @@ struct TurnRunner: Sendable {
             checkpoint.round = round
             checkpoint.steps = steps
             checkpoint.priorReasoning = priorReasoning
-            onEvent(.checkpoint(checkpoint))
+            try onEvent(.checkpoint(checkpoint))
         }
     }
 }

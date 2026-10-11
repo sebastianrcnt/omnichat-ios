@@ -125,7 +125,7 @@ final class ChatController {
         guard cancelTasks[message.id] == nil else { return }
         guard let data = message.resumeData,
               let checkpoint = try? JSONDecoder().decode(TurnCheckpoint.self, from: data),
-              let id = checkpoint.requestID,
+              checkpoint.requestID != nil || (checkpoint.idempotencyKey != nil && checkpoint.submissionStarted),
               let client = streamer as? any ResumableChatStreaming else {
             message.cancelPending = false
             message.resumeData = nil
@@ -133,9 +133,20 @@ final class ChatController {
             return
         }
         cancelTasks[message.id] = Task { @MainActor [weak self] in
+            let lookupDeadline = Date().addingTimeInterval(30)
             while !Task.isCancelled {
                 do {
-                    try await client.cancel(requestID: id, endpoint: endpoint)
+                    var id = checkpoint.requestID
+                    if id == nil, let key = checkpoint.idempotencyKey {
+                        id = try await client.requestID(forIdempotencyKey: key, endpoint: endpoint)
+                    }
+                    if let id {
+                        try await client.cancel(requestID: id, endpoint: endpoint)
+                    } else if Date() < lookupDeadline {
+                        // The original POST may still be in gateway authentication/routing.
+                        try await RecoverySignals.shared.wait(seconds: 0.5)
+                        continue
+                    }
                     message.cancelPending = false
                     message.resumeData = nil
                     try? context.save()
@@ -215,7 +226,7 @@ final class ChatController {
             self.sourceStore = sourceStore
             do {
                 let outcome = try await runner.run(endpoint: endpoint, messages: messages, effort: effort, sources: sourceStore, checkpoint: checkpoint) { event in
-                    self.handle(event, tracker: tracker, context: context)
+                    try self.handle(event, tracker: tracker, context: context)
                 }
                 tracker.finishThinking()
                 conversation.sources = sourceStore.items
@@ -241,7 +252,7 @@ final class ChatController {
         }
     }
 
-    private func handle(_ event: TurnEvent, tracker: TurnTracker, context: ModelContext) {
+    private func handle(_ event: TurnEvent, tracker: TurnTracker, context: ModelContext) throws {
         background.advance()
         switch event {
         case .checkpoint(let checkpoint):
@@ -250,7 +261,7 @@ final class ChatController {
                 tracker.message.text = checkpoint.accumulator.content
                 tracker.message.reasoning = checkpoint.priorReasoning + checkpoint.accumulator.reasoning
                 tracker.conversation.sources = sourceStore?.items ?? tracker.conversation.sources
-                try? context.save()
+                try context.save()
                 #if DEBUG
                 DebugHooks.recordResumeSmoke(tracker.message, checkpoint: checkpoint)
                 #endif

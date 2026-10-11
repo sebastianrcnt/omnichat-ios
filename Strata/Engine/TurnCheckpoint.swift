@@ -6,6 +6,9 @@ struct TurnCheckpoint: Codable, Sendable {
     var messagesData: Data
     var round = 0
     var requestID: String?
+    var idempotencyKey: String?
+    /// Exact original body: connection/model/effort edits cannot change a retry.
+    var requestData: Data?
     var submissionStarted = false
     var lastSequence = 0
     var accumulator = StreamAccumulator()
@@ -16,6 +19,7 @@ struct TurnCheckpoint: Codable, Sendable {
 
     init(messages: [APIMessage]) throws {
         messagesData = try ChatRequest.encoder.encode(messages)
+        idempotencyKey = UUID().uuidString.lowercased()
     }
 
     var messages: [APIMessage] {

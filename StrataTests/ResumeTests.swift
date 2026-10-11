@@ -7,13 +7,15 @@ private final class RecoveryStreamer: ResumableChatStreaming, @unchecked Sendabl
     private let lock = NSLock()
     var deltas: [ChatDelta]
     var waits: Bool
+    var lookupID: String?
     private var seen: [TurnCheckpoint] = []
     private var cancelledIDs: [String] = []
     private var plainCount = 0
 
-    init(deltas: [ChatDelta] = [], waits: Bool = false) {
+    init(deltas: [ChatDelta] = [], waits: Bool = false, lookupID: String? = nil) {
         self.deltas = deltas
         self.waits = waits
+        self.lookupID = lookupID
     }
     var checkpoints: [TurnCheckpoint] { lock.withLock { seen } }
     var cancels: [String] { lock.withLock { cancelledIDs } }
@@ -37,9 +39,43 @@ private final class RecoveryStreamer: ResumableChatStreaming, @unchecked Sendabl
             c.onTermination = { _ in task.cancel() }
         }
     }
+    func requestID(forIdempotencyKey key: String, endpoint: Endpoint) async throws -> String? { lookupID }
     func cancel(requestID: String, endpoint: Endpoint) async throws {
         lock.withLock { cancelledIDs.append(requestID) }
     }
+}
+
+private final class IdempotentRecoveryStreamer: ResumableChatStreaming, @unchecked Sendable {
+    private let lock = NSLock()
+    private var registry: [String: String] = [:]
+    private var attempts = 0
+    var generationCount: Int { lock.withLock { registry.count } }
+    var postCount: Int { lock.withLock { attempts } }
+
+    func stream(_ request: ChatRequest, endpoint: Endpoint) -> AsyncThrowingStream<ChatDelta, Error> {
+        AsyncThrowingStream { $0.finish(throwing: APIError.server("wrong protocol path")) }
+    }
+    func stream(_ request: ChatRequest, endpoint: Endpoint, checkpoint: TurnCheckpoint) -> AsyncThrowingStream<ChatDelta, Error> {
+        let key = checkpoint.idempotencyKey!
+        let (created, rid) = lock.withLock {
+            attempts += 1
+            let created = registry[key] == nil
+            if created { registry[key] = "req_0123456789abcdef01234567" }
+            return (created, registry[key]!)
+        }
+        return AsyncThrowingStream { c in
+            if created {
+                // Server accepted generation, but app crashed before receiving response headers.
+                c.finish(throwing: URLError(.networkConnectionLost))
+            } else {
+                c.yield(ChatDelta(requestID: rid))
+                c.yield(ChatDelta(content: "recovered reply", sequence: 1))
+                c.yield(ChatDelta(isDone: true, sequence: 2))
+                c.finish()
+            }
+        }
+    }
+    func cancel(requestID: String, endpoint: Endpoint) async throws {}
 }
 
 @MainActor
@@ -101,6 +137,7 @@ struct ResumeTests {
         let recovered = try JSONDecoder().decode(TurnCheckpoint.self, from: #require(fetched.resumeData))
         #expect(fetched.text == "partial")
         #expect(recovered.requestID == rid && recovered.lastSequence == 1)
+        #expect(recovered.idempotencyKey == snapshot.idempotencyKey)
         #expect(recovered.accumulator.toolCalls.first?.arguments == "{\"que")
         #expect(try recovered.messages == snapshot.messages)
     }
@@ -119,21 +156,56 @@ struct ResumeTests {
         // Only the next round was sent; the stored done stream was not sent again.
         #expect(streamer.checkpoints.count == 1)
         #expect(streamer.checkpoints[0].requestID == nil)
+        #expect(streamer.checkpoints[0].idempotencyKey != snapshot.idempotencyKey)
         #expect(try streamer.checkpoints[0].messages.last?.role == "tool")
     }
 
-    @Test func ambiguousSubmissionDoesNotIssueAnotherBillablePOST() async throws {
-        var snapshot = try TurnCheckpoint(messages: [.user("hi")])
-        snapshot.submissionStarted = true
+    @Test func crashBeforeHeaderRepostsPersistedKeyWithoutDuplicateGeneration() async throws {
+        let streamer = IdempotentRecoveryStreamer()
+        let runner = TurnRunner(streamer: streamer, tools: FakeTools())
+        var persisted: Data?
+        do {
+            _ = try await runner.run(endpoint: endpoint(), messages: [.user("hi")], effort: nil) { event in
+                if case .checkpoint(let snapshot) = event { persisted = try JSONEncoder().encode(snapshot) }
+            }
+            Issue.record("The first simulated app process should lose the connection")
+        } catch is URLError {}
+        let recovered = try JSONDecoder().decode(TurnCheckpoint.self, from: #require(persisted))
+        #expect(recovered.submissionStarted && recovered.requestID == nil)
+        #expect(recovered.idempotencyKey != nil && recovered.requestData != nil)
+        #expect(UUID(uuidString: recovered.idempotencyKey!) != nil)
+        var replayedKey: String?
+        let outcome = try await runner.run(endpoint: endpoint(), messages: [], effort: nil, checkpoint: recovered) { event in
+            if case .checkpoint(let snapshot) = event { replayedKey = snapshot.idempotencyKey }
+        }
+        #expect(outcome.finalContent == "recovered reply")
+        #expect(replayedKey == recovered.idempotencyKey)
+        #expect(streamer.postCount == 2 && streamer.generationCount == 1)
+    }
+
+    @Test func checkpointFailurePreventsSendingThePOST() async throws {
         let streamer = RecoveryStreamer()
         do {
             _ = try await TurnRunner(streamer: streamer, tools: FakeTools()).run(
-                endpoint: endpoint(), messages: [], effort: nil, checkpoint: snapshot) { _ in }
-            Issue.record("An unidentified submitted request must not be retried")
-        } catch let error as APIError {
-            #expect(error.localizedDescription.contains("request id"))
-        }
+                endpoint: endpoint(), messages: [.user("hi")], effort: nil) { event in
+                    if case .checkpoint = event { throw CocoaError(.fileWriteOutOfSpace) }
+                }
+            Issue.record("Sending must fail when the key cannot be persisted")
+        } catch is CocoaError {}
         #expect(streamer.checkpoints.isEmpty && streamer.plainRequests == 0)
+    }
+
+    @Test func originalBodyAndKeySurviveSettingsChanges() async throws {
+        var snapshot = try TurnCheckpoint(messages: [.user("hi")])
+        let original = try ChatRequest(model: "original-model", messages: [.user("hi")]).encoded()
+        snapshot.requestData = original
+        snapshot.submissionStarted = true
+        let key = snapshot.idempotencyKey
+        let streamer = RecoveryStreamer(deltas: [ChatDelta(content: "answer", sequence: 1), ChatDelta(isDone: true, sequence: 2)])
+        _ = try await TurnRunner(streamer: streamer, tools: FakeTools()).run(
+            endpoint: endpoint(), messages: [], effort: .high, checkpoint: snapshot) { _ in }
+        #expect(streamer.checkpoints[0].requestData == original)
+        #expect(streamer.checkpoints[0].idempotencyKey == key)
     }
 
     @Test func alreadyCompletedToolResultsAreNotExecutedAgain() async throws {
@@ -170,7 +242,7 @@ struct ResumeTests {
         #expect(!Connection(name: "Other", baseURL: "http://localhost/v1").supportsResumable)
     }
 
-    @Test func stopDuringResumeCancelsServerAndLocalTask() async throws {
+    @Test(arguments: [false, true]) func stopDuringResumeCancelsServerAndLocalTask(beforeHeaders: Bool) async throws {
         let defaults = UserDefaults(suiteName: "resume-tests-\(UUID())")!
         let keys = InMemoryKeyStore()
         try keys.setKey("test-only-key", for: Connection.strataID)
@@ -182,13 +254,15 @@ struct ResumeTests {
                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let context = container.mainContext
         let conversation = Conversation(connectionID: Connection.strataID, modelID: "m")
-        let message = Message(role: .assistant, text: "partial", sortIndex: 0)
+        let prefix = beforeHeaders ? "" : "partial"
+        let message = Message(role: .assistant, text: prefix, sortIndex: 0)
         message.conversation = conversation
         var snapshot = try TurnCheckpoint(messages: [.user("hi")])
-        _ = try snapshot.apply(ChatDelta(content: "partial", requestID: rid, sequence: 1))
+        if beforeHeaders { snapshot.submissionStarted = true }
+        else { _ = try snapshot.apply(ChatDelta(content: "partial", requestID: rid, sequence: 1)) }
         message.resumeData = try JSONEncoder().encode(snapshot)
         context.insert(conversation); context.insert(message); try context.save()
-        let streamer = RecoveryStreamer(waits: true)
+        let streamer = RecoveryStreamer(waits: true, lookupID: beforeHeaders ? rid : nil)
         let controller = ChatController(connections: connections, settings: AppSettings(defaults: defaults), streamer: streamer, tools: FakeTools())
         controller.restorePending(context: context)
         for _ in 0..<100 where streamer.checkpoints.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
@@ -201,6 +275,6 @@ struct ResumeTests {
         #expect(message.stoppedByUser && !message.cancelPending)
         #expect(message.resumeData == nil)
         #expect(streamer.cancels == [rid])
-        #expect(message.text == "partial")
+        #expect(message.text == prefix)
     }
 }

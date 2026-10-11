@@ -6,6 +6,11 @@ protocol ResumableChatStreaming: ChatStreaming {
     func stream(_ request: ChatRequest, endpoint: Endpoint, checkpoint: TurnCheckpoint)
         -> AsyncThrowingStream<ChatDelta, Error>
     func cancel(requestID: String, endpoint: Endpoint) async throws
+    func requestID(forIdempotencyKey key: String, endpoint: Endpoint) async throws -> String?
+}
+
+extension ResumableChatStreaming {
+    func requestID(forIdempotencyKey key: String, endpoint: Endpoint) async throws -> String? { nil }
 }
 
 /// Foreground and path changes wake reconnect backoff, without owning the turn.
@@ -36,6 +41,18 @@ final class RecoverySignals: @unchecked Sendable {
 }
 
 extension ChatClient: ResumableChatStreaming {
+    func requestID(forIdempotencyKey key: String, endpoint: Endpoint) async throws -> String? {
+        let req = HTTP.makeRequest(url: endpoint.baseURL.appendingPathComponent("streams/by-key/\(key)"), endpoint: endpoint)
+        let (data, response) = try await session.data(for: req)
+        guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        if http.statusCode == 404 { return nil }
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.http(status: http.statusCode, message: HTTP.errorMessage(from: data))
+        }
+        struct Lookup: Decodable { var request_id: String }
+        return try JSONDecoder().decode(Lookup.self, from: data).request_id
+    }
+
     func cancel(requestID: String, endpoint: Endpoint) async throws {
         let req = HTTP.makeRequest(url: endpoint.baseURL.appendingPathComponent("streams/\(requestID)/cancel"),
                                    endpoint: endpoint, method: "POST")
@@ -54,6 +71,7 @@ extension ChatClient: ResumableChatStreaming {
                 var lastSequence = checkpoint.lastSequence
                 var attempt = 0
                 do {
+                    let postBody = try checkpoint.requestData ?? request.encoded()
                     while true {
                         try Task.checkCancellation()
                         do {
@@ -62,8 +80,10 @@ extension ChatClient: ResumableChatStreaming {
                             } ?? endpoint.baseURL.appendingPathComponent("chat/completions")
                             var req = HTTP.makeRequest(url: url, endpoint: endpoint,
                                                        method: requestID == nil ? "POST" : "GET",
-                                                       body: requestID == nil ? try request.encoded() : nil)
+                                                       body: requestID == nil ? postBody : nil)
                             req.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+                            if let key = checkpoint.idempotencyKey { req.setValue(key, forHTTPHeaderField: "Idempotency-Key") }
+                            if requestID == nil { req.setValue(String(lastSequence), forHTTPHeaderField: "Last-Event-ID") }
                             if requestID == nil { req.setValue("1", forHTTPHeaderField: "X-Strata-Resumable") }
                             req.timeoutInterval = 300
                             let (bytes, response) = try await session.bytes(for: req)
@@ -107,8 +127,8 @@ extension ChatClient: ResumableChatStreaming {
                             throw URLError(.networkConnectionLost)
                         } catch {
                             try Task.checkCancellation()
-                            // Without headers, retrying POST could double-generate/double-bill.
-                            guard requestID != nil else { throw error }
+                            // The persisted key makes pre-header POST retries safe within registry retention.
+                            guard requestID != nil || checkpoint.idempotencyKey != nil else { throw error }
                             if let api = error as? APIError {
                                 if case .http(let status, _) = api, status >= 500 || status == 429 {} else { throw error }
                             } else if !(error is URLError) { throw error }
