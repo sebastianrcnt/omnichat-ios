@@ -49,6 +49,7 @@ actor FaviconStore {
     static let pixelSize = 32 // 16 pt at 2x
 
     private let directory: URL
+    nonisolated var cacheDirectory: URL { directory }
     private let fetcher: Fetcher
     private let validator: Validator
     private let now: @Sendable () -> Date

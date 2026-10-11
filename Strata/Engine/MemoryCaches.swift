@@ -9,8 +9,16 @@ final class ImageDataURLCache: @unchecked Sendable {
     private let cache = NSCache<NSUUID, NSString>()
     private let lock = NSLock()
     private var builds = 0
+    private var added = 0
+    let costLimit: Int
 
-    init(costLimit: Int = 96 * 1024 * 1024) { cache.totalCostLimit = costLimit }
+    init(costLimit: Int = 96 * 1024 * 1024) {
+        self.costLimit = costLimit
+        cache.totalCostLimit = costLimit
+    }
+
+    /// Bytes stored since the cache was last emptied. NSCache evicts silently, so this is an upper bound of what it holds.
+    var bytesAdded: Int { lock.withLock { added } }
 
     /// Number of data URLs actually built (cache misses).
     var buildCount: Int { lock.withLock { builds } }
@@ -18,12 +26,15 @@ final class ImageDataURLCache: @unchecked Sendable {
     func dataURL(id: UUID, jpeg: () -> Data) -> String {
         if let hit = cache.object(forKey: id as NSUUID) { return hit as String }
         let url = ContentPart.dataURLString(jpeg: jpeg())
-        lock.withLock { builds += 1 }
+        lock.withLock { builds += 1; added += url.utf8.count }
         cache.setObject(url as NSString, forKey: id as NSUUID, cost: url.utf8.count)
         return url
     }
 
-    func purge() { cache.removeAllObjects() }
+    func purge() {
+        cache.removeAllObjects()
+        lock.withLock { added = 0 }
+    }
 }
 
 /// Everything that can be rebuilt is dropped on a memory warning. Running-turn state is not touched.

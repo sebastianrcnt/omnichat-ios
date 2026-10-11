@@ -6,7 +6,7 @@ import Foundation
 ///   -StrataMockKey test-key                        store a fake key in the Keychain
 ///   -StrataFakeTools 1                             canned web_search/web_fetch results (no network)
 ///   -StrataAutoSend "hello"                        send a message right after launch
-///   -StrataOpenSheet usage|model|settings|attach   open a sheet right after launch
+///   -StrataOpenSheet usage|model|settings|attach|details|diagnostics   open a sheet right after launch
 /// Canned tool results so the UI can be exercised without the network.
 struct FakeWebTools: ToolExecuting {
     func execute(name: String, arguments: String) async -> ToolOutput {

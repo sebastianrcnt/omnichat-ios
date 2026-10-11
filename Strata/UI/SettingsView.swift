@@ -7,6 +7,7 @@ struct SettingsView: View {
     @Environment(ConnectionStore.self) private var connections
 
     @State private var path: [UUID] = []
+    @State private var showDiagnostics = false
 
     var body: some View {
         @Bindable var settings = settings
@@ -62,6 +63,13 @@ struct SettingsView: View {
                                             set: { settings.defaultContextLength = Int($0.filter(\.isNumber)).flatMap { $0 > 0 ? $0 : nil } ?? AppSettings.defaultContextLength }),
                                          keyboard: .numberPad)
                     }
+
+                    GroupedSection(header: "Developer", footer: "Memory, storage, caches and recent requests, with a bundle you can save and share.") {
+                        SettingsToggleRow(title: "Developer mode", isOn: $settings.developerMode)
+                        if settings.developerMode {
+                            SettingsRow(systemImage: "gauge.with.dots.needle.50percent", title: "Diagnostics", showsChevron: true) { showDiagnostics = true }
+                        }
+                    }
                 }
                 .padding(DS.Spacing.lg)
             }
@@ -74,8 +82,14 @@ struct SettingsView: View {
             .navigationDestination(for: UUID.self) { id in
                 ConnectionEditor(connectionID: id, path: $path)
             }
+            .navigationDestination(isPresented: $showDiagnostics) { AppDiagnosticsView() }
         }
         .presentationBackground(theme.background)
+        #if DEBUG
+        .task {
+            if DebugHooks.openSheet == "diagnostics" { settings.developerMode = true; showDiagnostics = true }
+        }
+        #endif
     }
 
     private var accentRow: some View {

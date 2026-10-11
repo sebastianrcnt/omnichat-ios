@@ -149,6 +149,7 @@ struct SidebarView: View {
             }
             Button("Delete", systemImage: "trash", role: .destructive) {
                 if selected?.id == conversation.id { selected = nil }
+                Diagnostics.forget(conversation.id)
                 context.delete(conversation)
                 try? context.save()
             }

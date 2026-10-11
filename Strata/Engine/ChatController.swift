@@ -35,6 +35,8 @@ final class ChatController {
     /// Sources of the running turn (conversation-wide ids), updated as tools finish.
     private(set) var liveSources: [SourceInfo] = []
     var isStreaming: Bool { activeMessageID != nil }
+    /// For the diagnostics panel.
+    var backgroundStateDescription: String { background.stateDescription }
 
     private let connections: ConnectionStore
     private let settings: AppSettings
@@ -51,6 +53,8 @@ final class ChatController {
     @ObservationIgnored private var persistedSourceCount = -1
     /// Bytes handed to the store by each checkpoint write (large half only when it changed). Instrumentation for tests.
     @ObservationIgnored var onCheckpointWrite: ((Int) -> Void)?
+    /// Recent request bodies for the diagnostics panel.
+    @ObservationIgnored var requestRing: RequestRing = .shared
     @ObservationIgnored private var cancelTasks: [UUID: Task<Void, Never>] = [:]
     private let background = ReplyBackgroundExecution()
 
@@ -267,7 +271,16 @@ final class ChatController {
             self?.persist(snapshot, message: assistant, conversation: conversation, context: context)
         } : nil
         background.begin()
-        let runner = TurnRunner(streamer: streamer, tools: tools)
+        var runner = TurnRunner(streamer: streamer, tools: tools)
+        let ring = requestRing
+        let conversationID = conversation.id
+        runner.requestLog = { event in
+            switch event {
+            case .sent(let id, let url, let body): ring.record(conversationID: conversationID, url: url, body: body, id: id)
+            case .finished(let id, let reason, let usage): ring.complete(id, finishReason: reason, usage: usage)
+            }
+        }
+        DiagnosticCounters.shared.beginTurn(conversation: conversation.id)
         let effort = conversation.effort
         let messages = MessageAssembler.apiMessages(from: history, systemPrompt: ConversationDate.systemPrompt(base: endpoint.systemPrompt, day: conversation.systemDay))
         let sourceStore = SourceStore(items: conversation.sources)
@@ -345,6 +358,8 @@ final class ChatController {
         if !message.hasResume { message.hasResume = true }
         message.resumeDynamicData = snapshot.dynamicData
         onCheckpointWrite?((snapshot.staticData?.count ?? 0) + snapshot.dynamicData.count)
+        DiagnosticCounters.shared.recordCheckpointWrite(conversation: conversation.id, staticBytes: snapshot.staticData?.count,
+                                                        dynamicBytes: snapshot.dynamicData.count)
         // Text and reasoning live in the dynamic half (the accumulator); they are copied into their columns when the
         // turn ends. Sources are written only when new ones arrived, so the sidebar's query is not invalidated.
         if let items = sourceStore?.items, items.count != persistedSourceCount {

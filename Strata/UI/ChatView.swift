@@ -22,6 +22,7 @@ struct ChatView: View {
     @State private var showAttach = false
     @State private var showModelPicker = false
     @State private var showUsage = false
+    @State private var showDetails = false
     @State private var timelineMessage: Message?
     @State private var citationItem: SourceListItem?
     @State private var sourcesItem: SourceListItem?
@@ -120,6 +121,12 @@ struct ChatView: View {
                     onSelectEffort: apply(effort:),
                     onOpenSettings: { showModelPicker = false; onOpenSettings() })
             }
+            .sheet(isPresented: $showDetails) {
+                if let conversation {
+                    ConversationDetailsSheet(conversation: conversation, contextLength: contextLength)
+                        .environment(\.theme, theme)
+                }
+            }
             .sheet(isPresented: $showUsage) {
                 UsageSheet(conversation: conversation, contextLength: contextLength,
                            connection: connections.connection(selection.connectionID))
@@ -157,6 +164,7 @@ struct ChatView: View {
                 Button("Delete", role: .destructive) {
                     if let c = conversation {
                         conversation = nil
+                        Diagnostics.forget(c.id)
                         context.delete(c)
                         try? context.save()
                     }
@@ -237,6 +245,7 @@ struct ChatView: View {
             }
             .disabled(controller.isStreaming)
             ShareLink(item: c.transcript) { Label("Share as text", systemImage: "square.and.arrow.up") }
+            Button("Conversation details", systemImage: "info.circle") { showDetails = true }
             Button("Delete", systemImage: "trash", role: .destructive) { confirmDelete = true }
             Divider()
         }
@@ -381,12 +390,16 @@ struct ChatView: View {
 
     #if DEBUG
     private func debugTimeline() async {
-        guard let sheet = DebugHooks.openSheet, sheet.hasPrefix("timeline") || sheet == "usage" || sheet == "rename" else { return }
+        guard let sheet = DebugHooks.openSheet, sheet.hasPrefix("timeline") || ["usage", "rename", "details"].contains(sheet) else { return }
         if sheet == "rename" {
             if controller.activeMessageID == nil, let c = conversation, c.messages.contains(where: { $0.role == .assistant }) {
                 renameText = "score가 NULL인 행은 어떻게 처리되는지 SQL 집계 함수 동작 정리"
                 showRename = true
             }
+            return
+        }
+        if sheet == "details" {
+            if controller.activeMessageID == nil, conversation != nil { showDetails = true }
             return
         }
         if sheet == "usage" {
@@ -409,7 +422,7 @@ struct ChatView: View {
             switch DebugHooks.openSheet {
             case "usage" where conversation != nil: showUsage = true
             case "model": showModelPicker = true
-            case "settings": onOpenSettings()
+            case "settings", "diagnostics": onOpenSettings()
             case "attach": showAttach = true
             case "code": debugViewer = true
             default: break

@@ -39,6 +39,7 @@ final class HiddenWebView: NSObject, WKNavigationDelegate {
         self.guardNavigations = guardNavigations
         self.resolver = resolver
         super.init()
+        DiagnosticCounters.shared.webViewCreated()
         webView.navigationDelegate = self
         if let window = Self.keyWindow {
             window.insertSubview(webView, at: 0)
@@ -52,7 +53,10 @@ final class HiddenWebView: NSObject, WKNavigationDelegate {
             .first(where: \.isKeyWindow)
     }
 
+    private var disposed = false
+
     func dispose() {
+        if !disposed { disposed = true; DiagnosticCounters.shared.webViewDisposed() }
         webView.stopLoading()
         webView.navigationDelegate = nil
         webView.removeFromSuperview()

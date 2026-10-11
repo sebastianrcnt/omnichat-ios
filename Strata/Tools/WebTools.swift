@@ -187,6 +187,11 @@ final class PageCache: @unchecked Sendable {
     }
 
     func removeAll() { lock.withLock { entries.removeAll() } }
+
+    /// Entries and the characters of text they hold (diagnostics).
+    var stats: (entries: Int, characters: Int) {
+        lock.withLock { (entries.count, entries.values.reduce(0) { $0 + $1.page.text.utf16.count }) }
+    }
 }
 
 typealias PageLoader = @MainActor @Sendable (URL) async throws -> FetchedPage

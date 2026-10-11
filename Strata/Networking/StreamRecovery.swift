@@ -133,6 +133,8 @@ extension ChatClient: ResumableChatStreaming {
                                 if case .http(let status, _) = api, status >= 500 || status == 429 {} else { throw error }
                             } else if !(error is URLError) { throw error }
                             attempt += 1
+                            DiagnosticCounters.shared.recoveryWaitStarted()
+                            defer { DiagnosticCounters.shared.recoveryWaitEnded() }
                             try await RecoverySignals.shared.wait(seconds: min(15, pow(2, Double(min(attempt, 4)))))
                         }
                     }

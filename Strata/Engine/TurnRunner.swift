@@ -19,12 +19,20 @@ struct TurnOutcome: Sendable, Equatable {
     var hitToolCap: Bool
 }
 
+/// What the diagnostics ring needs to know about a request the runner sends.
+enum RequestLogEvent: Sendable {
+    case sent(id: UUID, url: String, body: Data)
+    case finished(id: UUID, finishReason: String?, usage: Usage?)
+}
+
 /// Runs one assistant turn: stream, execute tool calls on device, append results, continue.
 struct TurnRunner: Sendable {
     static let maxToolRounds = 8
 
     var streamer: any ChatStreaming
     var tools: any ToolExecuting
+    /// Told about each request actually sent (not the replay of one restored from a checkpoint).
+    var requestLog: (@MainActor @Sendable (RequestLogEvent) -> Void)?
 
     /// - Parameter messages: the API history up to and including the new user message.
     @MainActor
@@ -70,8 +78,18 @@ struct TurnRunner: Sendable {
                     checkpoint.idempotencyKey = UUID().uuidString.lowercased()
                 }
                 if checkpoint.requestData == nil { checkpoint.requestData = try request.encoded() }
+                let firstSend = !checkpoint.submissionStarted
                 checkpoint.submissionStarted = true
                 try onEvent(.checkpoint(checkpoint))
+                let logID = UUID()
+                if firstSend, let log = requestLog, let body = checkpoint.requestData {
+                    log(.sent(id: logID, url: endpoint.baseURL.appendingPathComponent("chat/completions").absoluteString, body: body))
+                }
+                defer {
+                    if firstSend, let log = requestLog {
+                        log(.finished(id: logID, finishReason: checkpoint.accumulator.finishReason, usage: checkpoint.accumulator.usage))
+                    }
+                }
                 let stream: AsyncThrowingStream<ChatDelta, Error>
                 if endpoint.supportsResumable, let resumable = streamer as? any ResumableChatStreaming {
                     stream = resumable.stream(request, endpoint: endpoint, checkpoint: checkpoint)

@@ -51,6 +51,8 @@ targets:
           - cc.coolservices.strata.reply.*
         UIBackgroundModes:
           - processing
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
   StrataTests:

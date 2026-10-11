@@ -45,6 +45,7 @@ final class ReplyBackgroundExecution {
                 }
             }
             if registered {
+                DiagnosticCounters.shared.backgroundIdentifierRegistered()
                 let request = BGContinuedProcessingTaskRequest(identifier: id,
                     title: String(localized: "Preparing reply"), subtitle: String(localized: "Strata is replying"))
                 request.strategy = .fail // no stale queued work after the turn has already finished
@@ -52,6 +53,13 @@ final class ReplyBackgroundExecution {
                 catch { identifier = nil } // finite beginBackgroundTask fallback remains active
             }
         }
+    }
+
+    /// For the diagnostics panel.
+    var stateDescription: String {
+        if continued != nil { return "continued task running" }
+        if active { return fallback != .invalid ? "background task only" : "active, no lease" }
+        return "idle"
     }
 
     func advance(by count: Int = 1) {

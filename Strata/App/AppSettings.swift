@@ -58,6 +58,8 @@ final class AppSettings {
     var lastModelID: String? { didSet { defaults.set(lastModelID, forKey: "lastModelID") } }
     var fetchLength: Int { didSet { defaults.set(fetchLength, forKey: "fetchLength") } }
     var smoothStreaming: Bool { didSet { defaults.set(smoothStreaming, forKey: "smoothStreaming") } }
+    /// Shows Settings > Developer > Diagnostics.
+    var developerMode: Bool { didSet { defaults.set(developerMode, forKey: "developerMode") } }
     var lastEffortRaw: String { didSet { defaults.set(lastEffortRaw, forKey: "lastEffort") } }
 
     init(defaults: UserDefaults = .standard) {
@@ -70,6 +72,7 @@ final class AppSettings {
         let fl = defaults.integer(forKey: "fetchLength")
         fetchLength = Self.fetchLengthOptions.contains(fl) ? fl : Self.defaultFetchLength
         smoothStreaming = defaults.object(forKey: "smoothStreaming") as? Bool ?? true
+        developerMode = defaults.bool(forKey: "developerMode")
         lastEffortRaw = defaults.string(forKey: "lastEffort") ?? Effort.default.rawValue
     }
 

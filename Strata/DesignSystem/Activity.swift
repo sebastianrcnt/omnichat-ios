@@ -55,13 +55,16 @@ struct FaviconView: View {
 @MainActor
 enum FaviconImages {
     private static let cache = NSCache<NSString, UIImage>()
-    static func purge() { cache.removeAllObjects() }
+    /// Icons stored since the cache was last emptied (an upper bound: NSCache evicts silently).
+    private(set) static var count = 0
+    static func purge() { cache.removeAllObjects(); count = 0 }
 
     static func image(for host: String) async -> UIImage? {
         guard let key = FaviconStore.key(for: host) else { return nil }
         if let hit = cache.object(forKey: key as NSString) { return hit }
         guard let data = await FaviconStore.shared.iconData(for: host), let image = UIImage(data: data) else { return nil }
         cache.setObject(image, forKey: key as NSString)
+        count += 1
         return image
     }
 }
