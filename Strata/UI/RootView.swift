@@ -56,8 +56,8 @@ struct RootView: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .sheet(isPresented: $showSettings) { SettingsView() }
         .task {
-            // Fetch models for connections that have a key but no models yet.
-            for c in connections.connections where c.models.isEmpty && connections.apiKey(for: c.id) != nil {
+            // Refresh models (and capability flags such as image input) for every connection with a key.
+            for c in connections.connections where connections.apiKey(for: c.id) != nil {
                 _ = try? await connections.refreshModels(for: c.id)
             }
         }

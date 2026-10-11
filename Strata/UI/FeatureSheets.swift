@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import Photos
 import SwiftData
 
 enum TokenFormat {
@@ -200,9 +201,13 @@ struct AttachSheet: View {
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
     let supportsImages: Bool
+    var modelName: String?
     let onPick: ([Data]) -> Void
+    /// Turns on "Supports images" for the selected model.
+    var onEnableImages: () -> Void = {}
 
-    @State private var items: [PhotosPickerItem] = []
+    @State private var libraryItems: [PhotosPickerItem] = []
+    @State private var showLibrary = false
     @State private var showCamera = false
     @State private var loading = false
 
@@ -211,12 +216,16 @@ struct AttachSheet: View {
     var body: some View {
         SheetScaffold(title: "Add photos") {
             if !supportsImages {
-                HStack(alignment: .top, spacing: DS.Spacing.sm) {
-                    Image(systemName: "exclamationmark.circle").foregroundStyle(theme.warning)
-                    Text("The selected model is not marked as supporting images. Pick a different model, or turn on image support for it in Settings > Connections.")
-                        .font(DS.Typography.uiSmall).foregroundStyle(theme.textPrimary)
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                    HStack(alignment: .top, spacing: DS.Spacing.sm) {
+                        Image(systemName: "exclamationmark.circle").foregroundStyle(theme.warning)
+                        Text("This model can't read images. Turn on \"Supports images\" for it in Settings > Connections.")
+                            .font(DS.Typography.uiSmall).foregroundStyle(theme.textPrimary)
+                    }
+                    Button("Turn on image support", action: onEnableImages).buttonStyle(.glass)
                 }
                 .padding(DS.Spacing.md)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .background(theme.warning.opacity(0.12), in: RoundedRectangle(cornerRadius: DS.Radius.md))
             }
             HStack(spacing: DS.Spacing.md) {
@@ -230,34 +239,32 @@ struct AttachSheet: View {
                     .background(theme.surface, in: RoundedRectangle(cornerRadius: DS.Radius.lg))
                 }
                 .buttonStyle(.plain)
-                .disabled(!supportsImages || !cameraAvailable)
-                .opacity(cameraAvailable && supportsImages ? 1 : 0.45)
+                .disabled(!supportsImages)
 
-                PhotosPicker(selection: $items, maxSelectionCount: 4, matching: .images) { Color.clear }
-                    .photosPickerStyle(.compact)
-                    .photosPickerAccessoryVisibility(.hidden, edges: .all)
-                    .frame(height: DS.IconSize.cameraTile)
-                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.lg))
+                // Recent photos: tapping one attaches it. (The system inline PhotosPicker breaks sheet
+                // presentation, so this is a small PhotoKit strip.)
+                RecentPhotosStrip(enabled: supportsImages) { data in
+                    onPick([data])
+                    dismiss()
+                }
+                .frame(height: DS.IconSize.cameraTile)
+            }
+            .opacity(supportsImages ? 1 : 0.45)
+            GroupedSection {
+                SettingsRow(systemImage: "photo.on.rectangle", title: "Add photo", showsChevron: true) { showLibrary = true }
                     .disabled(!supportsImages)
                     .opacity(supportsImages ? 1 : 0.45)
-            }
-            GroupedSection {
-                PhotosPicker(selection: $items, maxSelectionCount: 4, matching: .images) {
-                    AddPhotoRowLabel()
-                }
-                .buttonStyle(.plain)
-                .disabled(!supportsImages)
-                .opacity(supportsImages ? 1 : 0.45)
             }
             if loading { ProgressView().frame(maxWidth: .infinity) }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        .onChange(of: items) { _, newItems in
-            guard !newItems.isEmpty else { return }
-            Task { await load(newItems) }
+        .photosPicker(isPresented: $showLibrary, selection: $libraryItems, maxSelectionCount: 4, matching: .images)
+        .onChange(of: libraryItems) { _, items in
+            guard !items.isEmpty else { return }
+            Task { await load(items) }
         }
-        .fullScreenCover(isPresented: $showCamera) {
+        .sheet(isPresented: $showCamera) {
             CameraPicker { image in
                 if let data = ImageProcessor.jpegData(from: image) { onPick([data]) }
                 dismiss()
@@ -267,6 +274,7 @@ struct AttachSheet: View {
     }
 
     private func load(_ picked: [PhotosPickerItem]) async {
+        guard !loading else { return }
         loading = true
         var out: [Data] = []
         for item in picked {
@@ -276,9 +284,105 @@ struct AttachSheet: View {
             }
         }
         loading = false
-        items = []
+        libraryItems = []
         if !out.isEmpty { onPick(out) }
         dismiss()
+    }
+}
+
+/// Horizontal strip of the most recent photos, read through PhotoKit.
+struct RecentPhotosStrip: View {
+    @Environment(\.theme) private var theme
+    let enabled: Bool
+    let onPick: (Data) -> Void
+
+    @State private var assets: [PHAsset] = []
+    @State private var status: PHAuthorizationStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+
+    var body: some View {
+        Group {
+            if status == .denied || status == .restricted {
+                Text("Photo access is off. Use Add photo below.")
+                    .font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(theme.surface, in: RoundedRectangle(cornerRadius: DS.Radius.lg))
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: DS.Spacing.sm) {
+                        ForEach(assets, id: \.localIdentifier) { asset in
+                            PhotoTile(asset: asset) { pick(asset) }
+                        }
+                    }
+                }
+            }
+        }
+        .disabled(!enabled)
+        .task { await prepare() }
+    }
+
+    private func prepare() async {
+        var current = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        if current == .notDetermined { current = await PHPhotoLibrary.requestAuthorization(for: .readWrite) }
+        status = current
+        guard current == .authorized || current == .limited else { return }
+        let options = PHFetchOptions()
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        options.fetchLimit = 30
+        let result = PHAsset.fetchAssets(with: .image, options: options)
+        var out: [PHAsset] = []
+        result.enumerateObjects { asset, _, _ in out.append(asset) }
+        assets = out
+        #if DEBUG
+        if DebugHooks.autoPickRecent, let first = out.first { pick(first) }
+        #endif
+    }
+
+    private func pick(_ asset: PHAsset) {
+        let options = PHImageRequestOptions()
+        options.isNetworkAccessAllowed = true
+        options.deliveryMode = .highQualityFormat
+        PHImageManager.default().requestImageDataAndOrientation(for: asset, options: options) { data, _, _, _ in
+            guard let data else { return }
+            Task {
+                if let jpeg = await Task.detached(operation: { ImageProcessor.jpegData(from: data) }).value {
+                    await MainActor.run { onPick(jpeg) }
+                }
+            }
+        }
+    }
+}
+
+private struct PhotoTile: View {
+    @Environment(\.theme) private var theme
+    @Environment(\.displayScale) private var scale
+    let asset: PHAsset
+    let action: () -> Void
+    @State private var image: UIImage?
+
+    var body: some View {
+        Button(action: action) {
+            Group {
+                if let image { Image(uiImage: image).resizable().scaledToFill() } else { theme.surface }
+            }
+            .frame(width: DS.IconSize.cameraTile, height: DS.IconSize.cameraTile)
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.lg))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Photo"))
+        .task {
+            let side = DS.IconSize.cameraTile * scale
+            image = await withCheckedContinuation { cont in
+                let options = PHImageRequestOptions()
+                options.deliveryMode = .highQualityFormat
+                options.resizeMode = .fast
+                options.isNetworkAccessAllowed = true
+                var resumed = false
+                PHImageManager.default().requestImage(for: asset, targetSize: CGSize(width: side, height: side),
+                                                      contentMode: .aspectFill, options: options) { image, _ in
+                    if !resumed { resumed = true; cont.resume(returning: image) }
+                }
+            }
+        }
     }
 }
 

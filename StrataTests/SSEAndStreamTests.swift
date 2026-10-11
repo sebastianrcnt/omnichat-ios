@@ -122,4 +122,18 @@ struct ModelsAPITests {
         let entries = try ModelsAPI.parse(Data(json.utf8))
         #expect(entries == [.init(id: "a", contextLength: 131072), .init(id: "b", contextLength: 8192), .init(id: "c", contextLength: nil)])
     }
+
+    @Test func detectsImageInputFromArchitecture() throws {
+        let json = """
+        {"data":[
+          {"id":"vl","architecture":{"input_modalities":["text","image"],"output_modalities":["text"]}},
+          {"id":"txt","architecture":{"input_modalities":["text"]}},
+          {"id":"or-img","architecture":{"modality":"text+image->text"}},
+          {"id":"or-out","architecture":{"modality":"text->text+image"}},
+          {"id":"none"}
+        ]}
+        """
+        let e = try ModelsAPI.parse(Data(json.utf8))
+        #expect(e.map(\.supportsImages) == [true, false, true, false, nil])
+    }
 }

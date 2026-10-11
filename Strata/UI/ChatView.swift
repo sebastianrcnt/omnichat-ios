@@ -62,6 +62,14 @@ struct ChatView: View {
         conversation?.modelID = modelID
     }
 
+    private func enableImagesForSelectedModel() {
+        let sel = selection
+        guard var c = connections.connection(sel.connectionID), let i = c.models.firstIndex(where: { $0.id == sel.modelID }) else { return }
+        c.models[i].supportsImages = true
+        c.models[i].supportsImagesUserSet = true
+        connections.upsert(c)
+    }
+
     private func apply(effort: Effort) {
         settings.lastEffort = effort
         conversation?.effort = effort
@@ -98,9 +106,9 @@ struct ChatView: View {
             .safeAreaBar(edge: .bottom) { composer }
             .overlay(alignment: .bottom) { jumpButton }
             .sheet(isPresented: $showAttach) {
-                AttachSheet(supportsImages: selectedModel?.supportsImages ?? false) { jpegs in
-                    attachments.append(contentsOf: jpegs.map { ComposerAttachment(id: UUID(), jpeg: $0) })
-                }
+                AttachSheet(supportsImages: selectedModel?.supportsImages ?? false, modelName: selection.modelID,
+                            onPick: { jpegs in attachments.append(contentsOf: jpegs.map { ComposerAttachment(id: UUID(), jpeg: $0) }) },
+                            onEnableImages: enableImagesForSelectedModel)
             }
             .sheet(isPresented: $showModelPicker) {
                 ModelPickerSheet(
@@ -338,6 +346,12 @@ struct ChatView: View {
             case "attach": showAttach = true
             default: break
             }
+        }
+        if DebugHooks.autoPickRecent {
+            showAttach = true
+            try? await Task.sleep(for: .seconds(4)) // the strip picks a photo and the sheet closes
+            if let text = DebugHooks.autoSend { draft = text; send() }
+            return
         }
         if let text = DebugHooks.autoSend, conversation == nil {
             try? await Task.sleep(for: .seconds(1.5))

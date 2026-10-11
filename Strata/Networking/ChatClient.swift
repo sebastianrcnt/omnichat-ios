@@ -86,7 +86,26 @@ struct ChatClient: ChatStreaming {
 
 /// `GET /models`.
 enum ModelsAPI {
-    struct Entry: Sendable, Equatable { var id: String; var contextLength: Int? }
+    struct Entry: Sendable, Equatable {
+        var id: String
+        var contextLength: Int?
+        /// From `architecture.input_modalities` / `architecture.modality`; nil when the server does not say.
+        var supportsImages: Bool?
+    }
+
+    /// OpenAI-style `architecture.input_modalities: ["text","image"]`, or an OpenRouter-style
+    /// `architecture.modality: "text+image->text"` (only the input side counts).
+    static func imageSupport(in item: [String: Any]) -> Bool? {
+        guard let arch = item["architecture"] as? [String: Any] else { return nil }
+        if let inputs = arch["input_modalities"] as? [String] {
+            return inputs.contains { $0.lowercased() == "image" }
+        }
+        if let modality = arch["modality"] as? String {
+            let input = modality.components(separatedBy: "->").first ?? modality
+            return input.lowercased().contains("image")
+        }
+        return nil
+    }
 
     static func parse(_ data: Data) throws -> [Entry] {
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -102,7 +121,7 @@ enum ModelsAPI {
                 if let d = item[k] as? Double { ctx = Int(d); break }
             }
             if ctx == nil, let meta = item["meta"] as? [String: Any], let n = meta["n_ctx_train"] as? Int { ctx = n }
-            return Entry(id: id, contextLength: ctx)
+            return Entry(id: id, contextLength: ctx, supportsImages: imageSupport(in: item))
         }
     }
 

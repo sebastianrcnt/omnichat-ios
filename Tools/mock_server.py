@@ -99,7 +99,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path.rstrip("/").endswith("/models"):
-            self._json(200, {"object": "list", "data": [{"id": "strata-mock", "object": "model", "max_model_len": 262144}]})
+            self._json(200, {"object": "list", "data": [{"id": "strata-mock", "object": "model", "max_model_len": 262144,
+                      "architecture": {"input_modalities": ["text", "image"], "output_modalities": ["text"]}}]})
         else:
             self._json(404, {"error": {"message": "not found"}})
 
@@ -107,6 +108,9 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", "0"))
         req = json.loads(self.rfile.read(length) or b"{}")
         msgs = req.get("messages", [])
+        image_parts = [p for m in msgs if isinstance(m.get("content"), list) for p in m["content"] if p.get("type") == "image_url"]
+        sys.stderr.write(f"mock: request with {len(image_parts)} image_url part(s)" +
+                         "".join(f" [{p['image_url']['url'][:23]}...]" for p in image_parts) + "\n")
         user_text = ""
         for m in reversed(msgs):
             if m.get("role") == "user":

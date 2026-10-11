@@ -251,7 +251,7 @@ struct ModelEditor: View {
                                      keyboard: .numberPad)
                 }
                 GroupedSection(header: "Capabilities") {
-                    SettingsToggleRow(title: "Supports images", isOn: Binding(get: { model.supportsImages }, set: { v in update { $0.supportsImages = v } }))
+                    SettingsToggleRow(title: "Supports images", isOn: Binding(get: { model.supportsImages }, set: { v in update { $0.supportsImages = v; $0.supportsImagesUserSet = true } }))
                     SettingsToggleRow(title: "Supports reasoning effort", subtitle: "Sends reasoning_effort with each request.",
                                       isOn: Binding(get: { model.supportsEffort }, set: { v in update { $0.supportsEffort = v } }))
                     SettingsToggleRow(title: "Supports tools", subtitle: "Sends the web_search and web_fetch tools.",

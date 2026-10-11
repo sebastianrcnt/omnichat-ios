@@ -73,8 +73,10 @@ struct ComposerBar<Chip: View>: View {
                     Spacer(minLength: DS.Spacing.sm)
                     sendButton
                 }
+                .padding(.top, DS.Spacing.sm) // the text field is the main area; buttons are a separate row
             }
-            .padding(DS.Spacing.md)
+            .padding(.top, DS.Spacing.sm + DS.Spacing.xs)
+            .padding([.horizontal, .bottom], DS.Spacing.md)
             .glassEffect(.regular, in: RoundedRectangle(cornerRadius: DS.Radius.composer))
         }
         .padding(.horizontal, DS.Spacing.md)

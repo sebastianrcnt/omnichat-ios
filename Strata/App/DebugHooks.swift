@@ -25,6 +25,9 @@ struct FakeWebTools: ToolExecuting {
 }
 
 enum DebugHooks {
+    /// `-StrataAutoPickRecent 1`: the attach sheet's strip picks its first photo by itself.
+    static var autoPickRecent: Bool { UserDefaults.standard.bool(forKey: "StrataAutoPickRecent") }
+
     static var fakeTools: Bool { UserDefaults.standard.bool(forKey: "StrataFakeTools") }
 
     static func value(_ name: String) -> String? {

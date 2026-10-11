@@ -8,6 +8,8 @@ struct ModelInfo: Codable, Identifiable, Hashable, Sendable {
     /// User override of the context length.
     var contextLength: Int?
     var supportsImages: Bool
+    /// The user set `supportsImages` by hand; `/models` never overrides it.
+    var supportsImagesUserSet: Bool = false
     var supportsEffort: Bool
     var supportsTools: Bool
     /// Entered by hand rather than discovered from `/models`.
@@ -35,6 +37,7 @@ struct ModelInfo: Codable, Identifiable, Hashable, Sendable {
         fetchedContextLength = try c.decodeIfPresent(Int.self, forKey: .fetchedContextLength)
         contextLength = try c.decodeIfPresent(Int.self, forKey: .contextLength)
         supportsImages = try c.decodeIfPresent(Bool.self, forKey: .supportsImages) ?? false
+        supportsImagesUserSet = try c.decodeIfPresent(Bool.self, forKey: .supportsImagesUserSet) ?? false
         supportsEffort = try c.decodeIfPresent(Bool.self, forKey: .supportsEffort) ?? false
         supportsTools = try c.decodeIfPresent(Bool.self, forKey: .supportsTools) ?? true
         isManual = try c.decodeIfPresent(Bool.self, forKey: .isManual) ?? false
@@ -87,10 +90,10 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
     var isStrata: Bool { id == Connection.strataID }
 
     /// Defaults for newly discovered models on this connection.
-    func defaultModel(id modelID: String, fetchedContextLength: Int?) -> ModelInfo {
+    func defaultModel(id modelID: String, fetchedContextLength: Int?, fetchedImages: Bool? = nil) -> ModelInfo {
         ModelInfo(id: modelID,
                   fetchedContextLength: fetchedContextLength,
-                  supportsImages: false,
+                  supportsImages: fetchedImages ?? isStrata, // the Strata engine reads images
                   supportsEffort: isStrata,
                   supportsTools: true)
     }

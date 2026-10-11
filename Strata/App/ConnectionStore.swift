@@ -82,9 +82,12 @@ final class ConnectionStore {
         var merged: [ModelInfo] = entries.map { entry in
             if var existing = conn.models.first(where: { $0.id == entry.id }) {
                 existing.fetchedContextLength = entry.contextLength ?? existing.fetchedContextLength
+                if !existing.supportsImagesUserSet, let images = entry.supportsImages ?? (conn.isStrata ? true : nil) {
+                    existing.supportsImages = images
+                }
                 return existing
             }
-            return conn.defaultModel(id: entry.id, fetchedContextLength: entry.contextLength)
+            return conn.defaultModel(id: entry.id, fetchedContextLength: entry.contextLength, fetchedImages: entry.supportsImages)
         }
         merged.append(contentsOf: manual)
         updated.models = merged
