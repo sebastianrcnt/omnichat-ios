@@ -264,14 +264,14 @@ struct LiveActivityFeed: View {
     /// finishes keeps its id and position.
     static func visibleEntries(_ entries: [ActivityEntry]) -> [ActivityEntry] { Array(entries.suffix(visibleRows)) }
 
-    /// The thought text hides while a tool runs, but its slot keeps its height.
-    private var thoughtVisible: Bool { (reasoning?.hasContent ?? false) && !entries.contains(where: \.isRunning) }
+    /// While a tool runs the last thought stays in its slot, dimmed.
+    private var toolRunning: Bool { entries.contains(where: \.isRunning) }
 
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
                 ActivityStatusLine(label: label, start: start)
-                ReasoningLinePreview(model: reasoning, isVisible: thoughtVisible)
+                ReasoningLinePreview(model: reasoning, isDimmed: toolRunning)
                 VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                     ForEach(Self.visibleEntries(entries)) { entry in
                         ActivityRow(entry: entry)

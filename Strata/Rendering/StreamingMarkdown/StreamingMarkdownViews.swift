@@ -418,18 +418,24 @@ struct ReasoningLinePreview: View {
     @Environment(\.theme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let model: ReasoningChunkModel?
-    /// Hides the text but keeps the slot's height, so the layout around it never moves.
-    var isVisible = true
+    /// A tool is running: the last thought stays in the slot at reduced opacity.
+    var isDimmed = false
     @State private var gate = ThoughtPreviewGate()
     @State private var shown: ThoughtSentence?
     @State private var deadline: Double?
+
+    /// Slot state: blank before any thought, full while thinking, half while a tool runs.
+    static func opacity(hasThought: Bool, toolRunning: Bool) -> Double {
+        guard hasThought else { return 0 }
+        return toolRunning ? 0.5 : 1
+    }
 
     private static var now: Double { ProcessInfo.processInfo.systemUptime }
 
     var body: some View {
         ZStack(alignment: .leading) {
             Text(" ").font(DS.Typography.uiSmall).lineLimit(1).hidden() // reserves one line
-            if let shown, isVisible {
+            if let shown {
                 Text(InlineMarkdownText.attributed(shown.text, isOpen: true))
                     .font(DS.Typography.uiSmall)
                     .foregroundStyle(theme.textTertiary)
@@ -440,7 +446,8 @@ struct ReasoningLinePreview: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isVisible)
+        .opacity(Self.opacity(hasThought: shown != nil, toolRunning: isDimmed))
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isDimmed)
         .onChange(of: model?.thought, initial: true) { _, latest in apply(latest) }
         .task(id: deadline) {
             guard let deadline else { return }

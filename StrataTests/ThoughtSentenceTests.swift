@@ -126,3 +126,22 @@ struct ThoughtPreviewGateTests {
         #expect(gate.update(latest: s(3, "B"), now: 5) == s(3, "B"))
     }
 }
+
+struct ThoughtSlotTests {
+    @Test func slotIsBlankBeforeAnyThoughtDimmedDuringAToolAndFullWhenThinking() {
+        #expect(ReasoningLinePreview.opacity(hasThought: false, toolRunning: false) == 0)
+        #expect(ReasoningLinePreview.opacity(hasThought: false, toolRunning: true) == 0, "no thought yet: stays blank even while a tool runs")
+        #expect(ReasoningLinePreview.opacity(hasThought: true, toolRunning: false) == 1)
+        #expect(ReasoningLinePreview.opacity(hasThought: true, toolRunning: true) == 0.5, "the last sentence stays, dimmed")
+    }
+
+    @Test func resumingAfterAToolReturnsToFullOpacityWithTheNewSentence() {
+        var gate = ThoughtPreviewGate(minInterval: 1.2)
+        gate.update(latest: ThoughtSentence(start: 0, text: "Searching the docs."), now: 0)
+        // The tool runs for a long time: nothing changes the displayed sentence.
+        #expect(gate.update(latest: ThoughtSentence(start: 0, text: "Searching the docs."), now: 8)?.text == "Searching the docs.")
+        // Reasoning resumes with a new sentence: it shows at once (the window long passed), and the slot is full again.
+        #expect(gate.update(latest: ThoughtSentence(start: 20, text: "Now compare"), now: 9)?.text == "Now compare")
+        #expect(ReasoningLinePreview.opacity(hasThought: gate.displayed != nil, toolRunning: false) == 1)
+    }
+}
