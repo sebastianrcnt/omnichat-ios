@@ -10,6 +10,7 @@
     "%lld": {
       "shouldTranslate": false
     },
+    "%lld lines": {},
     "%lld models": {
       "localizations": {
         "en": {
@@ -127,6 +128,7 @@
     "Capabilities": {},
     "Clear search": {},
     "Close": {},
+    "Code": {},
     "Connection": {},
     "Connections": {},
     "Context": {},
@@ -134,7 +136,9 @@
     "Context window": {},
     "Context: %lld%% used": {},
     "Context: no usage yet": {},
+    "Copied": {},
     "Copy": {},
+    "Copy code": {},
     "Copy raw Markdown": {},
     "Could not read the search results page.": {},
     "Could not resolve the host %@.": {},
@@ -184,6 +188,7 @@
     "Jump to bottom": {},
     "Key": {},
     "Keychain error %lld": {},
+    "Larger text": {},
     "Last request": {},
     "Loading…": {},
     "Low": {},
@@ -213,6 +218,7 @@
     "Only http and https URLs can be fetched (got %@).": {},
     "Open": {},
     "Open Settings": {},
+    "Open full screen": {},
     "Orange": {},
     "Output tokens": {},
     "Page script failed: %@": {},
@@ -250,8 +256,12 @@
     "Sends the web_search and web_fetch tools.": {},
     "Sent as the first message. Leave empty to send none. The default asks for [N] citations and tells the model not to invent ids.": {},
     "Settings": {},
+    "Share as file": {},
     "Share as text": {},
+    "Show all (%lld lines)": {},
+    "Show less": {},
     "Sidebar": {},
+    "Smaller text": {},
     "Smooth streaming": {},
     "Source": {},
     "Sources": {},
@@ -294,6 +304,7 @@
     "Waiting for the model to think…": {},
     "Web tools": {},
     "Working…": {},
+    "Wrap lines": {},
     "You": {},
     "[%lld]": {
       "shouldTranslate": false

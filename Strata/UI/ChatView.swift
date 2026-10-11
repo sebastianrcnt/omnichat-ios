@@ -29,6 +29,9 @@ struct ChatView: View {
     @State private var renameText = ""
     @State private var confirmDelete = false
     @FocusState private var composerFocused: Bool
+    #if DEBUG
+    @State private var debugViewer = false
+    #endif
 
     // MARK: Selection
 
@@ -142,6 +145,11 @@ struct ChatView: View {
             .sheet(item: $sourcesItem) { item in
                 SourcesSheet(title: "Sources", sources: item.sources)
             }
+            #if DEBUG
+            .fullScreenCover(isPresented: $debugViewer) {
+                CodeViewer(content: .init(language: "swift", code: (1...60).map { "let step\($0) = configure(glassEffect: .regular, id: \($0)) // long line to scroll" }.joined(separator: "\n"))).inAppLinks()
+            }
+            #endif
             .alert("Rename chat", isPresented: $showRename) {
                 TextField("Title", text: $renameText)
                 Button("Cancel", role: .cancel) {}
@@ -361,6 +369,7 @@ struct ChatView: View {
             case "model": showModelPicker = true
             case "settings": onOpenSettings()
             case "attach": showAttach = true
+            case "code": debugViewer = true
             default: break
             }
         }

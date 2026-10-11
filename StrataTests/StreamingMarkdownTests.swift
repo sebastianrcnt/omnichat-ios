@@ -466,3 +466,47 @@ struct RevealRecoveryTests {
         state.revealAll()
     }
 }
+
+// MARK: - Code blocks
+
+struct CodeBlockContentTests {
+    private func code(lines n: Int) -> String { (1...max(n, 1)).map { "line \($0)" }.joined(separator: "\n") }
+
+    @Test func parsesLanguageAndBodyFromAFence() {
+        let c = CodeBlockContent(blockText: "```swift title=\"x\"\nlet a = 1\nprint(a)\n```")
+        #expect(c.language == "swift")
+        #expect(c.code == "let a = 1\nprint(a)")
+        #expect(c.lineCount == 2)
+        #expect(c.fileExtension == "swift")
+    }
+
+    @Test func openFenceWhileStreamingKeepsPartialBody() {
+        let c = CodeBlockContent(blockText: "~~~py\nx = 1\ny = ")
+        #expect(c.language == "py" && c.code == "x = 1\ny = ")
+        #expect(CodeBlockContent(blockText: "```\nplain\n```").language == "")
+        #expect(CodeBlockContent(blockText: "```\nplain\n```").displayLanguage == "Code")
+    }
+
+    @Test func collapseThresholdIsMoreThanEighteenLines() {
+        #expect(!CodeBlockContent(code: code(lines: 18)).isCollapsible)
+        #expect(CodeBlockContent(code: code(lines: 19)).isCollapsible)
+        #expect(!CodeBlockContent(code: code(lines: 5)).isCollapsible)
+    }
+
+    @Test func collapsedPreviewShowsTheFirstTwelveLines() {
+        let c = CodeBlockContent(code: code(lines: 40))
+        #expect(c.preview.components(separatedBy: "\n").count == 12)
+        #expect(c.preview.hasSuffix("line 12"))
+        #expect(c.lineCount == 40)
+    }
+
+    @Test func fileExtensionsFallBackToTxt() {
+        #expect(CodeBlockContent(language: "Rust", code: "").fileExtension == "rs")
+        #expect(CodeBlockContent(language: "zsh", code: "").fileExtension == "sh")
+        #expect(CodeBlockContent(language: "brainfuck", code: "").fileExtension == "txt")
+    }
+
+    @Test func emptyBodyHasNoLines() {
+        #expect(CodeBlockContent(blockText: "```\n```").lineCount == 0)
+    }
+}

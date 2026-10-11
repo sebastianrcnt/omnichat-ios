@@ -70,6 +70,8 @@ struct MarkdownBlockView: View, Equatable {
     var body: some View {
         if block.usesInlineRenderer {
             InlineBlockView(block: block, spans: [], isOpen: false)
+        } else if block.kind == .code {
+            CodeBlockView(content: CodeBlockContent(blockText: block.text)).equatable()
         } else if block.kind == .thematicBreak {
             Divider()
         } else {
@@ -122,7 +124,8 @@ struct OpenBlockView: View {
     var body: some View {
         switch block.kind {
         case .code:
-            plainCode(Self.codeBody(block.text))
+            // Streaming: capped height, follows its own bottom; the full block (collapse, header) appears once the fence closes.
+            CodeBlockView(content: CodeBlockContent(blockText: block.text), isStreaming: true)
         case .table:
             plainCode(block.text)
         case .thematicBreak:
