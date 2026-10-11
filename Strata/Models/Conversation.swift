@@ -199,6 +199,12 @@ final class Message {
     /// Which child was showing last, so returning to this message lands where the reader left.
     var lastActiveChildID: UUID?
     var stoppedByUser: Bool
+    /// The answer translated on this device (Markdown, same structure as `text`). The API history never sees it.
+    var translatedText: String?
+    /// The language `translatedText` is in (an identifier such as "en-US").
+    var translationTarget: String?
+    /// Whether the translation is the version on screen.
+    var showingTranslation: Bool = false
     @Attribute(.externalStorage) var stepsData: Data?
     /// Ordered process segments (thinking, preamble text, tool rounds). Nil on messages saved before they existed.
     @Attribute(.externalStorage) var segmentsData: Data?

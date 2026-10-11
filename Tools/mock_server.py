@@ -94,6 +94,16 @@ let step1 = configure(glassEffect: .regular, id: 1) // a long line to make this 
 **한국어 요약:** **"글래스"**는 컨트롤에만 쓰고, **본문(텍스트)**는 유리 위에 올리지 않는 것이 좋습니다 [{a}] [{unknown}].
 """
 
+TRANSLATE_SAMPLE = (
+    "## Sorting a list\n\n"
+    "To sort an array in place, call `sort()` on it. The method keeps the original order of equal elements [1].\n\n"
+    "- Use `sorted()` when you need a new array\n"
+    "- Read [the documentation](https://developer.apple.com/documentation/swift/array) for the details\n\n"
+    "```swift\nvar names = [\"Ada\", \"Grace\"]\nnames.sort()\n```\n\n"
+    "| Method | Mutates |\n| --- | --- |\n| sort | yes |\n| sorted | no |\n\n"
+    "Remember that sorting large collections takes more time than people usually expect."
+)
+
 CODE_SAMPLE = """Here are three small examples.
 
 ```swift
@@ -363,6 +373,12 @@ class Handler(BaseHTTPRequestHandler):
             # An answer that is mostly code, to look at syntax highlighting.
             self.stream_reasoning("Show a few languages.\n\n")
             self.stream_content(CODE_SAMPLE)
+            usage = {"prompt_tokens": 200, "completion_tokens": 120}
+            finished = True
+        elif "translatesample" in user_text.lower():
+            # Prose around code, a link, a citation and a table, to look at translation.
+            self.stream_reasoning("Write a short guide.\n\n")
+            self.stream_content(TRANSLATE_SAMPLE)
             usage = {"prompt_tokens": 200, "completion_tokens": 120}
             finished = True
         elif many and rounds <= last_tool_round:

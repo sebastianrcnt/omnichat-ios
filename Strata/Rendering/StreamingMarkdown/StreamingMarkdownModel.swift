@@ -353,4 +353,14 @@ final class MessageRenderState {
         markdown.revealAll()
         builtReasoning?.revealAll()
     }
+
+    private var translated: (text: String, model: StreamingMarkdownModel)?
+
+    /// The translated answer as a finished document, rebuilt only when its text changes.
+    func translatedMarkdown(_ text: String) -> StreamingMarkdownModel {
+        if let translated, translated.text == text { return translated.model }
+        let model = StreamingMarkdownModel(text: text, smoothing: false)
+        translated = (text, model)
+        return model
+    }
 }

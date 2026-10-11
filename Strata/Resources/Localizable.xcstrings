@@ -306,6 +306,7 @@
     },
     "Opens the timeline": {},
     "Orange": {},
+    "Original": {},
     "Output tokens": {},
     "Page characters": {},
     "Page script failed: %@": {},
@@ -385,6 +386,8 @@
     },
     "Show all (%lld lines)": {},
     "Show less": {},
+    "Show original": {},
+    "Show translation": {},
     "Shows the notes that replaced them": {},
     "Sidebar": {},
     "Smaller text": {},
@@ -427,11 +430,13 @@
     "The server reported an error.": {},
     "The server reports %@ tokens. Leave blank to use it.": {},
     "The server returned HTTP %lld.": {},
+    "The translation came back incomplete.": {},
     "There is nothing to summarize yet.": {},
     "Thinking": {},
     "Thinks up to %@ tokens": {},
     "This chat": {},
     "This connection does not support resumable replies.": {},
+    "This language can't be translated to your language.": {},
     "This model can't read images. Turn on \"Supports images\" for it in Settings > Connections.": {},
     "This reply was started before idempotency support and has no recovery key.": {},
     "This turn's resume checkpoint. Empty for connections without resumable replies.": {},
@@ -446,6 +451,10 @@
     "Timeline": {},
     "Title": {},
     "Today": {},
+    "Translate": {},
+    "Translated": {},
+    "Translating…": {},
+    "Translation isn't available on this device.": {},
     "Turn on image support": {},
     "UI small": {},
     "UI text": {},
@@ -481,6 +490,7 @@
     "sk-…": {
       "shouldTranslate": false
     },
+    "·": {},
     "“%@”": {
       "extractionState": "stale"
     }

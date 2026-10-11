@@ -36,7 +36,26 @@ struct FakeWebTools: ToolExecuting {
     }
 }
 
+/// Stands in for the system translator in simulator runs: marks each block so structure and protected spans show.
+struct FakeTranslator: TextTranslating {
+    func translate(_ texts: [String]) async throws -> [String] {
+        try await Task.sleep(for: .seconds(Double(DebugHooks.value("StrataFakeTranslateSeconds") ?? "") ?? 1.5))
+        return texts.map { "(fr) " + $0 }
+    }
+}
+
 enum DebugHooks {
+    /// `-StrataPreferredLanguage fr` makes the reader's language French; `-StrataFakeTranslation 1` translates with
+    /// `FakeTranslator` (the simulator has no languages installed).
+    @MainActor
+    static func configure(_ translation: TranslationService) {
+        if let language = value("StrataPreferredLanguage") { translation.preferredLanguage = { language } }
+        if UserDefaults.standard.bool(forKey: "StrataFakeTranslation") {
+            translation.availability = { _, _ in .installed }
+            translation.installedTranslator = { _, _ in FakeTranslator() }
+        }
+    }
+
     /// `-StrataAutoPickRecent 1`: the attach sheet's strip picks its first photo by itself.
     static var autoPickRecent: Bool { UserDefaults.standard.bool(forKey: "StrataAutoPickRecent") }
 

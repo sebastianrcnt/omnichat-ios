@@ -35,6 +35,7 @@ flows through `DSTheme(accent:)`; `accentOnTint` is the accent re-balanced to re
 | `CodeBlocks.swift` | `CodeBlockView` (collapse, copy, expand), `CodeViewer` (full screen, pinch zoom, wrap, share) |
 | `SyntaxText.swift` | `DSTheme.syntax(_:)`, `HighlightedCode`, `SyntaxText.build`, `HighlightService` (highlight.js runs off the main thread; palette in `Syntax/SyntaxTokens.swift`) |
 | `CompactionViews.swift` | `CompactionDivider`, `CompactionStatusRow`, `CompactionNotesSheet` |
+| `Messages.swift` (translation) | `TranslationBanner` ("Translated · Show original"), translate action in `MessageActionBar`, long-press menu on translatable answers; logic in `Translation/` |
 | `Sheets.swift` | `SheetScaffold`, `GroupedSection`, `SettingsRow`, `SettingsToggleRow`, `SettingsFieldRow`, `UsageCard` |
 
 Streaming Markdown rendering lives in `Rendering/StreamingMarkdown` (see its README); the design system

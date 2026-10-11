@@ -114,6 +114,11 @@ struct ChatView: View {
             .safeAreaBar(edge: .top) { header }
             .safeAreaBar(edge: .bottom) { composer }
             .overlay(alignment: .bottom) { jumpButton }
+            // Where a language that is not installed yet is downloaded and the answer translated.
+            .translationTask(controller.translation.configuration) { session in
+                let translator = SessionTranslator(session)
+                await controller.translation.fulfill(translator)
+            }
             .sheet(isPresented: $showAttach) {
                 AttachSheet(supportsImages: selectedModel?.supportsImages ?? false, modelName: selection.modelID,
                             onPick: addAttachments,
@@ -343,6 +348,8 @@ struct ChatView: View {
                           onEdit: controller.isStreaming ? nil : { beginEdit(message) })
         case .assistant:
             let active = controller.activeMessageID == message.id
+            let translation = controller.translation.ui(for: message, isStreaming: active)
+            let shownText = translation.showing ? (translation.translatedText ?? message.text) : message.text
             let segments = message.segments // decoded once per stored value
             AssistantMessage(
                 content: AssistantContent(
@@ -358,16 +365,19 @@ struct ChatView: View {
                     errorText: message.errorText,
                     errorNeedsSettings: message.errorNeedsSettings,
                     stopped: message.stoppedByUser,
-                    canRegenerate: isLast && !controller.isStreaming),
+                    canRegenerate: isLast && !controller.isStreaming,
+                    translation: translation),
                 render: controller.renderState(for: message),
                 onOpenTimeline: { timelineMessage = message },
                 onOpenSources: { sourcesItem = SourceListItem(sources: $0) },
-                onCopy: { UIPasteboard.general.string = MarkdownPlain.text(from: message.text) },
+                onCopy: { UIPasteboard.general.string = MarkdownPlain.text(from: shownText) },
                 onRegenerate: {
                     if let c = conversation { controller.regenerate(conversation: c, context: context) }
                 },
                 onOpenSettings: onOpenSettings,
-                onCopyRaw: { UIPasteboard.general.string = message.text },
+                onCopyRaw: { UIPasteboard.general.string = shownText },
+                onTranslate: { controller.translation.translate(message, context: context, isStreaming: active) },
+                onToggleTranslation: { controller.translation.toggle(message, context: context) },
                 branch: branch,
                 branchEnabled: !controller.isStreaming,
                 onSwitchBranch: { switchBranch(message, by: $0) })
@@ -482,7 +492,14 @@ struct ChatView: View {
             }
             return
         }
-        guard let sheet = DebugHooks.openSheet, sheet.hasPrefix("timeline") || ["usage", "rename", "details", "compaction", "summarize"].contains(sheet) else { return }
+        guard let sheet = DebugHooks.openSheet, sheet.hasPrefix("timeline") || ["usage", "rename", "details", "compaction", "summarize", "translate"].contains(sheet) else { return }
+        if sheet == "translate" { // translates the first answer once it is in
+            if controller.activeMessageID == nil, !branchDebugDone, let m = conversation?.leafMessage, m.role == .assistant {
+                branchDebugDone = true
+                controller.translation.translate(m, context: context)
+            }
+            return
+        }
         if sheet == "compaction" {
             if controller.activeMessageID == nil, let r = conversation?.sortedCompactions.last { compactionNotes = r }
             return

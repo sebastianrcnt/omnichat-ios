@@ -44,6 +44,9 @@ final class ChatController {
     /// For the diagnostics panel.
     var backgroundStateDescription: String { background.stateDescription }
 
+    /// On-device translation of finished answers.
+    let translation = TranslationService()
+
     private let connections: ConnectionStore
     private let settings: AppSettings
     private let streamer: any ChatStreaming
@@ -71,6 +74,9 @@ final class ChatController {
         self.streamer = streamer
         self.tools = tools
         ReplyBackgroundExecution.prepareNotifications()
+        #if DEBUG
+        DebugHooks.configure(translation)
+        #endif
     }
 
     /// Wait for the running turn to end (tests).

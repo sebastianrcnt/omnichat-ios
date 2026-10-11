@@ -153,6 +153,8 @@ struct MessageActionBar: View {
     let onCopy: () -> Void
     var onCopyRaw: (() -> Void)?
     var onRegenerate: (() -> Void)?
+    var translation = TranslationUI.none
+    var onTranslate: () -> Void = {}
     var branch: BranchPosition?
     var branchEnabled = true
     var onSwitchBranch: (Int) -> Void = { _ in }
@@ -180,6 +182,19 @@ struct MessageActionBar: View {
                 Button(action: onRegenerate) { Image(systemName: "arrow.clockwise") }
                     .accessibilityLabel(Text("Regenerate"))
             }
+            if translation.offered {
+                Button(action: onTranslate) {
+                    if translation.isTranslating {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "translate")
+                            .foregroundStyle(translation.showing ? theme.accent : theme.textSecondary)
+                    }
+                }
+                .disabled(translation.isTranslating)
+                .accessibilityLabel(Text(translation.hasTranslation
+                                         ? (translation.showing ? "Show original" : "Show translation") : "Translate"))
+            }
             Spacer()
         }
         .font(.system(size: DS.IconSize.md))
@@ -206,6 +221,7 @@ struct AssistantContent: Equatable {
     var errorNeedsSettings = false
     var stopped = false
     var canRegenerate = false
+    var translation = TranslationUI.none
 }
 
 struct AssistantMessage: View {
@@ -219,6 +235,9 @@ struct AssistantMessage: View {
     var onRegenerate: () -> Void = {}
     var onOpenSettings: () -> Void = {}
     var onCopyRaw: (() -> Void)?
+    /// Translates the answer, or flips between the translation and the original.
+    var onTranslate: () -> Void = {}
+    var onToggleTranslation: () -> Void = {}
     var branch: BranchPosition?
     var branchEnabled = true
     var onSwitchBranch: (Int) -> Void = { _ in }
@@ -264,10 +283,34 @@ struct AssistantMessage: View {
                                                               sources: citations.sources),
                           action: onOpenTimeline)
         case .text:
-            MarkdownDocumentView(model: render.markdown)
+            answerText
         case .divider:
             ProcessDivider()
         }
+    }
+
+    /// The answer, or its translation with a way back. The two crossfade.
+    @ViewBuilder
+    private var answerText: some View {
+        let tr = content.translation
+        let showingTranslation = tr.showing && tr.translatedText != nil
+        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+            if tr.hasTranslation || tr.isTranslating || tr.error != nil {
+                TranslationBanner(translation: tr, onToggle: onToggleTranslation)
+                    .transition(.opacity)
+            }
+            Group {
+                if showingTranslation, let text = tr.translatedText {
+                    MarkdownDocumentView(model: render.translatedMarkdown(text)).id("translated")
+                } else {
+                    MarkdownDocumentView(model: render.markdown).id("original")
+                }
+            }
+            .transition(.opacity)
+        }
+        .animation(reduceMotion ? nil : DS.Motion.ease, value: showingTranslation)
+        .animation(reduceMotion ? nil : DS.Motion.ease, value: tr.isTranslating)
+        .modifier(TranslationMenu(translation: tr, onTranslate: onTranslate, onToggle: onToggleTranslation, onCopy: onCopy))
     }
 
     var body: some View {
@@ -300,10 +343,68 @@ struct AssistantMessage: View {
             }
             if !content.isStreaming && (render.markdown.hasContent || content.errorText != nil) {
                 MessageActionBar(onCopy: onCopy, onCopyRaw: onCopyRaw, onRegenerate: content.canRegenerate ? onRegenerate : nil,
+                                 translation: content.translation,
+                                 onTranslate: content.translation.hasTranslation ? onToggleTranslation : onTranslate,
                                  branch: branch, branchEnabled: branchEnabled, onSwitchBranch: onSwitchBranch)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// The long-press menu of an answer that can be translated. Answers that cannot be get no menu at all, so nothing
+/// competes with text selection there.
+private struct TranslationMenu: ViewModifier {
+    let translation: TranslationUI
+    let onTranslate: () -> Void
+    let onToggle: () -> Void
+    let onCopy: () -> Void
+
+    func body(content: Content) -> some View {
+        if translation.offered {
+            content.contextMenu {
+                if translation.hasTranslation {
+                    Button(translation.showing ? "Show original" : "Show translation", systemImage: "translate", action: onToggle)
+                } else {
+                    Button("Translate", systemImage: "translate", action: onTranslate).disabled(translation.isTranslating)
+                }
+                Button("Copy", systemImage: "doc.on.doc", action: onCopy)
+            }
+        } else {
+            content
+        }
+    }
+}
+
+/// "Translated · Show original" above a translated answer; progress while it is being translated; the reason when it failed.
+struct TranslationBanner: View {
+    @Environment(\.theme) private var theme
+    let translation: TranslationUI
+    let onToggle: () -> Void
+
+    var body: some View {
+        HStack(spacing: DS.Spacing.sm) {
+            if translation.isTranslating {
+                ProgressView().controlSize(.mini)
+                Text("Translating…")
+            } else if let error = translation.error, !translation.hasTranslation {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(theme.warning)
+                Text(error)
+            } else {
+                Button(action: onToggle) {
+                    HStack(spacing: DS.Spacing.xs) {
+                        Image(systemName: "translate")
+                        Text(translation.showing ? "Translated" : "Original")
+                        Text("·")
+                        Text(translation.showing ? "Show original" : "Show translation").foregroundStyle(theme.accent)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .font(DS.Typography.uiCaption)
+        .foregroundStyle(theme.textSecondary)
+        .accessibilityElement(children: .combine)
     }
 }
 
