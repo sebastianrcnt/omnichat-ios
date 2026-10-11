@@ -127,7 +127,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Transfer-Encoding", "chunked")
         self.end_headers()
-        self.wfile = _Chunked(self.wfile)
+        raw_wfile = self.wfile
+        self.wfile = _Chunked(raw_wfile)
 
         plain = "plain" in user_text.lower() or not tools_enabled
         prompt_tokens = 400 + 900 * rounds
@@ -160,6 +161,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(b"data: [DONE]\n\n")
         self.wfile.flush()
         self.wfile.close()
+        self.wfile = raw_wfile  # keep-alive: the next request on this connection needs the raw writer
 
     def stream_reasoning(self, text):
         for p in pieces(text):

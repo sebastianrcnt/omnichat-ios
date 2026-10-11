@@ -221,6 +221,7 @@ struct ChatView: View {
                     }
                 }
                 Color.clear.frame(height: DS.Spacing.lg).id("bottom")
+                    .onScrollVisibilityChange(threshold: 0.01) { atBottom = $0 } // true scroll position: is the end of the chat on screen?
             }
             .padding(.horizontal, DS.Spacing.page)
             .padding(.top, DS.Spacing.md)
@@ -229,11 +230,6 @@ struct ChatView: View {
         .defaultScrollAnchor(.bottom)
         .scrollDismissesKeyboard(.interactively)
         .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
-        .onScrollGeometryChange(for: Bool.self) { geo in
-            geo.contentSize.height + geo.contentInsets.bottom - (geo.contentOffset.y + geo.containerSize.height) < 80
-        } action: { _, newValue in
-            atBottom = newValue
-        }
         .background(theme.background.ignoresSafeArea())
         .environment(\.citations, citationContext)
         .environment(\.openURL, OpenURLAction { url in
