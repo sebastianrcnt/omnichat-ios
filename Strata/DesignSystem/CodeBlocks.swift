@@ -194,21 +194,22 @@ private struct StreamingCodeText: View {
     let lines: Int
     let lineHeight: CGFloat
 
+    @State private var position = ScrollPosition(edge: .bottom)
+
     var body: some View {
         let height = CGFloat(lines) * lineHeight + DS.Spacing.md * 2
-        ScrollViewReader { proxy in
-            ScrollView([.vertical, .horizontal]) {
-                Text(code.isEmpty ? " " : code)
-                    .font(DS.Typography.monoSmall)
-                    .foregroundStyle(theme.textPrimary)
-                    .fixedSize(horizontal: true, vertical: true)
-                    .padding(DS.Spacing.md)
-                    .id("code")
-                Color.clear.frame(height: 1).id("end")
-            }
-            .scrollBounceBehavior(.basedOnSize)
-            .onChange(of: code) { _, _ in proxy.scrollTo("end", anchor: .bottom) }
+        // `scrollTo(edge: .bottom)` only moves along the vertical axis, so a horizontal offset the user set
+        // is kept (an anchor-based scrollTo would re-center or snap x on every token).
+        ScrollView([.vertical, .horizontal]) {
+            Text(code.isEmpty ? " " : code)
+                .font(DS.Typography.monoSmall)
+                .foregroundStyle(theme.textPrimary)
+                .fixedSize(horizontal: true, vertical: true)
+                .padding(DS.Spacing.md)
         }
+        .scrollPosition($position)
+        .scrollBounceBehavior(.basedOnSize)
+        .onChange(of: code) { _, _ in position.scrollTo(edge: .bottom) }
         .frame(height: height)
     }
 }
