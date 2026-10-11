@@ -371,7 +371,11 @@ struct ChatView: View {
 
     #if DEBUG
     private func debugTimeline() async {
-        guard let sheet = DebugHooks.openSheet, sheet.hasPrefix("timeline") else { return }
+        guard let sheet = DebugHooks.openSheet, sheet.hasPrefix("timeline") || sheet == "usage" else { return }
+        if sheet == "usage" {
+            if controller.activeMessageID == nil, conversation?.messages.contains(where: { $0.role == .assistant }) == true { showUsage = true }
+            return
+        }
         if sheet == "timelinelive" {
             guard let id = controller.activeMessageID else { return }
             try? await Task.sleep(for: .seconds(2.5))

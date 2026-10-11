@@ -35,6 +35,7 @@ struct SheetScaffold<Trailing: View, Content: View>: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Spacing.lg) { content() }
+                    .padding(.top, DS.Spacing.sm)
                     .padding(.horizontal, DS.Spacing.lg)
                     .padding(.bottom, DS.Spacing.xl)
             }
