@@ -10,16 +10,17 @@ struct ModelEffortChip: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: DS.Spacing.xs) {
-                Text(modelName).font(DS.Typography.uiSmall).foregroundStyle(theme.textPrimary).lineLimit(1)
+                Text(modelName).font(DS.Typography.chip).foregroundStyle(theme.textPrimary).lineLimit(1)
                 if let effortTitle {
-                    Text(effortTitle).font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary)
+                    Text(effortTitle).font(DS.Typography.chip).foregroundStyle(theme.textSecondary)
                 }
             }
             .padding(.horizontal, DS.Spacing.md)
             .frame(height: DS.IconSize.compactControlDiameter)
+            .glassEffect(.regular.interactive(), in: Capsule())
+            .contentShape(Capsule().inset(by: -4))
         }
-        .buttonStyle(.glass)
-        .buttonBorderShape(.capsule)
+        .buttonStyle(.plain)
         .accessibilityLabel(Text("Model and effort"))
     }
 }
@@ -56,18 +57,17 @@ struct ComposerBar<Chip: View>: View {
                                 AttachmentThumbnail(data: a.jpeg) { onRemoveAttachment(a.id) }
                             }
                         }
-                        .padding(.horizontal, DS.Spacing.xs)
                     }
                 }
-                TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(theme.textTertiary), axis: .vertical)
+                TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(theme.textSecondary), axis: .vertical)
                     .lineLimit(1...6)
                     .font(DS.Typography.ui)
                     .foregroundStyle(theme.textPrimary)
                     .focused($isFocused)
-                    .padding(.horizontal, DS.Spacing.sm)
-                    .padding(.top, DS.Spacing.xs)
+                    .padding(.horizontal, DS.Spacing.xs)
                 HStack(spacing: DS.Spacing.sm) {
-                    GlassIconButton(systemName: "plus", label: "Add photo", diameter: DS.IconSize.compactControlDiameter + 4, action: onAttach)
+                    GlassIconButton(systemName: "plus", label: "Add photo", diameter: DS.IconSize.compactControlDiameter,
+                                    iconSize: DS.IconSize.composerIcon, action: onAttach)
                         .opacity(plusDimmed ? 0.45 : 1)
                     chip()
                     Spacer(minLength: DS.Spacing.sm)
@@ -75,7 +75,7 @@ struct ComposerBar<Chip: View>: View {
                 }
             }
             .padding(DS.Spacing.md)
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: DS.Radius.xl))
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: DS.Radius.composer))
         }
         .padding(.horizontal, DS.Spacing.md)
         .padding(.bottom, DS.Spacing.xs)
@@ -83,23 +83,32 @@ struct ComposerBar<Chip: View>: View {
 
     @ViewBuilder
     private var sendButton: some View {
+        let d = DS.IconSize.compactControlDiameter
         if isStreaming {
             Button(action: onStop) {
-                Image(systemName: "stop.fill").font(.system(size: DS.IconSize.md, weight: .semibold))
-                    .frame(width: DS.IconSize.compactControlDiameter + 4, height: DS.IconSize.compactControlDiameter + 4)
+                Image(systemName: "stop.fill").font(.system(size: DS.IconSize.composerIcon, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: d, height: d)
+                    .glassEffect(.regular.tint(theme.accent).interactive(), in: Circle())
+                    .contentShape(Circle().inset(by: -4))
             }
-            .buttonStyle(.glassProminent)
-            .buttonBorderShape(.circle)
-            .tint(theme.accent)
+            .buttonStyle(.plain)
             .accessibilityLabel(Text("Stop"))
         } else {
             Button(action: onSend) {
-                Image(systemName: "arrow.up").font(.system(size: DS.IconSize.md, weight: .bold))
-                    .frame(width: DS.IconSize.compactControlDiameter + 4, height: DS.IconSize.compactControlDiameter + 4)
+                Image(systemName: "arrow.up").font(.system(size: DS.IconSize.composerIcon, weight: .bold))
+                    .foregroundStyle(canSend ? Color.white : theme.textSecondary)
+                    .frame(width: d, height: d)
+                    .background {
+                        if canSend {
+                            Circle().fill(theme.accent)
+                        } else {
+                            Circle().fill(theme.fillTertiary)
+                        }
+                    }
+                    .contentShape(Circle().inset(by: -4))
             }
-            .buttonStyle(.glassProminent)
-            .buttonBorderShape(.circle)
-            .tint(theme.accent)
+            .buttonStyle(.plain)
             .disabled(!canSend)
             .accessibilityLabel(Text("Send"))
         }

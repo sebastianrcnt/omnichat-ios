@@ -1,9 +1,19 @@
 import Foundation
 
+/// A web result a tool found. The turn runner turns these into numbered `<source>` blocks.
+struct SourceCandidate: Sendable, Equatable {
+    var title: String
+    var url: String
+    var content: String
+}
+
 /// Result of running a tool on device.
 struct ToolOutput: Sendable, Equatable {
     var text: String
     var isError: Bool = false
+    /// Web results behind `text`. When present and a `SourceStore` is available, `text` is replaced by
+    /// `<source id="N" ...>` blocks with conversation-wide stable ids.
+    var sources: [SourceCandidate] = []
 }
 
 protocol ToolExecuting: Sendable {
@@ -17,6 +27,27 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
     var arguments: String
     var result: String
     var isError: Bool
+    /// Ids of the sources this call produced (see `SourceStore`).
+    var sourceIDs: [Int] = []
+
+    init(id: String, name: String, arguments: String, result: String, isError: Bool, sourceIDs: [Int] = []) {
+        self.id = id
+        self.name = name
+        self.arguments = arguments
+        self.result = result
+        self.isError = isError
+        self.sourceIDs = sourceIDs
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        arguments = try c.decode(String.self, forKey: .arguments)
+        result = try c.decode(String.self, forKey: .result)
+        isError = try c.decode(Bool.self, forKey: .isError)
+        sourceIDs = try c.decodeIfPresent([Int].self, forKey: .sourceIDs) ?? []
+    }
 
     /// Human-readable argument (the query or URL).
     var primaryArgument: String {
@@ -36,6 +67,21 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
 struct ToolStep: Codable, Hashable, Sendable {
     var assistantContent: String
     var calls: [ToolCallRecord]
+    /// How many reasoning paragraphs preceded this step (places the step in the timeline).
+    var reasoningParagraphs: Int = 0
+
+    init(assistantContent: String, calls: [ToolCallRecord], reasoningParagraphs: Int = 0) {
+        self.assistantContent = assistantContent
+        self.calls = calls
+        self.reasoningParagraphs = reasoningParagraphs
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        assistantContent = try c.decode(String.self, forKey: .assistantContent)
+        calls = try c.decode([ToolCallRecord].self, forKey: .calls)
+        reasoningParagraphs = try c.decodeIfPresent(Int.self, forKey: .reasoningParagraphs) ?? 0
+    }
 }
 
 enum ToolNames {
@@ -53,8 +99,10 @@ struct HistoryMessage: Sendable, Equatable {
 
 enum MessageAssembler {
     /// Convert stored conversation messages to API messages, expanding tool steps.
-    static func apiMessages(from history: [HistoryMessage]) -> [APIMessage] {
+    static func apiMessages(from history: [HistoryMessage], systemPrompt: String = "") -> [APIMessage] {
         var out: [APIMessage] = []
+        let trimmedPrompt = systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedPrompt.isEmpty { out.append(.system(trimmedPrompt)) }
         for m in history {
             switch m.role {
             case "user":

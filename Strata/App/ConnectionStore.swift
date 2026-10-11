@@ -59,7 +59,8 @@ final class ConnectionStore {
         var headers: [String: String] = [:]
         for h in conn.parsedHeaders { headers[h.name] = h.value }
         return Endpoint(connectionID: conn.id, connectionName: conn.name, baseURL: base,
-                        apiKey: keys.key(for: conn.id), headers: headers, model: model)
+                        apiKey: keys.key(for: conn.id), headers: headers, model: model,
+                        systemPrompt: conn.systemPrompt)
     }
 
     /// Every model across all connections, in connection order.

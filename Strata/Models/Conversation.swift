@@ -16,6 +16,8 @@ final class Conversation {
     var lastCompletionTokens: Int?
     var lastCachedTokens: Int?
     var lastReasoningTokens: Int?
+    /// JSON-encoded `[SourceInfo]`: web sources numbered across the whole conversation.
+    @Attribute(.externalStorage) var sourcesData: Data?
     @Relationship(deleteRule: .cascade, inverse: \Message.conversation)
     var messages: [Message] = []
 
@@ -33,6 +35,11 @@ final class Conversation {
     var effort: Effort {
         get { Effort(rawValue: effortRaw) ?? .default }
         set { effortRaw = newValue.rawValue }
+    }
+
+    var sources: [SourceInfo] {
+        get { sourcesData.flatMap { try? JSONDecoder().decode([SourceInfo].self, from: $0) } ?? [] }
+        set { sourcesData = newValue.isEmpty ? nil : try? JSONEncoder().encode(newValue) }
     }
 
     var sortedMessages: [Message] {

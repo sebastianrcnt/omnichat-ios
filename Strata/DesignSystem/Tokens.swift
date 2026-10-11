@@ -24,6 +24,7 @@ enum DS {
         static let xl: CGFloat = 28
         static let bubble: CGFloat = 22
         static let thumbnail: CGFloat = 12
+        static let composer: CGFloat = 26
     }
 
     // MARK: Icon & control sizes
@@ -31,8 +32,14 @@ enum DS {
         static let sm: CGFloat = 14
         static let md: CGFloat = 18
         static let lg: CGFloat = 22
+        /// Header circular glass buttons.
         static let controlDiameter: CGFloat = 44
+        static let headerIcon: CGFloat = 17
+        /// Composer buttons and chip height.
         static let compactControlDiameter: CGFloat = 36
+        static let composerIcon: CGFloat = 16
+        /// Minimum touch target, kept via `contentShape` even where the visual is smaller.
+        static let minHitTarget: CGFloat = 44
         static let ring: CGFloat = 22
         static let thumbnail: CGFloat = 64
         static let cameraTile: CGFloat = 112
@@ -47,6 +54,8 @@ enum DS {
         static let ui = Font.system(.body)
         static let uiEmphasis = Font.system(.body).weight(.medium)
         static let uiSmall = Font.system(.subheadline)
+        /// Composer chip label.
+        static let chip = Font.system(size: 15)
         static let uiCaption = Font.system(.caption)
         static let sectionHeader = Font.system(.footnote).weight(.medium)
         static let title = Font.system(.headline)
@@ -96,6 +105,8 @@ struct DSTheme: Equatable {
     var surfaceRaised: Color { Color(light: 0xE8E8EC, dark: 0x2A2A2A) }
     var bubble: Color { Color(light: 0xEDEDF0, dark: 0x2B2B2B) }
     var separator: Color { Color(light: 0xD9D9DE, dark: 0x333333) }
+    /// Subtle fill for disabled controls.
+    var fillTertiary: Color { Color(light: 0xE4E4E8, dark: 0x2E2E32) }
 
     // Text
     var textPrimary: Color { Color(light: 0x111111, dark: 0xF2F2F2) }

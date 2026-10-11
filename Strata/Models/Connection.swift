@@ -57,13 +57,27 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
     /// One header per line, `Name: value`.
     var customHeaders: String
     var models: [ModelInfo]
+    /// Sent as the first (system) message. Empty disables it.
+    var systemPrompt: String
 
-    init(id: UUID = UUID(), name: String, baseURL: String, customHeaders: String = "", models: [ModelInfo] = []) {
+    init(id: UUID = UUID(), name: String, baseURL: String, customHeaders: String = "", models: [ModelInfo] = [],
+         systemPrompt: String = DefaultPrompts.citation) {
         self.id = id
         self.name = name
         self.baseURL = baseURL
         self.customHeaders = customHeaders
         self.models = models
+        self.systemPrompt = systemPrompt
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        baseURL = try c.decode(String.self, forKey: .baseURL)
+        customHeaders = try c.decodeIfPresent(String.self, forKey: .customHeaders) ?? ""
+        models = try c.decodeIfPresent([ModelInfo].self, forKey: .models) ?? []
+        systemPrompt = try c.decodeIfPresent(String.self, forKey: .systemPrompt) ?? DefaultPrompts.citation
     }
 
     static func strataPreset() -> Connection {
@@ -110,4 +124,5 @@ struct Endpoint: Sendable {
     var apiKey: String?
     var headers: [String: String]
     var model: ModelInfo
+    var systemPrompt: String = ""
 }

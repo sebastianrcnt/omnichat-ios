@@ -30,6 +30,7 @@ struct TurnRunner: Sendable {
     func run(endpoint: Endpoint,
              messages initial: [APIMessage],
              effort: Effort?,
+             sources: SourceStore? = nil,
              onEvent: @MainActor (TurnEvent) -> Void) async throws -> TurnOutcome {
         var messages = initial
         var steps: [ToolStep] = []
@@ -72,9 +73,15 @@ struct TurnRunner: Sendable {
             var outputs: [ToolOutput] = []
             for call in calls {
                 try Task.checkCancellation()
-                let out = await tools.execute(name: call.name, arguments: call.arguments)
+                var out = await tools.execute(name: call.name, arguments: call.arguments)
+                var ids: [Int] = []
+                if let sources, !out.sources.isEmpty, !out.isError {
+                    let infos = out.sources.map { sources.assign($0) }
+                    ids = infos.map(\.id)
+                    out.text = zip(infos, out.sources).map { SourceFormatter.block($0, content: $1.content) }.joined(separator: "\n")
+                }
                 let record = ToolCallRecord(id: call.id, name: call.name, arguments: call.arguments,
-                                            result: out.text, isError: out.isError)
+                                            result: out.text, isError: out.isError, sourceIDs: ids)
                 records.append(record)
                 outputs.append(out)
                 onEvent(.toolFinished(record))

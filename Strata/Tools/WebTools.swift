@@ -93,7 +93,8 @@ struct WebSearchTool {
         do {
             try await page.load(url)
             let results = try await SearchExtractor.extract(engine: engine, from: page)
-            return ToolOutput(text: SearchFormatter.format(query: q, results: results))
+            return ToolOutput(text: SearchFormatter.format(query: q, results: results),
+                              sources: results.map { SourceCandidate(title: $0.title, url: $0.url, content: $0.snippet.isEmpty ? $0.title : $0.snippet) })
         } catch {
             return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true)
         }
@@ -181,7 +182,8 @@ struct WebFetchTool {
             if body.isEmpty { return ToolOutput(text: "Error: the page has no readable text.", isError: true) }
             let finalURL = page.webView.url?.absoluteString ?? url.absoluteString
             let title = e.title.trimmingCharacters(in: .whitespacesAndNewlines)
-            return ToolOutput(text: "Title: \(title)\nURL: \(finalURL)\n\n\(body)")
+            return ToolOutput(text: "Title: \(title)\nURL: \(finalURL)\n\n\(body)",
+                              sources: [SourceCandidate(title: title.isEmpty ? finalURL : title, url: finalURL, content: body)])
         } catch {
             return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true)
         }

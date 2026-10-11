@@ -129,16 +129,18 @@ final class ChatController {
         }
         let runner = TurnRunner(streamer: streamer, tools: tools)
         let effort = conversation.effort
-        let messages = MessageAssembler.apiMessages(from: history)
+        let messages = MessageAssembler.apiMessages(from: history, systemPrompt: endpoint.systemPrompt)
+        let sourceStore = SourceStore(items: conversation.sources)
 
         task = Task { @MainActor [weak self] in
             guard let self else { return }
             let tracker = TurnTracker(message: assistant, conversation: conversation, render: render)
             do {
-                let outcome = try await runner.run(endpoint: endpoint, messages: messages, effort: effort) { event in
+                let outcome = try await runner.run(endpoint: endpoint, messages: messages, effort: effort, sources: sourceStore) { event in
                     self.handle(event, tracker: tracker)
                 }
                 tracker.finishThinking()
+                conversation.sources = sourceStore.items
                 tracker.complete(finalText: outcome.finalContent)
                 assistant.steps = outcome.steps
                 if let usage = outcome.lastUsage { conversation.apply(usage) }
@@ -146,11 +148,13 @@ final class ChatController {
             } catch is CancellationError {
                 tracker.finishThinking()
                 tracker.complete(finalText: nil)
+                conversation.sources = sourceStore.items
                 assistant.stoppedByUser = true
                 assistant.steps = tracker.completedSteps
                 self.finish(assistant, conversation: conversation, context: context, error: nil, tracker: tracker)
             } catch {
                 tracker.finishThinking()
+                conversation.sources = sourceStore.items
                 tracker.complete(finalText: nil)
                 assistant.steps = tracker.completedSteps
                 self.finish(assistant, conversation: conversation, context: context, error: error, tracker: tracker)

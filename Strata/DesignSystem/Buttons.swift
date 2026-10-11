@@ -1,22 +1,23 @@
 import SwiftUI
 
-/// Circular glass button used for header controls.
+/// Circular glass button used for header controls. Visual size is `diameter`; the hit target is at least 44pt.
 struct GlassIconButton: View {
     let systemName: String
     let label: LocalizedStringKey
     var diameter: CGFloat = DS.IconSize.controlDiameter
+    var iconSize: CGFloat = DS.IconSize.headerIcon
     var tint: Color?
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: DS.IconSize.md, weight: .medium))
+                .font(.system(size: iconSize, weight: .medium))
                 .frame(width: diameter, height: diameter)
+                .glassEffect(.regular.tint(tint).interactive(), in: Circle())
+                .contentShape(Circle().inset(by: -max(0, (DS.IconSize.minHitTarget - diameter) / 2)))
         }
-        .buttonStyle(.glass)
-        .buttonBorderShape(.circle)
-        .tint(tint)
+        .buttonStyle(.plain)
         .accessibilityLabel(Text(label))
     }
 }
@@ -159,12 +160,33 @@ struct GlassIconMenu<Content: View>: View {
     var body: some View {
         Menu(content: content) {
             Image(systemName: systemName)
-                .font(.system(size: DS.IconSize.md, weight: .medium))
+                .font(.system(size: DS.IconSize.headerIcon, weight: .medium))
                 .frame(width: diameter, height: diameter)
+                .glassEffect(.regular.interactive(), in: Circle())
+                .contentShape(Circle())
         }
-        .menuStyle(.button)
-        .buttonStyle(.glass)
-        .buttonBorderShape(.circle)
+        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(label))
+    }
+}
+
+/// Menu button without its own glass, for use inside a shared glass capsule.
+struct GlassIconMenuPlain<Content: View>: View {
+    let systemName: String
+    let label: LocalizedStringKey
+    var diameter: CGFloat = DS.IconSize.controlDiameter
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        Menu(content: content) {
+            Image(systemName: systemName)
+                .font(.system(size: DS.IconSize.headerIcon, weight: .medium))
+                .frame(width: diameter, height: diameter)
+                .contentShape(Circle())
+        }
+        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
         .accessibilityLabel(Text(label))
     }
 }

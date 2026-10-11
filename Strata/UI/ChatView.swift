@@ -148,16 +148,19 @@ struct ChatView: View {
                     }
                 }
                 Spacer(minLength: 0)
-                if conversation != nil {
+                HStack(spacing: 0) {
                     Button { showUsage = true } label: {
                         ContextRing(fraction: contextFraction)
                             .frame(width: DS.IconSize.controlDiameter, height: DS.IconSize.controlDiameter)
+                            .contentShape(Circle())
                     }
-                    .buttonStyle(.glass)
-                    .buttonBorderShape(.circle)
+                    .buttonStyle(.plain)
+                    .disabled(conversation == nil)
+                    .opacity(conversation == nil ? 0.4 : 1)
                     .accessibilityLabel(Text("Usage"))
-                    GlassIconMenu(systemName: "ellipsis", label: "More") { menuContent }
+                    GlassIconMenuPlain(systemName: "ellipsis", label: "More") { menuContent }
                 }
+                .glassEffect(.regular.interactive(), in: Capsule())
             }
             .padding(.horizontal, DS.Spacing.md)
             .padding(.top, DS.Spacing.xs)
@@ -177,12 +180,26 @@ struct ChatView: View {
             }
             ShareLink(item: c.transcript) { Label("Share as text", systemImage: "square.and.arrow.up") }
             Button("Delete", systemImage: "trash", role: .destructive) { confirmDelete = true }
+            Divider()
         }
+        Button("Settings", systemImage: "gearshape", action: onOpenSettings)
     }
 
     // MARK: Messages
 
+    @ViewBuilder
     private var messages: some View {
+        if conversation == nil {
+            emptyState
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.bottom, 160)
+                .background(theme.background.ignoresSafeArea())
+        } else {
+            messageList
+        }
+    }
+
+    private var messageList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: DS.Spacing.xl) {
                 if let conversation {
@@ -190,8 +207,6 @@ struct ChatView: View {
                     ForEach(items) { message in
                         row(message, isLast: message.id == items.last?.id)
                     }
-                } else {
-                    emptyState
                 }
                 Color.clear.frame(height: DS.Spacing.lg).id("bottom")
             }
@@ -199,7 +214,7 @@ struct ChatView: View {
             .padding(.top, DS.Spacing.md)
         }
         .scrollPosition($position)
-        .defaultScrollAnchor(conversation == nil ? .center : .bottom)
+        .defaultScrollAnchor(.bottom)
         .scrollDismissesKeyboard(.interactively)
         .onScrollGeometryChange(for: Bool.self) { geo in
             geo.contentSize.height + geo.contentInsets.bottom - (geo.contentOffset.y + geo.containerSize.height) < 80
