@@ -264,3 +264,21 @@ struct UsageCard: View {
         }
     }
 }
+
+
+/// Opaque-enough backing for the chat header: solid under the status bar and title row, with a short fade
+/// below it, so scrolling text never competes with the title.
+struct HeaderBacking: View {
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        theme.background.opacity(0.96)
+            .ignoresSafeArea(edges: .top)
+            .overlay(alignment: .bottom) {
+                LinearGradient(colors: [theme.background.opacity(0.96), theme.background.opacity(0)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: DS.Spacing.lg)
+                    .offset(y: DS.Spacing.lg)
+                    .allowsHitTesting(false)
+            }
+    }
+}

@@ -98,9 +98,12 @@ struct ChatRequest: Encodable, Sendable {
     var reasoningEffort: String?
     var tools: [ToolDefinition]?
     var toolChoice: String?
+    /// Only the side requests (auto-rename) cap output; chat requests leave it unset so the prefix bytes stay identical.
+    var maxTokens: Int?
 
     enum CodingKeys: String, CodingKey {
         case model, messages, stream, tools
+        case maxTokens = "max_tokens"
         case streamOptions = "stream_options"
         case reasoningEffort = "reasoning_effort"
         case toolChoice = "tool_choice"

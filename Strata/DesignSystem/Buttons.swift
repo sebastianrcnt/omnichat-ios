@@ -50,7 +50,7 @@ struct ContextRing: View {
     var lineWidth: CGFloat = DS.IconSize.ringStroke
 
     /// Any non-zero usage shows at least this much arc.
-    nonisolated static let minimumVisibleArc = 0.04
+    nonisolated static let minimumVisibleArc = 0.07
 
     nonisolated static func arc(for fraction: Double) -> Double {
         fraction <= 0 ? 0 : min(1, max(minimumVisibleArc, fraction))
@@ -67,7 +67,7 @@ struct ContextRing: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(theme.textTertiary.opacity(fraction == nil ? 0.35 : 0.55), lineWidth: lineWidth)
+                .stroke(theme.textSecondary.opacity(fraction == nil ? 0.3 : 0.45), lineWidth: lineWidth) // a full, visible track reads as a gauge, not a spinner
             if let fraction, fraction > 0 {
                 Circle()
                     .trim(from: 0, to: Self.arc(for: fraction))

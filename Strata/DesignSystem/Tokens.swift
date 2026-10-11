@@ -42,10 +42,10 @@ enum DS {
         static let composerIcon: CGFloat = 16
         /// Minimum touch target, kept via `contentShape` even where the visual is smaller.
         static let minHitTarget: CGFloat = 44
-        static let ring: CGFloat = 20
+        static let ring: CGFloat = 22
         /// Site icon in a source chip.
         static let favicon: CGFloat = 16
-        static let ringStroke: CGFloat = 2.5
+        static let ringStroke: CGFloat = 3
         static let thumbnail: CGFloat = 64
         static let cameraTile: CGFloat = 112
     }

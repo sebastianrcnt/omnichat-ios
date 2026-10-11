@@ -14,7 +14,7 @@ use inline sample data, never the network.
 | --- | --- |
 | `DS.Spacing` | `xxs 2`, `xs 4`, `sm 8`, `md 12`, `lg 16`, `xl 24`, `xxl 32`, `page 16`, `composerClearance 150` |
 | `DS.Radius` | `sm 8`, `md 14`, `lg 20`, `xl 28`, `bubble 22`, `thumbnail 12`, `composer 26` |
-| `DS.IconSize` | `sm 14`, `md 18`, `lg 22`, `controlDiameter 44`, `headerIcon 17`, `compactControlDiameter 36`, `composerIcon 16`, `minHitTarget 44`, `ring 20`, `ringStroke 2.5`, `favicon 16`, `thumbnail 64`, `cameraTile 112` |
+| `DS.IconSize` | `sm 14`, `md 18`, `lg 22`, `controlDiameter 44`, `headerIcon 17`, `compactControlDiameter 36`, `composerIcon 16`, `minHitTarget 44`, `ring 22`, `ringStroke 3`, `favicon 16`, `thumbnail 64`, `cameraTile 112` |
 | `DS.Typography` | `answer` / `answerEmphasis` (serif), `answerLineSpacing 3`, `ui`, `uiEmphasis`, `uiSmall`, `uiCaption`, `chip`, `monogram`, `sectionHeader`, `title`, `largeTitle`, `mono`, `monoSmall` |
 | `DS.Motion` | `fast 0.15`, `standard 0.25`, `slow 0.4`, `spring`, `snappy`, `ease`, `indicatorPulse` |
 | `DSTheme` (environment `\.theme`) | accent roles `accent`, `accentMuted`, `accentStrong`, `accentOnTint`; surfaces `background`, `surface`, `surfaceRaised`, `bubble`, `separator`, `chipFill`, `fillTertiary`; text `textPrimary`, `textSecondary`, `textTertiary`; status `destructive`, `warning`; fixed `onAccent`, `photoBadgeBackdrop`, `faviconBackdrop` |

@@ -8,6 +8,10 @@ final class Conversation {
     var createdAt: Date
     var updatedAt: Date
     var isPinned: Bool
+    /// The user typed this title: automatic naming never overwrites it.
+    var titleIsUserSet: Bool = false
+    /// Automatic naming already ran once for this conversation.
+    var autoRenameDone: Bool = false
     var connectionID: UUID?
     var modelID: String?
     var effortRaw: String
@@ -49,6 +53,22 @@ final class Conversation {
     var lastUsage: Usage? {
         guard let p = lastPromptTokens, let c = lastCompletionTokens else { return nil }
         return Usage(promptTokens: p, completionTokens: c, cachedTokens: lastCachedTokens, reasoningTokens: lastReasoningTokens)
+    }
+
+    /// Texts for the naming request: answer text only (no reasoning or tool results), in order.
+    var namingLines: [AutoRename.Line] {
+        sortedMessages.filter { !$0.text.isEmpty }.map { AutoRename.Line(role: $0.role, text: $0.text) }
+    }
+
+    /// Answers that finished with text, not stopped or failed ones.
+    var completedAnswerCount: Int {
+        messages.filter { $0.role == .assistant && !$0.text.isEmpty && $0.errorText == nil && !$0.stoppedByUser }.count
+    }
+
+    /// Sets a user-typed title; automatic naming leaves it alone from now on.
+    func setUserTitle(_ title: String) {
+        self.title = title
+        titleIsUserSet = true
     }
 
     var displayTitle: String {

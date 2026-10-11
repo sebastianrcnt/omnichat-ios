@@ -155,7 +155,7 @@ struct ChatView: View {
                 Button("Cancel", role: .cancel) {}
                 Button("Save") {
                     let t = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !t.isEmpty { conversation?.title = t; try? context.save() }
+                    if !t.isEmpty { conversation?.setUserTitle(t); try? context.save() }
                 }
             }
             .confirmationDialog("Delete this chat?", isPresented: $confirmDelete, titleVisibility: .visible) {
@@ -204,6 +204,8 @@ struct ChatView: View {
                         .font(DS.Typography.title)
                         .foregroundStyle(theme.textPrimary)
                         .lineLimit(1)
+                        .contentTransition(.opacity)
+                        .animation(DS.Motion.ease, value: conversation?.title)
                     if let model = selection.modelID {
                         Text(model).font(DS.Typography.uiCaption).foregroundStyle(theme.textSecondary).lineLimit(1)
                     }
@@ -218,6 +220,8 @@ struct ChatView: View {
             .padding(.horizontal, DS.Spacing.md)
             .padding(.vertical, DS.Spacing.sm) // 8pt below the 44pt buttons, clear of the blur edge
         }
+        // A real surface behind the title: answer text scrolling underneath must never show through it.
+        .background(alignment: .top) { HeaderBacking() }
     }
 
     @ViewBuilder
@@ -233,6 +237,10 @@ struct ChatView: View {
                 renameText = c.title
                 showRename = true
             }
+            Button("Rename automatically", systemImage: "wand.and.stars") {
+                controller.autoRename(conversation: c, context: context, force: true)
+            }
+            .disabled(controller.isStreaming)
             ShareLink(item: c.transcript) { Label("Share as text", systemImage: "square.and.arrow.up") }
             Button("Delete", systemImage: "trash", role: .destructive) { confirmDelete = true }
             Divider()
@@ -377,7 +385,14 @@ struct ChatView: View {
 
     #if DEBUG
     private func debugTimeline() async {
-        guard let sheet = DebugHooks.openSheet, sheet.hasPrefix("timeline") || sheet == "usage" else { return }
+        guard let sheet = DebugHooks.openSheet, sheet.hasPrefix("timeline") || sheet == "usage" || sheet == "rename" else { return }
+        if sheet == "rename" {
+            if controller.activeMessageID == nil, let c = conversation, c.messages.contains(where: { $0.role == .assistant }) {
+                renameText = "score가 NULL인 행은 어떻게 처리되는지 SQL 집계 함수 동작 정리"
+                showRename = true
+            }
+            return
+        }
         if sheet == "usage" {
             if controller.activeMessageID == nil, conversation?.messages.contains(where: { $0.role == .assistant }) == true { showUsage = true }
             return

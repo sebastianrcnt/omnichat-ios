@@ -117,6 +117,24 @@ final class ChatController {
         generate(conversation: conversation, context: context)
     }
 
+    /// Names the conversation with a standalone side request, in the background. Failure keeps the old title.
+    /// `force` (the menu item) overwrites even a user-set title and marks the new title as not user-set.
+    func autoRename(conversation: Conversation, context: ModelContext, force: Bool) {
+        guard let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID),
+              endpoint.apiKey?.isEmpty == false,
+              let prompt = AutoRename.prompt(currentTitle: conversation.title, lines: conversation.namingLines) else { return }
+        let streamer = streamer
+        conversation.autoRenameDone = true
+        Task { @MainActor in
+            let name = await AutoRename.generate(prompt: prompt, endpoint: endpoint, streamer: streamer)
+            guard let name, conversation.modelContext != nil else { return }
+            if !force && conversation.titleIsUserSet { return } // renamed by hand while the request ran
+            conversation.title = name
+            if force { conversation.titleIsUserSet = false }
+            try? context.save()
+        }
+    }
+
     func stop() {
         revealAllNow()
         if let message = activeMessage, let context = activeContext, let endpoint = activeEndpoint {
@@ -320,6 +338,11 @@ final class ChatController {
         phase = .idle
         pendingCalls = []
         roundRecords = []
+        if error == nil, !message.stoppedByUser,
+           AutoRename.shouldRunAutomatically(titleIsUserSet: conversation.titleIsUserSet, alreadyAutoNamed: conversation.autoRenameDone,
+                                             completedAnswers: conversation.completedAnswerCount) {
+            autoRename(conversation: conversation, context: context, force: false)
+        }
         activeMessageID = nil
         activeConversationID = nil
         turnStart = nil

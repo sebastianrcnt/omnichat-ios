@@ -76,7 +76,7 @@ struct SidebarView: View {
             Button("Cancel", role: .cancel) { renaming = nil }
             Button("Save") {
                 let t = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
-                if let c = renaming, !t.isEmpty { c.title = t; try? context.save() }
+                if let c = renaming, !t.isEmpty { c.setUserTitle(t); try? context.save() }
                 renaming = nil
             }
         }
