@@ -102,6 +102,8 @@
     },
     "%lld%% used": {},
     "%lldk characters": {},
+    "1 page": {},
+    "1 search": {},
     "262144": {
       "shouldTranslate": false
     },
@@ -230,6 +232,7 @@
     "Open": {},
     "Open Settings": {},
     "Open full screen": {},
+    "Open timeline": {},
     "Orange": {},
     "Output tokens": {},
     "Page script failed: %@": {},
@@ -280,7 +283,10 @@
     "Settings": {},
     "Share as file": {},
     "Share as text": {},
-    "Show all": {},
+    "Show all": {
+      "extractionState": "stale"
+    },
+    "Show all %lld steps": {},
     "Show all (%lld lines)": {},
     "Show less": {},
     "Sidebar": {},
@@ -316,9 +322,14 @@
     "This connection does not support resumable replies.": {},
     "This model can't read images. Turn on \"Supports images\" for it in Settings > Connections.": {},
     "This reply was started before idempotency support and has no recovery key.": {},
-    "Thought": {},
+    "Thought": {
+      "extractionState": "stale"
+    },
+    "Thought for %@": {},
     "Thought for %llds": {},
-    "Thoughts": {},
+    "Thoughts": {
+      "extractionState": "stale"
+    },
     "Timeline": {},
     "Title": {},
     "Today": {},
@@ -334,6 +345,7 @@
     "Visited %@": {},
     "Waiting for the model to think…": {},
     "Web tools": {},
+    "Worked on it": {},
     "Working…": {},
     "Wrap lines": {},
     "You": {},

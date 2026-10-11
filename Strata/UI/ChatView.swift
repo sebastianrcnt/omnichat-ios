@@ -308,6 +308,8 @@ struct ChatView: View {
                     calls: Self.liveCalls(message.steps.flatMap(\.calls), inRound: active ? controller.roundRecords : []),
                     segments: message.segments,
                     pending: active ? controller.pendingCalls : [],
+                    roundRequested: active ? controller.roundRequested : [],
+                    roundFinished: active ? controller.roundRecords : [],
                     isStreaming: active,
                     phase: active ? controller.phase : .idle,
                     turnStart: active ? controller.turnStart : nil,

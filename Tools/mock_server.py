@@ -6,6 +6,7 @@
 GET  /v1/models              -> one model with a context length
 POST /v1/chat/completions    -> SSE stream. Behaviour depends on the conversation:
   * last user text contains "short"  -> the scripted tool loop with a one-sentence final answer
+  * last user text contains "many"   -> seven tool rounds, each with reasoning and a preamble, then the answer
   * last user text contains "plain"  -> reasoning + a markdown answer, no tools
   * otherwise, scripted tool loop: round 0 = reasoning + web_search tool call,
     round 1 = reasoning + web_fetch tool call, round 2 = final markdown answer that cites the
@@ -301,16 +302,26 @@ class Handler(BaseHTTPRequestHandler):
     def generate(self, req, user_text, tail, rounds, tools_enabled):
         plain = "plain" in user_text.lower() or not tools_enabled
         prompt_tokens = 400 + 900 * rounds
-        if plain:
+        many = "many" in user_text.lower() and not plain  # 7 tool rounds with a preamble each, then the answer
+        last_tool_round = 6 if many else 1
+        if many and rounds <= last_tool_round:
+            self.stream_reasoning(f"Round {rounds + 1}: decide what to look at next.\n\n")
+            self.stream_content(f"Checking source set {rounds + 1}.")
+            if rounds % 2 == 0:
+                self.stream_tool_call(f"call_s{rounds}", "web_search", json.dumps({"query": f"liquid glass topic {rounds}"}))
+            else:
+                self.stream_tool_call(f"call_f{rounds}", "web_fetch", json.dumps({"url": f"https://developer.apple.com/documentation/swiftui/page{rounds}"}))
+            usage = {"prompt_tokens": prompt_tokens, "completion_tokens": 40}
+        elif plain:
             self.stream_text("Quick thought: this is a simple request.\n\n", PLAIN)
             usage = {"prompt_tokens": 120, "completion_tokens": 90,
                      "prompt_tokens_details": {"cached_tokens": 64}, "completion_tokens_details": {"reasoning_tokens": 12}}
-        elif rounds == 0:
+        elif rounds == 0 and not many:
             self.stream_reasoning(REASONING_0)
             self.stream_content("Let me search for the official guidance.")
             self.stream_tool_call("call_s1", "web_search", json.dumps({"query": "SwiftUI liquid glass guidelines"}))
             usage = {"prompt_tokens": prompt_tokens, "completion_tokens": 60, "completion_tokens_details": {"reasoning_tokens": 40}}
-        elif rounds == 1:
+        elif rounds == 1 and not many:
             self.stream_reasoning(REASONING_1)
             self.stream_tool_call("call_f1", "web_fetch", json.dumps({"url": "https://developer.apple.com/documentation/swiftui/applying-liquid-glass-to-custom-views"}))
             usage = {"prompt_tokens": prompt_tokens, "completion_tokens": 50, "completion_tokens_details": {"reasoning_tokens": 30}}
@@ -328,7 +339,7 @@ class Handler(BaseHTTPRequestHandler):
             usage = {"prompt_tokens": prompt_tokens, "completion_tokens": 420,
                      "prompt_tokens_details": {"cached_tokens": prompt_tokens - 300},
                      "completion_tokens_details": {"reasoning_tokens": 80}}
-        sse(self, chunk({}, finish="tool_calls" if (not plain and rounds < 2) else "stop"))
+        sse(self, chunk({}, finish="tool_calls" if (not plain and rounds <= (last_tool_round if many else 1)) else "stop"))
         if req.get("stream_options", {}).get("include_usage"):
             sse(self, {"id": "mock", "object": "chat.completion.chunk", "model": "strata-mock", "choices": [], "usage": usage})
         self.wfile.write(b"data: [DONE]\n\n")

@@ -82,6 +82,14 @@ enum DS {
         static let spring = Animation.spring(response: 0.35, dampingFraction: 0.86)
         static let snappy = Animation.snappy(duration: 0.25)
         static let ease = Animation.easeInOut(duration: standard)
+        /// A block entering or leaving the transcript or a sheet: a spring with no bounce, about 0.35 s.
+        static let enter = Animation.spring(duration: 0.35, bounce: 0)
+        /// Delay between consecutive children (chips, list items) fading in.
+        static let stagger: Double = 0.035
+        /// Following the bottom while content grows.
+        static let follow = Animation.smooth(duration: 0.25)
+        /// Minimum time between animated follow-scrolls while streaming.
+        static let followInterval: Duration = .milliseconds(100)
         static let indicatorPulse = Animation.easeInOut(duration: 1.1).repeatForever(autoreverses: true)
     }
 }

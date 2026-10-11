@@ -110,6 +110,17 @@ struct ActivityEntry: Identifiable, Equatable {
         }
     }
 
+    /// The running round's calls in request order; a call keeps its place when it finishes.
+    static func roundEntries(requested: [PendingToolCall], finished: [ToolCallRecord], sources: [Int: SourceInfo]) -> [ActivityEntry] {
+        let done = Dictionary(finished.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var seen = Set<String>()
+        return requested.compactMap { call in
+            guard seen.insert(call.id).inserted else { return nil }
+            if let record = done[call.id] { return ActivityEntry(call: record, sources: sources) }
+            return ActivityEntry(pending: call)
+        }
+    }
+
     /// Finished calls then running ones. A call keeps the same id while running and when done, and an id
     /// that appears twice (a finished call still listed as running) is shown once.
     static func entries(calls: [ToolCallRecord], pending: [PendingToolCall], sources: [Int: SourceInfo]) -> [ActivityEntry] {
@@ -248,81 +259,32 @@ struct ActivityStatusLine: View {
     }
 }
 
-/// Status line plus the latest two activity rows in a fixed-height area; older rows fade out upward.
-struct LiveActivityFeed: View {
-    let label: String
-    let start: Date
-    let entries: [ActivityEntry]
-    /// Live reasoning, for the one-line preview of the latest thought.
-    var reasoning: ReasoningChunkModel?
-    let action: () -> Void
-
-    /// Status line, the thought slot and two activity rows. The layout never depends on running state.
-    static let height: CGFloat = 156
-    static let visibleRows = 2
-
-    /// The rows shown: always the latest two. Rows change only when an entry is added; a running entry that
-    /// finishes keeps its id and position.
-    static func visibleEntries(_ entries: [ActivityEntry]) -> [ActivityEntry] { Array(entries.suffix(visibleRows)) }
-
-    /// While a tool runs the last thought stays in its slot, dimmed.
-    private var toolRunning: Bool { entries.contains(where: \.isRunning) }
-
-    var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                ActivityStatusLine(label: label, start: start)
-                ReasoningLinePreview(model: reasoning, isDimmed: toolRunning)
-                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                    ForEach(Self.visibleEntries(entries)) { entry in
-                        ActivityRow(entry: entry)
-                            .transition(.asymmetric(insertion: .opacity.combined(with: .move(edge: .bottom)),
-                                                    removal: .opacity.combined(with: .move(edge: .top))))
-                    }
-                }
-                .animation(DS.Motion.snappy, value: Self.visibleEntries(entries).map(\.id))
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-            }
-            .frame(height: Self.height, alignment: .topLeading)
-            .clipped()
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-/// Collapsed summary once the answer starts: "Thought for 4s · 2 searches, 3 pages ›".
+/// Everything before the answer as one row: "Thought for 1m 22s . 8 searches . 4 pages". Counts tick as steps finish.
 struct ActivitySummaryRow: View {
     @Environment(\.theme) private var theme
-    let seconds: Double?
-    let searches: Int
-    let pages: Int
+    let summary: ProcessSummary
+    var expanded = false
     let action: () -> Void
-
-    static func title(seconds: Double?, searches: Int, pages: Int) -> String {
-        var parts: [String] = []
-        if let seconds { parts.append(String(localized: "Thought for \(max(1, Int(seconds.rounded())))s")) }
-        var counts: [String] = []
-        if searches > 0 { counts.append(String(localized: "\(searches) searches")) }
-        if pages > 0 { counts.append(String(localized: "\(pages) pages")) }
-        if !counts.isEmpty { parts.append(counts.joined(separator: ", ")) }
-        return parts.isEmpty ? String(localized: "Thoughts") : parts.joined(separator: " · ")
-    }
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: DS.Spacing.sm) {
-                Image(systemName: searches + pages > 0 ? "globe" : "clock")
+                Image(systemName: summary.searches + summary.pages > 0 ? "globe" : "clock")
                     .font(.system(size: DS.IconSize.md)).foregroundStyle(theme.textSecondary)
-                Text(Self.title(seconds: seconds, searches: searches, pages: pages))
+                Text(summary.title)
                     .font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary).lineLimit(1)
+                    .contentTransition(.numericText())
+                    .animation(DS.Motion.enter, value: summary)
                 Image(systemName: "chevron.right")
                     .font(.system(size: DS.IconSize.sm, weight: .semibold)).foregroundStyle(theme.textTertiary)
+                    .rotationEffect(.degrees(expanded ? 90 : 0))
                 Spacer(minLength: 0)
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityValue(Text(expanded ? "Expanded" : "Collapsed"))
     }
 }
 
@@ -516,8 +478,9 @@ struct SourcesSheet: View {
     ]
     return ScrollView {
         VStack(alignment: .leading, spacing: DS.Spacing.xl) {
-            LiveActivityFeed(label: "Searching", start: .now.addingTimeInterval(-12), entries: entries) {}
-            ActivitySummaryRow(seconds: 4, searches: 2, pages: 3) {}
+            LiveToolsTail(label: "Searching", start: .now.addingTimeInterval(-12), entries: entries) {}
+            ActivitySummaryRow(summary: ProcessSummary(segments: [.init(index: 0, kind: .thinking, text: "x", seconds: 82),
+                                                                 .init(index: 1, kind: .toolRound, calls: [.init(id: "a", name: "web_search", arguments: "{}", result: "", isError: false)])])) {}
             SourcesRow(count: 5) {}
             SourceCard(source: sources[0]) { _ in }
             FlowLayout { SourceChip(host: "github.com"); SourceChip(host: "developer.apple.com"); SourceChip(host: "example.org") }

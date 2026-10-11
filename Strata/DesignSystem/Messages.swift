@@ -149,6 +149,9 @@ struct AssistantContent: Equatable {
     /// Process segments before the final answer, in stream order.
     var segments: [ProcessSegment] = []
     var pending: [PendingToolCall] = []
+    /// The running round's calls in request order, and the ones that finished, for the live tool rows.
+    var roundRequested: [PendingToolCall] = []
+    var roundFinished: [ToolCallRecord] = []
     var isStreaming = false
     var phase: ChatController.Phase = .idle
     var turnStart: Date?
@@ -170,7 +173,17 @@ struct AssistantMessage: View {
     var onOpenSettings: () -> Void = {}
     var onCopyRaw: (() -> Void)?
 
-    private var isLive: Bool { content.isStreaming && !render.markdown.hasContent }
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var tail: MessageLayout.Tail {
+        MessageLayout.tail(isStreaming: content.isStreaming, pendingCount: content.pending.count,
+                           hasRoundText: render.markdown.hasContent)
+    }
+
+    private var items: [MessageLayout.Item] {
+        MessageLayout.items(segmentCount: content.segments.count, tail: tail, isStreaming: content.isStreaming,
+                            hasAnswer: render.markdown.hasContent)
+    }
 
     private var phaseLabel: String {
         switch content.phase {
@@ -179,9 +192,6 @@ struct AssistantMessage: View {
         }
     }
 
-    private var searches: Int { content.calls.filter { $0.name == ToolNames.webSearch }.count }
-    private var pages: Int { content.calls.filter { $0.name == ToolNames.webFetch && $0.fetchOffset == 0 }.count }
-
     /// Visited pages plus cited results, for the "Sources" list.
     private var usedSources: [SourceInfo] {
         var ids: [Int] = content.calls.filter { $0.name == ToolNames.webFetch }.flatMap(\.sourceIDs)
@@ -189,22 +199,34 @@ struct AssistantMessage: View {
         return ids.compactMap { citations.sources[$0] }
     }
 
+    @ViewBuilder
+    private func itemView(_ item: MessageLayout.Item) -> some View {
+        switch item {
+        case .summary:
+            ProcessSummaryBlock(segments: content.segments,
+                                summary: ProcessSummary(segments: content.segments, fallbackSeconds: content.thinkingSeconds),
+                                onOpenTimeline: onOpenTimeline)
+        case .liveThinking:
+            LiveThinkingTail(label: phaseLabel, start: content.turnStart ?? .now, reasoning: render.reasoning, action: onOpenTimeline)
+        case .liveTools:
+            LiveToolsTail(label: phaseLabel, start: content.turnStart ?? .now,
+                          entries: ActivityEntry.roundEntries(requested: content.roundRequested, finished: content.roundFinished,
+                                                              sources: citations.sources),
+                          action: onOpenTimeline)
+        case .text:
+            MarkdownDocumentView(model: render.markdown)
+        case .divider:
+            ProcessDivider()
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            if isLive {
-                LiveActivityFeed(label: phaseLabel, start: content.turnStart ?? .now,
-                                 entries: ActivityEntry.entries(calls: content.calls, pending: content.pending, sources: citations.sources),
-                                 reasoning: render.reasoning, action: onOpenTimeline)
-            } else if !content.segments.isEmpty {
-                ProcessSegmentsView(segments: content.segments, onShowAll: onOpenTimeline)
-                if render.markdown.hasContent { ProcessDivider() }
-            } else if render.reasoning.hasContent || !content.calls.isEmpty {
-                ActivitySummaryRow(seconds: render.reasoning.hasContent ? content.thinkingSeconds : nil,
-                                   searches: searches, pages: pages, action: onOpenTimeline)
+            ForEach(items) { item in
+                itemView(item)
+                    .transition(.enter(reduceMotion: reduceMotion))
             }
-            if render.markdown.hasContent {
-                MarkdownDocumentView(model: render.markdown)
-            }
+            .animation(reduceMotion ? nil : DS.Motion.enter, value: items)
             if content.stopped {
                 Text("Stopped").font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
             }

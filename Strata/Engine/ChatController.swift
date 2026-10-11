@@ -29,6 +29,8 @@ final class ChatController {
     private(set) var pendingCalls: [PendingToolCall] = []
     /// Calls that finished in the round still running, so the live feed keeps them before the round's step is saved.
     private(set) var roundRecords: [ToolCallRecord] = []
+    /// Every call of the running round in request order (finished ones included), for the live tool rows.
+    private(set) var roundRequested: [PendingToolCall] = []
     private(set) var turnStart: Date?
     /// Sources of the running turn (conversation-wide ids), updated as tools finish.
     private(set) var liveSources: [SourceInfo] = []
@@ -293,7 +295,8 @@ final class ChatController {
             tracker.beginRound(n)
             pendingCalls = []
             roundRecords = []
-            phase = n == 0 ? .waiting : .waiting
+            roundRequested = []
+            phase = .waiting
         case .reasoning(let r):
             tracker.addReasoning(r)
             phase = .thinking
@@ -304,6 +307,7 @@ final class ChatController {
             tracker.finishThinking()
             tracker.beginTools(calls)
             pendingCalls = calls.map { PendingToolCall(id: $0.id, name: $0.name, primaryArgument: ToolCallRecord(id: $0.id, name: $0.name, arguments: $0.arguments, result: "", isError: false).primaryArgument, offset: ToolCallRecord.fetchOffset(in: $0.arguments)) }
+            roundRequested = pendingCalls
             if let first = pendingCalls.first { phase = .tool(name: first.name, argument: first.primaryArgument) }
         case .toolFinished(let record):
             tracker.completeTool(record)
@@ -352,6 +356,7 @@ final class ChatController {
         phase = .idle
         pendingCalls = []
         roundRecords = []
+        roundRequested = []
         var autoNaming = true
         #if DEBUG
         autoNaming = DebugHooks.value("StrataNoAutoRename") == nil // keeps request-count smoke tests exact
@@ -442,6 +447,8 @@ final class TurnTracker {
         emitThinking()
         let preamble = roundContent.trimmingCharacters(in: .whitespacesAndNewlines)
         if !preamble.isEmpty { append(.init(index: 0, kind: .text, text: preamble)) }
+        // The round's text now lives in its segment; clearing the model keeps it from showing twice.
+        render.markdown.reset()
         // Force a paragraph boundary so the timeline can place this step after the reasoning so far.
         render.reasoning.beginSection()
         if !reasoningAll.isEmpty && !reasoningAll.hasSuffix("\n\n") { reasoningAll += "\n\n" }

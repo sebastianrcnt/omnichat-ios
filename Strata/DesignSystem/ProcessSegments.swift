@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Thin rule between the process segments and the final answer.
+/// Thin rule between the process summary and the final answer.
 struct ProcessDivider: View {
     @Environment(\.theme) private var theme
     var body: some View {
@@ -10,14 +10,36 @@ struct ProcessDivider: View {
     }
 }
 
-/// What happened before the answer, in stream order: a collapsed row per thinking segment and tool round,
-/// and the preamble text the model wrote in between. Rows expand in place.
-struct ProcessSegmentsView: View {
-    let segments: [ProcessSegment]
-    /// Opens the Timeline sheet (from a thinking row's "Show all").
-    var onShowAll: () -> Void = {}
+extension AnyTransition {
+    /// A block entering: fades in rising a little with a soft blur; Reduce Motion keeps only the fade.
+    /// `index` staggers consecutive children.
+    static func enter(index: Int = 0, reduceMotion: Bool) -> AnyTransition {
+        if reduceMotion { return .opacity }
+        return AnyTransition.opacity
+            .combined(with: .offset(y: 12))
+            .combined(with: AnyTransition(.blurReplace))
+            .animation(DS.Motion.enter.delay(Double(index) * DS.Motion.stagger))
+    }
 
-    /// Debug launch argument `-StrataExpandSegments 1` starts rows expanded (simulator screenshots).
+    /// A live tail folding into the summary: fades and shrinks toward the top.
+    static func fold(reduceMotion: Bool) -> AnyTransition {
+        reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96, anchor: .topLeading))
+    }
+}
+
+/// Everything before the final answer as ONE row ("Thought for 1m 22s . 8 searches . 4 pages"). Tapping expands it
+/// in place into the ordered steps: thinking blocks, search and visit cards, and the text written between rounds.
+struct ProcessSummaryBlock: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let segments: [ProcessSegment]
+    let summary: ProcessSummary
+    var onOpenTimeline: () -> Void = {}
+    @State private var expanded = ProcessSummaryBlock.startsExpanded
+
+    /// Longest list shown inline; beyond it the Timeline sheet has the rest.
+    static let inlineLimit = 12
+
+    /// Debug launch argument `-StrataExpandSegments 1` starts expanded (simulator screenshots).
     static var startsExpanded: Bool {
         #if DEBUG
         DebugHooks.value("StrataExpandSegments") != nil
@@ -26,105 +48,135 @@ struct ProcessSegmentsView: View {
         #endif
     }
 
+    static func visible(_ segments: [ProcessSegment]) -> [ProcessSegment] { Array(segments.prefix(inlineLimit)) }
+
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            ForEach(segments) { segment in
-                switch segment.kind {
-                case .thinking: ThinkingSegmentRow(segment: segment, onShowAll: onShowAll)
-                case .text: PreambleText(text: segment.text)
-                case .toolRound: ToolRoundRow(segment: segment)
+            ActivitySummaryRow(summary: summary, expanded: expanded) {
+                withAnimation(reduceMotion ? nil : DS.Motion.enter) { expanded.toggle() }
+            }
+            if expanded {
+                VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                    ForEach(Array(Self.visible(segments).enumerated()), id: \.element.index) { i, segment in
+                        ProcessSegmentDetail(segment: segment)
+                            .transition(.enter(index: i, reduceMotion: reduceMotion))
+                    }
+                    Button(segments.count > Self.inlineLimit ? "Show all \(segments.count) steps" : "Open timeline", action: onOpenTimeline)
+                        .font(DS.Typography.uiSmall)
+                        .buttonStyle(.plain)
+                        .modifier(AccentText())
+                        .transition(.enter(index: Self.visible(segments).count, reduceMotion: reduceMotion))
                 }
+                .padding(.leading, DS.Spacing.xl)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
-/// Header shared by the expandable rows: icon, title, rotating chevron.
-private struct SegmentHeader: View {
+private struct AccentText: ViewModifier {
     @Environment(\.theme) private var theme
-    let icon: String
-    let title: String
-    let expanded: Bool
+    func body(content: Content) -> some View { content.foregroundStyle(theme.accent) }
+}
+
+/// One step in the expanded list.
+struct ProcessSegmentDetail: View {
+    @Environment(\.citations) private var citations
+    let segment: ProcessSegment
+
+    var body: some View {
+        switch segment.kind {
+        case .thinking:
+            ThinkingCard(text: segment.text, seconds: segment.seconds)
+        case .text:
+            PreambleText(text: segment.text)
+        case .toolRound:
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                ForEach(segment.calls, id: \.id) { call in
+                    ActivityCard(entry: ActivityEntry(call: call, sources: citations.sources))
+                }
+            }
+        }
+    }
+}
+
+/// Raw reasoning as a card, matching the search and visit cards.
+struct ThinkingCard: View {
+    @Environment(\.theme) private var theme
+    let text: String
+    var seconds: Double?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            HStack(spacing: DS.Spacing.sm) {
+                Image(systemName: "clock").font(.system(size: DS.IconSize.sm)).foregroundStyle(theme.textTertiary)
+                Text(seconds.map { String(localized: "Thought for \(ProcessSummary.duration($0))") } ?? String(localized: "Thinking"))
+                    .font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
+            }
+            Text(text)
+                .font(DS.Typography.uiSmall)
+                .lineSpacing(DS.Typography.answerLineSpacing)
+                .foregroundStyle(theme.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(DS.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(theme.surface, in: RoundedRectangle(cornerRadius: DS.Radius.md))
+    }
+}
+
+/// A search or page visit as a card.
+struct ActivityCard: View {
+    @Environment(\.theme) private var theme
+    let entry: ActivityEntry
+
+    var body: some View {
+        ActivityRow(entry: entry, wrapsChips: true)
+            .padding(DS.Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(theme.surface, in: RoundedRectangle(cornerRadius: DS.Radius.md))
+    }
+}
+
+/// The current thought: status line plus the one-line preview. Tapping opens the Timeline.
+struct LiveThinkingTail: View {
+    let label: String
+    let start: Date
+    let reasoning: ReasoningChunkModel
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: DS.Spacing.sm) {
-                Image(systemName: icon).font(.system(size: DS.IconSize.md)).foregroundStyle(theme.textSecondary)
-                Text(title).font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary).lineLimit(1)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: DS.IconSize.sm, weight: .semibold)).foregroundStyle(theme.textTertiary)
-                    .rotationEffect(.degrees(expanded ? 90 : 0))
-                Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                ActivityStatusLine(label: label, start: start)
+                ReasoningLinePreview(model: reasoning, isDimmed: false)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityValue(Text(expanded ? "Expanded" : "Collapsed"))
     }
 }
 
-/// "Thought for 7s"; expands to the raw reasoning, capped at about eight lines, with "Show all".
-struct ThinkingSegmentRow: View {
-    @Environment(\.theme) private var theme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    let segment: ProcessSegment
-    var onShowAll: () -> Void = {}
-    @State private var expanded = ProcessSegmentsView.startsExpanded
-
-    static let lineCap = 8
-
-    static func title(seconds: Double?) -> String {
-        guard let seconds else { return String(localized: "Thought") }
-        return String(localized: "Thought for \(max(1, Int(seconds.rounded())))s")
-    }
+/// Every call of the running tool round, in request order, with its progress.
+struct LiveToolsTail: View {
+    let label: String
+    let start: Date
+    let entries: [ActivityEntry]
+    let action: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-            SegmentHeader(icon: "clock", title: Self.title(seconds: segment.seconds), expanded: expanded) {
-                withAnimation(reduceMotion ? nil : DS.Motion.snappy) { expanded.toggle() }
-            }
-            if expanded {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                ActivityStatusLine(label: label, start: start)
                 VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                    Text(segment.text)
-                        .font(DS.Typography.monoSmall).lineSpacing(DS.Typography.answerLineSpacing)
-                        .foregroundStyle(theme.textSecondary)
-                        .lineLimit(Self.lineCap)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Button("Show all", action: onShowAll)
-                        .font(DS.Typography.uiSmall).foregroundStyle(theme.accent)
+                    ForEach(entries) { ActivityRow(entry: $0) }
                 }
-                .padding(.leading, DS.Spacing.xl)
-                .transition(.opacity)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
-    }
-}
-
-/// "Searched 5 sites"; expands to the queries and a wrapping grid of source chips.
-struct ToolRoundRow: View {
-    @Environment(\.citations) private var citations
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    let segment: ProcessSegment
-    @State private var expanded = ProcessSegmentsView.startsExpanded
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-            SegmentHeader(icon: "globe", title: ProcessSegment.toolTitle(calls: segment.calls), expanded: expanded) {
-                withAnimation(reduceMotion ? nil : DS.Motion.snappy) { expanded.toggle() }
-            }
-            if expanded {
-                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                    ForEach(segment.calls, id: \.id) { call in
-                        ActivityRow(entry: ActivityEntry(call: call, sources: citations.sources), wrapsChips: true)
-                    }
-                }
-                .padding(.leading, DS.Spacing.xl)
-                .transition(.opacity)
-            }
-        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -151,12 +203,13 @@ struct PreambleText: View {
     let sources = [1: SourceInfo(id: 1, title: "Liquid Glass", url: "https://developer.apple.com/docs", snippet: ""),
                    2: SourceInfo(id: 2, title: "HWS", url: "https://www.hackingwithswift.com/", snippet: "")]
     let search = ToolCallRecord(id: "a", name: "web_search", arguments: "{\"query\":\"liquid glass\"}", result: "", isError: false, sourceIDs: [1, 2])
+    let segments: [ProcessSegment] = [
+        .init(index: 0, kind: .thinking, text: "The user wants current information.\n\nI should search first.", seconds: 7),
+        .init(index: 1, kind: .text, text: "Let me look at the official docs."),
+        .init(index: 2, kind: .toolRound, calls: [search]),
+    ]
     return VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-        ProcessSegmentsView(segments: [
-            .init(index: 0, kind: .thinking, text: "The user wants current information.\n\nI should search first.", seconds: 7),
-            .init(index: 1, kind: .text, text: "Let me look at the official docs."),
-            .init(index: 2, kind: .toolRound, calls: [search]),
-        ])
+        ProcessSummaryBlock(segments: segments, summary: ProcessSummary(segments: segments))
         ProcessDivider()
         Text("Final answer").font(DS.Typography.answer)
     }

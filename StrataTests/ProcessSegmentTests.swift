@@ -106,19 +106,16 @@ struct LiveFeedRowTests {
     }
 
     @Test func aRunningEntryKeepsItsIdAndPositionWhenItFinishes() {
-        let running = ActivityEntry.entries(calls: [record("a")], pending: [pending("b")], sources: [:])
-        let finished = ActivityEntry.entries(calls: [record("a"), record("b")], pending: [], sources: [:])
-        #expect(running.map(\.id) == ["a", "b"] && finished.map(\.id) == ["a", "b"])
-        #expect(running[1].isRunning && !finished[1].isRunning)
-        #expect(LiveActivityFeed.visibleEntries(running).map(\.id) == LiveActivityFeed.visibleEntries(finished).map(\.id))
+        let requested = [pending("a"), pending("b"), pending("c")]
+        let running = ActivityEntry.roundEntries(requested: requested, finished: [record("a")], sources: [:])
+        let later = ActivityEntry.roundEntries(requested: requested, finished: [record("c"), record("a")], sources: [:])
+        #expect(running.map(\.id) == ["a", "b", "c"] && later.map(\.id) == ["a", "b", "c"], "request order, whatever finishes first")
+        #expect(running.map(\.isRunning) == [false, true, true] && later.map(\.isRunning) == [false, true, false])
     }
 
-    @Test func visibleRowsAreTheLastTwoRegardlessOfRunningState() {
-        let all = ActivityEntry.entries(calls: [record("a"), record("b")], pending: [pending("c")], sources: [:])
-        #expect(LiveActivityFeed.visibleEntries(all).map(\.id) == ["b", "c"])
-        let done = ActivityEntry.entries(calls: [record("a"), record("b"), record("c")], pending: [], sources: [:])
-        #expect(LiveActivityFeed.visibleEntries(done).map(\.id) == ["b", "c"], "finishing does not change the row count or identity")
-        #expect(LiveActivityFeed.visibleEntries(Array(done.prefix(1))).count == 1)
+    @Test func theRoundShowsEveryCallNotJustTheLastTwo() {
+        let requested = (0..<5).map { pending("p\($0)") }
+        #expect(ActivityEntry.roundEntries(requested: requested, finished: [], sources: [:]).count == 5)
     }
 
     @Test func anIdListedAsFinishedAndRunningAppearsOnce() {
