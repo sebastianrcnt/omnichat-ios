@@ -14,6 +14,9 @@ struct RevealController: Sendable {
     var wordLookback = 10
 
     private(set) var backlog = ""
+    /// Always `backlog.count`. Recomputed from the string after every mutation: counting each received
+    /// chunk separately drifts when a grapheme cluster spans two chunks (combining marks, ZWJ emoji,
+    /// CRLF, Hangul jamo), which used to push the cursor past the end of the buffer.
     private(set) var backlogCount = 0
     private(set) var revealedCount = 0
     private(set) var receivedCount = 0
@@ -28,10 +31,19 @@ struct RevealController: Sendable {
 
     mutating func receive(_ text: String) {
         guard !text.isEmpty else { return }
+        let before = backlogCount
         backlog += text
-        let n = text.count
-        backlogCount += n
-        receivedCount += n
+        backlogCount = backlog.count
+        receivedCount += max(0, backlogCount - before)
+    }
+
+    /// Drop everything queued (the buffer is being replaced, e.g. a new attempt or regenerate).
+    mutating func reset() {
+        backlog = ""
+        backlogCount = 0
+        revealedCount = 0
+        receivedCount = 0
+        drainTicksLeft = nil
     }
 
     /// The stream ended: drain the remaining backlog within `targetLag` (instead of the decaying rate).
@@ -41,7 +53,8 @@ struct RevealController: Sendable {
 
     /// Reveal a slice for this tick. Returns the newly revealed text (possibly empty).
     mutating func tick(dt: Double) -> String {
-        guard backlogCount > 0 else { return "" }
+        guard !backlog.isEmpty else { return "" }
+        backlogCount = backlog.count
         var step: Int
         if let left = drainTicksLeft {
             step = Int((Double(backlogCount) / Double(max(left, 1))).rounded(.up))
@@ -55,12 +68,15 @@ struct RevealController: Sendable {
 
     /// Reveal everything immediately (stream finished, user scrolled up, or tapped stop).
     mutating func flushAll() -> String {
-        guard backlogCount > 0 else { return "" }
-        return take(backlogCount, preferWordBoundary: false)
+        guard !backlog.isEmpty else { return "" }
+        return take(backlog.count, preferWordBoundary: false)
     }
 
     private mutating func take(_ requested: Int, preferWordBoundary: Bool) -> String {
-        var count = requested
+        // Never trust the counters: clamp to what the buffer really holds.
+        backlogCount = backlog.count
+        var count = min(max(0, requested), backlogCount)
+        guard count > 0 else { return "" }
         if preferWordBoundary {
             // Look back from the cut for whitespace; cut right after it so words are not split.
             let prefix = backlog.prefix(count)
@@ -73,11 +89,11 @@ struct RevealController: Sendable {
             }
             if let found, found > 0 { count = found }
         }
-        let end = backlog.index(backlog.startIndex, offsetBy: count)
+        let end = backlog.index(backlog.startIndex, offsetBy: count, limitedBy: backlog.endIndex) ?? backlog.endIndex
         let out = String(backlog[..<end])
         backlog.removeSubrange(..<end)
-        backlogCount -= count
-        revealedCount += count
+        backlogCount = backlog.count
+        revealedCount += out.count
         return out
     }
 }

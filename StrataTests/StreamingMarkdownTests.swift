@@ -374,3 +374,96 @@ struct StreamingModelTests {
         #expect(m.finalized.count == 2 && m.tail == "c")
     }
 }
+
+// MARK: - Crash regressions (EXC_BREAKPOINT in String.index(_:offsetBy:) from flushAll)
+
+struct RevealCrashRegressionTests {
+    /// Grapheme clusters that arrive split across chunks used to make the cursor count exceed the buffer.
+    private static let splitClusters: [[String]] = [
+        ["e", "\u{301}"],                 // base + combining acute
+        ["\r", "\n"],                     // CRLF is one Character
+        ["👨", "\u{200D}", "👩"],          // ZWJ sequence
+        ["🇰", "🇷"],                      // regional indicators pair into one flag
+        ["\u{1112}", "\u{1161}", "\u{11AB}"], // Hangul jamo compose into one syllable
+        ["a", "\u{301}", "\u{302}", "b"],
+    ]
+
+    @Test func flushAllAfterSplitClustersReturnsEverythingWithoutTrapping() {
+        for chunks in Self.splitClusters {
+            var rc = RevealController()
+            for c in chunks { rc.receive(c) }
+            #expect(rc.backlogCount == rc.backlog.count)
+            let out = rc.flushAll()
+            #expect(out == chunks.joined())
+            #expect(!rc.hasBacklog)
+        }
+    }
+
+    @Test func tickingThroughSplitClustersNeverTraps() {
+        for chunks in Self.splitClusters {
+            var rc = RevealController(targetLag: 0.2, minStep: 2)
+            var out = ""
+            for c in chunks { rc.receive(c); out += rc.tick(dt: 0.033) }
+            rc.markEnded(tick: 0.033)
+            var guardCount = 0
+            while rc.hasBacklog, guardCount < 100 { out += rc.tick(dt: 0.033); guardCount += 1 }
+            #expect(out == chunks.joined())
+        }
+    }
+
+    @Test func flushAllAfterResetIsEmptyAndSafe() {
+        var rc = RevealController()
+        rc.receive("hello wörld")
+        _ = rc.tick(dt: 0.033)
+        rc.reset()
+        #expect(rc.flushAll() == "")
+        #expect(rc.backlogCount == 0 && rc.revealedCount == 0)
+        rc.receive("fresh")
+        #expect(rc.flushAll() == "fresh")
+    }
+
+    @Test func cursorNeverExceedsABufferShorterThanItsCounters() {
+        var rc = RevealController()
+        rc.receive("ab")
+        // Even a huge request is clamped to the buffer.
+        #expect(rc.tick(dt: 100) == "ab")
+        #expect(rc.flushAll() == "")
+    }
+}
+
+@MainActor
+struct RevealRecoveryTests {
+    @Test func revealAllAfterResetAndReplacedBuffer() {
+        let model = StreamingMarkdownModel(smoothing: true)
+        model.append("first attempt e")
+        model.append("\u{301} and more")
+        model.reset()                      // new attempt replaces the buffer
+        model.revealAll()                  // must not trap
+        model.append("second ")
+        model.revealAll()
+        #expect(model.text == "second ")
+    }
+
+    @Test func finishWithDifferentFinalTextAfterInterruption() {
+        let model = StreamingMarkdownModel(smoothing: true)
+        model.append("partial 👨")
+        model.append("\u{200D}👩")
+        model.revealAll()
+        // Resume/regenerate: the final text is something else entirely.
+        model.finish(finalText: "Completely different answer.")
+        #expect(model.text == "Completely different answer.")
+        model.revealAll()
+    }
+
+    @Test func messageRenderStateRevealAllAfterRepeatedUse() {
+        let state = MessageRenderState()
+        state.markdown.append("a")
+        state.markdown.append("\u{301}")
+        state.reasoning.append("r")
+        state.reasoning.append("\u{301}")
+        state.revealAll()
+        state.revealAll()
+        state.markdown.reset()
+        state.revealAll()
+    }
+}

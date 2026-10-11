@@ -115,7 +115,11 @@ final class StreamingMarkdownModel {
             freshSpans = freshSpans.filter { now.timeIntervalSince($0.born) <= Self.fadeDuration }
             freshSpans.append(FreshSpan(length: delta.count, born: now))
         }
-        if pipeline == nil { pipeline = Pipeline(model: self, seed: String(text.dropLast(delta.count + reveal.backlogCount))) }
+        if pipeline == nil {
+            // Everything received before this delta, by byte count (Character counts drift across chunk boundaries).
+            let keep = max(0, text.utf8.count - delta.utf8.count - reveal.backlog.utf8.count)
+            pipeline = Pipeline(model: self, seed: String(decoding: text.utf8.prefix(keep), as: UTF8.self))
+        }
         pipeline?.send(.append(delta))
     }
 
