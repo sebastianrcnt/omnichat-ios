@@ -11,7 +11,7 @@ enum CitationParser {
     static let scheme = "strata-cite"
 
     /// Thin space around the label gives the chip background some padding.
-    private static let pad = "\u{2009}"
+    private static let pad = "\u{2002}" // en space: about 6pt at the chip font size
 
     static func citeURL(ids: [Int]) -> String {
         "\(scheme)://" + ids.map(String.init).joined(separator: ",")
@@ -118,9 +118,10 @@ enum CitationParser {
     }
 
     private static func chip(_ ids: [Int], sources: [Int: SourceInfo]) -> String {
-        let first = sources[ids[0]]?.host ?? "source"
-        var label = escape(first)
-        if ids.count > 1 { label += " +\(ids.count - 1)" }
+        let first = sources[ids[0]]?.shortHost ?? "source"
+        // Never wrap inside a chip: non-breaking hyphen and space.
+        var label = escape(first).replacingOccurrences(of: "-", with: "\u{2011}")
+        if ids.count > 1 { label += "\u{00A0}+\(ids.count - 1)" }
         return "[\(pad)\(label)\(pad)](\(citeURL(ids: ids)))"
     }
 

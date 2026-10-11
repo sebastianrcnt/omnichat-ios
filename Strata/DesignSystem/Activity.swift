@@ -16,7 +16,7 @@ struct SourceChip: View {
                 .foregroundStyle(theme.accent)
                 .frame(width: 16, height: 16)
                 .background(theme.accentMuted, in: Circle())
-            Text(host)
+            Text(DomainFormatter.short(host))
                 .font(DS.Typography.uiCaption)
                 .foregroundStyle(theme.textSecondary)
                 .lineLimit(1)
@@ -24,7 +24,8 @@ struct SourceChip: View {
         .padding(.leading, DS.Spacing.xs)
         .padding(.trailing, DS.Spacing.sm)
         .padding(.vertical, DS.Spacing.xs)
-        .background(theme.surfaceRaised, in: Capsule())
+        .background(theme.chipFill, in: Capsule())
+        .fixedSize() // a chip is one unit: it moves to the next line, it never wraps
         if let url { Link(destination: url) { chip } } else { chip }
     }
 }

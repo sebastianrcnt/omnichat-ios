@@ -11,6 +11,9 @@ struct SourceInfo: Codable, Hashable, Identifiable, Sendable {
         guard let h = URL(string: url)?.host(percentEncoded: false) else { return url }
         return h.hasPrefix("www.") ? String(h.dropFirst(4)) : h
     }
+
+    /// Registrable domain for chips (`wikipedia.org`), middle-truncated when long.
+    var shortHost: String { DomainFormatter.short(host) }
 }
 
 /// Assigns conversation-wide source ids. The same URL (ignoring fragment, a trailing slash and case of
