@@ -11,7 +11,18 @@ import Foundation
 /// Canned tool results so the UI can be exercised without the network.
 struct FakeWebTools: ToolExecuting {
     func execute(name: String, arguments: String) async -> ToolOutput {
-        try? await Task.sleep(for: .seconds(1.4))
+        if name == ToolNames.webFetch, let id = ToolContext.callID {
+            // Walks the progress fill the way a real fetch would: loading, settling, extracting.
+            let seconds = Double(DebugHooks.value("StrataFakeFetchSeconds") ?? "") ?? 1.4
+            let steps = 20
+            for i in 1...steps {
+                try? await Task.sleep(for: .seconds(seconds / Double(steps)))
+                let value = Double(i) / Double(steps)
+                await MainActor.run { ToolProgress.shared.report(id, value) }
+            }
+        } else {
+            try? await Task.sleep(for: .seconds(1.4))
+        }
         if name == ToolNames.webSearch {
             return ToolOutput(text: "fake", sources: [
                 SourceCandidate(title: "Applying Liquid Glass to custom views", url: "https://developer.apple.com/documentation/swiftui/applying-liquid-glass-to-custom-views", content: "Configure, combine, and morph views using Liquid Glass effects in SwiftUI."),

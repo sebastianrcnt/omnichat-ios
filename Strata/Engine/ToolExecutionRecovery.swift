@@ -21,8 +21,21 @@ enum ToolExecutionRecovery {
         try Task.checkCancellation()
     }
 
+    /// Runs one call with its id known to the tool (for progress), and finishes its progress fill.
     @MainActor
     static func execute(_ call: ToolCall, using tools: any ToolExecuting) async throws -> ToolOutput {
+        do {
+            let output = try await ToolContext.$callID.withValue(call.id) { try await run(call, using: tools) }
+            ToolProgress.shared.finish(call.id, success: !output.isError)
+            return output
+        } catch {
+            ToolProgress.shared.clear(call.id)
+            throw error
+        }
+    }
+
+    @MainActor
+    private static func run(_ call: ToolCall, using tools: any ToolExecuting) async throws -> ToolOutput {
         guard tools.usesWebKit else { return await tools.execute(name: call.name, arguments: call.arguments) }
         if !ReplyBackgroundExecution.hasContinuedLease { try await waitForForeground() }
         let transitions = Transitions()

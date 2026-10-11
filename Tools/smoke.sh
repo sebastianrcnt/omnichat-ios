@@ -14,6 +14,7 @@ ARGS=(-StrataNoNotifications 1 -StrataMockBaseURL http://127.0.0.1:8765/v1 -Stra
 [ -n "$SHEET" ] && ARGS+=(-StrataOpenSheet "$SHEET")
 [ -n "$BRANCH" ] && ARGS+=(-StrataDebugBranch "$BRANCH")
 [ -n "$PICK_RECENT" ] && ARGS+=(-StrataAutoPickRecent 1)
+[ -n "$FETCH_SECONDS" ] && ARGS+=(-StrataFakeFetchSeconds "$FETCH_SECONDS")
 xcrun simctl launch booted cc.coolservices.strata "${ARGS[@]}" >/dev/null
 sleep "$WAIT"
 xcrun simctl io booted screenshot "$OUT" >/dev/null 2>&1

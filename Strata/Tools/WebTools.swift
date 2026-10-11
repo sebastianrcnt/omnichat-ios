@@ -82,17 +82,33 @@ enum SearchExtractor {
 struct WebSearchTool {
     var engine: SearchEngine
 
+    var timeouts = FetchTimeouts.standard
+
     @MainActor
     func run(query: String) async -> ToolOutput {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty, let url = engine.searchURL(for: q) else {
             return ToolOutput(text: "Error: the search query is empty.", isError: true)
         }
-        let page = HiddenWebView()
-        defer { page.dispose() }
         do {
-            try await page.load(url)
+            return try await Deadline.run(timeouts.overall) { await self.search(url: url, query: q) }
+        } catch is CancellationError {
+            return ToolOutput(text: "Error: cancelled.", isError: true)
+        } catch {
+            return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true)
+        }
+    }
+
+    @MainActor
+    private func search(url: URL, query q: String) async -> ToolOutput {
+        let pool = WebViewPool.shared
+        let page = pool.acquire(reader: false)
+        var reusable = false
+        defer { pool.release(page, reusable: reusable) }
+        do {
+            try await page.load(url, timeout: timeouts.load)
             let results = try await SearchExtractor.extract(engine: engine, from: page)
+            reusable = true
             return ToolOutput(text: SearchFormatter.format(query: q, results: results),
                               sources: results.map { SourceCandidate(title: $0.title, url: $0.url, content: $0.snippet.isEmpty ? $0.title : $0.snippet) })
         } catch {
@@ -203,27 +219,28 @@ struct WebFetchTool {
     var limit: Int = AppSettings.currentFetchLength
     /// Test seam; `nil` loads with the hidden web view.
     var loader: PageLoader?
+    var timeouts = FetchTimeouts.standard
 
-    private static var readabilitySource: String? {
-        for bundle in [Bundle.main] {
-            if let url = bundle.url(forResource: "Readability", withExtension: "js"),
-               let s = try? String(contentsOf: url, encoding: .utf8) { return s }
-        }
-        return nil
+    /// Runs in the page. `Readability` comes from the user script the fetch views carry. The text is cut to
+    /// `maxCharacters` here, so nothing larger is ever sent back to the app.
+    static func extractionScript(maxCharacters: Int) -> String {
+        """
+        (function() {
+          var cap = \(maxCharacters);
+          function clip(t) { t = t || ""; return t.length > cap ? t.slice(0, cap) : t; }
+          function fallback() { return document.body ? document.body.innerText : ""; }
+          try {
+            var article = new Readability(document.cloneNode(true)).parse();
+            if (article && article.textContent && article.textContent.trim().length > 0) {
+              return JSON.stringify({ title: article.title || document.title || "", text: clip(article.textContent), readable: true });
+            }
+          } catch (e) {}
+          return JSON.stringify({ title: document.title || "", text: clip(fallback()), readable: false });
+        })()
+        """
     }
 
-    static let extractionScript = """
-    (function() {
-      function fallback() { return document.body ? document.body.innerText : ""; }
-      try {
-        var article = new Readability(document.cloneNode(true)).parse();
-        if (article && article.textContent && article.textContent.trim().length > 0) {
-          return JSON.stringify({ title: article.title || document.title || "", text: article.textContent, readable: true });
-        }
-      } catch (e) {}
-      return JSON.stringify({ title: document.title || "", text: fallback(), readable: false });
-    })()
-    """
+    static let extractionScript = extractionScript(maxCharacters: FetchPipeline.maxPageCharacters)
 
     /// Validates and rewrites the URL as `web_fetch` does before loading.
     static func prepare(_ raw: String, resolver: any HostResolving) async throws -> URL {
@@ -234,8 +251,21 @@ struct WebFetchTool {
         return rewritten
     }
 
+    /// Fetches a page and returns one slice of its text. The whole call has a deadline (`timeouts.overall`), and
+    /// cancelling it returns at once, whatever phase it is in.
     @MainActor
     func run(urlString: String, offset: Int = 0) async -> ToolOutput {
+        do {
+            return try await Deadline.run(timeouts.overall) { await self.fetchSlice(urlString: urlString, offset: offset) }
+        } catch is CancellationError {
+            return ToolOutput(text: "Error: cancelled.", isError: true)
+        } catch {
+            return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true)
+        }
+    }
+
+    @MainActor
+    private func fetchSlice(urlString: String, offset: Int) async -> ToolOutput {
         let url: URL
         do { url = try await Self.prepare(urlString, resolver: resolver) }
         catch { return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true) }
@@ -248,14 +278,17 @@ struct WebFetchTool {
             page = cached
         } else {
             do {
-                page = try await (loader ?? Self.loadWithWebView(resolver: resolver))(url)
+                page = try await (loader ?? Self.loadWithWebView(resolver: resolver, timeouts: timeouts))(url)
             } catch {
                 return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true)
             }
             cache.store(page, for: url)
         }
 
-        switch PageSlicer.slice(page.text, offset: offset, limit: limit) {
+        // Counting and slicing a long page is not main-thread work.
+        let limit = limit
+        let result = await Task.detached(priority: .userInitiated) { PageSlicer.slice(page.text, offset: offset, limit: limit) }.value
+        switch result {
         case .offsetPastEnd(let off, let total):
             return ToolOutput(text: "Error: offset \(off) is past the end of the page (\(total) characters). Use an offset below \(total).", isError: true)
         case .slice(let body, let footer):
@@ -266,25 +299,21 @@ struct WebFetchTool {
         }
     }
 
-    /// The real loader: hidden web view plus Readability.
+    /// The real loader: a pooled hidden web view plus Readability. Progress goes to `ToolProgress` under the running call's id.
     @MainActor
-    static func loadWithWebView(resolver: any HostResolving) -> PageLoader {
+    static func loadWithWebView(resolver: any HostResolving, timeouts: FetchTimeouts = .standard) -> PageLoader {
         { url in
-            guard let readability = Self.readabilitySource else { throw WebToolError.script("the page reader is missing from the app bundle.") }
-            let page = HiddenWebView(resolver: resolver)
-            defer { page.dispose() }
-            try await page.load(url, timeout: .seconds(15))
-            try? await Task.sleep(for: .milliseconds(600)) // let client-side rendering settle
-            _ = try await page.evaluateString(readability + "\n;'ok'")
-            let json = try await page.evaluateString(Self.extractionScript)
-            struct Extracted: Decodable { var title: String; var text: String }
-            guard let data = json.data(using: .utf8), let e = try? JSONDecoder().decode(Extracted.self, from: data) else {
-                throw WebToolError.script("could not read the page.")
+            guard ReadabilitySource.script != nil else { throw WebToolError.script("the page reader is missing from the app bundle.") }
+            let pool = WebViewPool.shared
+            let view = pool.acquire(reader: true, resolver: resolver)
+            var reusable = false
+            defer { pool.release(view, reusable: reusable) }
+            let id = ToolContext.callID
+            let page = try await FetchPipeline.fetch(url, page: view, timeouts: timeouts) { value in
+                if let id { ToolProgress.shared.report(id, value) }
             }
-            let body = PageTextFormatter.normalizeFull(e.text)
-            if body.isEmpty { throw WebToolError.script("the page has no readable text.") }
-            let finalURL = page.webView.url?.absoluteString ?? url.absoluteString
-            return FetchedPage(title: e.title.trimmingCharacters(in: .whitespacesAndNewlines), url: finalURL, text: body)
+            reusable = true
+            return page
         }
     }
 }

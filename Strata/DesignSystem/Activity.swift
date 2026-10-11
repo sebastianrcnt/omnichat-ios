@@ -3,10 +3,45 @@ import SwiftUI
 // MARK: - Source chips
 
 /// Domain chip with a monogram circle (the host's first letter on an accent-tinted background).
+/// A subtle accent fill that grows from the leading edge of a capsule with `progress`, and an error tint when `isError`.
+/// Nil progress draws no fill; going from a value to nil fades the fill out.
+struct ProgressFill: ViewModifier {
+    @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    var progress: Double?
+    var isError = false
+
+    func body(content: Content) -> some View {
+        content.background {
+            ZStack(alignment: .leading) {
+                if isError { Rectangle().fill(theme.warning.opacity(0.14)) }
+                GeometryReader { geo in
+                    Rectangle()
+                        .fill(theme.accent.opacity(0.18))
+                        .frame(width: geo.size.width * (progress ?? 0))
+                        .animation(reduceMotion ? nil : .linear(duration: 0.18), value: progress)
+                }
+                .opacity(progress == nil ? 0 : 1)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.3), value: progress == nil)
+            }
+            .clipShape(Capsule())
+        }
+    }
+}
+
+extension View {
+    func progressFill(_ progress: Double?, isError: Bool = false) -> some View {
+        modifier(ProgressFill(progress: progress, isError: isError))
+    }
+}
+
 struct SourceChip: View {
     @Environment(\.theme) private var theme
     let host: String
     var url: URL?
+    /// Fetch progress (0...1) while the page loads.
+    var progress: Double?
+    var isError = false
 
     var body: some View {
         let chip = HStack(spacing: DS.Spacing.xs) {
@@ -20,6 +55,7 @@ struct SourceChip: View {
         .padding(.trailing, DS.Spacing.sm)
         .padding(.vertical, DS.Spacing.xs)
         .background(theme.chipFill, in: Capsule())
+        .progressFill(progress, isError: isError)
         .fixedSize() // a chip is one unit: it moves to the next line, it never wraps
         if let url { Link(destination: url) { chip } } else { chip }
     }
@@ -181,15 +217,19 @@ struct ActivityRow: View {
             }
             .animation(reduceMotion ? nil : DS.Motion.enter, value: sources.count)
         case .visit(let url, let host):
+            let progress = ToolProgress.shared.value(for: entry.id)
             HStack(spacing: DS.Spacing.sm) {
                 icon("globe")
                 if wrapsChips, let u = URL(string: url) {
                     Text(entry.isContinuation ? "Read more of" : "Visited").font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary)
-                    SourceChip(host: host, url: u)
+                    SourceChip(host: host, url: u, progress: progress, isError: entry.isError)
                 } else {
                     Text(entry.isContinuation ? "Read more of \(host)" : "Visited \(host)").font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary).lineLimit(1)
+                        .padding(.horizontal, DS.Spacing.sm).padding(.vertical, DS.Spacing.xs)
+                        .progressFill(progress, isError: entry.isError)
+                        .padding(.horizontal, -DS.Spacing.sm).padding(.vertical, -DS.Spacing.xs)
                 }
-                if entry.isRunning { ProgressView().controlSize(.mini) }
+                if entry.isRunning, progress == nil { ProgressView().controlSize(.mini) }
                 Spacer(minLength: 0)
             }
         }
