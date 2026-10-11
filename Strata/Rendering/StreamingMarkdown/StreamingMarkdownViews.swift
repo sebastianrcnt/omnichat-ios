@@ -20,7 +20,7 @@ struct MarkdownDocumentView: View {
     let model: StreamingMarkdownModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.blockSpacing) {
             FinalizedBlocksView(model: model)
             TailBlocksView(model: model)
         }
@@ -167,7 +167,7 @@ struct InlineBlockView: View {
         switch block.kind {
         case .heading(let level):
             InlineMarkdownText(source: Self.headingText(block.text), font: Self.headingFont(level), color: theme.textPrimary,
-                               spans: spans, isOpen: isOpen)
+                               leading: .heading(level), semiboldStrong: false, spans: spans, isOpen: isOpen)
                 .padding(.top, DS.Spacing.sm)
         case .blockquote:
             let body = block.text.split(separator: "\n", omittingEmptySubsequences: false)
@@ -190,13 +190,7 @@ struct InlineBlockView: View {
         return stripped.trimmingCharacters(in: .whitespaces)
     }
 
-    static func headingFont(_ level: Int) -> Font {
-        switch level {
-        case 1: .system(.title2, design: .serif).weight(.semibold)
-        case 2: .system(.title3, design: .serif).weight(.semibold)
-        default: .system(.headline, design: .serif)
-        }
-    }
+    static func headingFont(_ level: Int) -> Font { DS.Typography.heading(level) }
 }
 
 /// Inline Markdown rendered through `AttributedString`, with citation chips, optimistic closing and a
@@ -207,11 +201,14 @@ struct InlineMarkdownText: View {
     let source: String
     let font: Font
     let color: Color
+    var leading: DS.Leading = .answer
+    /// Bold text inside is drawn in the semibold weight of the answer font (not in headings, whose size differs).
+    var semiboldStrong = true
     var spans: [StreamingMarkdownModel.FreshSpan] = []
     var isOpen = false
 
     nonisolated static func attributed(_ source: String, sources: [Int: SourceInfo] = [:], isOpen: Bool = false,
-                                       chipFont: Font = .system(size: 12, weight: .medium),
+                                       chipFont: Font = DS.Typography.chipInline,
                                        chipColor: Color = .secondary, chipBackground: Color = .gray.opacity(0.2)) -> AttributedString {
         var text = TildeEscaper.escape(source)
         text = CitationParser.transform(text, sources: sources, holdBack: isOpen)
@@ -236,8 +233,20 @@ struct InlineMarkdownText: View {
     }
 
     private func make() -> AttributedString {
-        Self.attributed(source, sources: citations.sources, isOpen: isOpen,
-                        chipColor: theme.textSecondary, chipBackground: theme.surfaceRaised)
+        let result = Self.attributed(source, sources: citations.sources, isOpen: isOpen,
+                                     chipColor: theme.textSecondary, chipBackground: theme.surfaceRaised)
+        return semiboldStrong ? Self.withSemiboldStrong(result) : result
+    }
+
+    /// Bold is drawn as Pretendard SemiBold, from the font itself, instead of the heavier Bold that the system picks for
+    /// a bold run. The run keeps its other traits (italic, links).
+    nonisolated static func withSemiboldStrong(_ text: AttributedString, font: Font = DS.Typography.answerEmphasis) -> AttributedString {
+        var out = text
+        for run in text.runs where run.inlinePresentationIntent?.contains(.stronglyEmphasized) == true && run.link?.scheme != CitationParser.scheme {
+            out[run.range].font = font
+            out[run.range].inlinePresentationIntent?.remove(.stronglyEmphasized)
+        }
+        return out
     }
 
     var body: some View {
@@ -258,7 +267,7 @@ struct InlineMarkdownText: View {
         let composed = Self.composed(attributed)
         let base = composed.text
             .font(font)
-            .lineSpacing(DS.Typography.answerLineSpacing)
+            .dsLeading(leading)
             .foregroundStyle(color)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -324,7 +333,7 @@ struct InlineListView: View {
 
     var body: some View {
         let items = Self.items(text)
-        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+        VStack(alignment: .leading, spacing: DS.Spacing.listItem) {
             ForEach(items) { item in
                 HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.sm) {
                     Text(item.marker).font(DS.Typography.answer).foregroundStyle(theme.textSecondary)
@@ -377,7 +386,7 @@ struct ReasoningChunkView: View, Equatable {
     @Environment(\.theme) private var theme
     let chunk: ReasoningChunkModel.Chunk
     var body: some View {
-        Text(chunk.text).font(DS.Typography.uiSmall).lineSpacing(DS.Typography.answerLineSpacing).foregroundStyle(theme.textSecondary)
+        Text(chunk.text).font(DS.Typography.uiSmall).dsLeading(.thinking).foregroundStyle(theme.textSecondary)
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -410,7 +419,7 @@ struct ReasoningTail: View {
     }
 
     private func text(_ s: AttributedString) -> some View {
-        Text(s).font(DS.Typography.uiSmall).lineSpacing(DS.Typography.answerLineSpacing).foregroundStyle(theme.textSecondary)
+        Text(s).font(DS.Typography.uiSmall).dsLeading(.thinking).foregroundStyle(theme.textSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

@@ -104,6 +104,16 @@ TRANSLATE_SAMPLE = (
     "Remember that sorting large collections takes more time than people usually expect."
 )
 
+FONT_SAMPLE = (
+    "## Liquid Glass 사용 가이드\n\n"
+    "Liquid Glass는 **컨트롤과 내비게이션**에만 쓰세요. Apply it to *controls* and bars, never to body text [{a}][{b}]. "
+    "본문 뒤에 깔면 가독성이 떨어지고 줄 간격이 답답해 보입니다.\n\n"
+    "- **그룹화**: 인접한 컨트롤은 `GlassEffectContainer`로 묶습니다 [{c}]\n"
+    "- Keep tint rare: 강조가 필요한 단 하나의 버튼에만\n\n"
+    "```swift\nGlassEffectContainer {{\n    Button(\"저장\") {{ save() }}\n}}\n```\n\n"
+    "In short: **콘텐츠가 주인공**이고 glass is the chrome."
+)
+
 CODE_SAMPLE = """Here are three small examples.
 
 ```swift
@@ -418,7 +428,9 @@ class Handler(BaseHTTPRequestHandler):
             b = ids[1] if len(ids) > 1 else ids[0]
             c = ids[2] if len(ids) > 2 else ids[0]
             self.stream_reasoning(REASONING_2)
-            if "short" in user_text.lower():
+            if "fontsample" in user_text.lower():
+                self.stream_content(FONT_SAMPLE.format(a=a, b=b, c=c))
+            elif "short" in user_text.lower():
                 self.stream_content(f"Apply glass to **controls** only, never to body text [{a}][{b}][{c}].")
             else:
                 self.stream_content(ANSWER.format(a=a, b=b, c=c, unknown=97))

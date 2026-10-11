@@ -51,6 +51,12 @@ targets:
           - cc.coolservices.strata.reply.*
         UIBackgroundModes:
           - processing
+        UIAppFonts:
+          - PretendardVariable.ttf
+          - Pretendard-Regular.otf
+          - Pretendard-Medium.otf
+          - Pretendard-SemiBold.otf
+          - Pretendard-Bold.otf
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
         NSAppTransportSecurity:

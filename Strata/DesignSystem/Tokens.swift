@@ -6,6 +6,8 @@ enum DS {
     // MARK: Spacing
     enum Spacing {
         static let xxs: CGFloat = 2
+        /// Between items of a list in an answer.
+        static let listItem: CGFloat = 6
         static let xs: CGFloat = 4
         static let sm: CGFloat = 8
         static let md: CGFloat = 12
@@ -51,28 +53,94 @@ enum DS {
     }
 
     // MARK: Typography roles
+    /// Pretendard (SIL OFL 1.1), the variable font, registered through `UIAppFonts`. Every text role below uses it;
+    /// only code stays in the system monospaced face. Sizes are the system text styles' sizes at the default Dynamic
+    /// Type setting, and scale with it.
     enum Typography {
-        /// Extra leading for answer and thinking text (about 1.3x to 1.4x line height).
-        static let answerLineSpacing: CGFloat = 3
-        /// Answer body: serif, as in the reference screenshots.
-        static let answer = Font.system(.body, design: .serif)
-        static let answerEmphasis = Font.system(.body, design: .serif).weight(.semibold)
+        /// Family name of the bundled variable font. `Font.weight` selects the weight on it.
+        static let family = "Pretendard Variable"
+        /// PostScript name, for `UIFont(name:)`.
+        static let regularFontName = "PretendardVariable-Regular"
+
+        static func pretendard(_ size: CGFloat, relativeTo style: Font.TextStyle, weight: Font.Weight = .regular) -> Font {
+            Font.custom(family, size: size, relativeTo: style).weight(weight)
+        }
+
+        /// Answer body.
+        static let answer = pretendard(17, relativeTo: .body)
+        static let answerEmphasis = pretendard(17, relativeTo: .body, weight: .semibold)
         /// UI sans for controls and chrome.
-        static let ui = Font.system(.body)
-        static let uiEmphasis = Font.system(.body).weight(.medium)
-        static let uiSmall = Font.system(.subheadline)
-        /// Composer chip label.
-        static let chip = Font.system(size: 15)
-        static let uiCaption = Font.system(.caption)
+        static let ui = pretendard(17, relativeTo: .body)
+        static let uiEmphasis = pretendard(17, relativeTo: .body, weight: .medium)
+        static let uiSmall = pretendard(15, relativeTo: .subheadline)
+        /// Composer chip label (does not scale: the composer's row has a fixed height).
+        static let chip = Font.custom(family, fixedSize: 15)
+        static let uiCaption = pretendard(12, relativeTo: .caption)
         /// Initial in a monogram disc (the favicon fallback).
-        static let monogram = Font.system(size: 10, weight: .bold)
-        static let sectionHeader = Font.system(.footnote).weight(.medium)
-        static let title = Font.system(.headline)
-        static let largeTitle = Font.system(.title2, design: .serif).weight(.medium)
+        static let monogram = Font.custom(family, fixedSize: 10).weight(.bold)
+        static let sectionHeader = pretendard(13, relativeTo: .footnote, weight: .medium)
+        static let title = pretendard(17, relativeTo: .headline, weight: .semibold)
+        static let largeTitle = pretendard(22, relativeTo: .title2, weight: .medium)
+        /// Inline citation chip text.
+        static let chipInline = pretendard(12, relativeTo: .caption, weight: .medium)
+        /// Headings inside an answer.
+        static func heading(_ level: Int) -> Font {
+            switch level {
+            case 1: pretendard(22, relativeTo: .title2, weight: .semibold)
+            case 2: pretendard(20, relativeTo: .title3, weight: .semibold)
+            default: pretendard(17, relativeTo: .headline, weight: .semibold)
+            }
+        }
         /// Code and raw thinking.
         static let mono = Font.system(.callout, design: .monospaced)
         static let monoSmall = Font.system(.footnote, design: .monospaced)
     }
+
+    /// Navigation bar titles and bar buttons are UIKit text: give them Pretendard too.
+    @MainActor
+    static func applyBarAppearance() {
+        func font(_ name: String, _ size: CGFloat) -> UIFont { UIFont(name: name, size: size) ?? .systemFont(ofSize: size) }
+        UINavigationBar.appearance().titleTextAttributes = [.font: font("PretendardVariable-SemiBold", 17)]
+        UINavigationBar.appearance().largeTitleTextAttributes = [.font: font("PretendardVariable-Bold", 30)]
+        let button = [NSAttributedString.Key.font: font("PretendardVariable-Medium", 17)]
+        for state in [UIControl.State.normal, .highlighted, .disabled] {
+            UIBarButtonItem.appearance().setTitleTextAttributes(button, for: state)
+        }
+    }
+
+    /// Line height as a multiple of the font size: Pretendard's own line height is tight (about 1.2), so the gap is
+    /// derived from the font's metrics at the size on screen.
+    struct Leading: Equatable, Sendable {
+        var multiple: CGFloat
+        var size: CGFloat
+        var style: Font.TextStyle
+
+        /// Answer body.
+        static let answer = Leading(multiple: 1.65, size: 17, style: .body)
+        /// Controls, rows, sheets.
+        static let ui = Leading(multiple: 1.4, size: 17, style: .body)
+        /// Thinking cards and timeline text (15 pt).
+        static let thinking = Leading(multiple: 1.55, size: 15, style: .subheadline)
+        static func heading(_ level: Int) -> Leading {
+            switch level {
+            case 1: Leading(multiple: 1.4, size: 22, style: .title2)
+            case 2: Leading(multiple: 1.4, size: 20, style: .title3)
+            default: Leading(multiple: 1.45, size: 17, style: .headline)
+            }
+        }
+
+        /// The extra space between lines, in points, for a font drawn at `size`.
+        static func spacing(multiple: CGFloat, size: CGFloat) -> CGFloat {
+            let lineHeight = UIFont(name: Typography.regularFontName, size: size)?.lineHeight ?? size * 1.2
+            return max(0, multiple * size - lineHeight)
+        }
+
+        /// The same gap as a fraction of the font size (it does not change with the size), for MarkdownUI.
+        var em: CGFloat { max(0, Self.spacing(multiple: multiple, size: 100) / 100) }
+    }
+
+    /// Space between blocks of an answer (paragraphs, lists, code), a little more than the old 12 since lines are looser.
+    static let blockSpacing: CGFloat = 16
 
     // MARK: Motion
     enum Motion {
@@ -234,4 +302,26 @@ private struct TokensPreview: View {
             .padding()
         }
     }
+}
+
+// MARK: - Line spacing
+
+/// Sets the line spacing for a role at the text size on screen (Dynamic Type included).
+private struct LeadingModifier: ViewModifier {
+    let leading: DS.Leading
+    @ScaledMetric private var size: CGFloat
+
+    init(_ leading: DS.Leading) {
+        self.leading = leading
+        _size = ScaledMetric(wrappedValue: leading.size, relativeTo: leading.style)
+    }
+
+    func body(content: Content) -> some View {
+        content.lineSpacing(DS.Leading.spacing(multiple: leading.multiple, size: size))
+    }
+}
+
+extension View {
+    /// Line height for a text role: `.dsLeading(.answer)`.
+    func dsLeading(_ leading: DS.Leading) -> some View { modifier(LeadingModifier(leading)) }
 }

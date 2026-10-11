@@ -11,6 +11,7 @@ struct StrataApp: App {
     init() {
         MemoryPurge.install()
         HighlightService.registerForPurge()
+        DS.applyBarAppearance()
         let settings = AppSettings()
         let connections = ConnectionStore()
         #if DEBUG
@@ -38,6 +39,9 @@ struct StrataApp: App {
                 .environment(controller)
                 .environment(\.theme, DSTheme(accent: settings.accent))
                 .tint(settings.accent)
+                // Text that names no font of its own is Pretendard too, with the UI line height.
+                .font(DS.Typography.ui)
+                .dsLeading(.ui)
                 .modelContainer(container)
         }
     }

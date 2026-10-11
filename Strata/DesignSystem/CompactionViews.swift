@@ -66,7 +66,7 @@ struct CompactionNotesSheet: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             Text(Self.attributed(notes))
                 .font(DS.Typography.uiSmall)
-                .lineSpacing(DS.Typography.answerLineSpacing)
+                .dsLeading(.thinking)
                 .foregroundStyle(theme.textPrimary)
                 .textSelection(.enabled)
                 .padding(DS.Spacing.md)

@@ -8,6 +8,7 @@ struct SettingsView: View {
 
     @State private var path: [UUID] = []
     @State private var showDiagnostics = false
+    @State private var showLicenses = false
 
     var body: some View {
         @Bindable var settings = settings
@@ -64,6 +65,10 @@ struct SettingsView: View {
                                          keyboard: .numberPad)
                     }
 
+                    GroupedSection(header: "About") {
+                        SettingsRow(systemImage: "doc.text", title: "Licenses", showsChevron: true) { showLicenses = true }
+                    }
+
                     GroupedSection(header: "Developer", footer: "Memory, storage, caches and recent requests, with a bundle you can save and share.") {
                         SettingsToggleRow(title: "Developer mode", isOn: $settings.developerMode)
                         if settings.developerMode {
@@ -83,11 +88,13 @@ struct SettingsView: View {
                 ConnectionEditor(connectionID: id, path: $path)
             }
             .navigationDestination(isPresented: $showDiagnostics) { AppDiagnosticsView() }
+            .navigationDestination(isPresented: $showLicenses) { LicensesView() }
         }
         .presentationBackground(theme.background)
         #if DEBUG
         .task {
             if DebugHooks.openSheet == "diagnostics" { settings.developerMode = true; showDiagnostics = true }
+            if DebugHooks.openSheet == "licenses" { showLicenses = true }
         }
         #endif
     }

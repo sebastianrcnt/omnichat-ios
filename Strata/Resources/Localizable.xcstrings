@@ -113,6 +113,7 @@
     },
     "A key is saved in the Keychain. Enter a new one to replace it.": {},
     "API key": {},
+    "About": {},
     "Accent color": {},
     "Active path": {},
     "Active turn": {},
@@ -264,6 +265,7 @@
     "Last flush": {},
     "Last request": {},
     "Last usage": {},
+    "Licenses": {},
     "Live": {},
     "Loading…": {},
     "Low": {},
@@ -303,6 +305,7 @@
     "Open": {},
     "Open Settings": {},
     "Open full screen": {},
+    "Open source": {},
     "Open timeline": {
       "extractionState": "stale"
     },
@@ -406,6 +409,7 @@
     "Stops searching and answers from what has been found": {},
     "Storage": {},
     "Strata": {},
+    "Strata includes these components under their licenses.": {},
     "Strata is replying": {},
     "Stream recovery": {},
     "Streaming": {},

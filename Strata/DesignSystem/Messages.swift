@@ -81,7 +81,7 @@ extension MarkdownUI.Theme {
     static func strata(_ t: DSTheme) -> MarkdownUI.Theme {
         MarkdownUI.Theme()
             .text {
-                FontFamily(.system(.serif))
+                FontFamily(.custom(DS.Typography.family))
                 FontSize(17)
                 ForegroundColor(t.textPrimary)
             }
@@ -96,9 +96,9 @@ extension MarkdownUI.Theme {
             .heading2 { c in c.label.markdownMargin(top: 0, bottom: 0).markdownTextStyle { FontWeight(.semibold); FontSize(.em(1.25)) } }
             .heading3 { c in c.label.markdownMargin(top: 0, bottom: 0).markdownTextStyle { FontWeight(.semibold); FontSize(.em(1.1)) } }
             .paragraph { c in
-                c.label.fixedSize(horizontal: false, vertical: true).relativeLineSpacing(.em(0.25)).markdownMargin(top: 0, bottom: 0)
+                c.label.fixedSize(horizontal: false, vertical: true).relativeLineSpacing(.em(DS.Leading.answer.em)).markdownMargin(top: 0, bottom: 0)
             }
-            .listItem { c in c.label.markdownMargin(top: .em(0.25)) }
+            .listItem { c in c.label.markdownMargin(top: .em(0.35)) }
             .blockquote { c in
                 c.label
                     .markdownTextStyle { ForegroundColor(t.textSecondary) }
@@ -136,13 +136,13 @@ extension MarkdownUI.Theme {
                 c.label
                     .markdownTextStyle {
                         if c.row == 0 { FontWeight(.semibold) }
-                        FontFamily(.system(.default))
+                        FontFamily(.custom(DS.Typography.family))
                         FontSize(.em(0.88))
                     }
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.vertical, DS.Spacing.sm)
                     .padding(.horizontal, DS.Spacing.md)
-                    .relativeLineSpacing(.em(0.2))
+                    .relativeLineSpacing(.em(DS.Leading.ui.em))
             }
     }
 }

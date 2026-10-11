@@ -63,3 +63,10 @@ and numeric `padding`/`cornerRadius`. Remaining literals are deliberate:
 - `Spacing: 0` in stacks (no gap by design) and `.frame` sizes derived from tokens.
 - `SettingsFieldRow` label `minWidth: 84` aligns field columns.
 - Icon `font(.system(size: DS.IconSize.*))` uses the icon tokens above.
+
+## Typography
+
+All text roles in `DS.Typography` are Pretendard (variable font, `Resources/Fonts`, pinned in its README); only `mono` and
+`monoSmall` stay SF Mono. Line height comes from `DS.Leading` (answer 1.65, thinking/timeline 1.55, UI 1.4), turned into a
+line spacing from the font's own metrics at the size on screen: use `.dsLeading(.answer)` instead of `.lineSpacing`.
+Space between answer blocks is `DS.blockSpacing`.

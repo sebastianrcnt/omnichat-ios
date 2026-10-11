@@ -49,7 +49,7 @@ struct ThinkingCard: View {
             }
             Text(ReasoningSpaces.collapse(text))
                 .font(DS.Typography.uiSmall)
-                .lineSpacing(DS.Typography.answerLineSpacing)
+                .dsLeading(.thinking)
                 .foregroundStyle(theme.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
