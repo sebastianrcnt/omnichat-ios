@@ -272,11 +272,12 @@ struct ChatView: View {
                 render: controller.renderState(for: message),
                 onOpenTimeline: { timelineMessage = message },
                 onOpenSources: { sourcesItem = SourceListItem(sources: $0) },
-                onCopy: { UIPasteboard.general.string = message.text },
+                onCopy: { UIPasteboard.general.string = MarkdownPlain.text(from: message.text) },
                 onRegenerate: {
                     if let c = conversation { controller.regenerate(conversation: c, context: context) }
                 },
-                onOpenSettings: onOpenSettings)
+                onOpenSettings: onOpenSettings,
+                onCopyRaw: { UIPasteboard.general.string = message.text })
         }
     }
 

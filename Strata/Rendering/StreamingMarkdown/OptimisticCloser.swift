@@ -1,7 +1,7 @@
 import Foundation
 
 /// Temporarily closes unmatched inline syntax at the end of an open block, so raw markers
-/// (`**`, `*`, `` ` ``, `~~`, `[`) do not flicker while a block is still streaming.
+/// (`**`, `*`, `` ` ``, `[`) do not flicker while a block is still streaming.
 enum OptimisticCloser {
     /// Returns `text` plus whatever closers are needed. Nothing changes for balanced input.
     static func closeInline(_ input: String) -> String {
@@ -12,7 +12,7 @@ enum OptimisticCloser {
             if text.hasSuffix(" ") { text.removeLast() }
         }
         let chars = Array(text)
-        var stack: [String] = []       // "**", "*", "~~"
+        var stack: [String] = []       // "**", "*"
         var codeTicks = 0               // length of the open code span, 0 if none
         var brackets = 0
         var inURL = false
@@ -54,11 +54,6 @@ enum OptimisticCloser {
                     len -= token.count
                 }
                 i = j
-            case "~":
-                if i + 1 < chars.count, chars[i + 1] == "~" {
-                    if let idx = stack.lastIndex(of: "~~") { stack.removeSubrange(idx...) } else { stack.append("~~") }
-                    i += 2
-                } else { i += 1 }
             case "[":
                 if !inURL { brackets += 1 }
                 i += 1

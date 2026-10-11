@@ -167,7 +167,6 @@ struct OptimisticCloserTests {
         ("This is **bold", "This is **bold**"),
         ("This is *it", "This is *it*"),
         ("Use `code", "Use `code`"),
-        ("Strike ~~out", "Strike ~~out~~"),
         ("See [the docs", "See [the docs](#)"),
         ("See [the docs](https://x.y/a", "See [the docs](https://x.y/a)"),
         ("**bold *and italic", "**bold *and italic***"),

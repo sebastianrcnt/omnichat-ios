@@ -108,19 +108,26 @@ extension MarkdownUI.Theme {
 struct MessageActionBar: View {
     @Environment(\.theme) private var theme
     let onCopy: () -> Void
+    var onCopyRaw: (() -> Void)?
     var onRegenerate: (() -> Void)?
     @State private var copied = false
 
+    private func flash() {
+        copied = true
+        Task { try? await Task.sleep(for: .seconds(1.5)); copied = false }
+    }
+
     var body: some View {
         HStack(spacing: DS.Spacing.lg) {
-            Button {
-                onCopy()
-                copied = true
-                Task { try? await Task.sleep(for: .seconds(1.5)); copied = false }
+            Menu {
+                Button("Copy", systemImage: "doc.on.doc") { onCopy(); flash() }
+                if let onCopyRaw {
+                    Button("Copy raw Markdown", systemImage: "chevron.left.forwardslash.chevron.right") { onCopyRaw(); flash() }
+                }
             } label: {
                 Image(systemName: copied ? "checkmark" : "square.on.square")
                     .contentTransition(.symbolEffect(.replace))
-            }
+            } primaryAction: { onCopy(); flash() }
             .accessibilityLabel(Text("Copy"))
             if let onRegenerate {
                 Button(action: onRegenerate) { Image(systemName: "arrow.clockwise") }
@@ -159,6 +166,7 @@ struct AssistantMessage: View {
     var onCopy: () -> Void = {}
     var onRegenerate: () -> Void = {}
     var onOpenSettings: () -> Void = {}
+    var onCopyRaw: (() -> Void)?
 
     private var isLive: Bool { content.isStreaming && !render.markdown.hasContent }
 
@@ -214,7 +222,7 @@ struct AssistantMessage: View {
                 if !used.isEmpty { SourcesRow(count: used.count) { onOpenSources(used) } }
             }
             if !content.isStreaming && (render.markdown.hasContent || content.errorText != nil) {
-                MessageActionBar(onCopy: onCopy, onRegenerate: content.canRegenerate ? onRegenerate : nil)
+                MessageActionBar(onCopy: onCopy, onCopyRaw: onCopyRaw, onRegenerate: content.canRegenerate ? onRegenerate : nil)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

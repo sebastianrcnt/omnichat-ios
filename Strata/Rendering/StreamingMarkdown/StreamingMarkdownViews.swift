@@ -73,7 +73,7 @@ struct MarkdownBlockView: View, Equatable {
         } else if block.kind == .thematicBreak {
             Divider()
         } else {
-            Markdown(block.renderText)
+            Markdown(block.markdownUIText)
                 .markdownTheme(.strata(theme))
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -82,6 +82,13 @@ struct MarkdownBlockView: View, Equatable {
 }
 
 extension MarkdownBlock {
+    /// Source for MarkdownUI: tildes literal; lenient bold unless the block holds fenced code.
+    var markdownUIText: String {
+        let escaped = TildeEscaper.escape(renderText)
+        if kind == .code || renderText.contains("```") || renderText.contains("~~~") { return escaped }
+        return LenientEmphasis.normalize(escaped)
+    }
+
     /// Prose blocks without nested fences, quotes or tables render with the inline renderer.
     var usesInlineRenderer: Bool {
         switch kind {
@@ -203,13 +210,15 @@ struct InlineMarkdownText: View {
     nonisolated static func attributed(_ source: String, sources: [Int: SourceInfo] = [:], isOpen: Bool = false,
                                        chipFont: Font = .system(size: 12, weight: .medium),
                                        chipColor: Color = .secondary, chipBackground: Color = .gray.opacity(0.2)) -> AttributedString {
-        var text = CJKEmphasisFixer.fix(source)
+        var text = TildeEscaper.escape(source)
         text = CitationParser.transform(text, sources: sources, holdBack: isOpen)
-        let closed = isOpen ? OptimisticCloser.closeInline(text) : text
+        text = CJKEmphasisFixer.fix(text)
+        let closed = LenientEmphasis.normalize(isOpen ? OptimisticCloser.closeInline(text) : text)
         let options = AttributedString.MarkdownParsingOptions(allowsExtendedAttributes: false,
                                                               interpretedSyntax: .inlineOnly,
                                                               failurePolicy: .returnPartiallyParsedIfPossible)
         var result = (try? AttributedString(markdown: closed, options: options)) ?? AttributedString(source)
+        result = LenientEmphasis.stripZeroWidth(result)
         // Style citation links as chips.
         var chipRanges: [Range<AttributedString.Index>] = []
         for run in result.runs {
@@ -218,9 +227,7 @@ struct InlineMarkdownText: View {
         for range in chipRanges {
             result[range].font = chipFont
             result[range].foregroundColor = chipColor
-            result[range].backgroundColor = chipBackground
             result[range].underlineStyle = nil
-            result[range].baselineOffset = 1
         }
         return result
     }
@@ -232,17 +239,29 @@ struct InlineMarkdownText: View {
 
     var body: some View {
         if spans.isEmpty {
-            Text(make()).font(font).foregroundStyle(color).textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            styled(make())
         } else {
             TimelineView(.animation) { context in
-                Text(Self.faded(make(), spans: spans, color: color, now: context.date))
-                    .font(font)
-                    .foregroundStyle(color)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                styled(Self.faded(make(), spans: spans, color: color, now: context.date), selectable: false)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func styled(_ attributed: AttributedString, selectable: Bool = true) -> some View {
+        let composed = Self.composed(attributed)
+        let base = composed.text
+            .font(font)
+            .lineSpacing(DS.Typography.answerLineSpacing)
+            .foregroundStyle(color)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        if composed.hasChips {
+            base.textRenderer(ChipTextRenderer(fill: theme.chipFill))
+        } else if selectable {
+            base.textSelection(.enabled)
+        } else {
+            base
         }
     }
 
@@ -277,7 +296,7 @@ struct InlineListView: View {
 
     struct Item: Identifiable { let id: Int; let level: Int; let marker: String; let content: String }
 
-    static func items(_ text: String) -> [Item] {
+    nonisolated static func items(_ text: String) -> [Item] {
         var items: [Item] = []
         for (i, raw) in text.split(separator: "\n", omittingEmptySubsequences: true).enumerated() {
             let line = BlockScanner.Line(raw)
@@ -352,7 +371,7 @@ struct ReasoningChunkView: View, Equatable {
     @Environment(\.theme) private var theme
     let chunk: ReasoningChunkModel.Chunk
     var body: some View {
-        Text(chunk.text).font(DS.Typography.monoSmall).foregroundStyle(theme.textSecondary)
+        Text(chunk.text).font(DS.Typography.monoSmall).lineSpacing(DS.Typography.answerLineSpacing).foregroundStyle(theme.textSecondary)
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -364,7 +383,7 @@ private struct ReasoningTail: View {
     let model: ReasoningChunkModel
     var body: some View {
         if !model.tail.isEmpty {
-            Text(model.tail).font(DS.Typography.monoSmall).foregroundStyle(theme.textSecondary)
+            Text(model.tail).font(DS.Typography.monoSmall).lineSpacing(DS.Typography.answerLineSpacing).foregroundStyle(theme.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }

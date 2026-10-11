@@ -48,6 +48,8 @@ enum DS {
 
     // MARK: Typography roles
     enum Typography {
+        /// Extra leading for answer and thinking text (about 1.3x to 1.4x line height).
+        static let answerLineSpacing: CGFloat = 3
         /// Answer body: serif, as in the reference screenshots.
         static let answer = Font.system(.body, design: .serif)
         static let answerEmphasis = Font.system(.body, design: .serif).weight(.semibold)
@@ -107,6 +109,8 @@ struct DSTheme: Equatable {
     var bubble: Color { Color(light: 0xEDEDF0, dark: 0x2B2B2B) }
     var separator: Color { Color(light: 0xD9D9DE, dark: 0x333333) }
     /// Subtle fill for disabled controls.
+    /// Capsule behind inline citation chips.
+    var chipFill: Color { fillTertiary }
     var fillTertiary: Color { Color(light: 0xE4E4E8, dark: 0x2E2E32) }
 
     // Text
