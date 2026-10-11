@@ -14,8 +14,8 @@ enum ContentPart: Sendable, Equatable {
 }
 
 extension ContentPart: Encodable {
-    private enum CodingKeys: String, CodingKey { case type, text, imageURL = "image_url" }
-    private enum ImageKeys: String, CodingKey { case url }
+    enum CodingKeys: String, CodingKey { case type, text, imageURL = "image_url" }
+    enum ImageKeys: String, CodingKey { case url }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
@@ -57,7 +57,7 @@ struct APIMessage: Sendable, Equatable, Encodable {
         .init(role: "tool", content: .text(content), toolCallID: callID)
     }
 
-    private enum CodingKeys: String, CodingKey {
+    enum CodingKeys: String, CodingKey {
         case role, content, toolCalls = "tool_calls", toolCallID = "tool_call_id"
     }
     private enum CallKeys: String, CodingKey { case id, type, function }
@@ -157,7 +157,7 @@ struct Usage: Codable, Sendable, Equatable {
 
     var totalTokens: Int { promptTokens + completionTokens }
 
-    private enum CodingKeys: String, CodingKey {
+    enum CodingKeys: String, CodingKey {
         case promptTokens = "prompt_tokens"
         case completionTokens = "completion_tokens"
         case promptDetails = "prompt_tokens_details"

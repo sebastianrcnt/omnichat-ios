@@ -45,6 +45,10 @@ targets:
     info:
       path: Strata/Resources/Info.plist
       properties:
+        BGTaskSchedulerPermittedIdentifiers:
+          - cc.coolservices.strata.reply.*
+        UIBackgroundModes:
+          - processing
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
   StrataTests:

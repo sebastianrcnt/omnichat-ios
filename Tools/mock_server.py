@@ -13,10 +13,41 @@ Streaming is deliberately bursty (small and large chunks) and tool-call argument
 No auth is checked; the API key is never logged.
 """
 import json
+import hashlib
+import copy
+import os
+import threading
+import uuid
+from urllib.parse import urlparse, parse_qs
 import re
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+RESUMABLE = "--resumable" in sys.argv
+DROP_AFTER = int(os.environ.get("MOCK_DROP_AFTER", "0"))
+STREAMS = {}
+IDEMPOTENCY = {}
+REGISTRY_LOCK = threading.Lock()
+RETENTION_SECONDS = 1800
+DROP_BEFORE_HEADERS = int(os.environ.get("MOCK_DROP_BEFORE_HEADERS", "0"))
+
+
+def normalize_key(value):
+    if re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", value, re.I | re.ASCII):
+        return value.lower()
+    if re.fullmatch(r"[0-7][0-9A-HJKMNP-TV-Z]{25}", value, re.I | re.ASCII):
+        return value.upper()
+    raise ValueError("Idempotency-Key must be UUIDv4 or ULID")
+
+
+def prune_registry():
+    for rid, stream in list(STREAMS.items()):
+        if stream.finished_at is not None and time.monotonic() - stream.finished_at >= RETENTION_SECONDS:
+            del STREAMS[rid]
+            if stream.key is not None:
+                IDEMPOTENCY.pop((stream.owner, stream.key), None)
+
 
 REASONING_0 = ("The user wants current information, so I should search the web first.\n\n"
                "I will look for official documentation and a good tutorial.\n\n")
@@ -105,7 +136,37 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def owner(self):
+        # Synthetic credentials only: hash for isolation, never log/store their raw value.
+        return hashlib.sha256(self.headers.get("Authorization", self.headers.get("x-api-key", "anonymous")).encode()).digest()
+
     def do_GET(self):
+        parsed = urlparse(self.path)
+        if parsed.path.startswith("/v1/streams/by-key/"):
+            try:
+                key = normalize_key(parsed.path.rsplit("/", 1)[-1])
+            except ValueError as error:
+                return self._json(422, {"error": {"message": str(error)}})
+            with REGISTRY_LOCK:
+                prune_registry()
+                rid = IDEMPOTENCY.get((self.owner(), key))
+                stream = STREAMS.get(rid)
+            if stream is None:
+                return self._json(404, {"error": {"message": "unknown key"}})
+            return self._json(200, {"request_id": rid, "state": stream.state, "last_seq": len(stream.events)})
+        if parsed.path.startswith("/v1/streams/"):
+            rid = parsed.path.split("/")[3]
+            with REGISTRY_LOCK:
+                prune_registry()
+                stream = STREAMS.get(rid)
+            if stream and stream.owner != self.owner():
+                return self._json(403, {"error": {"message": "forbidden"}})
+            if not stream:
+                return self._json(404, {"error": {"message": "expired"}})
+            if parsed.path.endswith("/status"):
+                return self._json(200, {"state": stream.state, "last_seq": len(stream.events)})
+            after = int(parse_qs(parsed.query).get("after", [self.headers.get("Last-Event-ID", "0")])[0])
+            return self.replay(rid, stream, after)
         if self.path.rstrip("/").endswith("/models"):
             self._json(200, {"object": "list", "data": [{"id": "strata-mock", "object": "model", "max_model_len": 262144,
                       "architecture": {"input_modalities": ["text", "image"], "output_modalities": ["text"]}}]})
@@ -113,6 +174,17 @@ class Handler(BaseHTTPRequestHandler):
             self._json(404, {"error": {"message": "not found"}})
 
     def do_POST(self):
+        if self.path.endswith("/cancel"):
+            rid = self.path.split("/")[3]
+            with REGISTRY_LOCK:
+                prune_registry()
+                stream = STREAMS.get(rid)
+            if stream and stream.owner != self.owner():
+                return self._json(403, {"error": {"message": "forbidden"}})
+            if not stream:
+                return self._json(404, {})
+            stream.cancelled = True
+            return self._json(200, {"state": "cancelled", "last_seq": len(stream.events)})
         length = int(self.headers.get("Content-Length", "0"))
         req = json.loads(self.rfile.read(length) or b"{}")
         msgs = req.get("messages", [])
@@ -134,6 +206,48 @@ class Handler(BaseHTTPRequestHandler):
         rounds = sum(1 for m in tail if m.get("role") == "assistant" and m.get("tool_calls"))
         tools_enabled = bool(req.get("tools")) and req.get("tool_choice") != "none"
 
+        if RESUMABLE and self.headers.get("X-Strata-Resumable") == "1":
+            key = self.headers.get("Idempotency-Key")
+            try:
+                if key is not None:
+                    key = normalize_key(key)
+                after = int(self.headers.get("Last-Event-ID", "0"))
+                if after < 0:
+                    raise ValueError("invalid cursor")
+            except ValueError as error:
+                return self._json(422, {"error": {"message": str(error)}})
+            fingerprint = hashlib.sha256(json.dumps(req, sort_keys=True, separators=(",", ":")).encode()).digest()
+            owner = self.owner()
+            with REGISTRY_LOCK:
+                prune_registry()
+                rid = IDEMPOTENCY.get((owner, key)) if key is not None else None
+                stream = STREAMS.get(rid)
+                created = stream is None
+                if stream is not None and stream.fingerprint != fingerprint:
+                    return self._json(422, {"error": {"message": "idempotency conflict"}})
+                if after > (len(stream.events) if stream else 0):
+                    return self._json(400, {"error": {"message": "invalid cursor"}})
+                if created:
+                    rid = "req_" + uuid.uuid4().hex[:24]
+                    stream = ReplayBuffer(owner, key, fingerprint)
+                    STREAMS[rid] = stream
+                    if key is not None:
+                        IDEMPOTENCY[(owner, key)] = rid
+            if created:
+                worker = copy.copy(self)
+                worker.wfile = stream
+                def produce():
+                    try:
+                        worker.generate(req, user_text, tail, rounds, tools_enabled)
+                    except InterruptedError:
+                        stream.state = "cancelled"
+                    finally:
+                        stream.close()
+                threading.Thread(target=produce, daemon=True).start()
+            if not self.before_stream_headers(rid, stream, created):
+                self.close_connection = True
+                return
+            return self.replay(rid, stream, after, drop_after=DROP_AFTER)
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
@@ -141,7 +255,49 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         raw_wfile = self.wfile
         self.wfile = _Chunked(raw_wfile)
+        try:
+            self.generate(req, user_text, tail, rounds, tools_enabled)
+        finally:
+            self.wfile = raw_wfile
 
+    def before_stream_headers(self, rid, stream, created):
+        global DROP_BEFORE_HEADERS
+        with REGISTRY_LOCK:
+            if created and DROP_BEFORE_HEADERS > 0:
+                DROP_BEFORE_HEADERS -= 1
+                return False  # accept generation, then close socket without any response headers
+        return True
+
+    def replay(self, rid, stream, after, drop_after=0):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("X-Billing-Request-Id", rid)
+        self.send_header("Transfer-Encoding", "chunked")
+        self.end_headers()
+        writer = _Chunked(self.wfile)
+        sent = 0
+        try:
+            while True:
+                with stream.condition:
+                    if after >= len(stream.events) and not stream.done:
+                        stream.condition.wait(timeout=1)
+                    events = stream.events[after:]
+                    done = stream.done
+                for event in events:
+                    after += 1
+                    writer.write(f"id: {after}\n".encode() + event)
+                    writer.flush()
+                    sent += 1
+                    if drop_after and sent >= drop_after:
+                        self.close_connection = True
+                        return
+                if done:
+                    writer.close()
+                    return
+        except (BrokenPipeError, ConnectionResetError):
+            self.close_connection = True
+
+    def generate(self, req, user_text, tail, rounds, tools_enabled):
         plain = "plain" in user_text.lower() or not tools_enabled
         prompt_tokens = 400 + 900 * rounds
         if plain:
@@ -173,7 +329,6 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(b"data: [DONE]\n\n")
         self.wfile.flush()
         self.wfile.close()
-        self.wfile = raw_wfile  # keep-alive: the next request on this connection needs the raw writer
 
     def stream_reasoning(self, text):
         for p in pieces(text):
@@ -196,6 +351,39 @@ class Handler(BaseHTTPRequestHandler):
             time.sleep(0.02)
 
 
+class ReplayBuffer:
+    def __init__(self, owner=None, key=None, fingerprint=None):
+        self.owner, self.key, self.fingerprint = owner, key, fingerprint
+        self.finished_at = None
+        self.condition = threading.Condition()
+        self.events = []
+        self.done = False
+        self.cancelled = False
+        self.state = "running"
+
+    def write(self, data):
+        with self.condition:
+            if self.cancelled:
+                raise InterruptedError("cancelled")
+            self.events.append(data)
+            self.condition.notify_all()
+
+    def flush(self):
+        pass
+
+    def close(self):
+        with self.condition:
+            if self.done:
+                return
+            if not self.events or self.events[-1] != b"data: [DONE]\n\n":
+                self.events.append(b"data: [DONE]\n\n")
+            self.done = True
+            self.finished_at = time.monotonic()
+            if self.state == "running":
+                self.state = "done"
+            self.condition.notify_all()
+
+
 class _Chunked:
     """Minimal chunked-transfer writer around the socket file."""
     def __init__(self, raw):
@@ -214,7 +402,7 @@ class _Chunked:
 
 
 if __name__ == "__main__":
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
+    port = next((int(arg) for arg in sys.argv[1:] if arg.isdigit()), 8765)
     srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     print(f"mock gateway on http://127.0.0.1:{port}/v1", flush=True)
     srv.serve_forever()

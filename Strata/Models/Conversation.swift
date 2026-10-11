@@ -94,6 +94,9 @@ final class Message {
     var sortIndex: Int
     var errorText: String?
     var errorNeedsSettings: Bool = false
+    /// Atomic turn checkpoint, including request id, cursor and tool accumulator.
+    @Attribute(.externalStorage) var resumeData: Data?
+    var cancelPending: Bool = false
     var stoppedByUser: Bool
     @Attribute(.externalStorage) var stepsData: Data?
     var conversation: Conversation?

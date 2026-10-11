@@ -62,15 +62,17 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
     var models: [ModelInfo]
     /// Sent as the first (system) message. Empty disables it.
     var systemPrompt: String
+    var supportsResumable: Bool
 
     init(id: UUID = UUID(), name: String, baseURL: String, customHeaders: String = "", models: [ModelInfo] = [],
-         systemPrompt: String = DefaultPrompts.citation) {
+         systemPrompt: String = DefaultPrompts.citation, supportsResumable: Bool? = nil) {
         self.id = id
         self.name = name
         self.baseURL = baseURL
         self.customHeaders = customHeaders
         self.models = models
         self.systemPrompt = systemPrompt
+        self.supportsResumable = supportsResumable ?? (id == Self.strataID)
     }
 
     init(from decoder: Decoder) throws {
@@ -80,6 +82,7 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
         baseURL = try c.decode(String.self, forKey: .baseURL)
         customHeaders = try c.decodeIfPresent(String.self, forKey: .customHeaders) ?? ""
         models = try c.decodeIfPresent([ModelInfo].self, forKey: .models) ?? []
+        supportsResumable = try c.decodeIfPresent(Bool.self, forKey: .supportsResumable) ?? (id == Self.strataID)
         systemPrompt = try c.decodeIfPresent(String.self, forKey: .systemPrompt) ?? DefaultPrompts.citation
     }
 
@@ -128,4 +131,5 @@ struct Endpoint: Sendable {
     var headers: [String: String]
     var model: ModelInfo
     var systemPrompt: String = ""
+    var supportsResumable: Bool = false
 }

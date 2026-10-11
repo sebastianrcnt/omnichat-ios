@@ -288,6 +288,7 @@ struct WebFetchTool {
 
 /// Dispatches model tool calls to the on-device tools.
 struct ToolRouter: ToolExecuting {
+    var usesWebKit: Bool { true }
     func execute(name: String, arguments: String) async -> ToolOutput {
         let args = (arguments.data(using: .utf8).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }) ?? [:]
         switch name {

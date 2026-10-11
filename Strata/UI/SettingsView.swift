@@ -138,6 +138,10 @@ struct ConnectionEditor: View {
                                          multiline: true)
                     }
 
+                    GroupedSection(header: "Stream recovery") {
+                        SettingsToggleRow(title: "Resumable replies", subtitle: "Enable only for gateways supporting Strata stream replay.", isOn: binding(\.supportsResumable, fallback: false))
+                    }
+
                     GroupedSection(header: "API key", footer: hasKey ? "A key is saved in the Keychain. Enter a new one to replace it." : "Pasted keys are stored in the Keychain, never in the app's files.") {
                         SettingsFieldRow(title: "Key", prompt: hasKey ? "Saved" : "sk-…", text: $apiKeyText, isSecure: true)
                         SettingsRow(systemImage: "key", title: "Save key") { saveKey() }

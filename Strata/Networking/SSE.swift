@@ -3,6 +3,7 @@ import Foundation
 struct SSEEvent: Equatable, Sendable {
     var event: String?
     var data: String
+    var id: String? = nil
 }
 
 /// Incremental Server-Sent Events parser. Feed arbitrary byte chunks; complete events come back.
@@ -12,9 +13,12 @@ struct SSEParser: Sendable {
     private var buffer = Data()
     private var dataLines: [String] = []
     private var eventName: String?
+    private var eventID: String?
     private var lastWasCR = false
 
-    init() {}
+    private var includeIDOnlyEvents: Bool
+
+    init(includeIDOnlyEvents: Bool = false) { self.includeIDOnlyEvents = includeIDOnlyEvents }
 
     mutating func feed(_ chunk: Data) -> [SSEEvent] {
         var events: [SSEEvent] = []
@@ -61,13 +65,14 @@ struct SSEParser: Sendable {
         switch field {
         case "data": dataLines.append(value)
         case "event": eventName = value
+        case "id": if !value.contains("\0") { eventID = value }
         default: break
         }
     }
 
     private mutating func dispatch(into events: inout [SSEEvent]) {
-        defer { dataLines.removeAll(); eventName = nil }
-        guard !dataLines.isEmpty else { return }
-        events.append(SSEEvent(event: eventName, data: dataLines.joined(separator: "\n")))
+        defer { dataLines.removeAll(); eventName = nil; eventID = nil }
+        guard !dataLines.isEmpty || (includeIDOnlyEvents && eventID != nil) else { return }
+        events.append(SSEEvent(event: eventName, data: dataLines.joined(separator: "\n"), id: eventID))
     }
 }

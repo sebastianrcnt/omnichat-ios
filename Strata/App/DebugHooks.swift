@@ -43,6 +43,28 @@ enum DebugHooks {
         if let key = value("StrataMockKey") { try? connections.setAPIKey(key, for: Connection.strataID) }
     }
 
+    /// Opt-in simulator smoke artifacts. Never enabled for non-loopback endpoints.
+    @MainActor
+    static func recordResumeSmoke(_ message: Message, checkpoint: TurnCheckpoint? = nil) {
+        guard UserDefaults.standard.bool(forKey: "StrataResumeReport"),
+              let base = value("StrataMockBaseURL"),
+              ["127.0.0.1", "localhost"].contains(URL(string: base)?.host ?? ""),
+              let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        var fields: [String: Any] = ["text": message.text, "reasoning": message.reasoning,
+                                    "stopped": message.stoppedByUser, "steps": message.steps.count,
+                                    "error": message.errorText ?? "", "pending": message.resumeData != nil]
+        if let checkpoint {
+            fields["request_id"] = checkpoint.requestID ?? ""
+            fields["seq"] = checkpoint.lastSequence
+            fields["idempotency_key"] = checkpoint.idempotencyKey ?? ""
+            fields["submission_started"] = checkpoint.submissionStarted
+        }
+        let name = checkpoint == nil ? "resume-completion.json" : "resume-checkpoint.json"
+        if let data = try? JSONSerialization.data(withJSONObject: fields, options: [.sortedKeys]) {
+            try? data.write(to: directory.appendingPathComponent(name), options: .atomic)
+        }
+    }
+
     static var autoSend: String? { value("StrataAutoSend") }
     static var openSheet: String? { value("StrataOpenSheet") }
 }
