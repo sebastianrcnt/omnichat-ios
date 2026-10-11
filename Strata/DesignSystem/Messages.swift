@@ -76,7 +76,31 @@ extension MarkdownUI.Theme {
                 .background(t.surface, in: RoundedRectangle(cornerRadius: DS.Radius.md))
                 .markdownMargin(top: 0, bottom: 0)
             }
-            .table { c in c.label.markdownMargin(top: 0, bottom: 0) }
+            .table { c in
+                // Natural-width columns, horizontally scrollable when wider than the screen.
+                ScrollView(.horizontal) {
+                    c.label
+                        .fixedSize(horizontal: true, vertical: false)
+                        .markdownTableBorderStyle(.init(.horizontalBorders, color: t.separator, width: 1))
+                        .markdownTableBackgroundStyle(.alternatingRows(Color.clear, Color.clear, header: t.fillTertiary))
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
+                .overlay { RoundedRectangle(cornerRadius: DS.Radius.md).stroke(t.separator, lineWidth: 1) }
+                .markdownMargin(top: 0, bottom: 0)
+            }
+            .tableCell { c in
+                c.label
+                    .markdownTextStyle {
+                        if c.row == 0 { FontWeight(.semibold) }
+                        FontFamily(.system(.default))
+                        FontSize(.em(0.88))
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.vertical, DS.Spacing.sm)
+                    .padding(.horizontal, DS.Spacing.md)
+                    .relativeLineSpacing(.em(0.2))
+            }
     }
 }
 

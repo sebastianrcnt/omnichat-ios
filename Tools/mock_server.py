@@ -45,10 +45,10 @@ Button("Send", systemImage: "arrow.up") {{ send() }}
     .buttonStyle(.glassProminent)
 ```
 
-| API | Use |
-|---|---|
-| `glassEffect` | Apply the material |
-| `GlassEffectContainer` | Blend neighbours |
+| API | Use | Notes |
+|---|---|---|
+| `glassEffect` | Apply the material | Only on controls, never on body text or long reading surfaces |
+| `GlassEffectContainer` | Blend neighbours | Groups nearby glass so they merge and morph together |
 
 **한국어 요약:** **"글래스"**는 컨트롤에만 쓰고, **본문(텍스트)**는 유리 위에 올리지 않는 것이 좋습니다 [{a}] [{unknown}].
 """
