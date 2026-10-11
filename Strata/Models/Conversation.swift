@@ -99,6 +99,8 @@ final class Message {
     var cancelPending: Bool = false
     var stoppedByUser: Bool
     @Attribute(.externalStorage) var stepsData: Data?
+    /// Ordered process segments (thinking, preamble text, tool rounds). Nil on messages saved before they existed.
+    @Attribute(.externalStorage) var segmentsData: Data?
     var conversation: Conversation?
     @Relationship(deleteRule: .cascade, inverse: \Attachment.message)
     var attachments: [Attachment] = []
@@ -118,6 +120,15 @@ final class Message {
     var steps: [ToolStep] {
         get { stepsData.flatMap { try? JSONDecoder().decode([ToolStep].self, from: $0) } ?? [] }
         set { stepsData = newValue.isEmpty ? nil : try? JSONEncoder().encode(newValue) }
+    }
+
+    /// Persisted segments, or a derivation from `steps` and `reasoning` for older messages.
+    var segments: [ProcessSegment] {
+        get {
+            if let data = segmentsData, let saved = try? JSONDecoder().decode([ProcessSegment].self, from: data) { return saved }
+            return ProcessSegments.derive(steps: steps, reasoning: reasoning, thinkingSeconds: thinkingSeconds)
+        }
+        set { segmentsData = newValue.isEmpty ? nil : try? JSONEncoder().encode(newValue) }
     }
 
     var sortedAttachments: [Attachment] {

@@ -339,6 +339,11 @@ final class TurnTracker {
     private var stepParagraphs = 0
     private var finishedRecords: [ToolCallRecord] = []
     private(set) var completedSteps: [ToolStep] = []
+    // Ordered process segments, appended as the stream produces them.
+    private var segments: [ProcessSegment] = []
+    private var roundReasoning = ""
+    private var roundSeconds: Double = 0
+    private var thinkingEmitted = false
 
     init(message: Message, conversation: Conversation, render: MessageRenderState, checkpoint: TurnCheckpoint? = nil) {
         self.message = message
@@ -348,12 +353,16 @@ final class TurnTracker {
         reasoningAll = checkpoint?.priorReasoning ?? ""
         if !reasoningAll.isEmpty { render.reasoning.append(reasoningAll) }
         thinkingTotal = message.thinkingSeconds ?? 0
+        if let checkpoint { segments = ProcessSegments.derive(steps: checkpoint.steps, reasoning: checkpoint.priorReasoning) }
     }
 
     func beginRound(_ n: Int) {
         finishThinking()
         roundContent = ""
         roundHasReasoning = false
+        roundReasoning = ""
+        roundSeconds = 0
+        thinkingEmitted = false
         if n > 0 { render.markdown.reset() } // intermediate text lives in the tool step
     }
 
@@ -361,18 +370,22 @@ final class TurnTracker {
         if thinkingStart == nil { thinkingStart = .now }
         roundHasReasoning = true
         reasoningAll += r
+        roundReasoning += r
         render.reasoning.append(r)
     }
 
     func addContent(_ c: String) {
         finishThinking()
+        emitThinking() // the thinking row sits above the answer from its first character
         roundContent += c
         render.markdown.append(c)
     }
 
     func finishThinking() {
         guard let start = thinkingStart else { return }
-        thinkingTotal += (ContinuousClock.now - start).seconds
+        let elapsed = (ContinuousClock.now - start).seconds
+        thinkingTotal += elapsed
+        roundSeconds += elapsed
         thinkingStart = nil
         message.thinkingSeconds = thinkingTotal
     }
@@ -380,6 +393,9 @@ final class TurnTracker {
     func beginTools(_ calls: [ToolCall]) {
         requested = calls
         finishedRecords = []
+        emitThinking()
+        let preamble = roundContent.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !preamble.isEmpty { append(.init(index: 0, kind: .text, text: preamble)) }
         // Force a paragraph boundary so the timeline can place this step after the reasoning so far.
         render.reasoning.beginSection()
         if !reasoningAll.isEmpty && !reasoningAll.hasSuffix("\n\n") { reasoningAll += "\n\n" }
@@ -391,7 +407,24 @@ final class TurnTracker {
         if finishedRecords.count == requested.count {
             completedSteps.append(ToolStep(assistantContent: roundContent, calls: finishedRecords, reasoningParagraphs: stepParagraphs))
             message.steps = completedSteps
+            append(.init(index: 0, kind: .toolRound, calls: finishedRecords))
         }
+    }
+
+    private func append(_ segment: ProcessSegment) {
+        var s = segment
+        s.index = segments.count
+        segments.append(s)
+        message.segments = segments
+    }
+
+    /// The round's reasoning becomes one thinking segment, once.
+    private func emitThinking() {
+        guard !thinkingEmitted else { return }
+        thinkingEmitted = true
+        let text = roundReasoning.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        append(.init(index: 0, kind: .thinking, text: text, seconds: roundSeconds > 0 ? roundSeconds : nil))
     }
 
     /// Persist the final text and reasoning and reconcile the render models.
@@ -399,6 +432,7 @@ final class TurnTracker {
         let text = finalText ?? render.markdown.text
         message.text = text
         message.reasoning = reasoningAll
+        emitThinking()
         render.markdown.finish(finalText: text)
         render.reasoning.revealAll()
     }

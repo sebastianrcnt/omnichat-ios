@@ -5,6 +5,7 @@
 
 GET  /v1/models              -> one model with a context length
 POST /v1/chat/completions    -> SSE stream. Behaviour depends on the conversation:
+  * last user text contains "short"  -> the scripted tool loop with a one-sentence final answer
   * last user text contains "plain"  -> reasoning + a markdown answer, no tools
   * otherwise, scripted tool loop: round 0 = reasoning + web_search tool call,
     round 1 = reasoning + web_fetch tool call, round 2 = final markdown answer that cites the
@@ -306,6 +307,7 @@ class Handler(BaseHTTPRequestHandler):
                      "prompt_tokens_details": {"cached_tokens": 64}, "completion_tokens_details": {"reasoning_tokens": 12}}
         elif rounds == 0:
             self.stream_reasoning(REASONING_0)
+            self.stream_content("Let me search for the official guidance.")
             self.stream_tool_call("call_s1", "web_search", json.dumps({"query": "SwiftUI liquid glass guidelines"}))
             usage = {"prompt_tokens": prompt_tokens, "completion_tokens": 60, "completion_tokens_details": {"reasoning_tokens": 40}}
         elif rounds == 1:
@@ -319,7 +321,10 @@ class Handler(BaseHTTPRequestHandler):
             b = ids[1] if len(ids) > 1 else ids[0]
             c = ids[2] if len(ids) > 2 else ids[0]
             self.stream_reasoning(REASONING_2)
-            self.stream_content(ANSWER.format(a=a, b=b, c=c, unknown=97))
+            if "short" in user_text.lower():
+                self.stream_content(f"Apply glass to **controls** only, never to body text [{a}][{b}][{c}].")
+            else:
+                self.stream_content(ANSWER.format(a=a, b=b, c=c, unknown=97))
             usage = {"prompt_tokens": prompt_tokens, "completion_tokens": 420,
                      "prompt_tokens_details": {"cached_tokens": prompt_tokens - 300},
                      "completion_tokens_details": {"reasoning_tokens": 80}}

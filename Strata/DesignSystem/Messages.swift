@@ -146,6 +146,8 @@ struct MessageActionBar: View {
 struct AssistantContent: Equatable {
     var thinkingSeconds: Double?
     var calls: [ToolCallRecord] = []
+    /// Process segments before the final answer, in stream order.
+    var segments: [ProcessSegment] = []
     var pending: [PendingToolCall] = []
     var isStreaming = false
     var phase: ChatController.Phase = .idle
@@ -193,6 +195,9 @@ struct AssistantMessage: View {
                 LiveActivityFeed(label: phaseLabel, start: content.turnStart ?? .now,
                                  entries: ActivityEntry.entries(calls: content.calls, pending: content.pending, sources: citations.sources),
                                  reasoning: render.reasoning, action: onOpenTimeline)
+            } else if !content.segments.isEmpty {
+                ProcessSegmentsView(segments: content.segments, onShowAll: onOpenTimeline)
+                if render.markdown.hasContent { ProcessDivider() }
             } else if render.reasoning.hasContent || !content.calls.isEmpty {
                 ActivitySummaryRow(seconds: render.reasoning.hasContent ? content.thinkingSeconds : nil,
                                    searches: searches, pages: pages, action: onOpenTimeline)

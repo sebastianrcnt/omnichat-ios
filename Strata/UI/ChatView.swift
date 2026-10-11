@@ -292,6 +292,7 @@ struct ChatView: View {
                 content: AssistantContent(
                     thinkingSeconds: message.thinkingSeconds,
                     calls: message.steps.flatMap(\.calls),
+                    segments: message.segments,
                     pending: active ? controller.pendingCalls : [],
                     isStreaming: active,
                     phase: active ? controller.phase : .idle,
