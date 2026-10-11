@@ -18,6 +18,7 @@ ARGS=(-StrataNoNotifications 1 -StrataMockBaseURL http://127.0.0.1:8765/v1 -Stra
 [ -n "$CONTEXT_WINDOW" ] && ARGS+=(-StrataContextWindow "$CONTEXT_WINDOW")
 [ -n "$PREFERRED_LANG" ] && ARGS+=(-StrataPreferredLanguage "$PREFERRED_LANG")
 [ -n "$FAKE_TRANSLATION" ] && ARGS+=(-StrataFakeTranslation 1 -StrataFakeTranslateSeconds "$FAKE_TRANSLATION")
+[ -n "$TEXT_STEP" ] && ARGS+=(-useSystemTextSize NO -textSizeStep "$TEXT_STEP")
 xcrun simctl launch booted cc.coolservices.strata "${ARGS[@]}" >/dev/null
 sleep "$WAIT"
 xcrun simctl io booted screenshot "$OUT" >/dev/null 2>&1

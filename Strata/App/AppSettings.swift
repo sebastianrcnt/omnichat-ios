@@ -36,6 +36,31 @@ extension Color {
     }
 }
 
+/// The in-app text size: seven steps from xSmall to xxxLarge, or the system's own Dynamic Type setting.
+enum TextSizeSetting {
+    static let sizes: [DynamicTypeSize] = [.xSmall, .small, .medium, .large, .xLarge, .xxLarge, .xxxLarge]
+    /// `.large` is the system default size.
+    static let defaultStep = 3
+
+    static func clamped(_ step: Int) -> Int { min(max(step, 0), sizes.count - 1) }
+    static func size(forStep step: Int) -> DynamicTypeSize { sizes[clamped(step)] }
+
+    /// The size to force on the whole app, or nil to follow the system.
+    static func override(useSystem: Bool, step: Int) -> DynamicTypeSize? { useSystem ? nil : size(forStep: step) }
+
+    static func label(forStep step: Int) -> String {
+        switch clamped(step) {
+        case 0: String(localized: "Extra small")
+        case 1: String(localized: "Small")
+        case 2: String(localized: "Medium")
+        case 3: String(localized: "Default")
+        case 4: String(localized: "Large")
+        case 5: String(localized: "Extra large")
+        default: String(localized: "Largest")
+        }
+    }
+}
+
 /// User preferences persisted in UserDefaults.
 @MainActor
 @Observable
@@ -60,6 +85,10 @@ final class AppSettings {
     var smoothStreaming: Bool { didSet { defaults.set(smoothStreaming, forKey: "smoothStreaming") } }
     /// Shows Settings > Developer > Diagnostics.
     var developerMode: Bool { didSet { defaults.set(developerMode, forKey: "developerMode") } }
+    /// Follow the system's text size (default), or use `textSizeStep`.
+    var useSystemTextSize: Bool { didSet { defaults.set(useSystemTextSize, forKey: "useSystemTextSize") } }
+    /// 0...6, xSmall ... xxxLarge; 3 is the default size.
+    var textSizeStep: Int { didSet { defaults.set(textSizeStep, forKey: "textSizeStep") } }
     var lastEffortRaw: String { didSet { defaults.set(lastEffortRaw, forKey: "lastEffort") } }
 
     init(defaults: UserDefaults = .standard) {
@@ -74,7 +103,14 @@ final class AppSettings {
         smoothStreaming = defaults.object(forKey: "smoothStreaming") as? Bool ?? true
         developerMode = defaults.bool(forKey: "developerMode")
         lastEffortRaw = defaults.string(forKey: "lastEffort") ?? Effort.default.rawValue
+        // `bool` and `integer` also read launch-argument strings ("NO", "0"), which `as? Bool` would not.
+        useSystemTextSize = defaults.object(forKey: "useSystemTextSize") == nil ? true : defaults.bool(forKey: "useSystemTextSize")
+        textSizeStep = defaults.object(forKey: "textSizeStep") == nil
+            ? TextSizeSetting.defaultStep : TextSizeSetting.clamped(defaults.integer(forKey: "textSizeStep"))
     }
+
+    /// Applied at the root; nil leaves Dynamic Type to the system (accessibility sizes included).
+    var dynamicTypeOverride: DynamicTypeSize? { TextSizeSetting.override(useSystem: useSystemTextSize, step: textSizeStep) }
 
     var accent: Color {
         get { Color(hex: accentHex) }

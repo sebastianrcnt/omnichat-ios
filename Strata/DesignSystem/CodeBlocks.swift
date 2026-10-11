@@ -334,7 +334,9 @@ struct CodeViewer: View {
     @State private var highlighted: HighlightedCode?
 
     private static let sizes = 9.0...28.0
-    private var shownSize: Double { pinchSize ?? fontSize }
+    @Environment(\.dynamicTypeSize) private var typeSize
+    /// The chosen size (stored and pinched in base points) times the app's text size.
+    private var shownSize: Double { (pinchSize ?? fontSize) * Double(DS.typeScale(typeSize)) }
 
     var body: some View {
         VStack(spacing: 0) {

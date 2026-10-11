@@ -78,11 +78,11 @@ struct BranchSwitcher: View {
 extension MarkdownUI.Theme {
     /// Markdown theme built from the design tokens.
     @MainActor
-    static func strata(_ t: DSTheme) -> MarkdownUI.Theme {
+    static func strata(_ t: DSTheme, scale: CGFloat = 1) -> MarkdownUI.Theme {
         MarkdownUI.Theme()
             .text {
                 FontFamily(.custom(DS.Typography.family))
-                FontSize(17)
+                FontSize(17 * scale)
                 ForegroundColor(t.textPrimary)
             }
             .code {

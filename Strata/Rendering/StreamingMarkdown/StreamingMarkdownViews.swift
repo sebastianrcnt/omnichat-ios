@@ -32,11 +32,12 @@ struct MarkdownDocumentView: View {
 private struct FinalizedBlocksView: View {
     @Environment(\.theme) private var theme
     @Environment(\.citations) private var citations
+    @Environment(\.dynamicTypeSize) private var typeSize
     let model: StreamingMarkdownModel
 
     var body: some View {
         ForEach(model.finalized) { block in
-            MarkdownBlockView(block: block, theme: theme, citations: citations).equatable()
+            MarkdownBlockView(block: block, theme: theme, citations: citations, typeScale: DS.typeScale(typeSize)).equatable()
         }
     }
 }
@@ -45,6 +46,7 @@ private struct FinalizedBlocksView: View {
 private struct TailBlocksView: View {
     @Environment(\.theme) private var theme
     @Environment(\.citations) private var citations
+    @Environment(\.dynamicTypeSize) private var typeSize
     let model: StreamingMarkdownModel
 
     var body: some View {
@@ -54,7 +56,7 @@ private struct TailBlocksView: View {
                 OpenBlockView(block: block, spans: model.freshSpans)
             } else {
                 // A block followed by another block is stable: full renderer, re-rendered only if its text changes.
-                MarkdownBlockView(block: block, theme: theme, citations: citations).equatable()
+                MarkdownBlockView(block: block, theme: theme, citations: citations, typeScale: DS.typeScale(typeSize)).equatable()
             }
         }
     }
@@ -66,6 +68,8 @@ struct MarkdownBlockView: View, Equatable {
     let block: MarkdownBlock
     let theme: DSTheme
     let citations: CitationContext
+    /// `DS.typeScale` of the text size on screen: MarkdownUI sizes are points, so they are scaled here.
+    var typeScale: CGFloat = 1
 
     var body: some View {
         if block.usesInlineRenderer {
@@ -76,7 +80,7 @@ struct MarkdownBlockView: View, Equatable {
             Divider()
         } else {
             Markdown(block.markdownUIText)
-                .markdownTheme(.strata(theme))
+                .markdownTheme(.strata(theme, scale: typeScale))
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

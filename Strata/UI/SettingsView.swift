@@ -28,6 +28,8 @@ struct SettingsView: View {
                         }
                     }
 
+                    TextSizeSection()
+
                     GroupedSection(header: "Accent color") {
                         accentRow
                         ColorPicker(selection: $settings.accent, supportsOpacity: false) {

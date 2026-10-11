@@ -42,6 +42,7 @@ struct StrataApp: App {
                 // Text that names no font of its own is Pretendard too, with the UI line height.
                 .font(DS.Typography.ui)
                 .dsLeading(.ui)
+                .modifier(TextSizeOverride(size: settings.dynamicTypeOverride))
                 .modelContainer(container)
         }
     }

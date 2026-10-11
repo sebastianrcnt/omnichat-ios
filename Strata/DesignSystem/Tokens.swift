@@ -108,6 +108,28 @@ enum DS {
         }
     }
 
+    /// How much larger than the default (large) size text is at `size`: the system's body-text sizes divided by 17.
+    /// For things that take points, not a text style (MarkdownUI's theme, the code viewer).
+    static func typeScale(_ size: DynamicTypeSize) -> CGFloat {
+        let body: CGFloat
+        switch size {
+        case .xSmall: body = 14
+        case .small: body = 15
+        case .medium: body = 16
+        case .large: body = 17
+        case .xLarge: body = 19
+        case .xxLarge: body = 21
+        case .xxxLarge: body = 23
+        case .accessibility1: body = 28
+        case .accessibility2: body = 33
+        case .accessibility3: body = 40
+        case .accessibility4: body = 47
+        case .accessibility5: body = 53
+        @unknown default: body = 17
+        }
+        return body / 17
+    }
+
     /// Line height as a multiple of the font size: Pretendard's own line height is tight (about 1.2), so the gap is
     /// derived from the font's metrics at the size on screen.
     struct Leading: Equatable, Sendable {
@@ -324,4 +346,54 @@ private struct LeadingModifier: ViewModifier {
 extension View {
     /// Line height for a text role: `.dsLeading(.answer)`.
     func dsLeading(_ leading: DS.Leading) -> some View { modifier(LeadingModifier(leading)) }
+}
+
+/// Forces a Dynamic Type size on the whole app when the person chose one in Settings; otherwise the system decides.
+/// The size is set in the SwiftUI environment at the root and as a trait override on the app's windows, because a sheet
+/// is a separate hosting controller that takes its size from the window, not from the view that presented it.
+struct TextSizeOverride: ViewModifier {
+    let size: DynamicTypeSize?
+
+    func body(content: Content) -> some View {
+        Group {
+            if let size {
+                content.dynamicTypeSize(size)
+            } else {
+                content
+            }
+        }
+        .onChange(of: size, initial: true) { _, new in Self.applyToWindows(new) }
+    }
+
+    static func contentSizeCategory(_ size: DynamicTypeSize) -> UIContentSizeCategory {
+        switch size {
+        case .xSmall: .extraSmall
+        case .small: .small
+        case .medium: .medium
+        case .large: .large
+        case .xLarge: .extraLarge
+        case .xxLarge: .extraExtraLarge
+        case .xxxLarge: .extraExtraExtraLarge
+        case .accessibility1: .accessibilityMedium
+        case .accessibility2: .accessibilityLarge
+        case .accessibility3: .accessibilityExtraLarge
+        case .accessibility4: .accessibilityExtraExtraLarge
+        case .accessibility5: .accessibilityExtraExtraExtraLarge
+        @unknown default: .large
+        }
+    }
+
+    @MainActor
+    static func applyToWindows(_ size: DynamicTypeSize?) {
+        for scene in UIApplication.shared.connectedScenes {
+            guard let windowScene = scene as? UIWindowScene else { continue }
+            for window in windowScene.windows {
+                if let size {
+                    window.traitOverrides.preferredContentSizeCategory = contentSizeCategory(size)
+                } else {
+                    window.traitOverrides.remove(UITraitPreferredContentSizeCategory.self)
+                }
+            }
+        }
+    }
 }

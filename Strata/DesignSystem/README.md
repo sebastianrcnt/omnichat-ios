@@ -70,3 +70,7 @@ All text roles in `DS.Typography` are Pretendard (variable font, `Resources/Font
 `monoSmall` stay SF Mono. Line height comes from `DS.Leading` (answer 1.65, thinking/timeline 1.55, UI 1.4), turned into a
 line spacing from the font's own metrics at the size on screen: use `.dsLeading(.answer)` instead of `.lineSpacing`.
 Space between answer blocks is `DS.blockSpacing`.
+
+Text size: Settings > Appearance can force one of seven Dynamic Type sizes (`TextSizeSetting`); the override is applied by
+`TextSizeOverride` at the root (environment plus a trait override on the windows, so sheets follow). MarkdownUI sizes and
+the code viewer scale with `DS.typeScale(_:)`.
