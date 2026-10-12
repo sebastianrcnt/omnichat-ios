@@ -51,3 +51,16 @@ UI reference: `reference/claude-ios-2026-10-11/`. The README there has per-scree
 ## Open
 
 - Real-device install: free Apple ID (re-sign every 7 days) or a paid developer account (TestFlight).
+
+## macOS app (2026-10-13)
+
+A native Mac target, `StrataMac` (macOS 26, SwiftUI lifecycle, bundle id `cc.coolservices.strata.mac`), builds from the same `Strata/` sources. It is a separate app from the iPhone one (and from the "Designed for iPhone" run): its own sandbox container, its own SwiftData store, its own Keychain items.
+
+- **Build and run**: `xcodebuild -scheme StrataMac -destination 'platform=macOS' -allowProvisioningUpdates build`, or run the `StrataMac` scheme in Xcode. Entitlements: App Sandbox, `network.client`, `files.user-selected.read-only` (image attachments).
+- **Shims**: `DesignSystem/Platform.swift` holds the platform differences (`PlatformImage`, `PlatformColor`, pasteboard, app activation, ImageIO encoding, modifiers that exist on one platform only). Code that only makes sense on iOS (drawer pan, background tasks and the continued-processing lease, memory warnings, in-app Safari, camera and photo strip, trait override) is `#if os(iOS)`; Mac-only code lives in `Strata/Mac/`.
+- **UI**: one `Window` with a `NavigationSplitView` (searchable List sidebar, chat in a 760 pt column, toolbar with context usage and the chat menu), a `Settings` scene, and menu commands (New Chat, Stop Generating, sidebar toggle, Find). The composer is an NSTextView (Return sends, Shift+Return newline, input methods get Return first). Images attach from a file panel, drag and drop, or paste.
+- **Web tools**: the hidden WKWebView lives in a transparent borderless window parked off screen.
+- **Keychain**: the file-based keychain, which works for a sandboxed, development-signed app with no provisioning profile. The data-protection keychain would need a `keychain-access-groups` entitlement and therefore a profile.
+- **Not on the Mac**: the in-app text size section (there is no Dynamic Type), the in-app Safari browser (links open in the default browser), camera and the recent-photos strip, background continuation.
+- **Checks without UI tests** (Debug builds): `-StrataKeychainSelfTest 1`, `-StrataWebSelfTest 1`, `-StrataKeyTest send|newline|marked` print their outcome to stderr; `Tools/sync_strings.py` also reads `build-mac/`.
+

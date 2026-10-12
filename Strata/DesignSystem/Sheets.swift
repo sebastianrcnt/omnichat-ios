@@ -48,6 +48,11 @@ struct SheetScaffold<Trailing: View, Content: View>: View {
         }
         .background(theme.background.ignoresSafeArea())
         .presentationBackground(theme.background)
+        #if os(macOS)
+        // A Mac sheet takes the size of its content: give the phone-style sheets a panel's size, and Escape closes them.
+        .frame(minWidth: 460, idealWidth: 520, minHeight: 440, idealHeight: 620)
+        .background { Button("Close") { dismiss() }.keyboardShortcut(.cancelAction).opacity(0).accessibilityHidden(true) }
+        #endif
         .inAppLinks()
     }
 }
@@ -170,7 +175,13 @@ struct SettingsToggleRow: View {
                     Text(subtitle).font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary)
                 }
             }
+            #if os(macOS)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            #endif
         }
+        #if os(macOS)
+        .toggleStyle(.switch)
+        #endif
         .tint(theme.accent)
         .padding(.horizontal, DS.Spacing.lg)
         .padding(.vertical, DS.Spacing.sm)

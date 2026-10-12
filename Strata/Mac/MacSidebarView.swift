@@ -67,7 +67,7 @@ struct MacSidebarView: View {
 
     private func row(_ conversation: Conversation) -> some View {
         Label {
-            Text(conversation.displayTitle).font(DS.Typography.ui).lineLimit(1)
+            Text(conversation.displayTitle).font(DS.Typography.uiSmall).lineLimit(1)
         } icon: {
             Image(systemName: conversation.isPinned ? "pin" : "bubble.left")
         }

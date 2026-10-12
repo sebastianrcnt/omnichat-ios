@@ -28,13 +28,16 @@ struct SettingsView: View {
                         }
                     }
 
-                    TextSizeSection()
+                    #if os(iOS)
+                    TextSizeSection() // a Mac has no Dynamic Type: text there keeps the size it is designed at
+                    #endif
 
                     GroupedSection(header: "Accent color") {
                         accentRow
                         ColorPicker(selection: $settings.accent, supportsOpacity: false) {
                             Text("Custom color").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, DS.Spacing.lg)
                         .padding(.vertical, DS.Spacing.sm)
                     }
@@ -83,9 +86,11 @@ struct SettingsView: View {
             .background(theme.background.ignoresSafeArea())
             .navigationTitle("Settings")
             .inlineNavigationTitle()
+            #if os(iOS)
             .toolbar {
                 ToolbarItem(placement: .trailingBar) { Button("Done") { dismiss() } }
             }
+            #endif
             .navigationDestination(for: UUID.self) { id in
                 ConnectionEditor(connectionID: id, path: $path)
             }

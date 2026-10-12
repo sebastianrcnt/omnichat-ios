@@ -31,6 +31,7 @@ struct StrataMacApp: App {
                 .strataEnvironment(settings: settings, container: container)
         }
         .defaultSize(width: 1120, height: 800)
+        .windowResizability(.contentMinSize)
         .commands { StrataCommands() }
 
         Settings {

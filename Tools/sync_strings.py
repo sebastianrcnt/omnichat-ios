@@ -2,6 +2,7 @@
 """Merge the strings Xcode extracted at build time into Strata/Resources/Localizable.xcstrings.
 
     xcodebuild -scheme Strata -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath build build
+    xcodebuild -scheme StrataMac -destination 'platform=macOS' -derivedDataPath build-mac build
     python3 Tools/sync_strings.py
 
 Existing entries (translations, comments, plural variations) are kept; new keys are added; keys that
@@ -12,6 +13,8 @@ import glob, json, os, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CATALOG = os.path.join(ROOT, "Strata/Resources/Localizable.xcstrings")
 DATA = glob.glob(os.path.join(ROOT, "build/Build/Intermediates.noindex/Strata.build/*/Strata.build/Objects-normal/*/*.stringsdata"))
+# The Mac target shares the sources and adds a few strings of its own (build it into ./build-mac).
+DATA += glob.glob(os.path.join(ROOT, "build-mac/Build/Intermediates.noindex/Strata.build/*/StrataMac.build/Objects-normal/*/*.stringsdata"))
 
 # Keys that need plural variations: key -> (one, other). `%lld` is the count.
 PLURALS = {
