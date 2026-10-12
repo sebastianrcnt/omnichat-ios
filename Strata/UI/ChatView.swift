@@ -20,6 +20,9 @@ struct ChatView: View {
     @State private var position = ScrollPosition(edge: .bottom)
     @State private var atBottom = true
     @State private var showAttach = false
+    #if os(macOS)
+    @State private var showNoImageSupport = false
+    #endif
     @State private var showModelPicker = false
     @State private var showUsage = false
     @State private var showDetails = false
@@ -111,20 +114,33 @@ struct ChatView: View {
 
     var body: some View {
         messages
+            #if os(iOS)
             .safeAreaBar(edge: .top) { header }
+            #endif
             .safeAreaBar(edge: .bottom) { composer }
             .ignoresKeyboardOnMac()
+            #if os(macOS)
+            .modifier(MacChatChrome(
+                title: conversation?.displayTitle ?? String(localized: "New chat"),
+                subtitle: selection.modelID ?? "",
+                contextFraction: conversation?.lastUsage == nil ? nil : contextFraction,
+                showUsage: $showUsage, showAttach: $showAttach, showNoImageSupport: $showNoImageSupport,
+                onPickImages: addAttachments, onEnableImages: enableImagesForSelectedModel,
+                menu: { menuContent }))
+            #endif
             .overlay(alignment: .bottom) { jumpButton }
             // Where a language that is not installed yet is downloaded and the answer translated.
             .translationTask(controller.translation.configuration) { session in
                 let translator = SessionTranslator(session)
                 await controller.translation.fulfill(translator)
             }
+            #if os(iOS)
             .sheet(isPresented: $showAttach) {
                 AttachSheet(supportsImages: selectedModel?.supportsImages ?? false, modelName: selection.modelID,
                             onPick: addAttachments,
                             onEnableImages: enableImagesForSelectedModel)
             }
+            #endif
             .sheet(isPresented: $showModelPicker) {
                 ModelPickerSheet(
                     selectedConnectionID: selection.connectionID,
@@ -170,7 +186,7 @@ struct ChatView: View {
                 SourcesSheet(title: "Sources", sources: item.sources)
             }
             #if DEBUG
-            .fullScreenCover(isPresented: $debugViewer) {
+            .fullScreenCoverOrSheet(isPresented: $debugViewer) {
                 CodeViewer(content: .init(language: "swift", code: (1...60).map { "let step\($0) = configure(glassEffect: .regular, id: \($0)) // long line to scroll" }.joined(separator: "\n"))).inAppLinks()
             }
             #endif
@@ -210,6 +226,9 @@ struct ChatView: View {
             .task(id: conversation?.id) { // opening a chat: link one saved before branching; leaving one ends an edit
                 cancelEdit()
                 conversation?.ensureTree()
+                #if os(macOS)
+                composerFocused = true // there is no keyboard to summon: the cursor is always ready
+                #endif
             }
             .task {
                 persistAutoSelection()
@@ -224,6 +243,7 @@ struct ChatView: View {
 
     // MARK: Header
 
+    #if os(iOS)
     private var header: some View {
         GlassEffectContainer(spacing: DS.Spacing.sm) {
             HStack(spacing: DS.Spacing.sm) {
@@ -252,6 +272,7 @@ struct ChatView: View {
         // A real surface behind the title: answer text scrolling underneath must never show through it.
         .background(alignment: .top) { HeaderBacking() }
     }
+    #endif
 
     @ViewBuilder
     private var menuContent: some View {
@@ -308,6 +329,9 @@ struct ChatView: View {
             }
             .padding(.horizontal, DS.Spacing.page)
             .padding(.top, DS.Spacing.md)
+            #if os(macOS)
+            .readingColumn()
+            #endif
         }
         .scrollPosition($position)
         .defaultScrollAnchor(.bottom)
@@ -315,7 +339,9 @@ struct ChatView: View {
         .scrollDismissesKeyboard(.interactively)
         .scrollEdgeEffectStyle(.soft, for: .top)
         .scrollEdgeEffectStyle(.soft, for: .bottom)
+        #if os(iOS)
         .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
+        #endif
         .background(theme.background.ignoresSafeArea())
         .environment(\.citations, citationContext)
         .environment(\.openURL, OpenURLAction { url in
@@ -345,7 +371,7 @@ struct ChatView: View {
             MessageBubble(text: message.text, images: ThumbnailBackfill.thumbnails(for: message),
                           branch: branch, branchEnabled: !controller.isStreaming,
                           onSwitchBranch: { switchBranch(message, by: $0) },
-                          onCopy: { UIPasteboard.general.string = message.text },
+                          onCopy: { Pasteboard.copy(message.text) },
                           onEdit: controller.isStreaming ? nil : { beginEdit(message) })
         case .assistant:
             let active = controller.activeMessageID == message.id
@@ -375,12 +401,12 @@ struct ChatView: View {
                 render: controller.renderState(for: message),
                 onOpenTimeline: { timelineMessage = message },
                 onOpenSources: { sourcesItem = SourceListItem(sources: $0) },
-                onCopy: { UIPasteboard.general.string = MarkdownPlain.text(from: shownText) },
+                onCopy: { Pasteboard.copy(MarkdownPlain.text(from: shownText)) },
                 onRegenerate: {
                     if let c = conversation { controller.regenerate(conversation: c, context: context) }
                 },
                 onOpenSettings: onOpenSettings,
-                onCopyRaw: { UIPasteboard.general.string = shownText },
+                onCopyRaw: { Pasteboard.copy(shownText) },
                 onTranslate: { controller.translation.translate(message, context: context, isStreaming: active) },
                 onToggleTranslation: { controller.translation.toggle(message, context: context) },
                 onAnswerNow: { controller.answerNow() },
@@ -449,7 +475,7 @@ struct ChatView: View {
             isStreaming: isStreamingHere,
             isBusy: controller.isStreaming,
             plusDimmed: !(selectedModel?.supportsImages ?? false),
-            onAttach: { composerFocused = false; showAttach = true },
+            onAttach: attach,
             onSend: send,
             onStop: { controller.stop() },
             onCancelEdit: editing == nil ? nil : { withAnimation(DS.Motion.snappy) { cancelEdit() } },
@@ -462,6 +488,18 @@ struct ChatView: View {
                 }
             },
             isFocused: $composerFocused)
+        #if os(macOS)
+        .readingColumn()
+        #endif
+    }
+
+    private func attach() {
+        composerFocused = false
+        #if os(macOS)
+        if selectedModel?.supportsImages ?? false { showAttach = true } else { showNoImageSupport = true }
+        #else
+        showAttach = true
+        #endif
     }
 
     private func send() {

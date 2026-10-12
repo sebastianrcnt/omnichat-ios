@@ -1,5 +1,5 @@
 import Foundation
-import UIKit
+import Foundation
 
 /// Writes a running turn's checkpoint to disk without re-encoding the history on every streamed event.
 ///
@@ -51,7 +51,7 @@ final class CheckpointPersister {
         self.encodeStatic = encodeStatic
         self.write = write
         self.center = center
-        for name in [UIApplication.willResignActiveNotification, UIApplication.didEnterBackgroundNotification] {
+        for name in AppLifecycle.checkpointTriggers {
             observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.flush() }
             })

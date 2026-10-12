@@ -83,6 +83,7 @@ struct ComposerBar<Chip: View>: View {
                     .lineLimit(1...6)
                     .font(DS.Typography.ui)
                     .foregroundStyle(theme.textPrimary)
+                    .unbezeledField()
                     .focused($isFocused)
                     .withoutInputAssistantBar(handle: inputHandle)
                     .returnSends(handle: inputHandle) { // Mac only; same rules as the send button

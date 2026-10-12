@@ -1,6 +1,5 @@
 import Foundation
 import Network
-import UIKit
 
 protocol ResumableChatStreaming: ChatStreaming {
     func stream(_ request: ChatRequest, endpoint: Endpoint, checkpoint: TurnCheckpoint)
@@ -39,7 +38,7 @@ final class RecoverySignals: @unchecked Sendable {
         }
         monitor.start(queue: DispatchQueue(label: "Strata.networkRecovery"))
         self.monitor = monitor
-        observer = NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification,
+        observer = NotificationCenter.default.addObserver(forName: AppLifecycle.didBecomeActive,
                                                           object: nil, queue: nil) { [weak self] _ in self?.signal() }
     }
 

@@ -167,7 +167,7 @@ private struct CodeBlockBody: View {
         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
         .frame(maxWidth: .infinity, alignment: .leading)
         .onLongPressGesture(minimumDuration: 0.6) { if !isStreaming { showViewer = true } }
-        .fullScreenCover(isPresented: $showViewer) { CodeViewer(content: content).inAppLinks() }
+        .fullScreenCoverOrSheet(isPresented: $showViewer) { CodeViewer(content: content).inAppLinks() }
         .task(id: HighlightTrigger(content: content, streaming: isStreaming)) { await loadHighlight() }
     }
 
@@ -283,7 +283,7 @@ private struct CodeBlockBody: View {
     }
 
     private func copy() {
-        UIPasteboard.general.string = content.code
+        Pasteboard.copy(content.code)
         copied = true
         Task { try? await Task.sleep(for: .seconds(1.5)); copied = false }
     }
@@ -365,7 +365,7 @@ struct CodeViewer: View {
             GlassIconButton(systemName: "plus", label: "Larger text") { fontSize = min(Self.sizes.upperBound, fontSize + 1) }
             GlassIconButton(systemName: wrap ? "text.alignleft" : "arrow.left.and.right.text.vertical", label: "Wrap lines") { wrap.toggle() }
             GlassIconButton(systemName: copied ? "checkmark" : "doc.on.doc", label: "Copy") {
-                UIPasteboard.general.string = content.code
+                Pasteboard.copy(content.code)
                 copied = true
                 Task { try? await Task.sleep(for: .seconds(1.5)); copied = false }
             }

@@ -72,6 +72,15 @@ enum ProcessMemory {
         var availableBytes: UInt64
     }
 
+    /// What the system will still give this process. macOS has no such limit, so it reports 0 (shown as a dash).
+    private static var availableMemory: UInt64 {
+        #if os(iOS)
+        UInt64(os_proc_available_memory())
+        #else
+        0
+        #endif
+    }
+
     static func snapshot() -> Snapshot {
         var info = task_vm_info_data_t()
         var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
@@ -83,7 +92,7 @@ enum ProcessMemory {
         let footprint = result == KERN_SUCCESS ? UInt64(info.phys_footprint) : 0
         let ledgerPeak = result == KERN_SUCCESS ? UInt64(info.ledger_phys_footprint_peak) : 0
         let peak = max(ledgerPeak, DiagnosticCounters.shared.notePeak(footprint))
-        return Snapshot(footprintBytes: footprint, peakBytes: peak, availableBytes: UInt64(os_proc_available_memory()))
+        return Snapshot(footprintBytes: footprint, peakBytes: peak, availableBytes: Self.availableMemory)
     }
 }
 

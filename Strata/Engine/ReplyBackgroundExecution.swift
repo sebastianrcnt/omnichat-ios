@@ -1,11 +1,15 @@
+import Foundation
+import UserNotifications
+#if os(iOS)
 import UIKit
 import BackgroundTasks
-import UserNotifications
+#endif
 
 /// One user-started turn, including all of its tool rounds.
 @MainActor
 final class ReplyBackgroundExecution {
     private(set) static var hasContinuedLease = false
+    #if os(iOS)
     private var fallback: UIBackgroundTaskIdentifier = .invalid
     private var continued: BGContinuedProcessingTask?
     private var identifier: String?
@@ -89,6 +93,13 @@ final class ReplyBackgroundExecution {
     private func endFallback() {
         if fallback != .invalid { UIApplication.shared.endBackgroundTask(fallback); fallback = .invalid }
     }
+    #else
+    // A Mac app keeps running while another app is in front: there is no lease to hold.
+    func begin() {}
+    var stateDescription: String { "not needed on macOS" }
+    func advance(by count: Int = 1) {}
+    func end(success: Bool) {}
+    #endif
 
     private static var notificationObserver: NSObjectProtocol?
     private static var deliveringNotification = false
@@ -96,14 +107,14 @@ final class ReplyBackgroundExecution {
 
     static func prepareNotifications() {
         guard notificationObserver == nil else { return }
-        notificationObserver = NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification,
+        notificationObserver = NotificationCenter.default.addObserver(forName: AppLifecycle.didBecomeActive,
                                                                       object: nil, queue: .main) { _ in
             Task { @MainActor in deliverPendingNotification() }
         }
     }
 
     static func notifyCompletion() {
-        guard UIApplication.shared.applicationState != .active else { return }
+        guard !AppLifecycle.isActive else { return }
         UserDefaults.standard.set(true, forKey: notificationPendingKey)
         deliverPendingNotification()
     }
@@ -121,7 +132,7 @@ final class ReplyBackgroundExecution {
             if settings.authorizationStatus == .notDetermined {
                 // iOS cannot show a permission sheet while suspended/backgrounded.
                 // First background completion queues the lazy request for the next active scene.
-                guard UIApplication.shared.applicationState == .active else { return }
+                guard AppLifecycle.isActive else { return }
                 guard (try? await center.requestAuthorization(options: [.alert, .sound])) == true else {
                     UserDefaults.standard.set(false, forKey: notificationPendingKey)
                     return

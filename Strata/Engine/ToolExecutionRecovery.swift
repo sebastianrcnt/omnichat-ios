@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// Read-only WebKit tools can fail while their WebContent process is suspended,
 /// even when the app holds a continued-processing lease. Don't persist that
@@ -15,7 +17,7 @@ enum ToolExecutionRecovery {
     @MainActor
     private static func waitForForeground() async throws {
         // Woken by the foreground signal; the long timeout is only a safety net, not a poll.
-        while UIApplication.shared.applicationState != .active {
+        while !AppLifecycle.isActive {
             try await RecoverySignals.shared.wait(seconds: 30)
         }
         try Task.checkCancellation()
@@ -36,10 +38,14 @@ enum ToolExecutionRecovery {
 
     @MainActor
     private static func run(_ call: ToolCall, using tools: any ToolExecuting) async throws -> ToolOutput {
+        #if os(macOS)
+        // A Mac app is never suspended, so WebKit keeps working while another app is in front.
+        return await tools.execute(name: call.name, arguments: call.arguments)
+        #else
         guard tools.usesWebKit else { return await tools.execute(name: call.name, arguments: call.arguments) }
         if !ReplyBackgroundExecution.hasContinuedLease { try await waitForForeground() }
         let transitions = Transitions()
-        if UIApplication.shared.applicationState != .active { transitions.mark() }
+        if !AppLifecycle.isActive { transitions.mark() }
         let observer = NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification,
                                                               object: nil, queue: nil) { _ in transitions.mark() }
         defer { NotificationCenter.default.removeObserver(observer) }
@@ -50,5 +56,6 @@ enum ToolExecutionRecovery {
             return await tools.execute(name: call.name, arguments: call.arguments)
         }
         return output
+        #endif
     }
 }

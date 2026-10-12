@@ -105,13 +105,13 @@ struct AttachmentThumbnail: View {
     var size: CGFloat = DS.IconSize.thumbnail
     var onRemove: (() -> Void)?
     @Environment(\.displayScale) private var displayScale
-    @State private var image: UIImage?
+    @State private var image: PlatformImage?
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Group {
                 if let image {
-                    Image(uiImage: image).resizable().scaledToFill()
+                    Image(platformImage: image).resizable().scaledToFill()
                 } else {
                     theme.surfaceRaised
                 }
@@ -134,7 +134,7 @@ struct AttachmentThumbnail: View {
             let scale = displayScale
             let d = data
             image = await Task.detached {
-                UIImage(data: d)?.preparingThumbnail(of: CGSize(width: size * scale * 2, height: size * scale * 2))
+                PlatformImage.thumbnail(from: d, fitting: CGSize(width: size * scale * 2, height: size * scale * 2))
             }.value
         }
     }
@@ -166,11 +166,13 @@ struct AttachmentThumbnail: View {
     .padding()
 }
 
-@MainActor private func previewJPEG(_ color: UIColor) -> Data {
-    let renderer = UIGraphicsImageRenderer(size: CGSize(width: 96, height: 96))
-    return renderer.jpegData(withCompressionQuality: 0.8) { ctx in
-        color.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: 96, height: 96))
-    }
+@MainActor private func previewJPEG(_ color: PlatformColor) -> Data {
+    let context = CGContext(data: nil, width: 96, height: 96, bitsPerComponent: 8, bytesPerRow: 0,
+                            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
+    let (r, g, b, _) = color.rgbaComponents
+    context?.setFillColor(red: r, green: g, blue: b, alpha: 1)
+    context?.fill(CGRect(x: 0, y: 0, width: 96, height: 96))
+    return context?.makeImage().flatMap { ImageEncoding.jpegData(from: $0, quality: 0.8) } ?? Data()
 }
 
 /// Circular glass button that opens a menu.

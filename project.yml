@@ -61,6 +61,39 @@ targets:
         LSSupportsOpeningDocumentsInPlace: true
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+  StrataMac:
+    type: application
+    platform: macOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: Strata
+        excludes:
+          - "**/*.md"
+          - Resources/Info.plist
+    dependencies:
+      - package: MarkdownUI
+    entitlements:
+      path: StrataMac/Strata.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.network.client: true
+        com.apple.security.files.user-selected.read-only: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cc.coolservices.strata.mac
+        PRODUCT_NAME: Strata
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+        ENABLE_HARDENED_RUNTIME: YES
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Strata
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        SWIFT_EMIT_LOC_STRINGS: YES
+    info:
+      path: StrataMac/Info.plist
+      properties:
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
   StrataTests:
     type: bundle.unit-test
     platform: iOS
@@ -75,6 +108,10 @@ targets:
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/Strata.app/Strata
         BUNDLE_LOADER: $(TEST_HOST)
 schemes:
+  StrataMac:
+    build:
+      targets:
+        StrataMac: all
   Strata:
     build:
       targets:

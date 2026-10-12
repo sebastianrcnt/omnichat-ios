@@ -179,7 +179,7 @@ final class TranslationService {
 
     static func configuration(source: String, target: String) -> TranslationSession.Configuration {
         let from = Locale.Language(identifier: source), to = Locale.Language(identifier: target)
-        if #available(iOS 26.4, *) {
+        if #available(iOS 26.4, macOS 26.4, *) {
             return TranslationSession.Configuration(source: from, target: to, preferredStrategy: .highFidelity)
         }
         return TranslationSession.Configuration(source: from, target: to)
@@ -188,7 +188,7 @@ final class TranslationService {
     static func systemAvailability(source: String, target: String) async -> Availability {
         let from = Locale.Language(identifier: source), to = Locale.Language(identifier: target)
         let status: LanguageAvailability.Status
-        if #available(iOS 26.4, *) {
+        if #available(iOS 26.4, macOS 26.4, *) {
             status = await LanguageAvailability(preferredStrategy: .highFidelity).status(from: from, to: to)
         } else {
             status = await LanguageAvailability().status(from: from, to: to)
@@ -202,7 +202,7 @@ final class TranslationService {
 
     static func systemTranslator(source: String, target: String) -> any TextTranslating {
         let from = Locale.Language(identifier: source), to = Locale.Language(identifier: target)
-        if #available(iOS 26.4, *) {
+        if #available(iOS 26.4, macOS 26.4, *) {
             return SessionTranslator(TranslationSession(installedSource: from, target: to, preferredStrategy: .highFidelity))
         }
         return SessionTranslator(TranslationSession(installedSource: from, target: to))

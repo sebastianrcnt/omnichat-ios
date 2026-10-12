@@ -1,16 +1,23 @@
-import UIKit
+import Foundation
+import CoreGraphics
 import ImageIO
+#if canImport(UIKit)
+import UIKit
+#else
+import AppKit
+#endif
 
 enum ImageProcessor {
     static let maxLongSide: CGFloat = 1568
     static let jpegQuality: CGFloat = 0.8
 
     /// Downscale so the long side is at most `maxLongSide`, and encode as JPEG.
-    static func jpegData(from image: UIImage, maxLongSide: CGFloat = maxLongSide, quality: CGFloat = jpegQuality) -> Data? {
+    static func jpegData(from image: PlatformImage, maxLongSide: CGFloat = maxLongSide, quality: CGFloat = jpegQuality) -> Data? {
         let size = image.size
         guard size.width > 0, size.height > 0 else { return nil }
         let scale = min(1, maxLongSide / max(size.width, size.height))
         let target = CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
+        #if canImport(UIKit)
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = 1
         format.opaque = true
@@ -20,10 +27,21 @@ enum ImageProcessor {
             image.draw(in: CGRect(origin: .zero, size: target))
         }
         return rendered.jpegData(compressionQuality: quality)
+        #else
+        guard let cg = image.cgImageRepresentation,
+              let context = CGContext(data: nil, width: Int(target.width), height: Int(target.height), bitsPerComponent: 8,
+                                      bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
+        context.interpolationQuality = .high
+        context.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
+        context.fill(CGRect(origin: .zero, size: target))
+        context.draw(cg, in: CGRect(origin: .zero, size: target))
+        return context.makeImage().flatMap { ImageEncoding.jpegData(from: $0, quality: quality) }
+        #endif
     }
 
     static func jpegData(from data: Data) -> Data? {
-        guard let image = UIImage(data: data) else { return nil }
+        guard let image = PlatformImage(data: data) else { return nil }
         return jpegData(from: image)
     }
 
@@ -40,6 +58,10 @@ enum ImageProcessor {
             kCGImageSourceThumbnailMaxPixelSize: longSide,
         ]
         guard let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        #if canImport(UIKit)
         return UIImage(cgImage: cg).jpegData(compressionQuality: quality)
+        #else
+        return ImageEncoding.jpegData(from: cg, quality: quality)
+        #endif
     }
 }

@@ -31,7 +31,7 @@ struct MessageBubble: View {
                         .padding(.horizontal, DS.Spacing.lg)
                         .padding(.vertical, DS.Spacing.md)
                         .background(theme.bubble, in: RoundedRectangle(cornerRadius: DS.Radius.bubble))
-                        .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: DS.Radius.bubble))
+                        .bubbleContextMenuShape()
                         .contextMenu {
                             if let onCopy { Button("Copy", systemImage: "doc.on.doc", action: onCopy) }
                             if let onEdit { Button("Edit", systemImage: "pencil", action: onEdit) }
@@ -479,4 +479,15 @@ struct TranslationBanner: View {
         .padding()
     }
     .environment(\.citations, CitationContext(sources: sources))
+}
+
+private extension View {
+    /// The rounded outline the context menu lifts on iOS. (A Mac menu has no preview.)
+    func bubbleContextMenuShape() -> some View {
+        #if os(iOS)
+        contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: DS.Radius.bubble))
+        #else
+        self
+        #endif
+    }
 }

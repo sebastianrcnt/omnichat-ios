@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 
+#if os(iOS)
 @main
 struct StrataApp: App {
     private let container: ModelContainer
@@ -35,3 +36,4 @@ struct StrataApp: App {
         }
     }
 }
+#endif

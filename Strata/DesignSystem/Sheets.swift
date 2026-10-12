@@ -184,7 +184,7 @@ struct SettingsFieldRow: View {
     var prompt: LocalizedStringKey = ""
     @Binding var text: String
     var isSecure = false
-    var keyboard: UIKeyboardType = .default
+    var keyboard: KeyboardKind = .standard
     var multiline = false
 
     var body: some View {
@@ -203,9 +203,8 @@ struct SettingsFieldRow: View {
             .font(DS.Typography.ui)
             .foregroundStyle(theme.textPrimary)
             .multilineTextAlignment(.trailing)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .keyboardType(keyboard)
+            .unbezeledField()
+            .plainTextInput(keyboard: keyboard)
             .withoutInputAssistantBar()
         }
         .padding(.horizontal, DS.Spacing.lg)

@@ -64,7 +64,7 @@ struct LicensesView: View {
         }
         .background(theme.background.ignoresSafeArea())
         .navigationTitle("Licenses")
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
         .navigationDestination(for: LicenseEntry.self) { LicenseDetail(entry: $0) }
     }
 }
@@ -93,6 +93,6 @@ private struct LicenseDetail: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(theme.background.ignoresSafeArea())
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
     }
 }

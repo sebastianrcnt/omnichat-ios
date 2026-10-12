@@ -13,12 +13,14 @@ enum DiagnosticsFormat {
     static func time(_ date: Date) -> String { date.formatted(date: .omitted, time: .standard) }
 }
 
+#if canImport(UIKit)
 /// The system share sheet for a file or folder.
 struct ShareSheet: UIViewControllerRepresentable {
     let url: URL
     func makeUIViewController(context: Context) -> UIActivityViewController { UIActivityViewController(activityItems: [url], applicationActivities: nil) }
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
+#endif
 
 /// "Save debug bundle": the strip-images option, the save button, and the share sheet for the saved folder.
 struct DebugBundleSection: View {
@@ -41,15 +43,22 @@ struct DebugBundleSection: View {
                 Task {
                     defer { saving = false }
                     do {
-                        saved = try await save(.init(stripImages: stripImages))
+                        let url = try await save(.init(stripImages: stripImages))
+                        saved = url
+                        #if canImport(UIKit)
                         showShare = true
+                        #else
+                        NSWorkspace.shared.activateFileViewerSelecting([url])
+                        #endif
                     } catch { self.error = error.localizedDescription }
                 }
             }
         }
+        #if canImport(UIKit)
         .sheet(isPresented: $showShare) {
             if let saved { ShareSheet(url: saved).presentationDetents([.medium, .large]) }
         }
+        #endif
     }
 
     private var footer: LocalizedStringKey {
@@ -194,7 +203,7 @@ struct AppDiagnosticsView: View {
         }
         .background(theme.background.ignoresSafeArea())
         .navigationTitle("Diagnostics")
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
         .task {
             // Measured only while this screen is open.
             while !Task.isCancelled {

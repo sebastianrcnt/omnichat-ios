@@ -1,16 +1,21 @@
 import SwiftUI
+#if canImport(UIKit)
 import SafariServices
+#else
+import AppKit
+#endif
 
 /// Every http(s) link in the app opens in an in-app Safari view controller, presented over whatever is
-/// on screen (including sheets). Other schemes (mailto:, tel:) go to the system.
+/// on screen (including sheets). Other schemes (mailto:, tel:) go to the system. On a Mac they open in the default browser.
 @MainActor
 enum InAppBrowser {
-    static var tint: UIColor?
-
     static func isWeb(_ url: URL) -> Bool {
         let s = url.scheme?.lowercased()
         return s == "http" || s == "https"
     }
+
+    #if canImport(UIKit)
+    static var tint: UIColor?
 
     static func present(_ url: URL) {
         guard isWeb(url), let top = topViewController() else { return }
@@ -26,12 +31,19 @@ enum InAppBrowser {
         while let presented = top?.presentedViewController, !presented.isBeingDismissed { top = presented }
         return top
     }
+    #else
+    static func present(_ url: URL) {
+        guard isWeb(url) else { return }
+        NSWorkspace.shared.open(url)
+    }
+    #endif
 }
 
 private struct InAppLinks: ViewModifier {
     @Environment(\.theme) private var theme
 
     func body(content: Content) -> some View {
+        #if canImport(UIKit)
         content
             .environment(\.openURL, OpenURLAction { url in
                 guard InAppBrowser.isWeb(url) else { return .systemAction }
@@ -40,6 +52,9 @@ private struct InAppLinks: ViewModifier {
                 return .handled
             })
             .onAppear { InAppBrowser.tint = UIColor(theme.accent) }
+        #else
+        content // links open in the default browser
+        #endif
     }
 }
 

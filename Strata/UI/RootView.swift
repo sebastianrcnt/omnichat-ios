@@ -1,13 +1,10 @@
 import SwiftUI
 import SwiftData
 
+#if os(iOS)
 /// Chat plus a left drawer with the history.
 struct RootView: View {
-    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.theme) private var theme
-    @Environment(\.modelContext) private var context
-    @Environment(\.connectionStore) private var connections
-    @Environment(\.chatController) private var controller
 
     @State private var selected: Conversation?
     @State private var sidebarOpen = false
@@ -45,29 +42,7 @@ struct RootView: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .sheet(isPresented: $showSettings) { SettingsView().inAppLinks() }
         .inAppLinks()
-        .task {
-            controller.restorePending(context: context)
-            selectRecoveredConversation()
-            // Refresh models (and capability flags such as image input) for every connection with a key.
-            for c in connections.connections where connections.apiKey(for: c.id) != nil {
-                _ = try? await connections.refreshModels(for: c.id)
-            }
-        }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active {
-                controller.restorePending(context: context)
-                selectRecoveredConversation()
-            }
-        }
-        .onChange(of: selected?.id) { _, _ in
-            controller.forgetRenderStates(except: Set((selected?.messages ?? []).map(\.id)))
-        }
-    }
-
-    private func selectRecoveredConversation() {
-        guard selected == nil, let id = controller.activeConversationID,
-              let conversations = try? context.fetch(FetchDescriptor<Conversation>()) else { return }
-        selected = conversations.first { $0.id == id }
+        .chatLifecycle(selected: $selected)
     }
 
     private func openSettings() {
@@ -129,3 +104,4 @@ private struct DrawerLayer<Content: View>: View {
             .shadow(color: .black.opacity(0.25 * progress), radius: 20)
     }
 }
+#endif

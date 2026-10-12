@@ -1,6 +1,4 @@
 import SwiftUI
-import PhotosUI
-import Photos
 import SwiftData
 
 enum TokenFormat {
@@ -195,7 +193,11 @@ struct UsageSheet: View {
     }
 }
 
-// MARK: - Attach
+// MARK: - Attach (iPhone: camera, recent photos, library; a Mac attaches from a file panel, see MacAttachments)
+
+#if os(iOS)
+import PhotosUI
+import Photos
 
 struct AttachSheet: View {
     @Environment(\.theme) private var theme
@@ -425,3 +427,4 @@ struct CameraPicker: UIViewControllerRepresentable {
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) { parent.dismiss() }
     }
 }
+#endif

@@ -1,6 +1,10 @@
 import Foundation
-import UIKit
 import WebKit
+#if canImport(UIKit)
+import UIKit
+#else
+import AppKit
+#endif
 
 enum WebToolError: Error, LocalizedError, Equatable {
     case timeout
@@ -32,7 +36,8 @@ enum ReadabilitySource {
 }
 
 /// An off-screen WKWebView with a non-persistent data store, used by the search and fetch tools.
-/// It stays attached to the key window at near-zero alpha so WebKit does not throttle it.
+/// It stays attached to the key window at near-zero alpha so WebKit does not throttle it. (On a Mac it lives in a
+/// borderless, fully transparent window parked far outside every screen.)
 @MainActor
 final class HiddenWebView: NSObject, WKNavigationDelegate, FetchablePage {
     static let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
@@ -59,8 +64,10 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, FetchablePage {
         }
         webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 844), configuration: config)
         webView.customUserAgent = Self.userAgent
+        #if canImport(UIKit)
         webView.alpha = 0.01
         webView.isUserInteractionEnabled = false
+        #endif
         self.guardNavigations = guardNavigations
         self.resolver = resolver
         self.injectsReader = injectsReader
@@ -72,17 +79,23 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, FetchablePage {
             // KVO for a web view fires on the main thread.
             MainActor.assumeIsolated { self?.onProgress?(value) }
         }
+        #if canImport(UIKit)
         if let window = Self.keyWindow {
             window.insertSubview(webView, at: 0)
         }
+        #else
+        OffscreenWebHost.shared.attach(webView)
+        #endif
     }
 
+    #if canImport(UIKit)
     private static var keyWindow: UIWindow? {
         UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows)
             .first(where: \.isKeyWindow)
     }
+    #endif
 
     private var disposed = false
 
@@ -200,3 +213,34 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, FetchablePage {
         if isCurrent(navigation) { finish(.failure(WebToolError.navigation(error.localizedDescription))) }
     }
 }
+
+#if canImport(AppKit)
+/// The window the hidden web views of a Mac live in. A web view with no window is treated as not visible and WebKit
+/// throttles it; one in a transparent, borderless window outside every screen is loaded and scripted like a visible one,
+/// and nothing is ever drawn or focusable.
+@MainActor
+final class OffscreenWebHost {
+    static let shared = OffscreenWebHost()
+
+    private lazy var window: NSWindow = {
+        let window = NSWindow(contentRect: NSRect(x: -20_000, y: -20_000, width: 390, height: 844),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.alphaValue = 0
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+        window.ignoresMouseEvents = true
+        window.canHide = false
+        window.isExcludedFromWindowsMenu = true
+        window.collectionBehavior = [.transient, .ignoresCycle, .stationary, .fullScreenAuxiliary]
+        window.level = .normal
+        window.orderFrontRegardless()
+        return window
+    }()
+
+    func attach(_ view: NSView) {
+        window.contentView?.addSubview(view)
+    }
+}
+#endif

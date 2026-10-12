@@ -64,7 +64,7 @@ struct SettingsView: View {
                                          text: Binding(
                                             get: { String(settings.defaultContextLength) },
                                             set: { settings.defaultContextLength = Int($0.filter(\.isNumber)).flatMap { $0 > 0 ? $0 : nil } ?? AppSettings.defaultContextLength }),
-                                         keyboard: .numberPad)
+                                         keyboard: .number)
                     }
 
                     GroupedSection(header: "About") {
@@ -82,9 +82,9 @@ struct SettingsView: View {
             }
             .background(theme.background.ignoresSafeArea())
             .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .trailingBar) { Button("Done") { dismiss() } }
             }
             .navigationDestination(for: UUID.self) { id in
                 ConnectionEditor(connectionID: id, path: $path)
@@ -156,7 +156,7 @@ struct ConnectionEditor: View {
                     GroupedSection(header: "Connection") {
                         SettingsFieldRow(title: "Name", prompt: "Name", text: binding(\.name, fallback: ""))
                         SettingsFieldRow(title: "Base URL", prompt: "https://host/v1", text: binding(\.baseURL, fallback: ""),
-                                         keyboard: .URL)
+                                         keyboard: .url)
                         SettingsFieldRow(title: "Headers", prompt: "Name: value", text: binding(\.customHeaders, fallback: ""),
                                          multiline: true)
                     }
@@ -217,7 +217,7 @@ struct ConnectionEditor: View {
             }
             .background(theme.background.ignoresSafeArea())
             .navigationTitle(connection.name)
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .onAppear { hasKey = connections.apiKey(for: connectionID) != nil }
             .sheet(item: Binding(get: { editingModel.map { ModelRef(id: $0) } }, set: { editingModel = $0?.id })) { ref in
                 ModelEditor(connectionID: connectionID, modelID: ref.id)
@@ -289,7 +289,7 @@ struct ModelEditor: View {
                                      prompt: LocalizedStringKey(model.fetchedContextLength.map(String.init) ?? String(AppSettings.defaultContextLength)),
                                      text: Binding(get: { model.contextLength.map(String.init) ?? "" },
                                                    set: { text in update { $0.contextLength = Int(text.filter(\.isNumber)).flatMap { $0 > 0 ? $0 : nil } } }),
-                                     keyboard: .numberPad)
+                                     keyboard: .number)
                 }
                 GroupedSection(header: "Capabilities") {
                     SettingsToggleRow(title: "Supports images", isOn: Binding(get: { model.supportsImages }, set: { v in update { $0.supportsImages = v; $0.supportsImagesUserSet = true } }))

@@ -1,5 +1,5 @@
 import Foundation
-import UIKit
+import Foundation
 
 /// Hidden web views kept for the next fetch instead of being torn down: creating a WKWebView and its web content
 /// process is the slow part of a short fetch. A few idle views are kept for a minute; a memory warning drops them.

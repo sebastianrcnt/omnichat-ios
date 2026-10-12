@@ -1,5 +1,9 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 
 /// Design tokens. Feature views read these instead of hardcoding colors, fonts, paddings or animations.
 enum DS {
@@ -96,9 +100,10 @@ enum DS {
         static let monoSmall = Font.system(.footnote, design: .monospaced)
     }
 
-    /// Navigation bar titles and bar buttons are UIKit text: give them Pretendard too.
+    /// Navigation bar titles and bar buttons are UIKit text: give them Pretendard too. (A Mac window title is the system's.)
     @MainActor
     static func applyBarAppearance() {
+        #if canImport(UIKit)
         func font(_ name: String, _ size: CGFloat) -> UIFont { UIFont(name: name, size: size) ?? .systemFont(ofSize: size) }
         UINavigationBar.appearance().titleTextAttributes = [.font: font("PretendardVariable-SemiBold", 17)]
         UINavigationBar.appearance().largeTitleTextAttributes = [.font: font("PretendardVariable-Bold", 30)]
@@ -106,6 +111,7 @@ enum DS {
         for state in [UIControl.State.normal, .highlighted, .disabled] {
             UIBarButtonItem.appearance().setTitleTextAttributes(button, for: state)
         }
+        #endif
     }
 
     /// How much larger than the default (large) size text is at `size`: the system's body-text sizes divided by 17.
@@ -153,7 +159,11 @@ enum DS {
 
         /// The extra space between lines, in points, for a font drawn at `size`.
         static func spacing(multiple: CGFloat, size: CGFloat) -> CGFloat {
+            #if canImport(UIKit)
             let lineHeight = UIFont(name: Typography.regularFontName, size: size)?.lineHeight ?? size * 1.2
+            #else
+            let lineHeight = NSFont(name: Typography.regularFontName, size: size).map { $0.ascender - $0.descender + $0.leading } ?? size * 1.2
+            #endif
             return max(0, multiple * size - lineHeight)
         }
 
@@ -189,11 +199,17 @@ enum DS {
 extension Color {
     /// Color that switches between a light and a dark value.
     init(light: UInt32, dark: UInt32) {
-        self = Color(UIColor { traits in
-            let v = traits.userInterfaceStyle == .dark ? dark : light
-            return UIColor(red: CGFloat((v >> 16) & 0xFF) / 255, green: CGFloat((v >> 8) & 0xFF) / 255,
-                           blue: CGFloat(v & 0xFF) / 255, alpha: 1)
+        func color(_ v: UInt32) -> PlatformColor {
+            PlatformColor(red: CGFloat((v >> 16) & 0xFF) / 255, green: CGFloat((v >> 8) & 0xFF) / 255,
+                          blue: CGFloat(v & 0xFF) / 255, alpha: 1)
+        }
+        #if canImport(UIKit)
+        self = Color(UIColor { traits in color(traits.userInterfaceStyle == .dark ? dark : light) })
+        #else
+        self = Color(nsColor: NSColor(name: nil) { appearance in
+            color(appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light)
         })
+        #endif
     }
 }
 
@@ -207,15 +223,22 @@ struct DSTheme: Equatable {
     var accentStrong: Color { accent.opacity(0.9) }
     /// Accent for small text on `accentMuted`: darkened in light mode, lightened in dark mode so it reads at 4.5:1.
     var accentOnTint: Color {
-        let base = UIColor(accent)
-        return Color(UIColor { trait in
-            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-            base.resolvedColor(with: trait).getRed(&r, green: &g, blue: &b, alpha: &a)
-            let dark = trait.userInterfaceStyle == .dark
+        let base = PlatformColor(accent)
+        func tinted(_ base: PlatformColor, dark: Bool) -> PlatformColor {
+            let (r, g, b, _) = base.rgbaComponents
             let t: CGFloat = dark ? 0.45 : 0.5          // blend toward white (dark) or black (light)
             let target: CGFloat = dark ? 1 : 0
-            return UIColor(red: r + (target - r) * t, green: g + (target - g) * t, blue: b + (target - b) * t, alpha: 1)
+            return PlatformColor(red: r + (target - r) * t, green: g + (target - g) * t, blue: b + (target - b) * t, alpha: 1)
+        }
+        #if canImport(UIKit)
+        return Color(UIColor { trait in
+            tinted(base.resolvedColor(with: trait), dark: trait.userInterfaceStyle == .dark)
         })
+        #else
+        return Color(nsColor: NSColor(name: nil) { appearance in
+            tinted(base, dark: appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua)
+        })
+        #endif
     }
 
     // Surfaces
@@ -360,10 +383,16 @@ struct TextSizeOverride: ViewModifier {
     /// One modifier either way (a range of one size forces it, the full range changes nothing), so the app's view
     /// identity does not change when the setting does.
     func body(content: Content) -> some View {
+        #if canImport(UIKit)
         content
             .dynamicTypeSize(size.map { $0...$0 } ?? Self.anySize)
             .onChange(of: size, initial: true) { _, new in Self.applyToWindows(new) }
+        #else
+        content.dynamicTypeSize(size.map { $0...$0 } ?? Self.anySize)
+        #endif
     }
+
+    #if canImport(UIKit)
 
     static func contentSizeCategory(_ size: DynamicTypeSize) -> UIContentSizeCategory {
         switch size {
@@ -400,4 +429,5 @@ struct TextSizeOverride: ViewModifier {
             }
         }
     }
+    #endif
 }

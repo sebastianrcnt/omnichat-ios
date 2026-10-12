@@ -1,11 +1,19 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 
-/// Resigns whatever currently has keyboard focus (composer, rename field, ...).
+/// Resigns whatever currently has keyboard focus (composer, rename field, ...). A Mac has no software keyboard to put away.
 @MainActor
 func dismissKeyboard() {
+    #if canImport(UIKit)
     UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    #endif
 }
+
+#if canImport(UIKit)
 
 /// A horizontal pan recognizer attached to the app's root view (so sheets are unaffected).
 /// It begins only for mostly-horizontal drags in the allowed direction and steps aside for
@@ -91,16 +99,27 @@ struct EdgeFreePanRecognizer: UIViewRepresentable {
     }
 }
 
-// MARK: - Running as an iOS app on a Mac
+#endif
+
+// MARK: - Running on a Mac
 
 enum Platform {
     /// "My Mac (Designed for iPhone)": an iPhone app on Apple Silicon, with a hardware keyboard and no software one.
     static let isiOSAppOnMac = ProcessInfo.processInfo.isiOSAppOnMac
+    /// A hardware keyboard and no software one: the native Mac app, or the iPhone app running on a Mac.
+    static let hasOnlyHardwareKeyboard: Bool = {
+        #if os(macOS)
+        true
+        #else
+        ProcessInfo.processInfo.isiOSAppOnMac
+        #endif
+    }()
 }
 
-/// What the composer needs from the UIKit text input that SwiftUI's `TextField` wraps.
+/// What the composer needs from the text input that SwiftUI's `TextField` wraps.
 @MainActor
 final class TextInputHandle {
+    #if canImport(UIKit)
     weak var input: UIView?
 
     /// True while an input method (Korean, Japanese, ...) holds uncommitted text.
@@ -109,16 +128,26 @@ final class TextInputHandle {
         if let tf = input as? UITextField { return tf.markedTextRange != nil }
         return false
     }
+    #else
+    /// True while an input method (Korean, Japanese, ...) holds uncommitted text in the field being edited.
+    var hasMarkedText: Bool {
+        (NSApplication.shared.keyWindow?.firstResponder as? NSTextView)?.hasMarkedText() ?? false
+    }
+    #endif
 }
 
 extension View {
     /// Removes the empty shortcuts bar (the input assistant view) that UIKit shows with a hardware keyboard, and on a
     /// Mac reports as a keyboard frame, from the text input behind this view. Fills `handle` with that input.
     func withoutInputAssistantBar(handle: TextInputHandle? = nil) -> some View {
+        #if canImport(UIKit)
         background(InputAssistantBarRemover(handle: handle).allowsHitTesting(false))
+        #else
+        self
+        #endif
     }
 
-    /// On a Mac only: Return calls `send`, Shift+Return (and any other modifier) still inserts a newline. While an
+    /// On a Mac (native, or the iPhone app running on one): Return calls `send`, Shift+Return (and any other modifier) still inserts a newline. While an
     /// input method has uncommitted text, Return is left to it so it commits instead of sending. iPhone and iPad
     /// behavior is untouched.
     func returnSends(handle: TextInputHandle, send: @escaping () -> Void) -> some View {
@@ -127,7 +156,7 @@ extension View {
 
     /// No keyboard safe area on a Mac: there is no software keyboard, so any frame UIKit reports is a bar, not content.
     @ViewBuilder func ignoresKeyboardOnMac() -> some View {
-        if Platform.isiOSAppOnMac { ignoresSafeArea(.keyboard) } else { self }
+        if Platform.hasOnlyHardwareKeyboard { ignoresSafeArea(.keyboard) } else { self }
     }
 }
 
@@ -136,7 +165,7 @@ private struct ReturnSendsModifier: ViewModifier {
     let send: () -> Void
 
     func body(content: Content) -> some View {
-        if Platform.isiOSAppOnMac {
+        if Platform.hasOnlyHardwareKeyboard {
             content.onKeyPress(.return, phases: .down) { press in
                 guard press.modifiers.isEmpty, !handle.hasMarkedText else { return .ignored }
                 send()
@@ -148,6 +177,7 @@ private struct ReturnSendsModifier: ViewModifier {
     }
 }
 
+#if canImport(UIKit)
 /// Finds the UITextView/UITextField SwiftUI created for the view this sits behind (the one whose frame holds this
 /// view's center) and empties its input assistant item.
 private struct InputAssistantBarRemover: UIViewRepresentable {
@@ -211,3 +241,4 @@ private struct InputAssistantBarRemover: UIViewRepresentable {
         }
     }
 }
+#endif

@@ -94,8 +94,7 @@ struct SidebarView: View {
             TextField("", text: $query, prompt: Text("Search").foregroundStyle(theme.textTertiary))
                 .font(DS.Typography.ui)
                 .foregroundStyle(theme.textPrimary)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
+                .plainTextInput()
                 .withoutInputAssistantBar()
             if !query.isEmpty {
                 Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(theme.textTertiary) }

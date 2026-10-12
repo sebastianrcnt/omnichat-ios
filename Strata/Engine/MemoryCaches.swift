@@ -1,5 +1,8 @@
 import Foundation
+import Foundation
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// Base64 data URLs of history images, keyed by attachment id. Building one costs a full JPEG read plus a base64 pass,
 /// and every request and tool round needs the same bytes again, so they are built once. The bytes never change for a
@@ -55,11 +58,14 @@ enum MemoryPurge {
         for purge in extra { purge() }
     }
 
+    /// A Mac has no memory-warning notification; its caches stay bounded by their cost limits instead.
     static func install(center: NotificationCenter = .default) {
+        #if canImport(UIKit)
         guard observer == nil else { return }
         observer = center.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated { purgeNow() }
         }
+        #endif
     }
 }
 

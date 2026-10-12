@@ -65,12 +65,12 @@ struct SourceChip: View {
 struct FaviconView: View {
     @Environment(\.theme) private var theme
     let host: String
-    @State private var image: UIImage?
+    @State private var image: PlatformImage?
 
     var body: some View {
         Group {
             if let image {
-                Image(uiImage: image).resizable().scaledToFill()
+                Image(platformImage: image).resizable().scaledToFill()
                     .frame(width: DS.IconSize.favicon, height: DS.IconSize.favicon)
                     .background(theme.faviconBackdrop)
                     .clipShape(Circle())
@@ -90,15 +90,15 @@ struct FaviconView: View {
 /// Decoded icons for the session, so scrolling back never flashes the monogram.
 @MainActor
 enum FaviconImages {
-    private static let cache = NSCache<NSString, UIImage>()
+    private static let cache = NSCache<NSString, PlatformImage>()
     /// Icons stored since the cache was last emptied (an upper bound: NSCache evicts silently).
     private(set) static var count = 0
     static func purge() { cache.removeAllObjects(); count = 0 }
 
-    static func image(for host: String) async -> UIImage? {
+    static func image(for host: String) async -> PlatformImage? {
         guard let key = FaviconStore.key(for: host) else { return nil }
         if let hit = cache.object(forKey: key as NSString) { return hit }
-        guard let data = await FaviconStore.shared.iconData(for: host), let image = UIImage(data: data) else { return nil }
+        guard let data = await FaviconStore.shared.iconData(for: host), let image = PlatformImage(data: data) else { return nil }
         cache.setObject(image, forKey: key as NSString)
         count += 1
         return image

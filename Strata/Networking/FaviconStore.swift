@@ -1,5 +1,9 @@
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 import CryptoKit
 
 /// Finds the `<link rel=icon>` targets in a page's HTML.
@@ -178,9 +182,10 @@ actor FaviconStore {
 
     /// Decode (ICO, PNG, JPEG, GIF) and re-encode as a small square PNG; nil when it is not an image.
     nonisolated static func normalize(_ data: Data) -> Data? {
-        guard data.count > 16, data.count <= maxBytes, let image = UIImage(data: data),
+        guard data.count > 16, data.count <= maxBytes, let image = PlatformImage(data: data),
               image.size.width >= 1, image.size.height >= 1 else { return nil }
         let side = CGFloat(pixelSize)
+        #if canImport(UIKit)
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         format.opaque = false
@@ -190,6 +195,17 @@ actor FaviconStore {
         return renderer.pngData { _ in
             image.draw(in: CGRect(x: (side - drawn.width) / 2, y: (side - drawn.height) / 2, width: drawn.width, height: drawn.height))
         }
+        #else
+        guard let cg = image.cgImageRepresentation,
+              let context = CGContext(data: nil, width: pixelSize, height: pixelSize, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        let scale = max(side / image.size.width, side / image.size.height)
+        let drawn = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        context.interpolationQuality = .high
+        context.draw(cg, in: CGRect(x: (side - drawn.width) / 2, y: (side - drawn.height) / 2, width: drawn.width, height: drawn.height))
+        return context.makeImage().flatMap(ImageEncoding.pngData(from:))
+        #endif
     }
 
     // MARK: Network
