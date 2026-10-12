@@ -102,6 +102,11 @@ struct SettingsView: View {
         .task {
             if DebugHooks.openSheet == "diagnostics" { settings.developerMode = true; showDiagnostics = true }
             if DebugHooks.openSheet == "licenses" { showLicenses = true }
+            if DebugHooks.openSheet == "connection" { // what "Add connection" does
+                let new = Connection(name: String(localized: "New connection"), baseURL: "https://")
+                connections.upsert(new)
+                path.append(new.id)
+            }
         }
         #endif
     }

@@ -7,7 +7,7 @@ import Foundation
 ///   -StrataFakeTools 1                             canned web_search/web_fetch results (no network)
 ///   -StrataAutoSend "hello"                        send a message right after launch
 ///   -StrataDebugBranch switch|editbar               after the first answer: edit + regenerate, or open edit mode
-///   -StrataOpenSheet usage|model|settings|attach|details|diagnostics   open a sheet right after launch
+///   -StrataOpenSheet usage|model|settings|connection|attach|details|diagnostics   open a sheet right after launch
 /// Canned tool results so the UI can be exercised without the network.
 struct FakeWebTools: ToolExecuting {
     func execute(name: String, arguments: String) async -> ToolOutput {

@@ -10,7 +10,13 @@ enum SharedModels {
     static let settings = AppSettings()
 
     static let connections: ConnectionStore = {
+        #if DEBUG
+        // `-StrataEphemeralKeys 1`: API keys live in memory only, so a test run never touches the Keychain.
+        let connections = UserDefaults.standard.bool(forKey: "StrataEphemeralKeys")
+            ? ConnectionStore(keys: InMemoryKeyStore()) : ConnectionStore()
+        #else
         let connections = ConnectionStore()
+        #endif
         #if DEBUG
         DebugHooks.applyLaunchConfiguration(connections: connections, settings: settings)
         #endif

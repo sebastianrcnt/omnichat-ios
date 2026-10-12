@@ -56,6 +56,7 @@ struct MacImageAttaching: ViewModifier {
 /// The window furniture the chat adds on a Mac: title, model subtitle, a toolbar with context usage and the chat's
 /// menu, and image attaching. (On the phone these are the header and the attach sheet.)
 struct MacChatChrome<MenuContent: View>: ViewModifier {
+    @Environment(\.theme) private var theme
     let title: String
     let subtitle: String
     let contextFraction: Double?
@@ -70,6 +71,9 @@ struct MacChatChrome<MenuContent: View>: ViewModifier {
         content
             .navigationTitle(title)
             .navigationSubtitle(subtitle)
+            // The chat scrolls under the title bar: give it a surface so answer text never shows through the title.
+            .toolbarBackground(theme.background, for: .windowToolbar)
+            .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button { showUsage = true } label: { ContextRing(fraction: contextFraction) }
