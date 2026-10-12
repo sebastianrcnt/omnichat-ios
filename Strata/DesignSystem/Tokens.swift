@@ -354,15 +354,15 @@ extension View {
 struct TextSizeOverride: ViewModifier {
     let size: DynamicTypeSize?
 
+    /// Every size, so `.dynamicTypeSize(range)` leaves the system's size alone.
+    private static let anySize = DynamicTypeSize.xSmall...DynamicTypeSize.accessibility5
+
+    /// One modifier either way (a range of one size forces it, the full range changes nothing), so the app's view
+    /// identity does not change when the setting does.
     func body(content: Content) -> some View {
-        Group {
-            if let size {
-                content.dynamicTypeSize(size)
-            } else {
-                content
-            }
-        }
-        .onChange(of: size, initial: true) { _, new in Self.applyToWindows(new) }
+        content
+            .dynamicTypeSize(size.map { $0...$0 } ?? Self.anySize)
+            .onChange(of: size, initial: true) { _, new in Self.applyToWindows(new) }
     }
 
     static func contentSizeCategory(_ size: DynamicTypeSize) -> UIContentSizeCategory {
@@ -383,14 +383,18 @@ struct TextSizeOverride: ViewModifier {
         }
     }
 
+    /// Writes only what differs, so a launch with the system size, or an unchanged size, does not invalidate any window's traits.
     @MainActor
     static func applyToWindows(_ size: DynamicTypeSize?) {
         for scene in UIApplication.shared.connectedScenes {
             guard let windowScene = scene as? UIWindowScene else { continue }
             for window in windowScene.windows {
                 if let size {
-                    window.traitOverrides.preferredContentSizeCategory = contentSizeCategory(size)
-                } else {
+                    let category = contentSizeCategory(size)
+                    if window.traitOverrides.preferredContentSizeCategory != category || !window.traitOverrides.contains(UITraitPreferredContentSizeCategory.self) {
+                        window.traitOverrides.preferredContentSizeCategory = category
+                    }
+                } else if window.traitOverrides.contains(UITraitPreferredContentSizeCategory.self) {
                     window.traitOverrides.remove(UITraitPreferredContentSizeCategory.self)
                 }
             }

@@ -6,8 +6,8 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.theme) private var theme
     @Environment(\.modelContext) private var context
-    @Environment(ConnectionStore.self) private var connections
-    @Environment(ChatController.self) private var controller
+    @Environment(\.connectionStore) private var connections
+    @Environment(\.chatController) private var controller
 
     @State private var selected: Conversation?
     @State private var sidebarOpen = false

@@ -3,8 +3,8 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
-    @Environment(AppSettings.self) private var settings
-    @Environment(ConnectionStore.self) private var connections
+    @Environment(\.appSettings) private var settings
+    @Environment(\.connectionStore) private var connections
 
     @State private var path: [UUID] = []
     @State private var showDiagnostics = false
@@ -126,7 +126,7 @@ struct SettingsView: View {
 
 struct ConnectionEditor: View {
     @Environment(\.theme) private var theme
-    @Environment(ConnectionStore.self) private var connections
+    @Environment(\.connectionStore) private var connections
     let connectionID: UUID
     @Binding var path: [UUID]
 
@@ -269,7 +269,7 @@ struct ConnectionEditor: View {
 struct ModelEditor: View {
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
-    @Environment(ConnectionStore.self) private var connections
+    @Environment(\.connectionStore) private var connections
     let connectionID: UUID
     let modelID: String
 

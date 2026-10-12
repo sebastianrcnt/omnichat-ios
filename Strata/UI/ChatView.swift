@@ -4,9 +4,9 @@ import SwiftData
 struct ChatView: View {
     @Environment(\.theme) private var theme
     @Environment(\.modelContext) private var context
-    @Environment(AppSettings.self) private var settings
-    @Environment(ConnectionStore.self) private var connections
-    @Environment(ChatController.self) private var controller
+    @Environment(\.appSettings) private var settings
+    @Environment(\.connectionStore) private var connections
+    @Environment(\.chatController) private var controller
 
     @Binding var conversation: Conversation?
     let onOpenSidebar: () -> Void

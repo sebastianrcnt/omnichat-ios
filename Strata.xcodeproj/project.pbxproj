@@ -108,6 +108,7 @@
 		AD63799B477EBC2957D18D39 /* HiddenWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2591276CC7B49180E08D4971 /* HiddenWebView.swift */; };
 		AE532840C7D6BD97D8B4B81B /* DiagnosticCounters.swift in Sources */ = {isa = PBXBuildFile; fileRef = E323287078B8754E837F745D /* DiagnosticCounters.swift */; };
 		B068634A599595F1E8991250 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FBA5468712941136393FEC1A /* Assets.xcassets */; };
+		B45E91F4CD5780E5524E2953 /* SharedModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01214F3CAB9EAFE1F3B1AA03 /* SharedModels.swift */; };
 		B54DFC47E6C1773419F772E2 /* ThoughtSentenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51F73404257AB826A0402DBF /* ThoughtSentenceTests.swift */; };
 		B65B9B6468B177E28A402D93 /* CompactionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10BECBBEADB52A82B8FD8109 /* CompactionRecord.swift */; };
 		BB79CEFFE2A44E7C161CCAFC /* Pretendard-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 2FCFE1A61E07F2EE5636D7C1 /* Pretendard-OFL.txt */; };
@@ -156,6 +157,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		01214F3CAB9EAFE1F3B1AA03 /* SharedModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedModels.swift; sourceTree = "<group>"; };
 		0303DF43A59DAF489DA9A7A1 /* Activity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Activity.swift; sourceTree = "<group>"; };
 		039C4D95DE3E932F7D0EB67D /* RequestInspection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestInspection.swift; sourceTree = "<group>"; };
 		0E2E3AC5500EF7D33D4C0EC3 /* Pretendard-SemiBold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-SemiBold.otf"; sourceTree = "<group>"; };
@@ -400,6 +402,7 @@
 				8466A7CDF21ACE56C1F711D2 /* AppSettings.swift */,
 				CE00F016BD732E6F71D9D841 /* ConnectionStore.swift */,
 				62C6E50D199A95EB9EB282FD /* DebugHooks.swift */,
+				01214F3CAB9EAFE1F3B1AA03 /* SharedModels.swift */,
 				78839B98DAD55E4352AEA1E3 /* StrataApp.swift */,
 			);
 			path = App;
@@ -852,6 +855,7 @@
 				1729AFFABF5AFCDEF8AA5FC7 /* SSE.swift in Sources */,
 				E82C60B48DA4604823167DE5 /* SearchEngine.swift in Sources */,
 				38FBE8AA2D4AB534C42B224D /* SettingsView.swift in Sources */,
+				B45E91F4CD5780E5524E2953 /* SharedModels.swift in Sources */,
 				74D5CBABE658F86593159318 /* Sheets.swift in Sources */,
 				8AA12F2FC342306FD733CA44 /* SidebarView.swift in Sources */,
 				E2C16160D762E348D9135F77 /* Sources.swift in Sources */,

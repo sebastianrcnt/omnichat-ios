@@ -65,7 +65,7 @@ struct ConversationDetailsSheet: View {
     @Environment(\.theme) private var theme
     let conversation: Conversation
     let contextLength: Int
-    @Environment(ChatController.self) private var controller
+    @Environment(\.chatController) private var controller
 
     @State private var details: ConversationDiagnostics?
     @State private var app: AppDiagnostics?
@@ -180,8 +180,8 @@ struct RequestRowView: View {
 struct AppDiagnosticsView: View {
     @Environment(\.theme) private var theme
     @Environment(\.modelContext) private var context
-    @Environment(AppSettings.self) private var settings
-    @Environment(ChatController.self) private var controller
+    @Environment(\.appSettings) private var settings
+    @Environment(\.chatController) private var controller
 
     @State private var app: AppDiagnostics?
 

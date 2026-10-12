@@ -3,7 +3,7 @@ import SwiftUI
 /// Settings > Appearance > Text size: follow the system, or pick one of seven sizes, with a preview in the real answer styles.
 struct TextSizeSection: View {
     @Environment(\.theme) private var theme
-    @Environment(AppSettings.self) private var settings
+    @Environment(\.appSettings) private var settings
 
     var body: some View {
         @Bindable var settings = settings

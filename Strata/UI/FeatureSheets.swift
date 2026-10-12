@@ -18,7 +18,7 @@ enum TokenFormat {
 // MARK: - Model picker
 
 struct ModelPickerSheet: View {
-    @Environment(ConnectionStore.self) private var connections
+    @Environment(\.connectionStore) private var connections
     @Environment(\.dismiss) private var dismiss
 
     let selectedConnectionID: UUID?
@@ -117,7 +117,7 @@ struct ModelPickerSheet: View {
 // MARK: - Usage
 
 struct UsageSheet: View {
-    @Environment(ConnectionStore.self) private var connections
+    @Environment(\.connectionStore) private var connections
     let conversation: Conversation?
     let contextLength: Int
     let connection: Connection?
