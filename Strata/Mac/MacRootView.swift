@@ -10,10 +10,11 @@ struct MacRootView: View {
     @State private var selected: Conversation?
     @State private var columns = NavigationSplitViewVisibility.all
     @State private var focusToken = 0
+    @State private var findToken = 0
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
-            MacSidebarView(selected: $selected)
+            MacSidebarView(selected: $selected, findToken: findToken)
                 .navigationSplitViewColumnWidth(min: 230, ideal: 280, max: 420)
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
@@ -29,7 +30,13 @@ struct MacRootView: View {
         }
         .frame(minWidth: 760, minHeight: 520)
         .chatLifecycle(selected: $selected)
-        .focusedSceneValue(\.windowActions, WindowActions(newChat: newChat))
+        .onAppear { WindowActions.shared.install(newChat: newChat, findChats: findChats) }
+    }
+
+    /// Shows the sidebar and puts the cursor in its search field.
+    private func findChats() {
+        columns = .all
+        findToken += 1
     }
 
     /// Starts an empty chat. Conversations are created on first send, so an already-empty chat only gets focus.
@@ -39,12 +46,18 @@ struct MacRootView: View {
     }
 }
 
-/// What the menu commands can ask of the window.
-struct WindowActions {
-    var newChat: () -> Void
-}
+/// What the menu commands can ask of the window. There is one window, and a text view inside it that SwiftUI's focus
+/// does not know about, so the commands do not go through focused values.
+@MainActor
+final class WindowActions {
+    static let shared = WindowActions()
 
-extension FocusedValues {
-    @Entry var windowActions: WindowActions?
+    private(set) var newChat: () -> Void = {}
+    private(set) var findChats: () -> Void = {}
+
+    func install(newChat: @escaping () -> Void, findChats: @escaping () -> Void) {
+        self.newChat = newChat
+        self.findChats = findChats
+    }
 }
 #endif

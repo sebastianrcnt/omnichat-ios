@@ -9,11 +9,14 @@ struct MacSidebarView: View {
     @Query(sort: \Conversation.updatedAt, order: .reverse) private var conversations: [Conversation]
 
     @Binding var selected: Conversation?
+    /// Bumped by the Find command.
+    var findToken = 0
 
     @State private var query = ""
     @State private var renaming: Conversation?
     @State private var renameText = ""
     @State private var deleting: Conversation?
+    @FocusState private var searchFocused: Bool
 
     /// Conversations whose message text matches the current query, found by the store (not by loading messages here).
     @State private var contentMatches: Set<UUID> = []
@@ -39,6 +42,8 @@ struct MacSidebarView: View {
         }
         .listStyle(.sidebar)
         .searchable(text: $query, placement: .sidebar, prompt: "Search")
+        .searchFocused($searchFocused)
+        .onChange(of: findToken) { searchFocused = true }
         .onDeleteCommand { deleting = selected }
         .task(id: query) {
             let q = query.trimmingCharacters(in: .whitespacesAndNewlines)

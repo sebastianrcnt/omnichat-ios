@@ -644,7 +644,8 @@ struct ChatView: View {
             if let text = DebugHooks.autoSend { draft.text = text; send() }
             return
         }
-        if let text = DebugHooks.autoSend, conversation == nil {
+        if let text = DebugHooks.autoSend, conversation == nil, !DebugHooks.autoSendFired {
+            DebugHooks.autoSendFired = true // New Chat later must not send it again
             try? await Task.sleep(for: .seconds(1.5))
             draft.text = text
             send()

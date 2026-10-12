@@ -139,6 +139,7 @@ enum DebugHooks {
     }
 
     static var autoSend: String? { value("StrataAutoSend") }
+    @MainActor static var autoSendFired = false
     static var openSheet: String? { value("StrataOpenSheet") }
 }
 #endif

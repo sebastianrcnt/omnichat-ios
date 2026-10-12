@@ -25,6 +25,26 @@ enum MacKeyTest {
             let responder = window.firstResponder.map { String(describing: type(of: $0)) } ?? "nil"
             FileHandle.standardError.write(Data("[key-test] mode=\(mode) first responder: \(responder)\n".utf8))
             switch mode {
+            case "menus":
+                func dump(_ menu: NSMenu, _ depth: Int) {
+                    for item in menu.items where !item.isSeparatorItem {
+                        let keys = item.keyEquivalent.isEmpty ? "" : " [\(item.keyEquivalentModifierMask.contains(.command) ? "cmd+" : "")\(item.keyEquivalent)]"
+                        FileHandle.standardError.write(Data("[menus] \(String(repeating: "  ", count: depth))\(item.title)\(keys)\(item.isEnabled ? "" : " (disabled)")\n".utf8))
+                        if let sub = item.submenu, depth < 1 { dump(sub, depth + 1) }
+                    }
+                }
+                if let main = NSApp.mainMenu { dump(main, 0) }
+            case "newchat", "find", "stop":
+                try? await Task.sleep(for: .seconds(mode == "stop" ? 0 : 6)) // let the auto-sent chat finish
+                let title = mode == "newchat" ? "New Chat" : mode == "find" ? "Find Chats" : "Stop Generating"
+                for top in NSApp.mainMenu?.items ?? [] {
+                    for (index, item) in (top.submenu?.items ?? []).enumerated() where item.title == title {
+                        FileHandle.standardError.write(Data("[key-test] performing \(title), enabled=\(item.isEnabled)\n".utf8))
+                        top.submenu?.performActionForItem(at: index)
+                    }
+                }
+                try? await Task.sleep(for: .milliseconds(600))
+                FileHandle.standardError.write(Data("[key-test] first responder now: \(window.firstResponder.map { String(describing: type(of: $0)) } ?? "nil")\n".utf8))
             case "letter":
                 key(0, "a")
                 key(11, "b")
