@@ -39,7 +39,11 @@ struct ChatView: View {
     @State private var showRename = false
     @State private var renameText = ""
     @State private var confirmDelete = false
+    #if os(macOS)
+    @State private var composerFocused = false
+    #else
     @FocusState private var composerFocused: Bool
+    #endif
     #if DEBUG
     @State private var debugViewer = false
     #endif
@@ -227,6 +231,7 @@ struct ChatView: View {
                 cancelEdit()
                 conversation?.ensureTree()
                 #if os(macOS)
+                try? await Task.sleep(for: .milliseconds(250)) // the window has to exist before it can focus anything
                 composerFocused = true // there is no keyboard to summon: the cursor is always ready
                 #endif
             }
@@ -479,6 +484,7 @@ struct ChatView: View {
             onSend: send,
             onStop: { controller.stop() },
             onCancelEdit: editing == nil ? nil : { withAnimation(DS.Motion.snappy) { cancelEdit() } },
+            onPasteImages: pasteHandler,
             chip: {
                 ModelEffortChip(
                     modelName: selection.modelID ?? String(localized: "Select model"),
@@ -492,6 +498,28 @@ struct ChatView: View {
         .readingColumn()
         #endif
     }
+
+    private var pasteHandler: (([Data]) -> Void)? {
+        #if os(macOS)
+        pasteImages
+        #else
+        nil
+        #endif
+    }
+
+    #if os(macOS)
+    /// Images pasted into the composer (Mac): resized like any other attachment, if the model can read them.
+    private func pasteImages(_ images: [Data]) {
+        guard selectedModel?.supportsImages ?? false else { showNoImageSupport = true; return }
+        Task {
+            var out: [Data] = []
+            for data in images {
+                if let jpeg = await Task.detached(operation: { ImageProcessor.jpegData(from: data) }).value { out.append(jpeg) }
+            }
+            if !out.isEmpty { addAttachments(out) }
+        }
+    }
+    #endif
 
     private func attach() {
         composerFocused = false
@@ -663,8 +691,13 @@ private struct ComposerHost<Chip: View>: View {
     let onSend: () -> Void
     let onStop: () -> Void
     var onCancelEdit: (() -> Void)?
+    var onPasteImages: (([Data]) -> Void)?
     @ViewBuilder let chip: () -> Chip
+    #if os(macOS)
+    var isFocused: Binding<Bool>
+    #else
     var isFocused: FocusState<Bool>.Binding
+    #endif
 
     var body: some View {
         ComposerBar(
@@ -677,6 +710,7 @@ private struct ComposerHost<Chip: View>: View {
             onAttach: onAttach,
             onRemoveAttachment: { id in draft.attachments.removeAll { $0.id == id } },
             onCancelEdit: onCancelEdit,
+            onPasteImages: onPasteImages,
             onSend: onSend,
             onStop: onStop,
             chip: chip,

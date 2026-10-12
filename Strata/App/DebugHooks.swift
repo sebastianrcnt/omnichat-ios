@@ -45,6 +45,48 @@ struct FakeTranslator: TextTranslating {
 }
 
 enum DebugHooks {
+    /// `-StrataWebSelfTest 1`: one real web_search (DuckDuckGo) and two real web_fetch calls through the on-device tools
+    /// (hidden WKWebView, Readability), reported to stderr.
+    @MainActor
+    static func runWebSelfTest() {
+        guard UserDefaults.standard.bool(forKey: "StrataWebSelfTest") else { return }
+        func say(_ text: String) { FileHandle.standardError.write(Data("[web-selftest] \(text)\n".utf8)) }
+        Task { @MainActor in
+            let tools = ToolRouter()
+            var started = ContinuousClock.now
+            let search = await tools.execute(name: ToolNames.webSearch, arguments: #"{"query":"swift concurrency actors"}"#)
+            say("search: error=\(search.isError) sources=\(search.sources.count) in \(ContinuousClock.now - started)")
+            for source in search.sources.prefix(3) { say("  \(source.title.prefix(60)) | \(source.url.prefix(80))") }
+            if search.isError || search.sources.isEmpty { say("  text: \(search.text.prefix(200))") }
+            for url in ["https://example.com/", "https://en.wikipedia.org/wiki/Swift_(programming_language)"] {
+                started = ContinuousClock.now
+                let fetch = await tools.execute(name: ToolNames.webFetch, arguments: #"{"url":"\#(url)"}"#)
+                say("fetch \(url): error=\(fetch.isError) chars=\(fetch.text.count) in \(ContinuousClock.now - started)")
+                say("  \(fetch.text.prefix(160).replacingOccurrences(of: "\n", with: " "))")
+            }
+            say("done")
+        }
+    }
+
+    /// `-StrataKeychainSelfTest 1`: saves, reads back, replaces and deletes a throwaway key through the same store the
+    /// connections use, and prints the outcome (never the value) to stderr.
+    static func runKeychainSelfTest() {
+        guard UserDefaults.standard.bool(forKey: "StrataKeychainSelfTest") else { return }
+        func say(_ text: String) { FileHandle.standardError.write(Data("[keychain-selftest] \(text)\n".utf8)) }
+        let store = KeychainKeyStore(service: "cc.coolservices.strata.selftest")
+        let id = UUID()
+        do {
+            try store.setKey("self-test-value-1", for: id)
+            say("saved: \(store.key(for: id) == "self-test-value-1" ? "read back ok" : "READ BACK FAILED")")
+            try store.setKey("self-test-value-2", for: id)
+            say("replaced: \(store.key(for: id) == "self-test-value-2" ? "read back ok" : "READ BACK FAILED")")
+            try store.setKey(nil, for: id)
+            say("deleted: \(store.key(for: id) == nil ? "gone" : "STILL THERE")")
+        } catch {
+            say("FAILED: \(error.localizedDescription)")
+        }
+    }
+
     /// `-StrataPreferredLanguage fr` makes the reader's language French; `-StrataFakeTranslation 1` translates with
     /// `FakeTranslator` (the simulator has no languages installed).
     @MainActor

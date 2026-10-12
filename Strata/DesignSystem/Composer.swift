@@ -46,10 +46,17 @@ struct ComposerBar<Chip: View>: View {
     var onRemoveAttachment: (UUID) -> Void = { _ in }
     /// Set while a sent message is being edited: shows the "Editing message" bar.
     var onCancelEdit: (() -> Void)?
+    /// Images pasted into the field (Mac).
+    var onPasteImages: (([Data]) -> Void)?
     var onSend: () -> Void
     var onStop: () -> Void
     @ViewBuilder var chip: () -> Chip
+    #if os(macOS)
+    /// A Mac composer is an NSTextView, which SwiftUI's focus system does not drive: focus is plain state.
+    var isFocused: Binding<Bool>
+    #else
     @FocusState.Binding var isFocused: Bool
+    #endif
     @State private var inputHandle = TextInputHandle()
 
     var body: some View {
@@ -79,6 +86,17 @@ struct ComposerBar<Chip: View>: View {
                         }
                     }
                 }
+                Group {
+                #if os(macOS)
+                MacComposerField(text: $text, isFocused: isFocused,
+                                 textColor: theme.textPrimary, onReturn: { if canSend && !isStreaming { onSend() } },
+                                 onPasteImages: onPasteImages)
+                    .overlay(alignment: .topLeading) {
+                        if text.isEmpty {
+                            Text(placeholder).font(DS.Typography.ui).foregroundStyle(theme.textSecondary).allowsHitTesting(false)
+                        }
+                    }
+                #else
                 TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(theme.textSecondary), axis: .vertical)
                     .lineLimit(1...6)
                     .font(DS.Typography.ui)
@@ -89,6 +107,8 @@ struct ComposerBar<Chip: View>: View {
                     .returnSends(handle: inputHandle) { // Mac only; same rules as the send button
                         if canSend && !isStreaming { onSend() }
                     }
+                #endif
+                }
                     .padding(.horizontal, DS.Spacing.xs)
                 HStack(spacing: DS.Spacing.sm) {
                     GlassIconButton(systemName: "plus", label: "Add photo", diameter: DS.IconSize.compactControlDiameter,
@@ -149,7 +169,11 @@ struct ComposerBar<Chip: View>: View {
 private struct ComposerPreview: View {
     var streaming = false
     @State private var text = "Hello there"
+    #if os(macOS)
+    @State private var focused = false
+    #else
     @FocusState private var focused: Bool
+    #endif
     var body: some View {
         VStack {
             Spacer()

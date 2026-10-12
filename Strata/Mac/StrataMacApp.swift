@@ -10,6 +10,11 @@ struct StrataMacApp: App {
 
     init() {
         MacFonts.register()
+        #if DEBUG
+        DebugHooks.runKeychainSelfTest()
+        DebugHooks.runWebSelfTest()
+        MacKeyTest.runIfRequested()
+        #endif
         MemoryPurge.install()
         HighlightService.registerForPurge()
         do {
