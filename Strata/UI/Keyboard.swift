@@ -90,3 +90,124 @@ struct EdgeFreePanRecognizer: UIViewRepresentable {
         func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
     }
 }
+
+// MARK: - Running as an iOS app on a Mac
+
+enum Platform {
+    /// "My Mac (Designed for iPhone)": an iPhone app on Apple Silicon, with a hardware keyboard and no software one.
+    static let isiOSAppOnMac = ProcessInfo.processInfo.isiOSAppOnMac
+}
+
+/// What the composer needs from the UIKit text input that SwiftUI's `TextField` wraps.
+@MainActor
+final class TextInputHandle {
+    weak var input: UIView?
+
+    /// True while an input method (Korean, Japanese, ...) holds uncommitted text.
+    var hasMarkedText: Bool {
+        if let tv = input as? UITextView { return tv.markedTextRange != nil }
+        if let tf = input as? UITextField { return tf.markedTextRange != nil }
+        return false
+    }
+}
+
+extension View {
+    /// Removes the empty shortcuts bar (the input assistant view) that UIKit shows with a hardware keyboard, and on a
+    /// Mac reports as a keyboard frame, from the text input behind this view. Fills `handle` with that input.
+    func withoutInputAssistantBar(handle: TextInputHandle? = nil) -> some View {
+        background(InputAssistantBarRemover(handle: handle).allowsHitTesting(false))
+    }
+
+    /// On a Mac only: Return calls `send`, Shift+Return (and any other modifier) still inserts a newline. While an
+    /// input method has uncommitted text, Return is left to it so it commits instead of sending. iPhone and iPad
+    /// behavior is untouched.
+    func returnSends(handle: TextInputHandle, send: @escaping () -> Void) -> some View {
+        modifier(ReturnSendsModifier(handle: handle, send: send))
+    }
+
+    /// No keyboard safe area on a Mac: there is no software keyboard, so any frame UIKit reports is a bar, not content.
+    @ViewBuilder func ignoresKeyboardOnMac() -> some View {
+        if Platform.isiOSAppOnMac { ignoresSafeArea(.keyboard) } else { self }
+    }
+}
+
+private struct ReturnSendsModifier: ViewModifier {
+    let handle: TextInputHandle
+    let send: () -> Void
+
+    func body(content: Content) -> some View {
+        if Platform.isiOSAppOnMac {
+            content.onKeyPress(.return, phases: .down) { press in
+                guard press.modifiers.isEmpty, !handle.hasMarkedText else { return .ignored }
+                send()
+                return .handled
+            }
+        } else {
+            content
+        }
+    }
+}
+
+/// Finds the UITextView/UITextField SwiftUI created for the view this sits behind (the one whose frame holds this
+/// view's center) and empties its input assistant item.
+private struct InputAssistantBarRemover: UIViewRepresentable {
+    let handle: TextInputHandle?
+
+    func makeUIView(context: Context) -> Finder {
+        let v = Finder()
+        v.isUserInteractionEnabled = false
+        v.handle = handle
+        return v
+    }
+
+    func updateUIView(_ uiView: Finder, context: Context) {
+        uiView.handle = handle
+        uiView.setNeedsLayout()
+    }
+
+    final class Finder: UIView {
+        var handle: TextInputHandle?
+        private weak var configured: UIView?
+        private var attempts = 0
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            setNeedsLayout()
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            guard window != nil else { return }
+            if configured?.window == nil {
+                guard attempts < 30 else { return }
+                attempts += 1
+                guard let input = findInput() else {
+                    DispatchQueue.main.async { [weak self] in self?.setNeedsLayout() } // SwiftUI may add the text view a beat later
+                    return
+                }
+                configured = input
+                handle?.input = input
+                let item = (input as? UITextView)?.inputAssistantItem ?? (input as? UITextField)?.inputAssistantItem
+                item?.leadingBarButtonGroups = []
+                item?.trailingBarButtonGroups = []
+                if input.isFirstResponder { input.reloadInputViews() }
+            }
+        }
+
+        private func findInput() -> UIView? {
+            guard let window else { return nil }
+            let center = convert(CGPoint(x: bounds.midX, y: bounds.midY), to: window)
+            var best: UIView?
+            var stack: [UIView] = [window]
+            while let v = stack.popLast() {
+                if v is UITextView || v is UITextField, !v.isHidden,
+                   v.convert(v.bounds, to: window).contains(center) {
+                    best = v
+                    break
+                }
+                stack.append(contentsOf: v.subviews)
+            }
+            return best
+        }
+    }
+}

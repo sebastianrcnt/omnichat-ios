@@ -96,6 +96,7 @@ struct SidebarView: View {
                 .foregroundStyle(theme.textPrimary)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .withoutInputAssistantBar()
             if !query.isEmpty {
                 Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(theme.textTertiary) }
                     .accessibilityLabel(Text("Clear search"))

@@ -113,6 +113,7 @@ struct ChatView: View {
         messages
             .safeAreaBar(edge: .top) { header }
             .safeAreaBar(edge: .bottom) { composer }
+            .ignoresKeyboardOnMac()
             .overlay(alignment: .bottom) { jumpButton }
             // Where a language that is not installed yet is downloaded and the answer translated.
             .translationTask(controller.translation.configuration) { session in

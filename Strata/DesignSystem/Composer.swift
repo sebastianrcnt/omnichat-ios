@@ -50,6 +50,7 @@ struct ComposerBar<Chip: View>: View {
     var onStop: () -> Void
     @ViewBuilder var chip: () -> Chip
     @FocusState.Binding var isFocused: Bool
+    @State private var inputHandle = TextInputHandle()
 
     var body: some View {
         GlassEffectContainer(spacing: DS.Spacing.md) {
@@ -83,6 +84,10 @@ struct ComposerBar<Chip: View>: View {
                     .font(DS.Typography.ui)
                     .foregroundStyle(theme.textPrimary)
                     .focused($isFocused)
+                    .withoutInputAssistantBar(handle: inputHandle)
+                    .returnSends(handle: inputHandle) { // Mac only; same rules as the send button
+                        if canSend && !isStreaming { onSend() }
+                    }
                     .padding(.horizontal, DS.Spacing.xs)
                 HStack(spacing: DS.Spacing.sm) {
                     GlassIconButton(systemName: "plus", label: "Add photo", diameter: DS.IconSize.compactControlDiameter,

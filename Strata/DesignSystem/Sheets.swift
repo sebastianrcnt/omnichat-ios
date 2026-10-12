@@ -206,6 +206,7 @@ struct SettingsFieldRow: View {
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
             .keyboardType(keyboard)
+            .withoutInputAssistantBar()
         }
         .padding(.horizontal, DS.Spacing.lg)
         .padding(.vertical, DS.Spacing.md)
