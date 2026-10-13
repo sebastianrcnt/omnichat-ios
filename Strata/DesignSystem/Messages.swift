@@ -100,10 +100,13 @@ extension MarkdownUI.Theme {
             }
             .listItem { c in c.label.markdownMargin(top: .em(0.35)) }
             .blockquote { c in
+                // Same card as a top-level quote (`QuoteBlockView`), for quotes nested in lists or other quotes.
                 c.label
-                    .markdownTextStyle { ForegroundColor(t.textSecondary) }
-                    .padding(.leading, DS.Spacing.md)
-                    .overlay(alignment: .leading) { Rectangle().fill(t.separator).frame(width: 3) }
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(t.quoteFill, in: UnevenRoundedRectangle(bottomTrailingRadius: DS.Radius.quote, topTrailingRadius: DS.Radius.quote))
+                    .overlay(alignment: .leading) { Rectangle().fill(t.textSecondary).frame(width: 3) }
                     .markdownMargin(top: 0, bottom: 0)
             }
             .codeBlock { c in

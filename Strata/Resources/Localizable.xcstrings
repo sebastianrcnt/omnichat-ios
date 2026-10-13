@@ -4,6 +4,7 @@
     "": {},
     " ": {},
     "%@ (recommended)": {},
+    "%@ chars": {},
     "%@ of %@ (%lld%%)": {},
     "%@ of %@ tokens used": {},
     "%@ · %@": {},
@@ -429,11 +430,13 @@
     "Shows the full reasoning": {},
     "Shows the notes that replaced them": {},
     "Shows the results": {},
+    "Shows the source": {},
     "Sidebar": {},
     "Small": {},
     "Smaller text": {},
     "Smooth streaming": {},
     "Source": {},
+    "Source: %@": {},
     "Sources": {},
     "Static / dynamic": {
       "extractionState": "stale"

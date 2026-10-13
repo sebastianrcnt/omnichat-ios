@@ -127,6 +127,8 @@ struct ActivityEntry: Identifiable, Equatable {
     var isError: Bool
     /// A `web_fetch` with an offset: shown as "Read more of <domain>".
     var isContinuation = false
+    /// A finished page read: the page's length (the Timeline shows it; the feed shows only a status mark).
+    var characters: Int?
 
     static func host(of url: String) -> String {
         guard let h = URL(string: url)?.host(percentEncoded: false) else { return url }
@@ -142,6 +144,7 @@ struct ActivityEntry: Identifiable, Equatable {
         } else {
             kind = .visit(url: call.primaryArgument, host: Self.host(of: call.primaryArgument))
             isContinuation = call.fetchOffset > 0
+            characters = call.fetchedCharacters
         }
     }
 
@@ -231,6 +234,10 @@ struct ActivityRow: View {
                 if wrapsChips, let u = URL(string: url) {
                     Text(entry.isContinuation ? "Read more of" : "Visited").font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary)
                     SourceChip(host: host, url: u, progress: progress, isError: entry.isError)
+                    if let characters = entry.characters {
+                        Text("\(characters.formatted()) chars")
+                            .font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary).lineLimit(1)
+                    }
                 } else {
                     Text(entry.isContinuation ? "Read more of \(host)" : "Visited \(host)").font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary).lineLimit(1)
                         .padding(.horizontal, DS.Spacing.sm).padding(.vertical, DS.Spacing.xs)

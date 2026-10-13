@@ -36,8 +36,13 @@ private struct FinalizedBlocksView: View {
     let model: StreamingMarkdownModel
 
     var body: some View {
+        let quotes = QuoteCitations.plan(model.finalized)
         ForEach(model.finalized) { block in
-            MarkdownBlockView(block: block, theme: theme, citations: citations, typeScale: DS.typeScale(typeSize)).equatable()
+            let plan = quotes[block.id]
+            if plan != .absorbed {
+                MarkdownBlockView(block: block, theme: theme, citations: citations, typeScale: DS.typeScale(typeSize),
+                                  quote: plan).equatable()
+            }
         }
     }
 }
@@ -51,12 +56,15 @@ private struct TailBlocksView: View {
 
     var body: some View {
         let tail = model.tail
+        // Quote source lines only among blocks that are already followed by another (closed) block.
+        let quotes = QuoteCitations.plan(Array(tail.dropLast()))
         ForEach(Array(tail.enumerated()), id: \.element.id) { offset, block in
             if offset == tail.count - 1 && !(block.kind == .table && block.isClosed) {
                 OpenBlockView(block: block, spans: model.freshSpans)
-            } else {
+            } else if quotes[block.id] != .absorbed {
                 // A block followed by another block is stable: full renderer, re-rendered only if its text changes.
-                MarkdownBlockView(block: block, theme: theme, citations: citations, typeScale: DS.typeScale(typeSize)).equatable()
+                MarkdownBlockView(block: block, theme: theme, citations: citations, typeScale: DS.typeScale(typeSize),
+                                  quote: quotes[block.id]).equatable()
             }
         }
     }
@@ -70,9 +78,17 @@ struct MarkdownBlockView: View, Equatable {
     let citations: CitationContext
     /// `DS.typeScale` of the text size on screen: MarkdownUI sizes are points, so they are scaled here.
     var typeScale: CGFloat = 1
+    /// A quote's source line (see `QuoteCitations`).
+    var quote: QuoteCitations.Plan?
 
     var body: some View {
-        if block.usesInlineRenderer {
+        if block.kind == .blockquote {
+            if case .quote(let ids, let text)? = quote {
+                QuoteBlockView(source: text ?? block.text, simple: block.usesInlineRenderer, sourceIDs: ids, typeScale: typeScale)
+            } else {
+                QuoteBlockView(source: block.text, simple: block.usesInlineRenderer, typeScale: typeScale)
+            }
+        } else if block.usesInlineRenderer {
             InlineBlockView(block: block, spans: [], isOpen: false)
         } else if block.kind == .code {
             CodeBlockView(content: CodeBlockContent(blockText: block.text)).equatable()
@@ -92,8 +108,13 @@ struct MarkdownBlockView: View, Equatable {
 extension MarkdownBlock {
     /// Source for MarkdownUI: tildes literal; lenient bold unless the block holds fenced code.
     var markdownUIText: String {
-        let escaped = TildeEscaper.escape(renderText)
-        if kind == .code || renderText.contains("```") || renderText.contains("~~~") { return escaped }
+        if kind == .code { return TildeEscaper.escape(renderText) }
+        return Self.markdownUISource(renderText)
+    }
+
+    nonisolated static func markdownUISource(_ text: String) -> String {
+        let escaped = TildeEscaper.escape(text)
+        if text.contains("```") || text.contains("~~~") { return escaped }
         return LenientEmphasis.normalize(escaped)
     }
 
@@ -347,12 +368,7 @@ struct InlineBlockView: View {
                                leading: .heading(level), semiboldStrong: false, spans: spans, isOpen: isOpen)
                 .padding(.top, DS.Spacing.sm)
         case .blockquote:
-            let body = block.text.split(separator: "\n", omittingEmptySubsequences: false)
-                .map { Substring($0).drop(while: { $0 == ">" || $0 == " " }) }
-                .joined(separator: " ")
-            InlineMarkdownText(source: body, font: DS.Typography.answer, color: theme.textSecondary, spans: spans, isOpen: isOpen)
-                .padding(.leading, DS.Spacing.md)
-                .overlay(alignment: .leading) { Rectangle().fill(theme.separator).frame(width: 3) }
+            QuoteBlockView(source: block.text, simple: true, spans: spans, isOpen: isOpen)
         case .list:
             InlineListView(text: block.text, spans: spans, isOpen: isOpen)
         default:
@@ -368,6 +384,115 @@ struct InlineBlockView: View {
     }
 
     static func headingFont(_ level: Int) -> Font { DS.Typography.heading(level) }
+}
+
+// MARK: - Quotes
+
+/// A block quote as a card: normal text on a faint fill, a bar on the left, rounded on the right. With `sourceIDs`, a
+/// source line (favicon, domain, page title) under a hairline; it opens the source like a citation chip.
+struct QuoteBlockView: View {
+    @Environment(\.theme) private var theme
+    @Environment(\.citations) private var citations
+    @Environment(\.openURL) private var openURL
+    /// The quote's Markdown, `>` markers included.
+    let source: String
+    /// Plain prose (inline renderer); otherwise the inside is rendered by MarkdownUI.
+    var simple = true
+    var sourceIDs: [Int] = []
+    var spans: [StreamingMarkdownModel.FreshSpan] = []
+    var isOpen = false
+    var typeScale: CGFloat = 1
+
+    /// The quote's paragraphs without their `>` markers (lines of one paragraph joined with a space).
+    nonisolated static func paragraphs(_ source: String) -> [String] {
+        var out: [String] = []
+        var current: [Substring] = []
+        for line in source.split(separator: "\n", omittingEmptySubsequences: false) {
+            let content = line.drop(while: { $0 == ">" || $0 == " " || $0 == "\t" })
+            if content.isEmpty {
+                if !current.isEmpty { out.append(current.joined(separator: " ")); current = [] }
+            } else {
+                current.append(content)
+            }
+        }
+        if !current.isEmpty { out.append(current.joined(separator: " ")) }
+        return out
+    }
+
+    /// The inside of a quote as Markdown: one level of `>` removed from each line.
+    nonisolated static func inner(_ source: String) -> String {
+        source.split(separator: "\n", omittingEmptySubsequences: false).map { line -> String in
+            var rest = line.drop(while: { $0 == " " })
+            if rest.first == ">" { rest = rest.dropFirst(); if rest.first == " " { rest = rest.dropFirst() } }
+            return String(rest)
+        }.joined(separator: "\n")
+    }
+
+    var body: some View {
+        let sources = sourceIDs.compactMap { citations.sources[$0] }
+        VStack(alignment: .leading, spacing: 0) {
+            content
+            if let first = sources.first {
+                Rectangle().fill(theme.separator).frame(height: 0.5)
+                    .padding(.top, DS.Spacing.md)
+                    .padding(.bottom, DS.Spacing.sm)
+                sourceLine(first, more: sources.count - 1)
+            }
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(theme.quoteFill, in: UnevenRoundedRectangle(bottomTrailingRadius: DS.Radius.quote, topTrailingRadius: DS.Radius.quote))
+        .overlay(alignment: .leading) { Rectangle().fill(theme.textSecondary).frame(width: 3) }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if simple {
+            let paragraphs = Self.paragraphs(source)
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                ForEach(Array(paragraphs.enumerated()), id: \.offset) { i, text in
+                    let last = i == paragraphs.count - 1
+                    InlineMarkdownText(source: text, font: DS.Typography.answer, color: theme.textPrimary,
+                                       spans: last ? spans : [], isOpen: isOpen && last)
+                }
+            }
+        } else {
+            Markdown(MarkdownBlock.markdownUISource(CJKEmphasisFixer.fix(Self.inner(source))))
+                .markdownTheme(.strata(theme, scale: typeScale))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func sourceLine(_ info: SourceInfo, more: Int) -> some View {
+        Button {
+            if let url = URL(string: CitationParser.citeURL(ids: sourceIDs)) { openURL(url) }
+        } label: {
+            HStack(spacing: DS.Spacing.sm - 2) {
+                FaviconView(host: info.host, size: DS.IconSize.favicon - 2)
+                Text(info.shortHost)
+                    .foregroundStyle(theme.textSecondary)
+                    .lineLimit(1)
+                    .layoutPriority(1)
+                if !info.title.isEmpty, info.title != info.host {
+                    Text(info.title)
+                        .foregroundStyle(theme.textTertiary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                if more > 0 {
+                    Text(verbatim: "+\(more)").foregroundStyle(theme.textTertiary).layoutPriority(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .font(DS.Typography.quoteSource)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Source: \(info.shortHost)"))
+        .accessibilityHint(Text("Shows the source"))
+    }
 }
 
 /// Inline Markdown rendered through `AttributedString`, with citation chips, optimistic closing and a
