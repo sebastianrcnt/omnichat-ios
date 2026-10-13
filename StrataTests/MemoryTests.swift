@@ -146,7 +146,8 @@ struct LongSessionTests {
         let connections = ConnectionStore(defaults: defaults, keys: keys)
         try connections.setAPIKey("k", for: Connection.strataID)
         var strata = connections.connection(Connection.strataID)!
-        strata.models = [ModelInfo(id: "m", supportsTools: true)]
+        // Reads images, so the six attached below are sent with every request (a text-only model gets notes instead).
+        strata.models = [ModelInfo(id: "m", supportsImages: true, supportsTools: true)]
         connections.upsert(strata)
 
         // Per turn: one tool round, then a 400-delta answer.
