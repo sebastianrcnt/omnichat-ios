@@ -2,6 +2,7 @@
 // `strataExtract(maxCharacters)` and gets back a JSON string: { title, text, readable, method }.
 //
 // Flow:
+//   0. A site rule (SITES below), when the page's host has one and it finds the article.
 //   1. Readability picks the article.
 //   2. If it picked only a small part of the page's own prose (sites built from anonymous <div>s, like namu.wiki,
 //      can lead it to a footnote block), the page's own text is used instead, without navigation, headers,
@@ -34,19 +35,10 @@
   var BLOCK = { P: 1, DIV: 1, SECTION: 1, ARTICLE: 1, MAIN: 1, UL: 1, OL: 1, LI: 1, DL: 1, DT: 1, DD: 1, TABLE: 1, TR: 1,
                 BLOCKQUOTE: 1, PRE: 1, FIGURE: 1, FIGCAPTION: 1, DETAILS: 1, SUMMARY: 1, HR: 1, BR: 1 };
 
-  // The body's text, without page chrome, from a copy of the DOM. Built from the tree rather than `innerText` so
-  // collapsed sections (namu.wiki folds most of an article on mobile) are kept; block elements become line breaks,
-  // headings become Markdown headings and table cells are separated by " | ".
-  function pageText() {
-    if (!document.body) return "";
-    var root = document.body.cloneNode(true);
-    var total = (root.textContent || "").length;
-    var chrome = root.querySelectorAll(CHROME);
-    for (var i = 0; i < chrome.length; i++) {
-      // Keep a header or footer that wraps most of the page: some sites put the whole layout inside one.
-      if ((chrome[i].textContent || "").length > total * 0.5) continue;
-      if (chrome[i].parentNode) chrome[i].parentNode.removeChild(chrome[i]);
-    }
+  // Text of a (copied) subtree: block elements become line breaks, headings become Markdown headings and table
+  // cells are separated by " | ". Built from the tree rather than `innerText`, so collapsed sections are kept
+  // (namu.wiki folds most of an article on mobile).
+  function textOf(root, cleanHeading) {
     var out = [];
     (function walk(node) {
       for (var c = node.firstChild; c; c = c.nextSibling) {
@@ -57,6 +49,7 @@
         var heading = /^H([1-6])$/.exec(tag);
         if (heading) {
           var h = (c.textContent || "").replace(/\s+/g, " ").trim();
+          if (cleanHeading) h = cleanHeading(h);
           if (h) out.push("\n\n" + "######".slice(0, +heading[1]) + " " + h + "\n\n");
           continue;
         }
@@ -70,8 +63,78 @@
     return squeeze(out.join("").replace(/ *\n */g, "\n"));
   }
 
+  // The body's text without page chrome (nav, header, footer, sidebars), from a copy of the DOM.
+  function pageText() {
+    if (!document.body) return "";
+    var root = document.body.cloneNode(true);
+    var total = (root.textContent || "").length;
+    var chrome = root.querySelectorAll(CHROME);
+    for (var i = 0; i < chrome.length; i++) {
+      // Keep a header or footer that wraps most of the page: some sites put the whole layout inside one.
+      if ((chrome[i].textContent || "").length > total * 0.5) continue;
+      if (chrome[i].parentNode) chrome[i].parentNode.removeChild(chrome[i]);
+    }
+    return textOf(root);
+  }
+
+  function clean(el) { return el ? (el.textContent || "").replace(/\s+/g, " ").trim() : ""; }
+
+  // Site rules, tried before the generic flow. `extract` returns { title, text } or null to fall back to the generic
+  // flow. A rule should read only the article, as the site lays it out; the hosts are matched on the page's own
+  // location (after redirects).
+  var SITES = [
+    {
+      // Class names are generated and change between builds, so the article is found by its shape: the nearest
+      // ancestor of the first section heading that holds most of the sections.
+      name: "namu.wiki",
+      match: /(^|\.)namu\.wiki$/,
+      extract: function () {
+        var first = document.querySelector("h2");
+        if (!first) return null;
+        var body = first;
+        while (body.parentElement && body !== document.body && !(body.children.length >= 8 && (body.textContent || "").length > 1000)) {
+          body = body.parentElement;
+        }
+        if (!body || body === document.body) return null;
+        var title = clean(document.querySelector("h1")) || document.title;
+        var text = textOf(body.cloneNode(true), function (h) { return h.replace(/\[편집\]$/, "").trim(); });
+        return { title: title, text: "# " + title + "\n\n" + text };
+      }
+    },
+    {
+      name: "naver-news",
+      match: /^(n\.news|m\.news|news|m\.sports|sports|m\.entertain|entertain)\.naver\.com$/,
+      extract: function () {
+        var body = document.querySelector("#dic_area, #newsct_article, #comp_news_article ._article_content, .news_end");
+        if (!body) return null;
+        var title = clean(document.querySelector("#title_area, .media_end_head_headline, .news_headline .title")) || document.title;
+        var press = clean(document.querySelector(".media_end_head_top_logo img[alt]")) ||
+                    ((document.querySelector(".media_end_head_top_logo img[alt]") || {}).alt || "");
+        var stamp = document.querySelector(".media_end_head_info_datestamp_time, ._ARTICLE_DATE_TIME");
+        var date = stamp ? (stamp.getAttribute("data-date-time") || clean(stamp)) : "";
+        var meta = [press, date].filter(function (x) { return x; }).join(" · ");
+        return { title: title, text: "# " + title + "\n\n" + (meta ? meta + "\n\n" : "") + textOf(body.cloneNode(true)) };
+      }
+    }
+  ];
+
+  function siteRule() {
+    var host = (location.hostname || "").toLowerCase();
+    for (var i = 0; i < SITES.length; i++) if (SITES[i].match.test(host)) return SITES[i];
+    return null;
+  }
+
   window.strataExtract = function (maxCharacters) {
     var cap = maxCharacters > 0 ? maxCharacters : 400000;
+    var rule = siteRule();
+    if (rule) {
+      var site = null;
+      try { site = rule.extract(); } catch (e) {}
+      if (site && site.text && site.text.length > 200) {
+        var t = site.text.length > cap ? site.text.slice(0, cap) : site.text;
+        return JSON.stringify({ title: site.title || document.title || "", text: t, readable: true, method: "site:" + rule.name });
+      }
+    }
     var title = document.title || "";
     var article = null;
     try {

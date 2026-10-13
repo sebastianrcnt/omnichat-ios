@@ -1,0 +1,6 @@
+# One URL per line; lines starting with # are skipped. Pages worth re-checking after an extractor change.
+https://namu.wiki/w/%EC%A0%84%EB%91%90%ED%99%98
+https://ko.wikipedia.org/wiki/%EC%84%9C%EC%9A%B8%EB%8C%80%ED%95%99%EA%B5%90
+https://en.wikipedia.org/wiki/Seoul_National_University
+https://n.news.naver.com/article/001/0015000000
+https://developer.apple.com/documentation/swiftui/view
