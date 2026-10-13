@@ -314,3 +314,18 @@ struct DictationControllerTests {
         #expect(await first == "Twice")
     }
 }
+
+struct DictationLanguageTests {
+    @Test func koreanIsTheDefaultWhenTheDeviceListsIt() {
+        #expect(DictationLanguage.defaultID(preferred: ["en-KR", "ko-KR"]) == "ko-KR")
+        #expect(DictationLanguage.defaultID(preferred: ["ja-JP", "en-US"]) == "ja-JP")
+        #expect(DictationLanguage.defaultID(preferred: ["en-US"]) == "en-US")
+    }
+
+    @Test func oneOptionPerLanguageWithKoreanAndEnglishAlwaysOffered() {
+        #expect(DictationLanguage.options(preferred: ["en-KR", "ko-KR"]) == ["en-KR", "ko-KR"])
+        #expect(DictationLanguage.options(preferred: ["ja-JP", "en-GB", "en-US"]) == ["ja-JP", "en-GB", "ko-KR"])
+        #expect(DictationLanguage.name("ko-KR") == "한국어")
+        #expect(DictationLanguage.name("en-KR") == "English")
+    }
+}

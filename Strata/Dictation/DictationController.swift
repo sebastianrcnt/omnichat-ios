@@ -89,7 +89,9 @@ final class DictationController {
     /// Started from the expanded composer: the dictation appends to the text there, shown inline in the accent color.
     private(set) var isExpandedStyle = false
 
-    let locale: Locale
+    /// The language listened for: Settings > Dictation language, read at each start so a change applies at once.
+    var locale: Locale { fixedLocale ?? DictationLanguage.current }
+    @ObservationIgnored private let fixedLocale: Locale?
     @ObservationIgnored private let engine: DictationEngine
     @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private var session: Task<Void, Never>?
@@ -98,17 +100,12 @@ final class DictationController {
     /// Longest wait for the recognizer to settle after confirm.
     @ObservationIgnored var finishTimeout: Duration = .seconds(3)
 
-    init(engine: DictationEngine, locale: Locale = DictationController.deviceLocale, now: @escaping () -> Date = Date.init) {
+    init(engine: DictationEngine, locale: Locale? = nil, now: @escaping () -> Date = Date.init) {
         self.engine = engine
-        self.locale = locale
+        self.fixedLocale = locale
         self.now = now
     }
 
-    /// The device's language, not `Locale.current`: the app is English only, so `Locale.current` would say English
-    /// for someone whose phone speaks Korean.
-    static var deviceLocale: Locale {
-        Locale.preferredLanguages.first.map(Locale.init(identifier:)) ?? .current
-    }
 
     /// The whole transcript so far.
     var transcript: String { Self.join(finalized, volatile, separator: separator) }
@@ -309,5 +306,40 @@ final class DictationController {
             await group.next()
             group.cancelAll()
         }
+    }
+}
+
+/// Settings > Dictation language: one fixed language, since the recognizer can't tell which one is spoken.
+enum DictationLanguage {
+    nonisolated static let defaultsKey = "dictationLanguage"
+
+    /// The device's preferred languages plus Korean and English, one entry per language, as locale identifiers.
+    static func options(preferred: [String] = Locale.preferredLanguages) -> [String] {
+        var seen = Set<String>()
+        var out: [String] = []
+        for id in preferred + ["ko-KR", "en-US"] {
+            guard let code = Locale(identifier: id).language.languageCode?.identifier, seen.insert(code).inserted else { continue }
+            out.append(id)
+        }
+        return out
+    }
+
+    /// Korean when the device lists it (the app is English, so the phone often is too, while the user speaks Korean),
+    /// else the first preferred language. Not `Locale.current`, which the English-only app reports as English.
+    static func defaultID(preferred: [String] = Locale.preferredLanguages) -> String {
+        let all = options(preferred: preferred)
+        return all.first { Locale(identifier: $0).language.languageCode?.identifier == "ko" && preferred.contains($0) } ?? all[0]
+    }
+
+    static var current: Locale {
+        Locale(identifier: UserDefaults.standard.string(forKey: defaultsKey) ?? defaultID())
+    }
+
+    /// The language's name in itself: "한국어", "English".
+    static func name(_ id: String) -> String {
+        let locale = Locale(identifier: id)
+        guard let code = locale.language.languageCode?.identifier,
+              let name = locale.localizedString(forLanguageCode: code) else { return id }
+        return name.prefix(1).uppercased() + name.dropFirst()
     }
 }

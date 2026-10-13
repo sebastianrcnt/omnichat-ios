@@ -106,6 +106,8 @@ final class AppSettings {
     /// 0...6, xSmall ... xxxLarge; 3 is the default size.
     var textSizeStep: Int { didSet { defaults.set(textSizeStep, forKey: "textSizeStep") } }
     var lastEffortRaw: String { didSet { defaults.set(lastEffortRaw, forKey: "lastEffort") } }
+    /// The language dictation listens for (`DictationLanguage.current` reads the same key).
+    var dictationLanguage: String { didSet { defaults.set(dictationLanguage, forKey: DictationLanguage.defaultsKey) } }
     /// Site plugins the model may run (all off until turned on).
     var enabledPlugins: Set<String> { didSet { defaults.set(enabledPlugins.sorted(), forKey: Self.enabledPluginsKey) } }
 
@@ -126,6 +128,7 @@ final class AppSettings {
         developerMode = defaults.bool(forKey: "developerMode")
         lastEffortRaw = defaults.string(forKey: "lastEffort") ?? Effort.default.rawValue
         enabledPlugins = Set(defaults.stringArray(forKey: Self.enabledPluginsKey) ?? [])
+        dictationLanguage = defaults.string(forKey: DictationLanguage.defaultsKey) ?? DictationLanguage.defaultID()
         // `bool` and `integer` also read launch-argument strings ("NO", "0"), which `as? Bool` would not.
         useSystemTextSize = defaults.object(forKey: "useSystemTextSize") == nil ? true : defaults.bool(forKey: "useSystemTextSize")
         textSizeStep = defaults.object(forKey: "textSizeStep") == nil

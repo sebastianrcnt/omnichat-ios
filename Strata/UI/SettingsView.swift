@@ -106,6 +106,20 @@ struct SettingsView: View {
                                           isOn: $settings.generateTitles)
                     }
 
+                    GroupedSection(header: "Dictation", footer: "The language the microphone in the composer listens for. Speech in another language comes out garbled.") {
+                        HStack {
+                            Text("Language").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
+                            Spacer()
+                            Picker("Language", selection: $settings.dictationLanguage) {
+                                ForEach(DictationLanguage.options(), id: \.self) { Text(verbatim: DictationLanguage.name($0)).tag($0) }
+                            }
+                            .labelsHidden()
+                            .tint(theme.textSecondary)
+                        }
+                        .padding(.horizontal, DS.Spacing.lg)
+                        .padding(.vertical, DS.Spacing.sm)
+                    }
+
                     GroupedSection(header: "Context", footer: "Used for the context ring when a model does not report its context length.") {
                         SettingsFieldRow(title: "Default length", prompt: "262144",
                                          text: Binding(
