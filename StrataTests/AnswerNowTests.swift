@@ -8,19 +8,25 @@ struct AnswerNowPolicyTests {
         #expect(AnswerNow.instruction == "Answer now using only the information gathered so far. Do not call tools.")
     }
 
-    @Test func offeredAfterTenSecondsOrTwoToolRounds() {
-        #expect(!AnswerNow.isOffered(elapsed: 10, completedToolRounds: 0, phase: .thinking)) // "more than" 10 s
-        #expect(AnswerNow.isOffered(elapsed: 10.1, completedToolRounds: 0, phase: .thinking))
-        #expect(!AnswerNow.isOffered(elapsed: 3, completedToolRounds: 1, phase: .thinking))
-        #expect(AnswerNow.isOffered(elapsed: 3, completedToolRounds: 2, phase: .thinking))
-        #expect(AnswerNow.isOffered(elapsed: 3, completedToolRounds: 5, phase: .tool(name: "web_fetch", argument: "u")))
-        #expect(AnswerNow.isOffered(elapsed: 12, completedToolRounds: 0, phase: .waiting))
+    @Test func offeredAfterTenSecondsOrTwoSearchesOnceToolsRun() {
+        #expect(!AnswerNow.isOffered(elapsed: 10, completedToolRounds: 1, searches: 1, phase: .thinking)) // "more than" 10 s
+        #expect(AnswerNow.isOffered(elapsed: 10.1, completedToolRounds: 1, searches: 1, phase: .thinking))
+        #expect(!AnswerNow.isOffered(elapsed: 3, completedToolRounds: 1, searches: 1, phase: .thinking))
+        #expect(AnswerNow.isOffered(elapsed: 3, completedToolRounds: 1, searches: 2, phase: .thinking))
+        #expect(AnswerNow.isOffered(elapsed: 3, completedToolRounds: 0, searches: 2, phase: .tool(name: "web_search", argument: "q")))
+        #expect(AnswerNow.isOffered(elapsed: 12, completedToolRounds: 0, searches: 0, phase: .tool(name: "web_fetch", argument: "u")))
+        #expect(AnswerNow.isOffered(elapsed: 12, completedToolRounds: 2, searches: 0, phase: .waiting))
+    }
+
+    @Test func notOfferedBeforeAnyToolRuns() {
+        #expect(!AnswerNow.isOffered(elapsed: 30, completedToolRounds: 0, searches: 0, phase: .thinking))
+        #expect(!AnswerNow.isOffered(elapsed: 30, completedToolRounds: 0, searches: 0, phase: .waiting))
     }
 
     @Test func notOfferedOnceTheAnswerIsBeingWrittenOrWhileSummarizing() {
-        #expect(!AnswerNow.isOffered(elapsed: 60, completedToolRounds: 4, phase: .writing))
-        #expect(!AnswerNow.isOffered(elapsed: 60, completedToolRounds: 4, phase: .compacting))
-        #expect(!AnswerNow.isOffered(elapsed: 60, completedToolRounds: 4, phase: .idle))
+        #expect(!AnswerNow.isOffered(elapsed: 60, completedToolRounds: 4, searches: 4, phase: .writing))
+        #expect(!AnswerNow.isOffered(elapsed: 60, completedToolRounds: 4, searches: 4, phase: .compacting))
+        #expect(!AnswerNow.isOffered(elapsed: 60, completedToolRounds: 4, searches: 4, phase: .idle))
     }
 }
 

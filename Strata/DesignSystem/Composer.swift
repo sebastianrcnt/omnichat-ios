@@ -116,6 +116,45 @@ struct ModelSettingsButton<QuickMenu: View>: View {
     }
 }
 
+/// "Answer now": a small capsule floating just above the composer. It fades in once the running turn has searched
+/// twice or gone on for a while (`AnswerNow.isOffered`) and fades out when the model starts writing.
+struct AnswerNowCapsule: View {
+    @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let start: Date
+    let completedToolRounds: Int
+    let searches: Int
+    let phase: ChatController.Phase
+    let action: () -> Void
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let offered = AnswerNow.isOffered(elapsed: context.date.timeIntervalSince(start),
+                                              completedToolRounds: completedToolRounds, searches: searches, phase: phase)
+            ZStack {
+                if offered {
+                    Button(action: action) {
+                        Label("Answer now", systemImage: "forward.end.fill")
+                            .font(DS.Typography.capsule)
+                            .labelIconToTitleSpacing(DS.Spacing.xs + 2)
+                            .foregroundStyle(theme.textPrimary)
+                            .padding(.horizontal, DS.Spacing.md + 2)
+                            .frame(minHeight: DS.IconSize.capsuleHeight)
+                            .background(.regularMaterial, in: Capsule())
+                            .overlay(Capsule().strokeBorder(theme.separator, lineWidth: 0.5))
+                            .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
+                            .contentShape(Capsule().inset(by: -DS.Spacing.sm))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint(Text("Stops searching and answers from what has been found"))
+                    .transition(.opacity)
+                }
+            }
+            .animation(reduceMotion ? nil : DS.Motion.ease, value: offered)
+        }
+    }
+}
+
 struct ComposerAttachment: Identifiable, Equatable {
     let id: UUID
     let jpeg: Data

@@ -25,6 +25,8 @@ struct ChatView: View {
     #endif
     /// Model, effort and search engine: a sheet on the phone, a popover from the gauge on a Mac.
     @State private var showChatSettings = false
+    /// The composer's height, so the floating "Answer now" capsule sits just above it.
+    @State private var composerHeight: CGFloat = 0
     @State private var showUsage = false
     @State private var showDetails = false
     #if DEBUG
@@ -140,6 +142,7 @@ struct ChatView: View {
                 menu: { menuContent }))
             #endif
             .overlay(alignment: .bottom) { jumpButton }
+            .overlay(alignment: .bottom) { answerNowCapsule }
             // Where a language that is not installed yet is downloaded and the answer translated.
             .translationTask(controller.translation.configuration) { session in
                 let translator = SessionTranslator(session)
@@ -407,8 +410,6 @@ struct ChatView: View {
                     stopped: message.stoppedByUser,
                     canRegenerate: isLast && !controller.isStreaming,
                     translation: translation,
-                    canAnswerNow: active && controller.canAnswerNow,
-                    completedToolRounds: active ? controller.completedToolRounds : 0,
                     cutForEarlyAnswer: message.cutForEarlyAnswer,
                     answeredEarly: message.answeredEarly),
                 render: controller.renderState(for: message),
@@ -423,7 +424,6 @@ struct ChatView: View {
                 onCopyRaw: { Pasteboard.copy(shownText) },
                 onTranslate: { controller.translation.translate(message, context: context, isStreaming: active) },
                 onToggleTranslation: { controller.translation.toggle(message, context: context) },
-                onAnswerNow: { controller.answerNow() },
                 branch: branch,
                 branchEnabled: !controller.isStreaming,
                 onSwitchBranch: { switchBranch(message, by: $0) })
@@ -499,6 +499,21 @@ struct ChatView: View {
         #if os(macOS)
         .readingColumn()
         #endif
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { composerHeight = $0 }
+    }
+
+    /// "Answer now", floating just above the composer while this chat's turn runs tool rounds. An overlay, so feed
+    /// cards arriving never move it.
+    @ViewBuilder
+    private var answerNowCapsule: some View {
+        if let conversation, controller.canAnswerNow, controller.activeConversationID == conversation.id,
+           let message = conversation.messages.first(where: { $0.id == controller.activeMessageID }) {
+            let saved = message.segments.flatMap(\.calls).filter { $0.name == ToolNames.webSearch }.count
+            let running = controller.roundRequested.filter { $0.name == ToolNames.webSearch }.count
+            AnswerNowCapsule(start: controller.turnStart ?? .now, completedToolRounds: controller.completedToolRounds,
+                             searches: saved + running, phase: controller.phase) { controller.answerNow() }
+                .padding(.bottom, composerHeight + DS.Spacing.sm)
+        }
     }
 
     /// The gauge: tap for the chat settings, touch and hold for the effort levels.

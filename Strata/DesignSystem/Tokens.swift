@@ -56,6 +56,8 @@ enum DS {
         static let ring: CGFloat = 22
         /// The effort dial inside the composer's settings button.
         static let gauge: CGFloat = 22
+        /// Height of a small floating capsule ("Answer now"); grows with the text size.
+        static let capsuleHeight: CGFloat = 30
         /// Site icon in a source chip.
         static let favicon: CGFloat = 16
         static let ringStroke: CGFloat = 3
@@ -93,6 +95,8 @@ enum DS {
         /// Initial in a monogram disc (the favicon fallback).
         static let monogram = Font.custom(family, fixedSize: 10).weight(.bold)
         static let sectionHeader = pretendard(13, relativeTo: .footnote, weight: .medium)
+        /// Small floating capsules (the "Answer now" capsule above the composer).
+        static let capsule = pretendard(13, relativeTo: .footnote, weight: .medium)
         static let title = pretendard(17, relativeTo: .headline, weight: .semibold)
         static let largeTitle = pretendard(22, relativeTo: .title2, weight: .medium)
         /// Inline citation chip text.
