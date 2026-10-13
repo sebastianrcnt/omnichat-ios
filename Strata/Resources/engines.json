@@ -10,5 +10,28 @@
     "challengeXPath": "//form[@id='challenge-form']",
     "urlTransform": "ddg_redirect",
     "maxResults": 8
+  },
+  {
+    "id": "bing",
+    "name": "Bing",
+    "urlTemplate": "https://www.bing.com/search?q={query}&setlang={lang}",
+    "resultsXPath": "//ol[@id=\"b_results\"]/li[contains(@class,\"b_algo\")]",
+    "titleXPath": ".//h2",
+    "urlXPath": "(.//h2/a | .//h2/parent::a)/@href",
+    "snippetXPath": ".//div[contains(@class,\"b_caption\")]//p",
+    "challengeXPath": "//*[@id=\"b_captcha\" or @id=\"captcha\" or contains(@class,\"captcha\")]",
+    "urlTransform": "bing_redirect",
+    "maxResults": 8
+  },
+  {
+    "id": "naver",
+    "name": "Naver",
+    "urlTemplate": "https://search.naver.com/search.naver?where=web&query={query}",
+    "resultsXPath": "//div[contains(@class,\"fds-web-normal-doc-root\")]",
+    "titleXPath": ".//span[contains(@class,\"sds-comps-text-type-headline1\")]",
+    "urlXPath": ".//a[starts-with(@href,\"http\") and not(contains(@href,\"keep.naver.com\"))]/@href",
+    "snippetXPath": ".//span[contains(@class,\"sds-comps-text-type-body1\")]",
+    "challengeXPath": "//*[@id=\"captcha\" or contains(@class,\"captcha\")]",
+    "maxResults": 8
   }
 ]

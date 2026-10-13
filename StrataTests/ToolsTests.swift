@@ -175,6 +175,241 @@ struct DDGExtractionTests {
     }
 }
 
+/// Engine choice, fallback order and the Bing / Naver specifics.
+struct SearchEngineSelectionTests {
+    private func bundled(_ id: String) throws -> SearchEngine {
+        try #require(SearchEngines.bundled().first { $0.id == id })
+    }
+
+    private func b64url(_ s: String) -> String {
+        Data(s.utf8).base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+
+    @Test func decodesBingRedirect() {
+        for real in ["https://example.com/", "https://a.org/p?x=1&y=2", "https://a.org/b/\u{00E9}\u{D55C}", "http://x.io/ab", "https://x.io/abc"] {
+            let href = "https://www.bing.com/ck/a?!&&p=abc123&fclid=1-2&u=a1\(b64url(real))&ntb=1"
+            #expect(SearchEngine.decodeBingRedirect(href) == real)
+        }
+        // Direct links pass through; Bing's own pages, relative links and undecodable wrappers are dropped.
+        #expect(SearchEngine.decodeBingRedirect("https://docs.swift.org/x") == "https://docs.swift.org/x")
+        #expect(SearchEngine.decodeBingRedirect("https://www.bing.com/search?q=x") == nil)
+        #expect(SearchEngine.decodeBingRedirect("/search?q=x") == nil)
+        #expect(SearchEngine.decodeBingRedirect("https://www.bing.com/ck/a?u=a1!!!notbase64") == nil)
+        #expect(SearchEngine.decodeBingRedirect("https://www.bing.com/ck/a?u=a1\(b64url("javascript:alert(1)"))") == nil)
+        #expect(SearchEngine.decodeBingRedirect("https://www.bing.com/ck/a?u=zz") == nil)
+    }
+
+    @Test func bingTransformIsWiredInTheEngine() throws {
+        let bing = try bundled("bing")
+        #expect(bing.transformURL("https://www.bing.com/ck/a?u=a1\(b64url("https://e.com/z"))") == "https://e.com/z")
+    }
+
+    @Test func detectsHangul() {
+        #expect(SearchEngines.containsHangul("\u{C11C}\u{C6B8} \u{B0A0}\u{C528}"))
+        #expect(SearchEngines.containsHangul("swift \u{C561}\u{D130}"))
+        #expect(SearchEngines.containsHangul("\u{3131}\u{3141}")) // compatibility jamo
+        #expect(SearchEngines.containsHangul("\u{1112}\u{1161}\u{11AB}")) // conjoining jamo
+        #expect(!SearchEngines.containsHangul("swift concurrency actors"))
+        #expect(!SearchEngines.containsHangul("\u{6771}\u{4EAC}\u{5929}\u{6C17} \u{3053}\u{3093}\u{306B}\u{3061}\u{306F}")) // kanji and kana are not Hangul
+        #expect(!SearchEngines.containsHangul(""))
+    }
+
+    @Test func autoChoosesNaverForHangulElseBing() {
+        #expect(SearchEnginePreference.auto.order(for: "\u{C11C}\u{C6B8} \u{B0A0}\u{C528}") == ["naver", "bing", "duckduckgo"])
+        #expect(SearchEnginePreference.auto.order(for: "weather in Seoul") == ["bing", "duckduckgo"])
+    }
+
+    @Test func fallbackOrderPerPreference() {
+        #expect(SearchEnginePreference.naver.order(for: "x") == ["naver", "bing", "duckduckgo"])
+        #expect(SearchEnginePreference.bing.order(for: "x") == ["bing", "duckduckgo"])
+        #expect(SearchEnginePreference.duckduckgo.order(for: "x") == ["duckduckgo", "bing"])
+    }
+
+    @Test func chainResolvesBundledEngines() {
+        #expect(SearchEngines.chain(for: "\u{AC00}", preference: .auto).map(\.id) == ["naver", "bing", "duckduckgo"])
+        #expect(SearchEngines.chain(for: "q", preference: .auto).map(\.id) == ["bing", "duckduckgo"])
+        #expect(SearchEngines.chain(for: "q", preference: .duckduckgo).map(\.id) == ["duckduckgo", "bing"])
+        // An engine missing from the list is skipped.
+        let onlyDDG = SearchEngines.bundled().filter { $0.id == "duckduckgo" }
+        #expect(SearchEngines.chain(for: "q", preference: .naver, available: onlyDDG).map(\.id) == ["duckduckgo"])
+    }
+
+    @Test func preferenceRawValuesAreStable() {
+        #expect(SearchEnginePreference.allCases.map(\.rawValue) == ["auto", "duckduckgo", "bing", "naver"])
+        #expect(SearchEnginePreference(rawValue: "bing") == .bing)
+        #expect(SearchEnginePreference(rawValue: "google") == nil)
+    }
+
+    @Test func urlsRespectTheQuery() throws {
+        let bing = try bundled("bing")
+        #expect(bing.searchURL(for: "swift actors")?.absoluteString == "https://www.bing.com/search?q=swift%20actors&setlang=en")
+        let ko = bing.searchURL(for: "\u{C11C}\u{C6B8}")?.absoluteString
+        #expect(ko == "https://www.bing.com/search?q=%EC%84%9C%EC%9A%B8&setlang=ko")
+        let naver = try bundled("naver")
+        #expect(naver.searchURL(for: "\u{C11C}\u{C6B8} \u{B0A0}\u{C528}")?.absoluteString
+                == "https://search.naver.com/search.naver?where=web&query=%EC%84%9C%EC%9A%B8%20%EB%82%A0%EC%94%A8")
+    }
+
+    @MainActor
+    @Test func settingDefaultsToAutoAndPersists() throws {
+        let name = "SearchEngineSettingTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = AppSettings(defaults: defaults)
+        #expect(settings.searchEngine == .auto)
+        settings.searchEngine = .naver
+        #expect(AppSettings(defaults: defaults).searchEngine == .naver)
+        defaults.set("garbage", forKey: "searchEngine")
+        #expect(AppSettings(defaults: defaults).searchEngine == .auto)
+    }
+
+    @Test func formatterNamesTheEngine() {
+        let r = [SearchResult(title: "T", url: "https://u", snippet: "S")]
+        #expect(SearchFormatter.format(query: "q", results: r, engine: "Bing") == "Search results for \"q\" (Bing):\n1. T\n   https://u\n   S")
+        #expect(SearchFormatter.format(query: "q", results: r) == "Search results for \"q\":\n1. T\n   https://u\n   S")
+    }
+
+    // MARK: fallback
+
+    private final class Log: @unchecked Sendable { var ids: [String] = [] }
+
+    private enum Outcome { case results(Int), empty, challenge, fail }
+
+    /// A searcher that answers per engine id and records the order it was called in.
+    @MainActor
+    private func run(_ outcomes: [String: Outcome], chain: [String], log: Log) async throws -> ToolOutput {
+        let engines = SearchEngines.bundled()
+        let searcher: EngineSearcher = { engine, _ in
+            log.ids.append(engine.id)
+            switch outcomes[engine.id] ?? .fail {
+            case .results(let n): return (1...n).map { SearchResult(title: "\(engine.name) \($0)", url: "https://\(engine.id).test/\($0)", snippet: "s") }
+            case .empty: return []
+            case .challenge: throw SearchExtractorError.challenge
+            case .fail: throw WebToolError.navigation("offline")
+            }
+        }
+        return await WebSearchTool(engines: chain.compactMap { id in engines.first { $0.id == id } }, searcher: searcher).run(query: "q")
+    }
+
+    @MainActor
+    @Test func firstEngineAnswersWithoutFallback() async throws {
+        let log = Log()
+        let out = try await run(["naver": .results(2), "bing": .results(3)], chain: ["naver", "bing", "duckduckgo"], log: log)
+        #expect(log.ids == ["naver"])
+        #expect(out.engine == "Naver" && !out.isError && out.sources.count == 2)
+        #expect(out.text.hasPrefix("Search results for \"q\" (Naver):"))
+    }
+
+    @MainActor
+    @Test func challengeFallsThroughInOrder() async throws {
+        let log = Log()
+        let out = try await run(["naver": .challenge, "bing": .empty, "duckduckgo": .results(1)], chain: ["naver", "bing", "duckduckgo"], log: log)
+        #expect(log.ids == ["naver", "bing", "duckduckgo"])
+        #expect(out.engine == "DuckDuckGo" && out.sources.map(\.url) == ["https://duckduckgo.test/1"])
+    }
+
+    @MainActor
+    @Test func errorFallsBackToTheNextEngine() async throws {
+        let log = Log()
+        let out = try await run(["bing": .fail, "duckduckgo": .results(2)], chain: ["bing", "duckduckgo"], log: log)
+        #expect(log.ids == ["bing", "duckduckgo"])
+        #expect(out.engine == "DuckDuckGo" && !out.isError)
+    }
+
+    @MainActor
+    @Test func allEnginesFailingReportsEachError() async throws {
+        let log = Log()
+        let out = try await run([:], chain: ["bing", "duckduckgo"], log: log)
+        #expect(log.ids == ["bing", "duckduckgo"])
+        #expect(out.isError && out.sources.isEmpty && out.engine == nil)
+        #expect(out.text.contains("Bing: ") && out.text.contains("DuckDuckGo: "))
+    }
+
+    @MainActor
+    @Test func everyEngineEmptyIsNoResults() async throws {
+        let log = Log()
+        let out = try await run(["bing": .empty, "duckduckgo": .empty], chain: ["bing", "duckduckgo"], log: log)
+        #expect(!out.isError && out.text.contains("No results found"))
+        // An engine that found nothing is an answer even if another one errored.
+        let mixed = try await run(["bing": .fail, "duckduckgo": .empty], chain: ["bing", "duckduckgo"], log: Log())
+        #expect(!mixed.isError && mixed.text.contains("No results found"))
+    }
+
+    @MainActor
+    @Test func singleEngineErrorKeepsTheOriginalMessage() async throws {
+        let out = try await run(["duckduckgo": .challenge], chain: ["duckduckgo"], log: Log())
+        #expect(out.isError && out.text == "Error: " + SearchExtractorError.challenge.localizedDescription)
+    }
+
+    @MainActor
+    @Test func emptyQueryAndNoEngines() async {
+        #expect(await WebSearchTool(engines: SearchEngines.bundled()).run(query: "  ").isError)
+        #expect(await WebSearchTool(engines: []).run(query: "q").text.contains("no search engine"))
+    }
+}
+
+/// The same extraction path as the app (document.evaluate in a WKWebView) over saved Bing and Naver result pages.
+/// `bing-results.html` and `naver-results.html` are real captures, trimmed to a few results; the second Bing link is
+/// rewritten to the `/ck/a` redirect form desktop Bing uses, and Naver has a hand-added ad block.
+@MainActor
+struct BingNaverExtractionTests {
+    private func load(_ name: String? = nil, html: String? = nil, base: String) async throws -> HiddenWebView {
+        var source = html
+        if source == nil, let name {
+            let url = try #require(Bundle(for: FixtureToken.self).url(forResource: name, withExtension: "html"))
+            source = try String(contentsOf: url, encoding: .utf8)
+        }
+        let page = HiddenWebView(guardNavigations: false)
+        try await page.load(html: try #require(source), baseURL: URL(string: base))
+        return page
+    }
+
+    private func engine(_ id: String) throws -> SearchEngine {
+        try #require(SearchEngines.bundled().first { $0.id == id })
+    }
+
+    @Test func extractsBingOrganicResults() async throws {
+        let page = try await load("bing-results", base: "https://www.bing.com/search")
+        defer { page.dispose() }
+        let results = try await SearchExtractor.extract(engine: try engine("bing"), from: page)
+        #expect(results.count == 4) // the AI answer block is not a result
+        #expect(results[0].title == "Swift Concurrency Explained: Actors, Executors, and Reentrancy")
+        #expect(results[0].url == "https://hackernoon.com/swift-concurrency-explained-actors-executors-and-reentrancy")
+        #expect(results[1].url == "https://swiftcrafted.dev/article/swift-actors-complete-guide-thread-safe-concurrency") // decoded from /ck/a
+        #expect(results[2].url == "https://docs.swift.org/latest/documentation/the-swift-programming-language/concurrency/")
+        #expect(results[2].snippet.hasPrefix("You use actors and isolation"))
+        #expect(results.allSatisfy { !$0.title.isEmpty && !$0.snippet.isEmpty && !$0.url.contains("bing.com") })
+    }
+
+    @Test func bingChallengeIsDetected() async throws {
+        let page = try await load(html: "<html><body><div id=\"b_content\"><form id=\"captcha\"><p>One last step</p></form></div></body></html>",
+                                  base: "https://www.bing.com/search")
+        defer { page.dispose() }
+        await #expect(throws: SearchExtractorError.challenge) {
+            try await SearchExtractor.extract(engine: try engine("bing"), from: page)
+        }
+    }
+
+    @Test func extractsNaverWebResultsAndSkipsAds() async throws {
+        let page = try await load("naver-results", base: "https://search.naver.com/search.naver")
+        defer { page.dispose() }
+        let results = try await SearchExtractor.extract(engine: try engine("naver"), from: page)
+        #expect(results.count == 4) // the sponsored block is skipped
+        #expect(results[0].title == "Swift \u{B3D9}\u{C2DC}\u{C131} \u{C0AC}\u{C6A9}\u{D558}\u{AE30} - WWDC25 - \u{BE44}\u{B514}\u{C624}")
+        #expect(results[0].url == "https://developer.apple.com/kr/videos/play/wwdc2025/268/")
+        #expect(!results[0].snippet.isEmpty)
+        #expect(results.allSatisfy { $0.url.hasPrefix("http") && !$0.url.contains("keep.naver.com") && !$0.url.contains("ad.example.com") })
+        #expect(Set(results.map(\.url)).count == results.count)
+    }
+
+    @Test func emptyNaverPageHasNoResultsAndNoChallenge() async throws {
+        let page = try await load(html: "<html><body><div id=\"main_pack\"></div></body></html>", base: "https://search.naver.com/search.naver")
+        defer { page.dispose() }
+        #expect(try await SearchExtractor.extract(engine: try engine("naver"), from: page).isEmpty)
+    }
+}
+
 private final class FixtureToken {}
 
 // MARK: - web_fetch continuation

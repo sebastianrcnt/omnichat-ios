@@ -14,6 +14,8 @@ struct ToolOutput: Sendable, Equatable {
     /// Web results behind `text`. When present and a `SourceStore` is available, `text` is replaced by
     /// `<source id="N" ...>` blocks with conversation-wide stable ids.
     var sources: [SourceCandidate] = []
+    /// The search engine that answered a `web_search` (named in the text the model sees).
+    var engine: String?
 }
 
 /// A tool result that finished before the results ahead of it in the round, held (and checkpointed) until it can be
@@ -23,15 +25,17 @@ struct RawToolResult: Codable, Sendable, Equatable {
     var text: String
     var isError: Bool
     var sources: [SourceCandidate]
+    var engine: String?
 
     init(callID: String, output: ToolOutput) {
         self.callID = callID
         text = output.text
         isError = output.isError
         sources = output.sources
+        engine = output.engine
     }
 
-    var output: ToolOutput { ToolOutput(text: text, isError: isError, sources: sources) }
+    var output: ToolOutput { ToolOutput(text: text, isError: isError, sources: sources, engine: engine) }
 }
 
 protocol ToolExecuting: Sendable {

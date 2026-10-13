@@ -73,6 +73,11 @@ final class AppSettings {
         return fetchLengthOptions.contains(v) ? v : defaultFetchLength
     }
 
+    /// Read by the search tool off the main actor.
+    nonisolated static var currentSearchEngine: SearchEnginePreference {
+        UserDefaults.standard.string(forKey: "searchEngine").flatMap(SearchEnginePreference.init(rawValue:)) ?? .auto
+    }
+
     private let defaults: UserDefaults
 
     var accentHex: String { didSet { defaults.set(accentHex, forKey: "accentHex") } }
@@ -80,6 +85,7 @@ final class AppSettings {
     var lastConnectionID: UUID? { didSet { defaults.set(lastConnectionID?.uuidString, forKey: "lastConnectionID") } }
     var lastModelID: String? { didSet { defaults.set(lastModelID, forKey: "lastModelID") } }
     var fetchLength: Int { didSet { defaults.set(fetchLength, forKey: "fetchLength") } }
+    var searchEngine: SearchEnginePreference { didSet { defaults.set(searchEngine.rawValue, forKey: "searchEngine") } }
     var smoothStreaming: Bool { didSet { defaults.set(smoothStreaming, forKey: "smoothStreaming") } }
     /// Shows Settings > Developer > Diagnostics.
     var developerMode: Bool { didSet { defaults.set(developerMode, forKey: "developerMode") } }
@@ -98,6 +104,7 @@ final class AppSettings {
         lastModelID = defaults.string(forKey: "lastModelID")
         let fl = defaults.integer(forKey: "fetchLength")
         fetchLength = Self.fetchLengthOptions.contains(fl) ? fl : Self.defaultFetchLength
+        searchEngine = defaults.string(forKey: "searchEngine").flatMap(SearchEnginePreference.init(rawValue:)) ?? .auto
         smoothStreaming = defaults.object(forKey: "smoothStreaming") as? Bool ?? true
         developerMode = defaults.bool(forKey: "developerMode")
         lastEffortRaw = defaults.string(forKey: "lastEffort") ?? Effort.default.rawValue

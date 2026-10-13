@@ -79,40 +79,64 @@ enum SearchExtractor {
     }
 }
 
+/// Runs one search on one engine; the real one loads the results page in a hidden web view.
+typealias EngineSearcher = @MainActor @Sendable (SearchEngine, URL) async throws -> [SearchResult]
+
 struct WebSearchTool {
-    var engine: SearchEngine
+    /// Engines in the order to try them: the first that answers with results wins, the rest are fallbacks for an error,
+    /// a bot challenge or an empty page.
+    var engines: [SearchEngine]
 
     var timeouts = FetchTimeouts.standard
+    /// Test seam; `nil` uses the hidden web view.
+    var searcher: EngineSearcher?
+
+    init(engines: [SearchEngine], timeouts: FetchTimeouts = .standard, searcher: EngineSearcher? = nil) {
+        self.engines = engines
+        self.timeouts = timeouts
+        self.searcher = searcher
+    }
+
+    init(engine: SearchEngine) { self.init(engines: [engine]) }
 
     @MainActor
     func run(query: String) async -> ToolOutput {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !q.isEmpty, let url = engine.searchURL(for: q) else {
-            return ToolOutput(text: "Error: the search query is empty.", isError: true)
+        guard !q.isEmpty else { return ToolOutput(text: "Error: the search query is empty.", isError: true) }
+        guard !engines.isEmpty else { return ToolOutput(text: "Error: no search engine is configured.", isError: true) }
+        var failures: [String] = []
+        var sawEmpty = false
+        for engine in engines {
+            guard let url = engine.searchURL(for: q) else { continue }
+            do {
+                let search = searcher ?? Self.searchWithWebView(timeouts: timeouts)
+                let results = try await Deadline.run(timeouts.overall) { try await search(engine, url) }
+                if results.isEmpty { sawEmpty = true; continue }
+                return ToolOutput(text: SearchFormatter.format(query: q, results: results, engine: engine.name),
+                                  sources: results.map { SourceCandidate(title: $0.title, url: $0.url, content: $0.snippet.isEmpty ? $0.title : $0.snippet) },
+                                  engine: engine.name)
+            } catch is CancellationError {
+                return ToolOutput(text: "Error: cancelled.", isError: true)
+            } catch {
+                failures.append(engines.count > 1 ? "\(engine.name): \(error.localizedDescription)" : error.localizedDescription)
+            }
         }
-        do {
-            return try await Deadline.run(timeouts.overall) { await self.search(url: url, query: q) }
-        } catch is CancellationError {
-            return ToolOutput(text: "Error: cancelled.", isError: true)
-        } catch {
-            return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true)
-        }
+        // An engine that answered with nothing is an answer; errors alone are a failure.
+        if sawEmpty || failures.isEmpty { return ToolOutput(text: SearchFormatter.format(query: q, results: [])) }
+        return ToolOutput(text: "Error: " + failures.joined(separator: " "), isError: true)
     }
 
     @MainActor
-    private func search(url: URL, query q: String) async -> ToolOutput {
-        let pool = WebViewPool.shared
-        let page = pool.acquire(reader: false)
-        var reusable = false
-        defer { pool.release(page, reusable: reusable) }
-        do {
+    static func searchWithWebView(timeouts: FetchTimeouts) -> EngineSearcher {
+        { engine, url in
+            let pool = WebViewPool.shared
+            let page = pool.acquire(reader: false)
+            var reusable = false
+            defer { pool.release(page, reusable: reusable) }
             try await page.load(url, timeout: timeouts.load)
             let results = try await SearchExtractor.extract(engine: engine, from: page)
             reusable = true
-            return ToolOutput(text: SearchFormatter.format(query: q, results: results),
-                              sources: results.map { SourceCandidate(title: $0.title, url: $0.url, content: $0.snippet.isEmpty ? $0.title : $0.snippet) })
-        } catch {
-            return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true)
+            return results
         }
     }
 }
@@ -333,10 +357,8 @@ struct ToolRouter: ToolExecuting {
             guard let query = args["query"] as? String else {
                 return ToolOutput(text: "Error: missing required argument \"query\".", isError: true)
             }
-            guard let engine = SearchEngines.default else {
-                return ToolOutput(text: "Error: no search engine is configured.", isError: true)
-            }
-            return await WebSearchTool(engine: engine).run(query: query)
+            let engines = SearchEngines.chain(for: query, preference: AppSettings.currentSearchEngine)
+            return await WebSearchTool(engines: engines).run(query: query)
         case ToolNames.webFetch:
             guard let url = args["url"] as? String else {
                 return ToolOutput(text: "Error: missing required argument \"url\".", isError: true)

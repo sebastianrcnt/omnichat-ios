@@ -48,7 +48,18 @@ struct SettingsView: View {
                                           isOn: $settings.smoothStreaming)
                     }
 
-                    GroupedSection(header: "Web tools", footer: "How much of a page web_fetch returns per call. Longer pages continue in further calls.") {
+                    GroupedSection(header: "Web tools", footer: "Auto searches Naver for Korean queries and Bing otherwise. If the engine fails or finds nothing, the next one is tried. web_fetch returns up to the fetch length per call; longer pages continue in further calls.") {
+                        HStack {
+                            Text("Search engine").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
+                            Spacer()
+                            Picker("Search engine", selection: $settings.searchEngine) {
+                                ForEach(SearchEnginePreference.allCases) { Text($0.label).tag($0) }
+                            }
+                            .labelsHidden()
+                            .tint(theme.textSecondary)
+                        }
+                        .padding(.horizontal, DS.Spacing.lg)
+                        .padding(.vertical, DS.Spacing.sm)
                         HStack {
                             Text("Fetch length").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
                             Spacer()

@@ -45,19 +45,46 @@ struct FakeTranslator: TextTranslating {
 }
 
 enum DebugHooks {
-    /// `-StrataWebSelfTest 1`: one real web_search (DuckDuckGo) and two real web_fetch calls through the on-device tools
-    /// (hidden WKWebView, Readability), reported to stderr.
+    /// `-StrataWebSelfTest 1`: one real web_search per engine (each on its own, no fallback: Bing and DuckDuckGo with an
+    /// English query, Naver with a Korean one), two searches through the router (Auto: Korean, English), and two real web_fetch calls
+    /// through the on-device tools (hidden WKWebView, Readability), reported to stderr.
+    ///   -StrataWebSelfTestSkipFetch 1   searches only
+    ///   -StrataWebSelfTestDump <dir>    also saves each results page's HTML as <dir>/<engine>.html (to refresh fixtures)
     @MainActor
     static func runWebSelfTest() {
         guard UserDefaults.standard.bool(forKey: "StrataWebSelfTest") else { return }
         func say(_ text: String) { FileHandle.standardError.write(Data("[web-selftest] \(text)\n".utf8)) }
         Task { @MainActor in
-            let tools = ToolRouter()
+            let dumpDirectory = value("StrataWebSelfTestDump")
+            let dumping: EngineSearcher = { engine, url in
+                let page = HiddenWebView()
+                defer { page.dispose() }
+                try await page.load(url)
+                if let dumpDirectory {
+                    let html = try await page.evaluateString("document.documentElement.outerHTML")
+                    try? FileManager.default.createDirectory(atPath: dumpDirectory, withIntermediateDirectories: true)
+                    try? html.write(toFile: dumpDirectory + "/" + engine.id + ".html", atomically: true, encoding: .utf8)
+                }
+                return try await SearchExtractor.extract(engine: engine, from: page)
+            }
+            let cases = [("bing", "swift concurrency actors"), ("naver", "스위프트 동시성 액터"), ("duckduckgo", "swift concurrency actors")]
+            for (id, query) in cases {
+                guard let engine = SearchEngines.bundled().first(where: { $0.id == id }) else { say("\(id): not bundled"); continue }
+                let started = ContinuousClock.now
+                let out = await WebSearchTool(engines: [engine], searcher: dumping).run(query: query)
+                say("search \(engine.name) \"\(query)\": error=\(out.isError) results=\(out.sources.count) in \(ContinuousClock.now - started)")
+                for source in out.sources.prefix(3) { say("  \(source.title.prefix(60)) | \(source.url.prefix(80))") }
+                if out.isError || out.sources.isEmpty { say("  text: \(out.text.prefix(200))") }
+            }
             var started = ContinuousClock.now
-            let search = await tools.execute(name: ToolNames.webSearch, arguments: #"{"query":"swift concurrency actors"}"#)
-            say("search: error=\(search.isError) sources=\(search.sources.count) in \(ContinuousClock.now - started)")
-            for source in search.sources.prefix(3) { say("  \(source.title.prefix(60)) | \(source.url.prefix(80))") }
-            if search.isError || search.sources.isEmpty { say("  text: \(search.text.prefix(200))") }
+            let tools = ToolRouter()
+            for query in ["서울 날씨", "weather in Seoul"] {
+                started = ContinuousClock.now
+                let out = await tools.execute(name: ToolNames.webSearch, arguments: #"{"query":"\#(query)"}"#)
+                say("router (preference \(AppSettings.currentSearchEngine.rawValue)) \"\(query)\": error=\(out.isError) results=\(out.sources.count) engine=\(out.engine ?? "-") in \(ContinuousClock.now - started)")
+                say("  \(out.text.prefix(120).replacingOccurrences(of: "\n", with: " "))")
+            }
+            guard !UserDefaults.standard.bool(forKey: "StrataWebSelfTestSkipFetch") else { say("done"); return }
             for url in ["https://example.com/", "https://en.wikipedia.org/wiki/Swift_(programming_language)"] {
                 started = ContinuousClock.now
                 let fetch = await tools.execute(name: ToolNames.webFetch, arguments: #"{"url":"\#(url)"}"#)
