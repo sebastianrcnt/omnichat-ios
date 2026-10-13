@@ -35,10 +35,11 @@
   var BLOCK = { P: 1, DIV: 1, SECTION: 1, ARTICLE: 1, MAIN: 1, UL: 1, OL: 1, LI: 1, DL: 1, DT: 1, DD: 1, TABLE: 1, TR: 1,
                 BLOCKQUOTE: 1, PRE: 1, FIGURE: 1, FIGCAPTION: 1, DETAILS: 1, SUMMARY: 1, HR: 1, BR: 1 };
 
-  // Text of a (copied) subtree: block elements become line breaks, headings become Markdown headings and table
-  // cells are separated by " | ". Built from the tree rather than `innerText`, so collapsed sections are kept
-  // (namu.wiki folds most of an article on mobile).
-  function textOf(root, cleanHeading) {
+  // Text of a (copied) subtree: block elements become line breaks, headings become Markdown headings and tables
+  // become Markdown tables. Built from the tree rather than `innerText`, so collapsed sections are kept
+  // (namu.wiki folds most of an article on mobile). `inline` is for a table cell: everything on one line, and a
+  // table inside it as "a · b; c · d", since a Markdown cell can't hold a table.
+  function textOf(root, cleanHeading, inline) {
     var out = [];
     (function walk(node) {
       for (var c = node.firstChild; c; c = c.nextSibling) {
@@ -47,20 +48,72 @@
         var tag = c.tagName.toUpperCase();
         if (SKIP[tag]) continue;
         var heading = /^H([1-6])$/.exec(tag);
-        if (heading) {
+        if (heading && !inline) {
           var h = (c.textContent || "").replace(/\s+/g, " ").trim();
           if (cleanHeading) h = cleanHeading(h);
           if (h) out.push("\n\n" + "######".slice(0, +heading[1]) + " " + h + "\n\n");
           continue;
         }
-        if (tag === "TD" || tag === "TH") { walk(c); out.push(" | "); continue; }
+        if (tag === "TABLE") {
+          var grid = tableGrid(c, cleanHeading);
+          out.push(inline ? " " + grid.map(function (r) { return r.filter(function (x) { return x; }).join(" · "); }).join("; ") + " "
+                          : "\n\n" + markdownTable(grid) + "\n\n");
+          continue;
+        }
         var block = BLOCK[tag];
-        if (block) out.push("\n");
+        if (block) out.push(inline ? " " : "\n");
         walk(c);
-        if (block) out.push("\n");
+        if (block) out.push(inline ? " " : "\n");
       }
     })(root);
+    if (inline) return out.join("").replace(/\s+/g, " ").trim();
     return squeeze(out.join("").replace(/ *\n */g, "\n"));
+  }
+
+  // A table's cells as rows of text, with merged cells spread out so every column lines up: a cell spanning rows
+  // repeats its text below (the value still applies there), one spanning columns leaves the extra columns empty.
+  function tableGrid(table, cleanHeading) {
+    var grid = [], below = [];
+    var rows = table.rows || [];
+    for (var r = 0; r < rows.length; r++) {
+      var line = [], col = 0;
+      var carry = function () {
+        while (below[col] && below[col].left > 0) { line[col] = below[col].text; below[col].left--; col++; }
+      };
+      var cells = rows[r].cells || [];
+      for (var i = 0; i < cells.length; i++) {
+        carry();
+        var text = textOf(cells[i], cleanHeading, true).replace(/\|/g, "\\|");
+        var across = Math.min(Math.max(cells[i].colSpan || 1, 1), 50);
+        var down = Math.min(Math.max(cells[i].rowSpan || 1, 1), 200);
+        for (var k = 0; k < across; k++, col++) {
+          line[col] = k === 0 ? text : "";
+          if (down > 1) below[col] = { text: line[col], left: down - 1 };
+        }
+      }
+      carry();
+      for (var j = 0; j < line.length; j++) if (line[j] === undefined) line[j] = "";
+      if (line.some(function (x) { return x; })) grid.push(line);
+    }
+    return grid;
+  }
+
+  // A grid as a Markdown table, its first row as the header. A table with one column or one row is layout (a
+  // boxed note, an image with a caption), so it stays plain text.
+  function markdownTable(grid) {
+    var width = 0;
+    for (var i = 0; i < grid.length; i++) width = Math.max(width, grid[i].length);
+    if (width < 2 || grid.length < 2) {
+      return grid.map(function (r) { return r.filter(function (x) { return x; }).join(" · "); }).join("\n");
+    }
+    var row = function (r) {
+      var cells = [];
+      for (var k = 0; k < width; k++) cells.push(r[k] || "");
+      return "| " + cells.join(" | ") + " |";
+    };
+    var lines = [row(grid[0]), row(new Array(width).fill("---"))];
+    for (var j = 1; j < grid.length; j++) lines.push(row(grid[j]));
+    return lines.join("\n");
   }
 
   // The body's text without page chrome (nav, header, footer, sidebars), from a copy of the DOM.
@@ -140,7 +193,13 @@
     try {
       if (typeof Readability === "function") article = new Readability(document.cloneNode(true)).parse();
     } catch (e) {}
-    var readerText = article && article.textContent ? squeeze(article.textContent) : "";
+    // The article's own markup, so its headings and tables keep their shape. Parsed into a separate, inert document:
+    // nothing in it loads or runs.
+    var readerText = "";
+    if (article && article.content) {
+      try { readerText = textOf(new DOMParser().parseFromString(article.content, "text/html").body); } catch (e) {}
+    }
+    if (!readerText && article && article.textContent) readerText = squeeze(article.textContent);
     if (article && article.title) title = article.title;
 
     var text, method;
