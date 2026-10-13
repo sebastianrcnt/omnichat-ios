@@ -420,7 +420,9 @@ struct TextSizeOverride: ViewModifier {
             for window in windowScene.windows {
                 if let size {
                     let category = contentSizeCategory(size)
-                    if window.traitOverrides.preferredContentSizeCategory != category || !window.traitOverrides.contains(UITraitPreferredContentSizeCategory.self) {
+                    // Reading an override that was never set is an assertion failure, so check `contains` first.
+                    if !window.traitOverrides.contains(UITraitPreferredContentSizeCategory.self)
+                        || window.traitOverrides.preferredContentSizeCategory != category {
                         window.traitOverrides.preferredContentSizeCategory = category
                     }
                 } else if window.traitOverrides.contains(UITraitPreferredContentSizeCategory.self) {
