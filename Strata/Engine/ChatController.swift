@@ -344,6 +344,7 @@ final class ChatController {
         background.begin()
         var runner = TurnRunner(streamer: streamer, tools: tools)
         runner.toolsDisabled = assistant.answeredEarly
+        runner.continueOnEmptyAnswer = settings.continueOnEmptyAnswer
         let ring = requestRing
         let conversationID = conversation.id
         runner.requestLog = { event in

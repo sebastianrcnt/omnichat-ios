@@ -38,6 +38,19 @@ enum RequestLogEvent: Sendable {
     case finished(id: UUID, finishReason: String?, usage: Usage?)
 }
 
+/// "Continue when the answer is empty": a model that searched and then stopped without writing anything gets one
+/// more request, with a short nudge appended and tools off.
+enum EmptyAnswerRetry {
+    /// Appended as a user message after the tool results. Sent as is; never shown.
+    static let nudge = "Write the final answer now based on the results above."
+
+    /// Retry when the setting is on, tools ran earlier in the turn (`round > 0`), the reply has no text, and this turn
+    /// has not retried yet (an early answer, already tool-less, counts as one).
+    static func shouldRetry(enabled: Bool, round: Int, alreadyRetried: Bool, content: String) -> Bool {
+        enabled && round > 0 && !alreadyRetried && content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
 /// Runs one assistant turn: stream, execute tool calls on device, append results, continue.
 struct TurnRunner: Sendable {
     static let maxToolRounds = 8
@@ -51,6 +64,9 @@ struct TurnRunner: Sendable {
     var toolsDisabled = false
     /// Compacts the history before a request when it has grown to the model's limit. Off when nil.
     var compaction: CompactionSettings?
+    /// When the model ends a turn that used tools with no answer text, send one more round asking for the answer
+    /// (`EmptyAnswerRetry`). Opt-in; never more than once per turn.
+    var continueOnEmptyAnswer = false
     /// Told about each request actually sent (not the replay of one restored from a checkpoint).
     var requestLog: (@MainActor @Sendable (RequestLogEvent) -> Void)?
 
@@ -87,8 +103,9 @@ struct TurnRunner: Sendable {
         var round = checkpoint.round
         while true {
             try Task.checkCancellation()
-            let capped = toolsDisabled || round >= Self.maxToolRounds
-            if capped && !toolsDisabled { hitCap = true }
+            let retrying = checkpoint.emptyAnswerRetry == true
+            let capped = toolsDisabled || retrying || round >= Self.maxToolRounds
+            if capped && !toolsDisabled && !retrying { hitCap = true }
             try onEvent(.roundStarted(round))
 
             // Checked before the turn and before each continuation: the history is summarized when the last reported
@@ -171,6 +188,22 @@ struct TurnRunner: Sendable {
 
             let calls = capped || !toolsEnabled ? [] : acc.toolCalls
             if calls.isEmpty {
+                if EmptyAnswerRetry.shouldRetry(enabled: continueOnEmptyAnswer, round: round,
+                                                alreadyRetried: retrying || toolsDisabled, content: acc.content) {
+                    // The empty reply is dropped; a short user nudge goes at the end of the history (the prefix, the
+                    // tools and the system prompt stay the same), and the next request may not call tools.
+                    messages.append(.user(EmptyAnswerRetry.nudge))
+                    meter.append(messages[messages.count - 1])
+                    round += 1
+                    let priorReasoning = checkpoint.priorReasoning + acc.reasoning + (acc.reasoning.isEmpty ? "" : "\n\n")
+                    checkpoint = TurnCheckpoint()
+                    checkpoint.round = round
+                    checkpoint.steps = steps
+                    checkpoint.priorReasoning = priorReasoning
+                    checkpoint.emptyAnswerRetry = true
+                    try onEvent(.checkpoint(checkpoint))
+                    continue
+                }
                 return TurnOutcome(steps: steps, finalContent: acc.content, finalReasoning: finalReasoning,
                                    lastUsage: lastUsage, hitToolCap: hitCap)
             }

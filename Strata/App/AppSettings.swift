@@ -87,6 +87,8 @@ final class AppSettings {
     var fetchLength: Int { didSet { defaults.set(fetchLength, forKey: "fetchLength") } }
     var searchEngine: SearchEnginePreference { didSet { defaults.set(searchEngine.rawValue, forKey: "searchEngine") } }
     var smoothStreaming: Bool { didSet { defaults.set(smoothStreaming, forKey: "smoothStreaming") } }
+    /// After tools, an empty answer gets one more request asking for it (`EmptyAnswerRetry`). Off by default.
+    var continueOnEmptyAnswer: Bool { didSet { defaults.set(continueOnEmptyAnswer, forKey: "continueOnEmptyAnswer") } }
     /// Shows Settings > Developer > Diagnostics.
     var developerMode: Bool { didSet { defaults.set(developerMode, forKey: "developerMode") } }
     /// Follow the system's text size (default), or use `textSizeStep`.
@@ -106,6 +108,7 @@ final class AppSettings {
         fetchLength = Self.fetchLengthOptions.contains(fl) ? fl : Self.defaultFetchLength
         searchEngine = defaults.string(forKey: "searchEngine").flatMap(SearchEnginePreference.init(rawValue:)) ?? .auto
         smoothStreaming = defaults.object(forKey: "smoothStreaming") as? Bool ?? true
+        continueOnEmptyAnswer = defaults.bool(forKey: "continueOnEmptyAnswer")
         developerMode = defaults.bool(forKey: "developerMode")
         lastEffortRaw = defaults.string(forKey: "lastEffort") ?? Effort.default.rawValue
         // `bool` and `integer` also read launch-argument strings ("NO", "0"), which `as? Bool` would not.

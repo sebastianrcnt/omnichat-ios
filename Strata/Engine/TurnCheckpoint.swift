@@ -19,6 +19,9 @@ struct TurnCheckpoint: Codable, Sendable {
     /// `records` until they can be numbered in call order. Optional so older saved checkpoints still decode.
     var pendingResults: [RawToolResult]?
     var priorReasoning = ""
+    /// Set on the one follow-up round sent after an empty answer (see `TurnRunner.continueOnEmptyAnswer`): that round
+    /// runs with `tool_choice: "none"`, and no further retry follows. Optional so older checkpoints still decode.
+    var emptyAnswerRetry: Bool?
 
     init(messages: [APIMessage]) throws {
         messagesData = try ChatRequest.encoder.encode(messages)
@@ -129,6 +132,7 @@ private struct PersistedStatic: Codable {
     var idempotencyKey: String?
     var round: Int
     var submissionStarted: Bool
+    var emptyAnswerRetry: Bool?
 }
 
 private enum StaticFormat {
@@ -164,7 +168,8 @@ extension TurnCheckpoint {
     static func encodeStatic(_ checkpoint: TurnCheckpoint) throws -> Data {
         guard let body = checkpoint.requestData else { return try JSONEncoder().encode(checkpoint) }
         let header = try JSONEncoder().encode(PersistedStatic(idempotencyKey: checkpoint.idempotencyKey, round: checkpoint.round,
-                                                              submissionStarted: checkpoint.submissionStarted))
+                                                              submissionStarted: checkpoint.submissionStarted,
+                                                              emptyAnswerRetry: checkpoint.emptyAnswerRetry))
         var out = StaticFormat.magic
         out.reserveCapacity(out.count + header.count + 1 + body.count)
         out.append(header)
@@ -188,6 +193,7 @@ extension TurnCheckpoint {
             checkpoint.idempotencyKey = persisted.idempotencyKey
             checkpoint.round = persisted.round
             checkpoint.submissionStarted = persisted.submissionStarted
+            checkpoint.emptyAnswerRetry = persisted.emptyAnswerRetry
         } else {
             checkpoint = try JSONDecoder().decode(TurnCheckpoint.self, from: staticData)
         }

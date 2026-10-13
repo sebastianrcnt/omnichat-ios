@@ -143,6 +143,7 @@
       }
     },
     "Answered early": {},
+    "Answers": {},
     "Any OpenAI-compatible endpoint. API keys are stored in the Keychain.": {},
     "Appearance": {},
     "Assistant": {},
@@ -186,6 +187,16 @@
     "Context window": {},
     "Context: %lld%% used": {},
     "Context: no usage yet": {},
+    "Continue when the answer is empty": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "답이 비면 자동으로 이어서 답하기"
+          }
+        }
+      }
+    },
     "Conversation details": {},
     "Copied": {},
     "Copy": {},
@@ -277,6 +288,7 @@
     "Higher effort lets the model think longer. It costs more time and tokens. Limits are the engine's thinking-token caps.": {},
     "Higher effort thinks longer.": {},
     "How much of a page web_fetch returns per call. Longer pages continue in further calls.": {},
+    "If the model searches and then stops without writing anything, it is asked once more for the answer.": {},
     "Image": {},
     "Image and favicon counts are upper bounds: the system cache evicts without saying so.": {},
     "Image cache limit": {},
