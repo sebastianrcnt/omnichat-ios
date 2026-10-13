@@ -538,14 +538,16 @@ struct SourcesRow: View {
     }
 }
 
-/// One source: title, domain, snippet, and an Open button.
+/// One source: title, domain and snippet. The whole card opens the page (in-app browser on iPhone, default browser on a
+/// Mac); its context menu copies the link or opens it in the system browser.
 struct SourceCard: View {
     @Environment(\.theme) private var theme
     let source: SourceInfo
     let onOpen: (URL) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+        let url = URL(string: source.url)
+        let card = VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             HStack(alignment: .firstTextBaseline) {
                 Text("[\(source.id)]").font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
                 Text(source.title).font(DS.Typography.uiEmphasis).foregroundStyle(theme.textPrimary).lineLimit(2)
@@ -554,16 +556,42 @@ struct SourceCard: View {
             if !source.snippet.isEmpty {
                 Text(source.snippet).font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary).lineLimit(6)
             }
-            if let url = URL(string: source.url) {
-                Button { onOpen(url) } label: {
-                    Label("Open", systemImage: "safari").font(DS.Typography.uiSmall)
-                }
-                .buttonStyle(.glass)
-            }
         }
         .padding(DS.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.surface, in: RoundedRectangle(cornerRadius: DS.Radius.lg))
+        if let url {
+            Button { onOpen(url) } label: { card }
+                .buttonStyle(SourceCardButtonStyle())
+                .contextMenu {
+                    Button("Copy Link", systemImage: "doc.on.doc") { Pasteboard.copy(url.absoluteString) }
+                    #if os(iOS)
+                    Button("Open in Safari", systemImage: "safari") { InAppBrowser.openExternally(url) }
+                    #else
+                    Button("Open in Browser", systemImage: "safari") { InAppBrowser.openExternally(url) }
+                    #endif
+                }
+                .accessibilityHint(Text("Opens the page"))
+        } else {
+            card.background(theme.surface, in: RoundedRectangle(cornerRadius: DS.Radius.lg))
+        }
+    }
+}
+
+/// The card's surface, a shade darker (and a little smaller) while pressed.
+private struct SourceCardButtonStyle: ButtonStyle {
+    @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(configuration.isPressed ? theme.surfaceRaised : theme.surface,
+                        in: RoundedRectangle(cornerRadius: DS.Radius.lg))
+            .contentShape(RoundedRectangle(cornerRadius: DS.Radius.lg))
+            #if os(iOS)
+            .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: DS.Radius.lg))
+            #endif
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.985 : 1)
+            .animation(reduceMotion ? nil : DS.Motion.snappy, value: configuration.isPressed)
     }
 }
 

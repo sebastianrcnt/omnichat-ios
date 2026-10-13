@@ -31,7 +31,15 @@ enum InAppBrowser {
         while let presented = top?.presentedViewController, !presented.isBeingDismissed { top = presented }
         return top
     }
+    /// Opens the page in Safari itself (outside the app).
+    static func openExternally(_ url: URL) {
+        UIApplication.shared.open(url)
+    }
     #else
+    static func openExternally(_ url: URL) {
+        NSWorkspace.shared.open(url)
+    }
+
     static func present(_ url: URL) {
         guard isWeb(url) else { return }
         NSWorkspace.shared.open(url)
