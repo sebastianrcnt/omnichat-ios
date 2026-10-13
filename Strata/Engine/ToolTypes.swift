@@ -55,6 +55,11 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
     var isError: Bool
     /// Ids of the sources this call produced (see `SourceStore`).
     var sourceIDs: [Int] = []
+    /// Display-only facts kept when `displayOnly` drops the result text (never sent to the API): the engine that
+    /// answered a search, and a page read's length and whether it held little real content.
+    var engine: String?
+    var pageCharacters: Int?
+    var thinPage: Bool?
 
     init(id: String, name: String, arguments: String, result: String, isError: Bool, sourceIDs: [Int] = []) {
         self.id = id
@@ -73,6 +78,9 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
         result = try c.decode(String.self, forKey: .result)
         isError = try c.decode(Bool.self, forKey: .isError)
         sourceIDs = try c.decodeIfPresent([Int].self, forKey: .sourceIDs) ?? []
+        engine = try c.decodeIfPresent(String.self, forKey: .engine)
+        pageCharacters = try c.decodeIfPresent(Int.self, forKey: .pageCharacters)
+        thinPage = try c.decodeIfPresent(Bool.self, forKey: .thinPage)
     }
 
     /// Human-readable argument (the query or URL).
@@ -102,7 +110,40 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
 
     /// The record without its result text: all a process row needs, so segments never hold fetched page bodies.
     var displayOnly: ToolCallRecord {
-        ToolCallRecord(id: id, name: name, arguments: arguments, result: "", isError: isError, sourceIDs: sourceIDs)
+        var out = ToolCallRecord(id: id, name: name, arguments: arguments, result: "", isError: isError, sourceIDs: sourceIDs)
+        if name == ToolNames.webSearch {
+            out.engine = searchEngine
+        } else if name == ToolNames.webFetch, !isError {
+            out.pageCharacters = fetchedCharacters
+            out.thinPage = isThinPage
+        }
+        return out
+    }
+
+    /// The engine that answered a search (`Results from Bing:` heads the result the model sees).
+    var searchEngine: String? {
+        if let engine { return engine }
+        guard name == ToolNames.webSearch, result.hasPrefix(Self.enginePrefix),
+              let end = result.firstIndex(of: "\n") else { return nil }
+        let raw = result[result.index(result.startIndex, offsetBy: Self.enginePrefix.count)..<end]
+        guard raw.hasSuffix(":") else { return nil }
+        let name = raw.dropLast().trimmingCharacters(in: .whitespaces)
+        return name.isEmpty ? nil : name
+    }
+    private static let enginePrefix = "Results from "
+
+    /// The whole page's length in characters, from the footer `web_fetch` adds to each slice.
+    var fetchedCharacters: Int? {
+        if let pageCharacters { return pageCharacters }
+        guard name == ToolNames.webFetch, !isError else { return nil }
+        return FetchOutcome.totalCharacters(in: result)
+    }
+
+    /// The page loaded but held almost no text, or looks like a bot check or consent wall.
+    var isThinPage: Bool {
+        if let thinPage { return thinPage }
+        guard name == ToolNames.webFetch, !isError else { return false }
+        return FetchOutcome.isThin(result: result, characters: fetchedCharacters)
     }
 }
 
