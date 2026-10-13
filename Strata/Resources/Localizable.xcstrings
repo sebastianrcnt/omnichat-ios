@@ -63,6 +63,16 @@
       }
     },
     "%lld read": {},
+    "%lld read · %lld": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld개 읽음 · %2$lld개"
+          }
+        }
+      }
+    },
     "%lld results": {
       "localizations": {
         "en": {
@@ -109,6 +119,16 @@
     },
     "%lld%% used": {},
     "%lldk characters": {},
+    "+ %lld more results": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "+ 나머지 %lld개"
+          }
+        }
+      }
+    },
     "+%lld more": {},
     "1 page": {},
     "1 result": {},
@@ -388,6 +408,16 @@
     "Read more": {},
     "Read more of": {},
     "Read more of %@": {},
+    "Read pages · %lld": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "페이지 읽기 · %lld"
+          }
+        }
+      }
+    },
     "Reading": {},
     "Reasoning": {},
     "Reasoning tokens": {},

@@ -128,16 +128,37 @@ struct ActivityFeedTests {
         #expect(card.results[0].read == .thin)
     }
 
-    @Test func unmatchedFetchesJoinTheNewestCardOrAPagesCard() {
+    @Test func unlistedPagesGoToAPagesCardPerRunOfDirectReads() {
         let before = ActivityFeed.cards(calls: [fetch("f0", "https://other.org/picked-by-the-model", ids: [11])], sources: sources)
         #expect(before.count == 1 && before[0].kind == .pages)
         #expect(before[0].extras.map(\.title) == ["Picked page"])
 
+        // Never appended to the latest search card.
         let calls = [search("s1", ids: [1]), search("s2", ids: [9]), fetch("f1", "https://elsewhere.net/x"), fetch("f2", "https://elsewhere.net/x/", status: .running)]
         let cards = ActivityFeed.cards(calls: calls, sources: sources)
-        #expect(cards[0].extras.isEmpty)
-        #expect(cards[1].extras.count == 1, "the same page read twice is one row")
-        #expect(cards[1].extras[0].host == "elsewhere.net" && cards[1].extras[0].read == .loading(callID: "f2"))
+        #expect(cards.count == 3)
+        #expect(cards[0].extras.isEmpty && cards[1].extras.isEmpty)
+        #expect(cards[2].kind == .pages)
+        #expect(cards[2].extras.count == 1, "the same page read twice is one row")
+        #expect(cards[2].extras[0].host == "elsewhere.net" && cards[2].extras[0].read == .loading(callID: "f2"))
+    }
+
+    @Test func aSearchOrAListedReadEndsARunOfDirectReads() {
+        let calls = [
+            fetch("f1", "https://a.org/1"), fetch("f2", "https://b.org/2"),   // one Pages card
+            search("s1", ids: [1, 2]),
+            fetch("f3", "https://c.org/3"),                                    // a second one, after the search
+            fetch("f4", "https://kostat.go.kr/board/1"),                       // listed by s1
+            fetch("f5", "https://d.org/4"),                                    // a third
+            fetch("f6", "https://a.org/1", status: .failed),                   // a re-read updates its old row
+        ]
+        let cards = ActivityFeed.cards(calls: calls, sources: sources)
+        #expect(cards.map(\.kind) == [.pages, .search(query: "q"), .pages, .pages])
+        #expect(cards[0].extras.map(\.host) == ["a.org", "b.org"])
+        #expect(cards[0].extras[0].read == .read, "a failed retry never hides a success")
+        #expect(cards[2].extras.map(\.host) == ["c.org"])
+        #expect(cards[3].extras.map(\.host) == ["d.org"])
+        #expect(cards[1].results[0].read == .read)
     }
 
     @Test func aLaterReadOfTheSamePageUpdatesTheNewestCardHoldingIt() {
@@ -156,12 +177,31 @@ struct ActivityFeedTests {
         #expect(FeedRead.read.merged(with: .thin) == .read)
     }
 
-    @Test func fiveRowsThenMoreButReadRowsAlwaysShow() {
-        let calls = [search("s1", ids: Array(1...8)), fetch("f1", "https://blog.naver.com/u/7")]
+    @Test func fiveRowsThenMoreUntilReadingStarts() {
+        let card = ActivityFeed.cards(calls: [search("s1", ids: Array(1...8))], sources: sources)[0]
+        #expect(!card.isReading)
+        #expect(card.visibleResults(expanded: false).map(\.host) == ["kostat.go.kr", "hani.co.kr", "chosun.com", "ko.wikipedia.org", "naver.com"])
+        #expect(card.hiddenCount(expanded: false) == 3)
+    }
+
+    @Test func onceReadingStartsOnlyReadRowsShowInTheOrderTheirReadsStarted() {
+        let calls = [
+            search("s1", ids: Array(1...8)),
+            fetch("f1", "https://blog.naver.com/u/7"),                         // result 7 first
+            fetch("f2", "https://hani.co.kr/arti/2", status: .running),         // then result 2
+            fetch("f3", "https://chosun.com/a/3", status: .failed),             // a failed read counts too
+            fetch("f4", "https://blog.naver.com/u/7"),                         // reading on keeps its place
+        ]
         let card = ActivityFeed.cards(calls: calls, sources: sources)[0]
-        #expect(card.visibleResults(expanded: false).map(\.host) == ["kostat.go.kr", "hani.co.kr", "chosun.com", "ko.wikipedia.org", "naver.com", "blog.naver.com"])
-        #expect(card.hiddenCount(expanded: false) == 2)
-        #expect(card.visibleResults(expanded: true).count == 8 && card.hiddenCount(expanded: true) == 0)
+        #expect(card.isReading)
+        #expect(card.visibleResults(expanded: false).map(\.host) == ["blog.naver.com", "hani.co.kr", "chosun.com"])
+        #expect(card.hiddenCount(expanded: false) == 5)
+        #expect(card.readCount == 1)
+        // Expanded: every result in its original order, read rows still marked.
+        let all = card.visibleResults(expanded: true)
+        #expect(all.map(\.host) == ["kostat.go.kr", "hani.co.kr", "chosun.com", "ko.wikipedia.org", "naver.com", "oecd.org", "blog.naver.com", "joongang.co.kr"])
+        #expect(all[6].read == .read && all[1].read == .loading(callID: "f2"))
+        #expect(card.hiddenCount(expanded: true) == 0)
     }
 
     @Test func callsKeepRequestOrderAndAppearOnce() {

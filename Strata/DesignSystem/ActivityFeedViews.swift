@@ -187,7 +187,7 @@ struct FeedCardView: View {
     private var title: String {
         switch card.kind {
         case .search(let query): query
-        case .pages: String(localized: "Read")
+        case .pages: String(localized: "Read pages · \(card.extras.count)")
         }
     }
 
@@ -211,14 +211,25 @@ struct FeedCardView: View {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 10, weight: .semibold)).foregroundStyle(theme.textTertiary)
             }
-        } else if let engine = card.engine {
-            Text(engine)
-                .font(DS.Typography.feedBadge)
-                .foregroundStyle(theme.textTertiary)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 1)
-                .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(theme.separator, lineWidth: 1) }
+        } else if card.isReading || card.engine != nil {
+            HStack(spacing: DS.Spacing.xs + 2) {
+                // "2 read · 8" once the card's pages are being read.
+                if card.isReading {
+                    Text("\(card.readCount) read · \(card.results.count)")
+                        .font(DS.Typography.feedMeta).foregroundStyle(theme.textTertiary).lineLimit(1)
+                }
+                if let engine = card.engine { engineBadge(engine) }
+            }
         }
+    }
+
+    private func engineBadge(_ engine: String) -> some View {
+        Text(engine)
+            .font(DS.Typography.feedBadge)
+            .foregroundStyle(theme.textTertiary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(theme.separator, lineWidth: 1) }
     }
 
     /// "Naver · 2 read", "Bing · 8 results", "2 pages".
@@ -247,7 +258,7 @@ struct FeedCardView: View {
             }
             if hidden > 0 && visible >= results.count {
                 Button(action: onShowAll) {
-                    Text("+\(hidden) more")
+                    Text(card.isReading ? "+ \(hidden) more results" : "+\(hidden) more")
                         .font(DS.Typography.feed)
                         .foregroundStyle(theme.textTertiary)
                         .padding(.horizontal, 8)
@@ -258,14 +269,18 @@ struct FeedCardView: View {
                 .buttonStyle(.plain)
                 .transition(.opacity)
             }
-            // Pages the model chose itself, after the results.
+            // A "Read pages" card's rows.
             ForEach(card.extras.prefix(max(0, visible - results.count))) { row in
                 FeedRowView(row: row).transition(rowTransition)
             }
         }
         .padding(.horizontal, 6)
         .padding(.bottom, DS.Spacing.sm)
+        // Reading starts: the read rows move up once (and later reads slide in after them).
+        .animation(reduceMotion ? nil : Self.reorder, value: results.map(\.id))
     }
+
+    static let reorder = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.35)
 
     private var rowTransition: AnyTransition {
         reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 5))

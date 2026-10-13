@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Read Rows</title>
+<style>
+:root{--bg:#141414;--surface:#1d1d20;--raised:#2a2a2d;--line:#2f2f34;--text:#f2f2f4;--dim:#9b9ba3;--faint:#5f5f67;--accent2:#b9a2ff}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,system-ui,sans-serif;overflow-x:hidden}
+.wrap{max-width:430px;margin:0 auto;padding:18px 16px 60px}
+h1{font-size:19px;margin:4px 0}
+.sub{color:var(--dim);font-size:13px;line-height:1.55}
+.opt{margin-top:24px;padding-top:16px;border-top:1px solid var(--line)}
+.label{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
+.label b{font-size:21px;color:var(--accent2)}
+.label span{font-size:14px;color:var(--dim)}
+.note{font-size:12.5px;color:var(--faint);line-height:1.5;margin:6px 0 10px}
+.card{background:var(--surface);border-radius:14px;padding:4px 0;min-width:0}
+.head{display:flex;align-items:center;gap:8px;padding:9px 12px 7px;font-size:13.5px;color:var(--dim)}
+.head .q{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+.badge{font-size:10.5px;font-weight:700;border-radius:5px;padding:1px 5px;background:#03c75a;color:#fff}
+.n{font-size:12px;color:var(--faint)}
+.rows{position:relative}
+.row{display:flex;align-items:center;gap:9px;padding:7px 12px;font-size:14px;min-width:0;color:var(--faint)}
+.row .fav{width:16px;height:16px;border-radius:4px;background:var(--raised);flex:none;display:grid;place-items:center;font-size:9px;color:var(--dim)}
+.row .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .h{font-size:12px;color:var(--faint);flex:none}
+.row.read{color:var(--text)}
+.row.read .h{color:var(--dim)}
+.row.cur-read{background:rgba(52,199,89,.12);color:var(--text)}
+.ck{color:#34c759;font-size:13px}
+.x{color:var(--faint);font-size:12px}
+.spin{width:12px;height:12px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--dim);animation:r .8s linear infinite}
+@keyframes r{to{transform:rotate(360deg)}}
+.more{padding:7px 12px 9px;font-size:13px;color:var(--dim)}
+.strip{display:flex;align-items:center;gap:6px;padding:6px 12px 10px;font-size:12.5px;color:var(--faint);min-width:0}
+.strip .favs{display:flex}
+.strip .favs i{width:16px;height:16px;border-radius:4px;background:var(--raised);border:1.5px solid var(--surface);margin-left:-4px;font-style:normal;font-size:8px;display:grid;place-items:center;color:var(--dim)}
+.strip .favs i:first-child{margin-left:0}
+.divider{height:1px;background:var(--line);margin:2px 12px}
+.ctl{display:flex;gap:8px;margin-top:10px}
+.ctl button{border:0;background:var(--raised);color:var(--text);border-radius:15px;height:32px;padding:0 14px;font-size:13.5px}
+.pagecard .head .icon{font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>읽은 페이지 정리 방식</h1>
+  <div class="sub">검색 결과 8개 중 2번과 7번 페이지를 읽은 상황이에요. 색은 이미 차분하게 바꾸기로 해서, 현재 말고는 모두 새 스타일이에요.</div>
+  <div id="list"></div>
+</div>
+<script>
+const R = [
+  ["서울대학교 - 나무위키","namu.wiki","나"],
+  ["서울대학교 연혁 | 서울대학교","snu.ac.kr","서"],
+  ["경성제국대학 - 위키백과","ko.wikipedia.org","W"],
+  ["국대안 파동 - 우리역사넷","contents.history.go.kr","역"],
+  ["서울대 개교 79주년 기념식 열려","yna.co.kr","연"],
+  ["서울대 설립 과정 총정리","blog.naver.com","블"],
+  ["국립서울대학교 설치령 (1946)","law.go.kr","법"],
+  ["서울대 건립 연도 질문","kin.naver.com","지"],
+];
+const READ = [1,6];
+const head = (n) => `<div class="head"><span class="badge">N</span><span class="q">서울대학교 건립 연도</span><span class="n">${n}</span></div>`;
+const row = (i, cls="", tail="") => `<div class="row ${cls}" data-i="${i}"><span class="fav">${R[i][2]}</span><span class="t">${R[i][0]}</span>${tail||`<span class="h">${R[i][1]}</span>`}</div>`;
+
+// current: first 5 + read rows beyond them, in original order, green tint
+const current = `<div class="card">${head("8개")}${
+  R.map((_,i)=> i<5||READ.includes(i) ? row(i, READ.includes(i)?"cur-read":"", READ.includes(i)?`<span class="ck">✓</span>`:"") : "").join("")
+}<div class="more">+2개 더</div></div>`;
+
+// A: read rows on top, the rest folded to one line
+const A = `<div class="card">${head("2개 읽음 · 8개")}${READ.map(i=>row(i,"read")).join("")}<div class="more">+ 나머지 6개</div></div>`;
+
+// B: read rows on top, the rest as a favicon strip
+const rest = R.map((_,i)=>i).filter(i=>!READ.includes(i));
+const B = `<div class="card">${head("8개")}${READ.map(i=>row(i,"read")).join("")}
+  <div class="strip"><span class="favs">${rest.slice(0,5).map(i=>`<i>${R[i][2]}</i>`).join("")}</span><span>외 6개 결과</span></div></div>`;
+
+// C: read rows on top, then a divider and the unread rows still listed but dim (max 3)
+const C = `<div class="card">${head("8개")}${READ.map(i=>row(i,"read")).join("")}<div class="divider"></div>${
+  rest.slice(0,3).map(i=>row(i)).join("")}<div class="more">+3개 더</div></div>`;
+
+// pages card for a read with no search behind it
+const P = `<div class="card pagecard"><div class="head"><span class="icon">📄</span><span class="q">페이지 읽기</span><span class="n">1개</span></div>${
+  `<div class="row read"><span class="fav">법</span><span class="t">국립서울대학교 설치령 (1946)</span><span class="h">law.go.kr</span></div>`}</div>`;
+
+// live: the reorder happens once, when reading starts
+const live = `<div class="card" id="live">${head("8개")}<div class="rows" id="liveRows"></div><div class="more" id="liveMore"></div></div>
+  <div class="ctl"><button id="step">다음 단계 ▶</button><button id="reset">처음부터</button></div>`;
+
+const OPTIONS = [
+  ["현재", "순서 그대로, 앞 5개 + 읽은 것, 초록 표시", current],
+  ["A", "읽은 것만 위에, 나머지는 한 줄로 접기", A, "가장 단순해요. 탭하면 나머지가 펼쳐져요."],
+  ["B", "읽은 것만 위에, 나머지는 파비콘 묶음", B, "어디서 찾았는지 분위기는 보이면서 자리를 거의 안 차지해요."],
+  ["C", "읽은 것 위에, 안 읽은 건 흐리게 3개까지", C, "검색 결과 느낌이 더 남아요. 대신 조금 길어요."],
+  ["A 움직임", "검색 → 읽기 시작 → 정리, 한 번만 재배치", live, "‘다음 단계’를 눌러 보세요. 읽기가 시작되는 순간 한 번만 부드럽게 자리를 바꿔요."],
+  ["페이지 카드", "검색 없이 바로 읽은 페이지", P, "검색 결과에 없던 페이지는 이렇게 따로 묶는 걸 추천해요(지금은 최근 검색 카드 밑에 붙어요)."],
+];
+document.getElementById("list").innerHTML = OPTIONS.map(([k,name,body,note])=>`
+  <div class="opt"><div class="label"><b>${k}</b><span>${name}</span></div>${note?`<div class="note">${note}</div>`:""}${body}</div>`).join("");
+
+// live demo with a FLIP reorder
+const rowsEl = document.getElementById("liveRows"), moreEl = document.getElementById("liveMore");
+let stage = 0;
+function render(){
+  const before = new Map([...rowsEl.children].map(e=>[e.dataset.i, e.getBoundingClientRect().top]));
+  let html = "", more = "";
+  if (stage === 0) { html = [0,1,2,3,4].map(i=>row(i)).join(""); more = "+3개 더"; }
+  if (stage === 1) { html = READ.map(i=>row(i,"read",`<span class="spin"></span>`)).join(""); more = "+ 나머지 6개"; }
+  if (stage === 2) { html = READ.map(i=>row(i,"read")).join(""); more = "+ 나머지 6개"; }
+  if (stage === 3) { html = row(1,"read") + row(6,"",`<span class="x">✕</span>`); more = "+ 나머지 6개"; }
+  rowsEl.innerHTML = html; moreEl.textContent = more;
+  for (const e of rowsEl.children) {
+    const prev = before.get(e.dataset.i), now = e.getBoundingClientRect().top;
+    if (prev !== undefined && prev !== now) {
+      e.animate([{transform:`translateY(${prev-now}px)`},{transform:"none"}],{duration:380,easing:"cubic-bezier(.2,.8,.2,1)"});
+    } else if (prev === undefined) {
+      e.animate([{opacity:0,transform:"translateY(6px)"},{opacity:1,transform:"none"}],{duration:300,easing:"ease-out"});
+    }
+  }
+  document.getElementById("step").textContent = ["읽기 시작 ▶","읽기 완료 ▶","(7번 실패 예시) ▶","처음으로 ↺"][stage];
+}
+document.getElementById("step").onclick = () => { stage = (stage + 1) % 4; render(); };
+document.getElementById("reset").onclick = () => { stage = 0; render(); };
+render();
+</script>
+</body>
+</html>
