@@ -22,6 +22,8 @@ struct ChatView: View {
     /// The question being answered, held at the top of the screen from its send until the next send or until the user
     /// scrolls the room reserved under it out of view. Nil when nothing is pinned (a chat just opened).
     @State private var pinnedID: UUID?
+    /// Set by the jump button: the view then sticks to the end while the answer grows, until the user scrolls or sends.
+    @State private var followsBottom = false
     /// Heights for the room under the pinned question; read only by `PinReserve`, so scrolling and streaming never
     /// re-evaluate this view.
     @State private var pin = PinLayout()
@@ -358,7 +360,10 @@ struct ChatView: View {
                 }
                 Color.clear.frame(height: DS.Spacing.lg).id("bottom")
                     .onScrollVisibilityChange(threshold: 0.01) { atBottom = $0 } // true scroll position: is the end of the chat on screen?
-                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(PinLayout.space)).minY } action: { pin.contentEnd = $0 }
+                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(PinLayout.space)).minY } action: {
+                        pin.contentEnd = $0
+                        if followsBottom { position.scrollTo(id: "bottom", anchor: .bottom) }
+                    }
                 if pinnedID != nil { PinReserve(pin: pin) }
             }
             .padding(.horizontal, DS.Spacing.page)
@@ -380,6 +385,7 @@ struct ChatView: View {
             pin.visibleBottom = v.visibleBottom
         }
         .onScrollPhaseChange { old, new in
+            if new == .interacting { followsBottom = false } // a drag hands the position back to the user
             // The user scrolled: once the room under the answer is out of view it can go without moving anything.
             guard pinnedID != nil, new == .idle, old == .interacting || old == .decelerating else { return }
             if pin.reserveOutOfView { pinnedID = nil }
@@ -505,6 +511,7 @@ struct ChatView: View {
             if !atBottom && conversation != nil {
                 GlassIconButton(systemName: "arrow.down", label: "Jump to bottom", diameter: DS.IconSize.compactControlDiameter,
                                 iconSize: DS.IconSize.composerIcon) {
+                    followsBottom = true
                     withAnimation(DS.Motion.spring) { position.scrollTo(id: "bottom", anchor: .bottom) }
                 }
                 .padding(.bottom, DS.Spacing.sm)
@@ -519,6 +526,7 @@ struct ChatView: View {
     private func pinLatestQuestion() {
         guard let id = conversation?.activePath.last(where: { $0.role == .user && !$0.isHiddenInTranscript })?.id else { return }
         pinnedID = id
+        followsBottom = false
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(60)) // the row and the room under it are laid out first
             guard pinnedID == id else { return }
