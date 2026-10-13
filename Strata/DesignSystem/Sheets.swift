@@ -40,10 +40,16 @@ struct SheetScaffold<Trailing: View, Content: View>: View {
                     .padding(.bottom, DS.Spacing.xl)
             }
             .onScrollPhaseChange { old, new, context in
-                // Only a user scroll that just ended decides; programmatic scrolls never unpin.
-                guard let followsBottom, new == .idle, old == .interacting || old == .decelerating else { return }
-                let g = context.geometry
-                followsBottom.wrappedValue = g.visibleRect.maxY >= g.contentSize.height - 40
+                guard let followsBottom else { return }
+                // A finger on the content stops following at once, so a stream can't pull the view back down
+                // mid-drag; when the user's scroll ends, it follows again only if it ended at the bottom.
+                // Programmatic scrolls never change it.
+                if new == .interacting {
+                    followsBottom.wrappedValue = false
+                } else if new == .idle, old == .interacting || old == .decelerating {
+                    let g = context.geometry
+                    followsBottom.wrappedValue = g.visibleRect.maxY >= g.contentSize.height - 40
+                }
             }
         }
         .background(theme.background.ignoresSafeArea())

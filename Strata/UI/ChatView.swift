@@ -453,7 +453,7 @@ struct ChatView: View {
                     answeredEarly: message.answeredEarly),
                 render: controller.renderState(for: message),
                 onOpenTimeline: { timeline = TimelineRequest(message: message, showsTools: true) },
-                onOpenReasoning: { timeline = TimelineRequest(message: message, showsTools: false) },
+                onOpenReasoning: { timeline = TimelineRequest(message: message, showsTools: true) },
                 onOpenSources: { sourcesItem = SourceListItem(sources: $0, all: conversationUsedSources) },
                 onCopy: { Pasteboard.copy(MarkdownPlain.text(from: shownText)) },
                 onRegenerate: {
