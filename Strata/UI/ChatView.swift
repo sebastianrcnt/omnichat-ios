@@ -156,6 +156,7 @@ struct ChatView: View {
             #if os(macOS)
             .modifier(MacChatChrome(
                 title: conversation?.displayTitle ?? String(localized: "New chat"),
+                isTitling: controller.isTitling(conversation?.id),
                 contextFraction: conversation?.lastUsage == nil ? nil : contextFraction,
                 showUsage: $showUsage, showAttach: $showAttach, showNoImageSupport: $showNoImageSupport,
                 onPickImages: addAttachments, onEnableImages: enableImagesForSelectedModel,
@@ -284,12 +285,11 @@ struct ChatView: View {
             HStack(spacing: DS.Spacing.sm) {
                 GlassIconButton(systemName: "line.3.horizontal", label: "Sidebar") { composerFocused = false; onOpenSidebar() }
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(conversation?.displayTitle ?? String(localized: "New chat"))
+                    TitlingText(conversation?.displayTitle ?? String(localized: "New chat"),
+                                isTitling: controller.isTitling(conversation?.id))
                         .font(DS.Typography.title)
                         .foregroundStyle(theme.textPrimary)
                         .lineLimit(1)
-                        .contentTransition(.opacity)
-                        .animation(DS.Motion.ease, value: conversation?.title)
                 }
                 Spacer(minLength: 0)
                 ContextRingButton(fraction: conversation?.lastUsage == nil ? nil : contextFraction) {
@@ -319,10 +319,10 @@ struct ChatView: View {
                 renameText = c.title
                 showRename = true
             }
-            Button("Rename automatically", systemImage: "wand.and.stars") {
+            Button("Regenerate title", systemImage: "wand.and.stars") {
                 controller.autoRename(conversation: c, context: context, force: true)
             }
-            .disabled(controller.isStreaming)
+            .disabled(controller.isStreaming(c) || controller.isTitling(c.id))
             ShareLink(item: c.transcript) { Label("Share as text", systemImage: "square.and.arrow.up") }
             Button("Summarize now", systemImage: "text.line.first.and.arrowtriangle.forward") {
                 controller.compactNow(conversation: c, context: context)

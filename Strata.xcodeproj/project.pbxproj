@@ -16,6 +16,7 @@
 		0471356FA78CD773405A4822 /* ChipText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 319409447FC087642A7844D5 /* ChipText.swift */; };
 		0494E510701597DC79E71611 /* ToolProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5D32B8964A505B794CA379 /* ToolProgress.swift */; };
 		0499F27BFD7B6D1267F4499F /* MacComposerField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4844AE0B1B003F0118BD56B6 /* MacComposerField.swift */; };
+		04E956459C099A3B8F11EE46 /* TitlingText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 036EC236AF2525AF94B49388 /* TitlingText.swift */; };
 		08CC82D76737405E0EAE634A /* ChatClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC9B4C0F5B7D9EA0C318B662 /* ChatClient.swift */; };
 		0AA8B19E1FBC8AA1CD5BFA3F /* Conversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCFE8ACA7DF44925496D753 /* Conversation.swift */; };
 		0B66F514E7BAD4B14630D51A /* KeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 225A9D52503C945DAD353346 /* KeyStore.swift */; };
@@ -41,6 +42,7 @@
 		1EA9B96960F5F2EC3798DB4B /* SyntaxHighlightTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26570D51DE24CF846438D804 /* SyntaxHighlightTests.swift */; };
 		1EE97DE225FDE6F15C0A6C34 /* StrataApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78839B98DAD55E4352AEA1E3 /* StrataApp.swift */; };
 		1F4DDFE2A5D78EF18E5EDFE5 /* Conversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCFE8ACA7DF44925496D753 /* Conversation.swift */; };
+		1FC2DA85BC27BB4F0C1D8F5B /* TitlingText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 036EC236AF2525AF94B49388 /* TitlingText.swift */; };
 		21014F66A307085B689A0C11 /* MemoryCaches.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FCC4C024AED5AC7DD77A998 /* MemoryCaches.swift */; };
 		2257344577FB2AECEFD06E13 /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 917024912CE32D2FB4F90CBC /* Buttons.swift */; };
 		228B3B6E87F0A2BC239A02C9 /* ConnectionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE00F016BD732E6F71D9D841 /* ConnectionStore.swift */; };
@@ -298,6 +300,7 @@
 /* Begin PBXFileReference section */
 		01214F3CAB9EAFE1F3B1AA03 /* SharedModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedModels.swift; sourceTree = "<group>"; };
 		0303DF43A59DAF489DA9A7A1 /* Activity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Activity.swift; sourceTree = "<group>"; };
+		036EC236AF2525AF94B49388 /* TitlingText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TitlingText.swift; sourceTree = "<group>"; };
 		039C4D95DE3E932F7D0EB67D /* RequestInspection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestInspection.swift; sourceTree = "<group>"; };
 		0E2E3AC5500EF7D33D4C0EC3 /* Pretendard-SemiBold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-SemiBold.otf"; sourceTree = "<group>"; };
 		10BECBBEADB52A82B8FD8109 /* CompactionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactionRecord.swift; sourceTree = "<group>"; };
@@ -796,6 +799,7 @@
 				76761264A6C5D8DC725D7622 /* ProcessSegments.swift */,
 				1E13E8A51F7C4E74067F7367 /* Sheets.swift */,
 				748782FF3501ED3A1104EC28 /* SyntaxText.swift */,
+				036EC236AF2525AF94B49388 /* TitlingText.swift */,
 				76F833CD45E5B92CAEB723F3 /* Tokens.swift */,
 			);
 			path = DesignSystem;
@@ -1137,6 +1141,7 @@
 				4F36E6CA954E9A661FA90328 /* SyntaxTokens.swift in Sources */,
 				2893A16054331E475932F80C /* TextSizeViews.swift in Sources */,
 				796035B400885F19288917B2 /* ThoughtSentence.swift in Sources */,
+				1FC2DA85BC27BB4F0C1D8F5B /* TitlingText.swift in Sources */,
 				15556FA5C78CC8AEBD250884 /* Tokens.swift in Sources */,
 				FC14979418AB93302BD30307 /* ToolExecutionRecovery.swift in Sources */,
 				54AA0FA69A881A61FD542A4C /* ToolProgress.swift in Sources */,
@@ -1247,6 +1252,7 @@
 				3C7924221E3F942228AFB6AA /* SyntaxTokens.swift in Sources */,
 				D4964015F1924D7052F0D5E0 /* TextSizeViews.swift in Sources */,
 				BE5285A427D60122FF7171A8 /* ThoughtSentence.swift in Sources */,
+				04E956459C099A3B8F11EE46 /* TitlingText.swift in Sources */,
 				89A1F9C53DD81EF369A6A533 /* Tokens.swift in Sources */,
 				525239D1099C9C9841701BB8 /* ToolExecutionRecovery.swift in Sources */,
 				0494E510701597DC79E71611 /* ToolProgress.swift in Sources */,

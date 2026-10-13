@@ -58,6 +58,8 @@ struct MacImageAttaching: ViewModifier {
 struct MacChatChrome<MenuContent: View>: ViewModifier {
     @Environment(\.theme) private var theme
     let title: String
+    /// The title request is running: the title shimmers (`TitlingText`).
+    let isTitling: Bool
     let contextFraction: Double?
     @Binding var showUsage: Bool
     @Binding var showAttach: Bool
@@ -68,11 +70,21 @@ struct MacChatChrome<MenuContent: View>: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            // The window keeps its title (Window menu, Mission Control); the toolbar draws it itself, so it can shimmer
+            // while the chat is being named.
             .navigationTitle(title)
+            .toolbar(removing: .title)
             // The chat scrolls under the title bar: give it a surface so answer text never shows through the title.
             .toolbarBackground(theme.background, for: .windowToolbar)
             .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
             .toolbar {
+                ToolbarItem(placement: .navigation) {
+                    TitlingText(title, isTitling: isTitling)
+                        .font(.title3.weight(.semibold))
+                        .lineLimit(1)
+                        .padding(.leading, DS.Spacing.xs)
+                }
+                .sharedBackgroundVisibility(.hidden)
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button { showUsage = true } label: { ContextRing(fraction: contextFraction) }
                         .help("Context usage")

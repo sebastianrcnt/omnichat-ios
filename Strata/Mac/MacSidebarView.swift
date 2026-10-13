@@ -6,6 +6,7 @@ import SwiftData
 struct MacSidebarView: View {
     @Environment(\.theme) private var theme
     @Environment(\.modelContext) private var context
+    @Environment(\.chatController) private var controller
     @Query(sort: \Conversation.updatedAt, order: .reverse) private var conversations: [Conversation]
 
     @Binding var selected: Conversation?
@@ -72,7 +73,8 @@ struct MacSidebarView: View {
 
     private func row(_ conversation: Conversation) -> some View {
         Label {
-            Text(conversation.displayTitle).font(DS.Typography.uiSmall).lineLimit(1)
+            TitlingText(conversation.displayTitle, isTitling: controller.isTitling(conversation.id))
+                .font(DS.Typography.uiSmall).lineLimit(1)
         } icon: {
             Image(systemName: conversation.isPinned ? "pin" : "bubble.left")
         }
@@ -86,6 +88,10 @@ struct MacSidebarView: View {
                 renameText = conversation.title
                 renaming = conversation
             }
+            Button("Regenerate title", systemImage: "wand.and.stars") {
+                controller.autoRename(conversation: conversation, context: context, force: true)
+            }
+            .disabled(controller.isStreaming(conversation) || controller.isTitling(conversation.id))
             Divider()
             Button("Delete", systemImage: "trash", role: .destructive) { deleting = conversation }
         }

@@ -5,6 +5,7 @@ import SwiftData
 struct SidebarView: View {
     @Environment(\.theme) private var theme
     @Environment(\.modelContext) private var context
+    @Environment(\.chatController) private var controller
     @Query(sort: \Conversation.updatedAt, order: .reverse) private var conversations: [Conversation]
 
     @Binding var selected: Conversation?
@@ -125,7 +126,7 @@ struct SidebarView: View {
                     .font(.system(size: DS.IconSize.md))
                     .foregroundStyle(theme.textSecondary)
                     .frame(width: DS.IconSize.lg)
-                Text(conversation.displayTitle)
+                TitlingText(conversation.displayTitle, isTitling: controller.isTitling(conversation.id))
                     .font(DS.Typography.ui)
                     .foregroundStyle(theme.textPrimary)
                     .lineLimit(1)
@@ -147,6 +148,10 @@ struct SidebarView: View {
                 renameText = conversation.title
                 renaming = conversation
             }
+            Button("Regenerate title", systemImage: "wand.and.stars") {
+                controller.autoRename(conversation: conversation, context: context, force: true)
+            }
+            .disabled(controller.isStreaming(conversation) || controller.isTitling(conversation.id))
             Button("Delete", systemImage: "trash", role: .destructive) {
                 if selected?.id == conversation.id { selected = nil }
                 Diagnostics.forget(conversation.id)
