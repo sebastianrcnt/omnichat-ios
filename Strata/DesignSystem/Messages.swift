@@ -236,7 +236,9 @@ struct AssistantMessage: View {
     @Environment(\.citations) private var citations
     let content: AssistantContent
     let render: MessageRenderState
+    /// The Timeline sheet (reasoning and every tool call), and the reasoning alone (the thought line).
     var onOpenTimeline: () -> Void = {}
+    var onOpenReasoning: () -> Void = {}
     var onOpenSources: ([SourceInfo]) -> Void = { _ in }
     var onCopy: () -> Void = {}
     var onRegenerate: () -> Void = {}
@@ -252,13 +254,23 @@ struct AssistantMessage: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var tail: MessageLayout.Tail {
-        MessageLayout.tail(isStreaming: content.isStreaming, pendingCount: content.pending.count,
-                           hasRoundText: render.markdown.hasContent)
+    private var answerStarted: Bool {
+        MessageLayout.answerStarted(isStreaming: content.isStreaming, pendingCount: content.pending.count,
+                                    hasRoundText: render.markdown.hasContent)
     }
 
-    private var items: [MessageLayout.Item] {
-        MessageLayout.items(segmentCount: content.segments.count, tail: tail, isStreaming: content.isStreaming,
+    /// The turn's calls, finished rounds first, then the running round in request order.
+    private var feedCalls: [FeedCall] {
+        FeedCall.ordered(finished: content.segments.flatMap(\.calls), requested: content.roundRequested,
+                         roundFinished: content.roundFinished)
+    }
+
+    private var hasThought: Bool {
+        content.thinkingSeconds != nil || content.segments.contains { $0.kind == .thinking }
+    }
+
+    private func items(hasActivity: Bool) -> [MessageLayout.Item] {
+        MessageLayout.items(hasThought: hasThought, hasActivity: hasActivity, isStreaming: content.isStreaming,
                             hasAnswer: render.markdown.hasContent)
     }
 
@@ -278,22 +290,18 @@ struct AssistantMessage: View {
     }
 
     @ViewBuilder
-    private func itemView(_ item: MessageLayout.Item) -> some View {
+    private func itemView(_ item: MessageLayout.Item, calls: [FeedCall]) -> some View {
         switch item {
-        case .summary:
-            ActivitySummaryRow(summary: ProcessSummary(segments: content.segments, fallbackSeconds: content.thinkingSeconds),
-                               action: onOpenTimeline)
-        case .liveThinking:
-            LiveThinkingTail(label: phaseLabel, start: content.turnStart ?? .now, reasoning: render.reasoning, action: onOpenTimeline)
-        case .liveTools:
-            LiveToolsTail(label: phaseLabel, start: content.turnStart ?? .now,
-                          entries: ActivityEntry.roundEntries(requested: content.roundRequested, finished: content.roundFinished,
-                                                              sources: citations.sources),
-                          action: onOpenTimeline)
+        case .thought:
+            let working = content.isStreaming && !answerStarted
+            ThoughtLine(isWorking: working, seconds: content.thinkingSeconds,
+                        reasoning: working ? render.reasoning : nil, placeholder: phaseLabel,
+                        action: onOpenReasoning, onDetails: onOpenTimeline)
+        case .feed:
+            ActivityFeedView(cards: ActivityFeed.cards(calls: calls, sources: citations.sources),
+                             isStreaming: content.isStreaming, answerStarted: answerStarted, onDetails: onOpenTimeline)
         case .text:
             answerText
-        case .divider:
-            ProcessDivider()
         }
     }
 
@@ -322,9 +330,11 @@ struct AssistantMessage: View {
     }
 
     var body: some View {
+        let calls = feedCalls
+        let items = items(hasActivity: !calls.isEmpty)
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
             ForEach(items) { item in
-                itemView(item)
+                itemView(item, calls: calls)
                     .transition(.enter(reduceMotion: reduceMotion))
             }
             .animation(reduceMotion ? nil : DS.Motion.enter, value: items)

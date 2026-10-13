@@ -61,25 +61,33 @@ struct SourceChip: View {
     }
 }
 
-/// 16 pt circular site icon, loaded lazily; the host's monogram until (or unless) a real icon arrives.
+/// Site icon, loaded lazily; the host's monogram until (or unless) a real icon arrives. A 16 pt circle by default; the
+/// feed's result rows use an 18 pt rounded square.
 struct FaviconView: View {
     @Environment(\.theme) private var theme
     let host: String
+    var size: CGFloat = DS.IconSize.favicon
+    /// Rounded square instead of a circle.
+    var square = false
     @State private var image: PlatformImage?
+
+    private var shape: AnyShape {
+        square ? AnyShape(RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)) : AnyShape(Circle())
+    }
 
     var body: some View {
         Group {
             if let image {
                 Image(platformImage: image).resizable().scaledToFill()
-                    .frame(width: DS.IconSize.favicon, height: DS.IconSize.favicon)
+                    .frame(width: size, height: size)
                     .background(theme.faviconBackdrop)
-                    .clipShape(Circle())
+                    .clipShape(shape)
             } else {
                 Text(String(host.first.map { Character($0.uppercased()) } ?? "?"))
                     .font(DS.Typography.monogram)
                     .foregroundStyle(theme.accentOnTint)
-                    .frame(width: DS.IconSize.favicon, height: DS.IconSize.favicon)
-                    .background(theme.accentMuted, in: Circle())
+                    .frame(width: size, height: size)
+                    .background(theme.accentMuted, in: shape)
             }
         }
         .task(id: host) { image = await FaviconImages.image(for: host) }
@@ -284,60 +292,6 @@ struct FlowLayout: Layout {
     }
 }
 
-// MARK: - Live feed
-
-/// "Thinking · 12s" with the animated mark.
-struct ActivityStatusLine: View {
-    @Environment(\.theme) private var theme
-    let label: String
-    let start: Date
-
-    var body: some View {
-        HStack(spacing: DS.Spacing.sm) {
-            StreamingIndicator()
-            TimelineView(.periodic(from: start, by: 1)) { context in
-                let seconds = max(0, Int(context.date.timeIntervalSince(start)))
-                Text("\(label) · \(seconds)s")
-                    .font(DS.Typography.uiSmall)
-                    .foregroundStyle(theme.accent)
-                    .monospacedDigit()
-            }
-            Image(systemName: "chevron.right")
-                .font(.system(size: DS.IconSize.sm, weight: .semibold))
-                .foregroundStyle(theme.textTertiary)
-            Spacer(minLength: 0)
-        }
-        .contentShape(Rectangle())
-    }
-}
-
-/// Everything before the answer as one row: "Thought for 1m 22s . 8 searches . 4 pages". Counts tick as steps finish.
-struct ActivitySummaryRow: View {
-    @Environment(\.theme) private var theme
-    let summary: ProcessSummary
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: DS.Spacing.sm) {
-                Image(systemName: summary.searches + summary.pages > 0 ? "globe" : "clock")
-                    .font(.system(size: DS.IconSize.md)).foregroundStyle(theme.textSecondary)
-                Text(summary.title)
-                    .font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary).lineLimit(1)
-                    .contentTransition(.numericText())
-                    .animation(DS.Motion.enter, value: summary)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: DS.IconSize.sm, weight: .semibold)).foregroundStyle(theme.textTertiary)
-                Spacer(minLength: 0)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityHint(Text("Opens the timeline"))
-    }
-}
-
 // MARK: - Timeline
 
 enum TimelineItem: Identifiable, Equatable {
@@ -444,6 +398,8 @@ struct TimelineSheet: View {
     let sources: [Int: SourceInfo]
     let isLive: Bool
     var seconds: Double?
+    /// False: the reasoning alone (from the thought line); true: reasoning and every tool call.
+    var showsTools = true
     @State private var following = true
     @State private var throttle = FollowThrottle()
     @State private var trailing: Task<Void, Never>?
@@ -451,7 +407,8 @@ struct TimelineSheet: View {
     /// Finalized paragraphs and tool cards only. The growing tail is a separate view, so streaming never
     /// rebuilds this list. (A tool round flushes the tail first, so the tail is always last.)
     private var items: [TimelineItem] {
-        TimelineItem.build(chunks: reasoning.finalized.map(\.text), steps: steps, pending: pending, sources: sources)
+        TimelineItem.build(chunks: reasoning.finalized.map(\.text), steps: showsTools ? steps : [],
+                           pending: showsTools ? pending : [], sources: sources)
     }
 
     var body: some View {
@@ -508,6 +465,11 @@ struct TimelineSheet: View {
     }
 
     private var titleKey: LocalizedStringKey {
+        if !showsTools {
+            if isLive { return "Thinking…" }
+            if let seconds { return "Thought for \(max(1, Int(seconds.rounded())))s" }
+            return "Thoughts"
+        }
         if isLive { return "Working…" }
         if let seconds { return "Thought for \(max(1, Int(seconds.rounded())))s" }
         return "Timeline"
@@ -643,9 +605,7 @@ struct SourcesSheet: View {
     ]
     return ScrollView {
         VStack(alignment: .leading, spacing: DS.Spacing.xl) {
-            LiveToolsTail(label: "Searching", start: .now.addingTimeInterval(-12), entries: entries) {}
-            ActivitySummaryRow(summary: ProcessSummary(segments: [.init(index: 0, kind: .thinking, text: "x", seconds: 82),
-                                                                 .init(index: 1, kind: .toolRound, calls: [.init(id: "a", name: "web_search", arguments: "{}", result: "", isError: false)])])) {}
+            ForEach(entries) { ActivityCard(entry: $0) }
             SourcesRow(count: 5) {}
             SourceCard(source: sources[0]) { _ in }
             FlowLayout { SourceChip(host: "github.com"); SourceChip(host: "developer.apple.com"); SourceChip(host: "example.org") }

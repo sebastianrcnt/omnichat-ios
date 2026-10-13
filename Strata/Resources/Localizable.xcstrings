@@ -6,6 +6,7 @@
     "%@ (recommended)": {},
     "%@ of %@ (%lld%%)": {},
     "%@ of %@ tokens used": {},
+    "%@ · %@": {},
     "%@ · %lld messages": {},
     "%@ · %llds": {},
     "%@ → %@ tokens · %@%@": {},
@@ -60,6 +61,7 @@
         }
       }
     },
+    "%lld read": {},
     "%lld results": {
       "localizations": {
         "en": {
@@ -106,7 +108,9 @@
     },
     "%lld%% used": {},
     "%lldk characters": {},
+    "+%lld more": {},
     "1 page": {},
+    "1 result": {},
     "1 search": {},
     "262144": {
       "shouldTranslate": false
@@ -160,9 +164,7 @@
     "Clear search": {},
     "Close": {},
     "Code": {},
-    "Collapsed": {
-      "extractionState": "stale"
-    },
+    "Collapsed": {},
     "Compaction": {},
     "Completion tokens": {},
     "Connection": {},
@@ -176,12 +178,14 @@
     "Conversation details": {},
     "Copied": {},
     "Copy": {},
+    "Copy Link": {},
     "Copy code": {},
     "Copy raw Markdown": {},
     "Could not read the search results page.": {},
     "Could not reconnect to the server for %lld minutes.": {},
     "Could not resolve the host %@.": {},
     "Could not save: %@": {},
+    "Couldn't read": {},
     "Couldn't summarize": {},
     "Couldn't summarize the conversation: %@": {},
     "Couldn't summarize the conversation: the notes were cut off (%@), twice. The conversation is unchanged.": {},
@@ -206,9 +210,7 @@
     "Effort": {},
     "Enable only for gateways supporting Strata stream replay.": {},
     "Estimate": {},
-    "Expanded": {
-      "extractionState": "stale"
-    },
+    "Expanded": {},
     "External bytes (est.)": {},
     "External files": {},
     "External files (est.)": {
@@ -219,6 +221,7 @@
     "Extra": {},
     "Extra large": {},
     "Extra small": {},
+    "Failed": {},
     "Favicon cache": {},
     "Favicon files": {},
     "Favicon images": {},
@@ -249,6 +252,7 @@
     "Fetching…": {},
     "Fields": {},
     "Final answer": {},
+    "Find Chats": {},
     "Flushes": {},
     "Follow the text size set in iOS Settings.": {},
     "Footprint": {},
@@ -256,9 +260,11 @@
     "HTTP %lld: %@": {},
     "Headers": {},
     "Hidden web views": {},
+    "Hides the results": {},
     "High": {},
     "Higher effort lets the model think longer. It costs more time and tokens. Limits are the engine's thinking-token caps.": {},
     "Higher effort thinks longer.": {},
+    "How much of a page web_fetch returns per call. Longer pages continue in further calls.": {},
     "Image": {},
     "Image and favicon counts are upper bounds: the system cache evicts without saying so.": {},
     "Image cache limit": {},
@@ -278,6 +284,7 @@
     "Last request": {},
     "Last usage": {},
     "Licenses": {},
+    "Little content": {},
     "Live": {},
     "Loading…": {},
     "Low": {},
@@ -318,10 +325,13 @@
     "Open": {},
     "Open Settings": {},
     "Open full screen": {},
+    "Open in Browser": {},
+    "Open in Safari": {},
     "Open source": {},
     "Open timeline": {
       "extractionState": "stale"
     },
+    "Opens the page": {},
     "Opens the timeline": {},
     "Orange": {},
     "Original": {},
@@ -329,6 +339,7 @@
     "Page characters": {},
     "Page script failed: %@": {},
     "Pages": {},
+    "Pages read": {},
     "Pasted keys are stored in the Keychain, never in the app's files.": {},
     "Peak": {},
     "Photo": {},
@@ -341,6 +352,7 @@
     "Prompt": {},
     "Prompt tokens": {},
     "Purple": {},
+    "Read": {},
     "Read %lld pages": {},
     "Read 1 page": {},
     "Read more": {},
@@ -387,6 +399,7 @@
     "Saving…": {},
     "Search": {},
     "Search engine": {},
+    "Search: %@": {},
     "Searched %lld sites": {},
     "Searched 1 site": {},
     "Searched the web": {},
@@ -400,6 +413,7 @@
     "Settings": {},
     "Share as file": {},
     "Share as text": {},
+    "Show Timeline": {},
     "Show all": {
       "extractionState": "stale"
     },
@@ -412,7 +426,9 @@
     "Show translation": {},
     "Shown in place of %@. Requests still use the real model id. Leave empty to use the id.": {},
     "Shown instead of the model id in the app. Requests still use the id. Leave blank to show the id.": {},
+    "Shows the full reasoning": {},
     "Shows the notes that replaced them": {},
+    "Shows the results": {},
     "Sidebar": {},
     "Small": {},
     "Smaller text": {},
@@ -463,6 +479,7 @@
     "The translation came back incomplete.": {},
     "There is nothing to summarize yet.": {},
     "Thinking": {},
+    "Thinking…": {},
     "Thinks up to %@ tokens": {},
     "This chat": {},
     "This connection does not support resumable replies.": {},
@@ -476,9 +493,7 @@
     },
     "Thought for %@": {},
     "Thought for %llds": {},
-    "Thoughts": {
-      "extractionState": "stale"
-    },
+    "Thoughts": {},
     "Timeline": {},
     "Title": {},
     "Today": {},

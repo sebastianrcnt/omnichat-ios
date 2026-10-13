@@ -32,7 +32,7 @@ struct ChatView: View {
     /// The sent message being edited, and what the composer held before editing began.
     @State private var editing: Message?
     @State private var savedDraft: (text: String, attachments: [ComposerAttachment])?
-    @State private var timelineMessage: Message?
+    @State private var timeline: TimelineRequest?
     @State private var compactionNotes: CompactionRecord?
     @State private var citationItem: SourceListItem?
     @State private var sourcesItem: SourceListItem?
@@ -170,14 +170,16 @@ struct ChatView: View {
                 UsageSheet(conversation: conversation, contextLength: contextLength,
                            connection: connections.connection(selection.connectionID))
             }
-            .sheet(item: $timelineMessage) { message in
+            .sheet(item: $timeline) { request in
+                let message = request.message
                 let active = controller.activeMessageID == message.id
                 TimelineSheet(reasoning: controller.renderState(for: message).reasoning,
                               steps: message.steps,
                               pending: active ? controller.pendingCalls : [],
                               sources: citationContext.sources,
                               isLive: active,
-                              seconds: message.thinkingSeconds)
+                              seconds: message.thinkingSeconds,
+                              showsTools: request.showsTools)
                     .environment(\.theme, theme)
             }
             .sheet(item: $compactionNotes) { record in
@@ -410,7 +412,8 @@ struct ChatView: View {
                     cutForEarlyAnswer: message.cutForEarlyAnswer,
                     answeredEarly: message.answeredEarly),
                 render: controller.renderState(for: message),
-                onOpenTimeline: { timelineMessage = message },
+                onOpenTimeline: { timeline = TimelineRequest(message: message, showsTools: true) },
+                onOpenReasoning: { timeline = TimelineRequest(message: message, showsTools: false) },
                 onOpenSources: { sourcesItem = SourceListItem(sources: $0) },
                 onCopy: { Pasteboard.copy(MarkdownPlain.text(from: shownText)) },
                 onRegenerate: {
@@ -607,9 +610,10 @@ struct ChatView: View {
         if sheet == "timelinelive" {
             guard let id = controller.activeMessageID else { return }
             try? await Task.sleep(for: .seconds(2.5))
-            timelineMessage = conversation?.messages.first { $0.id == id }
+            timeline = conversation?.messages.first { $0.id == id }.map { TimelineRequest(message: $0, showsTools: true) }
         } else if controller.activeMessageID == nil {
-            timelineMessage = conversation?.messages.filter { $0.role == .assistant }.max { $0.sortIndex < $1.sortIndex }
+            timeline = conversation?.messages.filter { $0.role == .assistant }.max { $0.sortIndex < $1.sortIndex }
+                .map { TimelineRequest(message: $0, showsTools: sheet != "timelinereasoning") }
         }
     }
     #endif
@@ -668,6 +672,13 @@ struct ChatView: View {
         openRequestedSheet()
         #endif
     }
+}
+
+/// The Timeline sheet for a message: everything, or the reasoning alone.
+struct TimelineRequest: Identifiable {
+    let message: Message
+    let showsTools: Bool
+    var id: String { "\(message.id)-\(showsTools)" }
 }
 
 struct SourceListItem: Identifiable {

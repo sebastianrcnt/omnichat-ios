@@ -1,15 +1,5 @@
 import SwiftUI
 
-/// Thin rule between the process summary and the final answer.
-struct ProcessDivider: View {
-    @Environment(\.theme) private var theme
-    var body: some View {
-        Rectangle().fill(theme.separator).frame(height: 0.5)
-            .padding(.vertical, DS.Spacing.xs)
-            .accessibilityHidden(true)
-    }
-}
-
 extension AnyTransition {
     /// A block entering: fades in rising a little with a soft blur; Reduce Motion keeps only the fade.
     /// `index` staggers consecutive children.
@@ -72,48 +62,6 @@ struct ActivityCard: View {
     }
 }
 
-/// The current thought: status line plus the one-line preview. Tapping opens the Timeline.
-struct LiveThinkingTail: View {
-    let label: String
-    let start: Date
-    let reasoning: ReasoningChunkModel
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                ActivityStatusLine(label: label, start: start)
-                ReasoningLinePreview(model: reasoning, isDimmed: false)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-/// Every call of the running tool round, in request order, with its progress.
-struct LiveToolsTail: View {
-    let label: String
-    let start: Date
-    let entries: [ActivityEntry]
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                ActivityStatusLine(label: label, start: start)
-                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                    ForEach(entries) { ActivityRow(entry: $0) }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 #Preview("Light · Purple") { segmentsPreview.previewStyle(.light) }
 #Preview("Dark · Purple") { segmentsPreview.previewStyle(.dark) }
 #Preview("Dark · Orange") { segmentsPreview.previewStyle(.dark, accent: Color(hex: "#F97316")) }
@@ -127,10 +75,8 @@ struct LiveToolsTail: View {
         .init(index: 1, kind: .toolRound, calls: [search]),
     ]
     return VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-        ActivitySummaryRow(summary: ProcessSummary(segments: segments)) {}
         ThinkingCard(text: segments[0].text, seconds: 82)
         ActivityCard(entry: ActivityEntry(call: search, sources: Dictionary(uniqueKeysWithValues: sources.map { ($0.key, $0.value) })))
-        ProcessDivider()
         Text("Final answer").font(DS.Typography.answer)
     }
     .padding()

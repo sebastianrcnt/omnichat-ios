@@ -8,6 +8,8 @@ POST /v1/chat/completions    -> SSE stream. Behaviour depends on the conversatio
   * last user text contains "short"  -> the scripted tool loop with a one-sentence final answer
   * last user text contains "many"   -> seven tool rounds, each with reasoning and a preamble, then the answer
   * last user text contains "plain"  -> reasoning + a markdown answer, no tools
+  * last user text contains "feedsample" -> the chat-feed mockup: search, three reads (one blocked), a second
+    search, two reads plus a page of its own choosing, then an answer with block quotes (use -StrataFakeTools 1)
   * otherwise, scripted tool loop: round 0 = reasoning + web_search tool call,
     round 1 = reasoning + web_fetch tool call, round 2 = final markdown answer that cites the
     <source id="N"> blocks found in the tool messages with [N].
@@ -56,6 +58,26 @@ REASONING_0 = ("The user wants current information, so I should search the web f
 REASONING_1 = ("The first result looks authoritative. Let me read that page in full to be sure.\n\n")
 REASONING_2 = ("I have enough to answer now. I should cite the sources with their ids, keep it concise, "
                "and mention the Korean summary at the end.\n\n")
+
+FEED_ANSWER_SHORT = """**2024년 합계출산율은 0.75명**으로, 9년 만에 처음 올랐어요 [{kostat}]. 가장 큰 원인은 **혼인 증가**예요 [{hani}][{reuters}].
+"""
+
+FEED_ANSWER = """**2024년 합계출산율은 0.75명**으로, 2015년 이후 9년 만에 처음 올랐어요. 출생아도 23만 8천 명으로 3.6% 늘었어요 [{kostat}].
+
+> 2024년 출생아 수는 238,300명으로 전년 대비 8,300명(3.6%) 증가하였다. [{kostat}]
+
+가장 큰 원인은 **혼인 증가**예요. 코로나19로 미뤄진 결혼이 2022년 하반기부터 몰리면서 혼인이 14.8% 늘었어요 [{hani}][{reuters}].
+
+> Marriages, which had been delayed by the pandemic, jumped and led to more first births within two years.
+
+[{bbc}]
+
+여기에 1991~96년생 에코붐 세대가 주 출산 연령에 들어선 효과가 겹쳤어요.
+
+> 둘째 이상 출산은 여전히 줄고 있어 구조적 반등으로 보기는 이르다.
+
+정부는 `저출생 대응 기획부` 신설을 추진하고 있어요 [{korea}].
+"""
 
 ANSWER = """# Liquid Glass in SwiftUI
 
@@ -402,6 +424,9 @@ class Handler(BaseHTTPRequestHandler):
             self.stream_content(TRANSLATE_SAMPLE)
             usage = {"prompt_tokens": 200, "completion_tokens": 120}
             finished = True
+        elif "feedsample" in user_text.lower():
+            finished = self.feed_sample(tail, rounds)
+            usage = {"prompt_tokens": prompt_tokens, "completion_tokens": 120}
         elif many and rounds <= last_tool_round:
             self.stream_reasoning(f"Round {rounds + 1}: decide what to look at next.\n\n")
             self.stream_content(f"Checking source set {rounds + 1}.")
@@ -450,12 +475,61 @@ class Handler(BaseHTTPRequestHandler):
             usage = {"prompt_tokens": prompt_tokens, "completion_tokens": 420,
                      "prompt_tokens_details": {"cached_tokens": prompt_tokens - 300},
                      "completion_tokens_details": {"reasoning_tokens": 80}}
-        sse(self, chunk({}, finish="tool_calls" if (not finished and not plain and rounds <= (last_tool_round if many else 1)) else "stop"))
+        feed = "feedsample" in user_text.lower()
+        tool_round = (rounds <= 3) if feed else (not finished and not plain and rounds <= (last_tool_round if many else 1))
+        sse(self, chunk({}, finish="tool_calls" if tool_round else "stop"))
         if req.get("stream_options", {}).get("include_usage"):
             sse(self, {"id": "mock", "object": "chat.completion.chunk", "model": "strata-mock", "choices": [], "usage": usage})
         self.wfile.write(b"data: [DONE]\n\n")
         self.wfile.flush()
         self.wfile.close()
+
+    def slow_thoughts(self, sentences, pause):
+        """One sentence at a time with a pause after each, so the thought line has time to show it."""
+        for sentence in sentences:
+            self.stream_reasoning(sentence + " ")
+            time.sleep(pause)
+        self.stream_reasoning("\n\n")
+
+    def feed_sample(self, tail, rounds):
+        """The feed mockup's run. Returns True on the final (answer) round."""
+        pause = float(os.environ.get("MOCK_FEED_PAUSE", "1.4"))
+        if rounds == 0:
+            self.slow_thoughts(["The user wants the latest 2024 fertility figures and why they rose.",
+                                "I should check the statistics office release first."], pause)
+            self.stream_tool_call("call_fs1", "web_search", json.dumps({"query": "2024 합계출산율 반등 원인"}))
+        elif rounds == 1:
+            self.slow_thoughts(["The statistics office, Hankyoreh and Chosun look most relevant.",
+                                "I will read those three."], pause)
+            for i, url in enumerate(["https://kostat.go.kr/board.es?act=view&bid=203&list_no=433",
+                                     "https://www.hani.co.kr/arti/society/1185021.html",
+                                     "https://www.chosun.com/national/2025/02/26/fertility/"]):
+                self.stream_tool_call(f"call_ff{i}", "web_fetch", json.dumps({"url": url}), index=i)
+        elif rounds == 2:
+            self.slow_thoughts(["The causes are only covered by domestic outlets so far.",
+                                "Let me look for an international view as well."], pause)
+            self.stream_tool_call("call_fs2", "web_search", json.dumps({"query": "South Korea fertility rate 2024 rebound marriages"}))
+        elif rounds == 3:
+            self.slow_thoughts(["Reuters and the BBC cover the marriage effect.",
+                                "The government briefing should have the official explanation too."], pause)
+            for i, url in enumerate(["https://www.reuters.com/world/asia-pacific/south-korea-birth-rate-rises-2025-02-26/",
+                                     "https://www.bbc.com/news/articles/korea-fertility",
+                                     "https://www.korea.kr/briefing/policyBriefingView.do?newsId=156677"]):
+                self.stream_tool_call(f"call_fg{i}", "web_fetch", json.dumps({"url": url}), index=i)
+        else:
+            text = "\n".join(str(m.get("content", "")) for m in tail if m.get("role") == "tool")
+            by_url = {}
+            for i, u in re.findall(r'<source id="(\d+)"[^>]*url="([^"]+)"', text):
+                by_url.setdefault(u, int(i))
+            def cid(fragment, fallback=1):
+                return next((i for u, i in by_url.items() if fragment in u), fallback)
+            self.slow_thoughts(["The figures and the causes are all here.", "Time to write it up."], pause)
+            time.sleep(pause)
+            answer = FEED_ANSWER_SHORT if os.environ.get("MOCK_FEED_SHORT") else FEED_ANSWER
+            self.stream_content(answer.format(kostat=cid("kostat"), hani=cid("hani"), reuters=cid("reuters"),
+                                                   bbc=cid("bbc"), korea=cid("korea.kr")))
+            return True
+        return False
 
     def stream_reasoning(self, text):
         for p in pieces(text):

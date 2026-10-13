@@ -33,6 +33,11 @@ enum DS {
         static let bubble: CGFloat = 22
         static let thumbnail: CGFloat = 12
         static let composer: CGFloat = 26
+        /// Search cards in the activity feed, and the rows inside them.
+        static let card: CGFloat = 16
+        static let cardRow: CGFloat = 10
+        /// Rounded right edge of a block quote.
+        static let quote: CGFloat = 10
     }
 
     // MARK: Icon & control sizes
@@ -54,6 +59,9 @@ enum DS {
         static let ringStroke: CGFloat = 3
         static let thumbnail: CGFloat = 64
         static let cameraTile: CGFloat = 112
+        /// Site icon in a feed result row (a rounded square), and the status mark at the row's end.
+        static let feedFavicon: CGFloat = 18
+        static let feedStatus: CGFloat = 14
     }
 
     // MARK: Typography roles
@@ -92,6 +100,14 @@ enum DS {
         /// Table cells in an answer, and the header row.
         static let tableCell = pretendard(15, relativeTo: .subheadline)
         static let tableHeader = pretendard(15, relativeTo: .subheadline, weight: .semibold)
+        /// Activity feed: the thought line, card headers and result rows, and their small print.
+        static let thought = pretendard(14.5, relativeTo: .subheadline)
+        static let feed = pretendard(13.5, relativeTo: .footnote)
+        static let feedEmphasis = pretendard(13.5, relativeTo: .footnote, weight: .semibold)
+        static let feedMeta = pretendard(11.5, relativeTo: .caption2)
+        static let feedBadge = pretendard(11, relativeTo: .caption2)
+        /// Source line under a block quote.
+        static let quoteSource = pretendard(12.5, relativeTo: .caption)
         /// Headings inside an answer.
         static func heading(_ level: Int) -> Font {
             switch level {
@@ -203,16 +219,17 @@ enum DS {
 
 extension Color {
     /// Color that switches between a light and a dark value.
-    init(light: UInt32, dark: UInt32) {
-        func color(_ v: UInt32) -> PlatformColor {
-            PlatformColor(red: CGFloat((v >> 16) & 0xFF) / 255, green: CGFloat((v >> 8) & 0xFF) / 255,
-                          blue: CGFloat(v & 0xFF) / 255, alpha: 1)
+    init(light: UInt32, dark: UInt32, lightAlpha: CGFloat = 1, darkAlpha: CGFloat = 1) {
+        func color(_ isDark: Bool) -> PlatformColor {
+            let v = isDark ? dark : light
+            return PlatformColor(red: CGFloat((v >> 16) & 0xFF) / 255, green: CGFloat((v >> 8) & 0xFF) / 255,
+                                 blue: CGFloat(v & 0xFF) / 255, alpha: isDark ? darkAlpha : lightAlpha)
         }
         #if canImport(UIKit)
-        self = Color(UIColor { traits in color(traits.userInterfaceStyle == .dark ? dark : light) })
+        self = Color(UIColor { traits in color(traits.userInterfaceStyle == .dark) })
         #else
         self = Color(nsColor: NSColor(name: nil) { appearance in
-            color(appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light)
+            color(appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua)
         })
         #endif
     }
@@ -271,6 +288,13 @@ struct DSTheme: Equatable {
     // Status
     var destructive: Color { Color(light: 0xD92D20, dark: 0xF16A60) }
     var warning: Color { Color(light: 0xB54708, dark: 0xF5A524) }
+    var success: Color { Color(light: 0x0F766E, dark: 0x5EEAD4) }
+
+    // Activity feed and quotes
+    /// A result row the model read.
+    var pickFill: Color { accent.opacity(0.14) }
+    /// Block quote card: about 4% white on dark, 4% black on light.
+    var quoteFill: Color { Color(light: 0x000000, dark: 0xFFFFFF, lightAlpha: 0.04, darkAlpha: 0.04) }
 }
 
 private struct ThemeKey: EnvironmentKey { static let defaultValue = DSTheme() }

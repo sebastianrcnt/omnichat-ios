@@ -11,9 +11,13 @@ import Foundation
 /// Canned tool results so the UI can be exercised without the network.
 struct FakeWebTools: ToolExecuting {
     func execute(name: String, arguments: String) async -> ToolOutput {
+        let args = (arguments.data(using: .utf8).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }) ?? [:]
         if name == ToolNames.webFetch, let id = ToolContext.callID {
-            // Walks the progress fill the way a real fetch would: loading, settling, extracting.
-            let seconds = Double(DebugHooks.value("StrataFakeFetchSeconds") ?? "") ?? 1.4
+            // Walks the progress fill the way a real fetch would: loading, settling, extracting. Feed-sample pages take
+            // different times, like parallel reads.
+            let url = args["url"] as? String ?? ""
+            let base = Double(DebugHooks.value("StrataFakeFetchSeconds") ?? "") ?? 1.4
+            let seconds = FeedSample.page(for: url) == nil ? base : base * (1 + Double(url.count % 3) * 0.45)
             let steps = 20
             for i in 1...steps {
                 try? await Task.sleep(for: .seconds(seconds / Double(steps)))
@@ -24,15 +28,61 @@ struct FakeWebTools: ToolExecuting {
             try? await Task.sleep(for: .seconds(1.4))
         }
         if name == ToolNames.webSearch {
+            if let query = args["query"] as? String, let sample = FeedSample.search(query) { return sample }
             return ToolOutput(text: "fake", sources: [
                 SourceCandidate(title: "Applying Liquid Glass to custom views", url: "https://developer.apple.com/documentation/swiftui/applying-liquid-glass-to-custom-views", content: "Configure, combine, and morph views using Liquid Glass effects in SwiftUI."),
                 SourceCandidate(title: "SwiftUI quick start", url: "https://www.hackingwithswift.com/quick-start/swiftui", content: "Learn SwiftUI and build apps with glass effects."),
                 SourceCandidate(title: "Streaming Markdown in Swift", url: "https://github.com/example/streaming-markdown", content: "An incremental Markdown renderer."),
             ])
         }
+        if let url = args["url"] as? String, let page = FeedSample.page(for: url) { return page }
         return ToolOutput(text: "fake", sources: [
             SourceCandidate(title: "Applying Liquid Glass to custom views", url: "https://developer.apple.com/documentation/swiftui/applying-liquid-glass-to-custom-views", content: "Use glassEffect on controls, group them in a GlassEffectContainer, and morph with glassEffectID. Body text should never sit on glass."),
         ])
+    }
+}
+
+/// Canned results for the mock server's `feedsample` run (the chat-feed mockup): Korean queries answer from "Naver",
+/// others from "Bing"; one page is blocked and one has little content.
+enum FeedSample {
+    static let korean: [(String, String)] = [
+        ("2024년 출생통계(확정) 보도자료", "https://kostat.go.kr/board.es?act=view&bid=203&list_no=433"),
+        ("출산율 9년 만에 반등… 원인은 혼인 증가", "https://www.hani.co.kr/arti/society/1185021.html"),
+        ("합계출산율 0.75명, 바닥 찍었나", "https://www.chosun.com/national/2025/02/26/fertility/"),
+        ("저출산 원인 분석 - 위키백과", "https://ko.wikipedia.org/wiki/대한민국의_저출산"),
+        ("2024 출생아 수 그래프 한눈에 보기", "https://news.naver.com/main/read.naver?oid=001&aid=0015234567"),
+        ("합계출산율 국가별 비교", "https://www.oecd.org/en/data/indicators/fertility-rates.html"),
+        ("출산 지원금 2025 총정리", "https://blog.naver.com/moneyinfo/223771234567"),
+        ("인구 절벽은 끝났나 [칼럼]", "https://www.joongang.co.kr/article/25316543"),
+    ]
+    static let english: [(String, String)] = [
+        ("South Korea's birth rate rises for first time in nine years", "https://www.reuters.com/world/asia-pacific/south-korea-birth-rate-rises-2025-02-26/"),
+        ("Why South Korea's fertility rate finally ticked up", "https://www.bbc.com/news/articles/korea-fertility"),
+        ("South Korea: Fertility rate 1960–2024", "https://www.statista.com/statistics/1033837/south-korea-fertility-rate/"),
+        ("Marriage boom after pandemic lifts births in Korea", "https://www.theguardian.com/world/2025/feb/26/south-korea-births"),
+        ("Korea's demographic crisis explained", "https://asia.nikkei.com/Spotlight/Society/Korea-demographic-crisis"),
+        ("Aging of South Korea - Wikipedia", "https://en.wikipedia.org/wiki/Aging_of_South_Korea"),
+    ]
+
+    static func search(_ query: String) -> ToolOutput? {
+        let rows: [(String, String)]
+        let engine: String
+        if query.contains("출산") { rows = korean; engine = "Naver" }
+        else if query.lowercased().contains("fertility") { rows = english; engine = "Bing" }
+        else { return nil }
+        return ToolOutput(text: "fake", sources: rows.map { SourceCandidate(title: $0.0, url: $0.1, content: "Snippet for \($0.0).") },
+                          engine: engine)
+    }
+
+    static func page(for url: String) -> ToolOutput? {
+        let known = korean + english + [("정부, 저출생 대응 기획부 신설 추진", "https://www.korea.kr/briefing/policyBriefingView.do?newsId=156677")]
+        guard let match = known.first(where: { FeedURL.key($0.1) == FeedURL.key(url) }) else { return nil }
+        if url.contains("chosun.com") { return ToolOutput(text: "Error: Blocked: the site refused the request.", isError: true) }
+        let length = url.contains("bbc.com") ? 180 : 2_400 + url.count * 23
+        let body = String(String(repeating: match.0 + ". ", count: length / max(1, match.0.count) + 1).prefix(length))
+        let content = body + "\n\n[End of page, \(length) characters total.]"
+        return ToolOutput(text: "Title: \(match.0)\nURL: \(match.1)\n\n" + content,
+                          sources: [SourceCandidate(title: match.0, url: match.1, content: content)])
     }
 }
 

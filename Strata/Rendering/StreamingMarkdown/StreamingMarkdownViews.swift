@@ -623,6 +623,11 @@ struct ReasoningLinePreview: View {
     let model: ReasoningChunkModel?
     /// A tool is running: the last thought stays in the slot at reduced opacity.
     var isDimmed = false
+    var font: Font = DS.Typography.uiSmall
+    /// Nil: the tertiary text color.
+    var color: Color?
+    /// Shown until the first sentence arrives (otherwise the slot stays blank).
+    var placeholder: String?
     @State private var gate = ThoughtPreviewGate()
     @State private var shown: ThoughtSentence?
     @State private var deadline: Double?
@@ -637,19 +642,25 @@ struct ReasoningLinePreview: View {
 
     var body: some View {
         ZStack(alignment: .leading) {
-            Text(" ").font(DS.Typography.uiSmall).lineLimit(1).hidden() // reserves one line
+            Text(" ").font(font).lineLimit(1).hidden() // reserves one line
             if let shown {
                 Text(InlineMarkdownText.attributed(shown.text, isOpen: true))
-                    .font(DS.Typography.uiSmall)
-                    .foregroundStyle(theme.textTertiary)
+                    .font(font)
+                    .foregroundStyle(color ?? theme.textTertiary)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .id(shown.start)
                     .transition(.opacity)
+            } else if let placeholder {
+                Text(placeholder)
+                    .font(font)
+                    .foregroundStyle(color ?? theme.textTertiary)
+                    .lineLimit(1)
+                    .transition(.opacity)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .opacity(Self.opacity(hasThought: shown != nil, toolRunning: isDimmed))
+        .opacity(Self.opacity(hasThought: shown != nil || placeholder != nil, toolRunning: isDimmed))
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isDimmed)
         .onChange(of: model?.thought, initial: true) { _, latest in apply(latest) }
         .task(id: deadline) {

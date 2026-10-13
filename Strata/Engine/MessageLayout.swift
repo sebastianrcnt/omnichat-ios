@@ -2,53 +2,39 @@ import Foundation
 
 /// How one assistant message is laid out, live and finished, from the same inputs.
 ///
-/// Everything that happened before the final answer is folded into ONE summary row ("Thought for 1m 22s · 8 searches ·
-/// 4 pages"). While the turn streams, only the live tail (the current thought, the running tool round, or the text being
-/// written) shows below it. When the turn ends, the divider and the answer follow the summary.
+/// One thought line (the sentence being thought while working, "Thought for Ns" once the answer starts), then the
+/// activity feed (a card per search, pages read attached to their rows), then the answer. The live text keeps the same
+/// identity when the answer is final, so it never jumps.
 enum MessageLayout {
-    enum Tail: Equatable { case none, thinking, tools, text }
-
     enum Item: Equatable, Identifiable {
-        case summary
-        case liveThinking
-        case liveTools
+        case thought
+        case feed
         /// The text being written, then (same identity, so it stays in place) the finished answer.
         case text
-        case divider
 
         var id: String {
             switch self {
-            case .summary: "summary"
-            case .liveThinking: "tail-thinking"
-            case .liveTools: "tail-tools"
+            case .thought: "thought"
+            case .feed: "feed"
             case .text: "text"
-            case .divider: "divider"
             }
         }
     }
 
-    /// What the live tail shows. Running tool calls win; then text already written this round; otherwise thinking.
-    static func tail(isStreaming: Bool, pendingCount: Int, hasRoundText: Bool) -> Tail {
-        guard isStreaming else { return .none }
-        if pendingCount > 0 { return .tools }
-        if hasRoundText { return .text }
-        return .thinking
+    /// The answer is being written: no call is running and this round has text. (Text written before a tool call is a
+    /// preamble; it moves into the timeline when the call is requested.)
+    static func answerStarted(isStreaming: Bool, pendingCount: Int, hasRoundText: Bool) -> Bool {
+        isStreaming && pendingCount == 0 && hasRoundText
     }
 
-    static func items(segmentCount: Int, tail: Tail, isStreaming: Bool, hasAnswer: Bool) -> [Item] {
+    /// - Parameters:
+    ///   - hasThought: the message has reasoning (a running turn always shows the line: it says what is happening).
+    ///   - hasActivity: any tool call, finished or running.
+    static func items(hasThought: Bool, hasActivity: Bool, isStreaming: Bool, hasAnswer: Bool) -> [Item] {
         var out: [Item] = []
-        if segmentCount > 0 { out.append(.summary) }
-        if isStreaming {
-            switch tail {
-            case .none: break
-            case .thinking: out.append(.liveThinking)
-            case .tools: out.append(.liveTools)
-            case .text: out.append(.text)
-            }
-        } else if hasAnswer {
-            if segmentCount > 0 { out.append(.divider) }
-            out.append(.text)
-        }
+        if isStreaming || hasThought { out.append(.thought) }
+        if hasActivity { out.append(.feed) }
+        if hasAnswer { out.append(.text) }
         return out
     }
 }
