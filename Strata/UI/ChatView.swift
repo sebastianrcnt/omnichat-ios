@@ -23,7 +23,8 @@ struct ChatView: View {
     #if os(macOS)
     @State private var showNoImageSupport = false
     #endif
-    @State private var showModelPicker = false
+    /// Model, effort and search engine: a sheet on the phone, a popover from the gauge on a Mac.
+    @State private var showChatSettings = false
     @State private var showUsage = false
     @State private var showDetails = false
     #if DEBUG
@@ -151,15 +152,9 @@ struct ChatView: View {
                             onEnableImages: enableImagesForSelectedModel)
             }
             #endif
-            .sheet(isPresented: $showModelPicker) {
-                ModelPickerSheet(
-                    selectedConnectionID: selection.connectionID,
-                    selectedModelID: selection.modelID,
-                    effort: selection.effort,
-                    onSelectModel: apply(connectionID:modelID:),
-                    onSelectEffort: apply(effort:),
-                    onOpenSettings: { showModelPicker = false; onOpenSettings() })
-            }
+            #if os(iOS)
+            .sheet(isPresented: $showChatSettings) { chatSettings }
+            #endif
             .sheet(isPresented: $showDetails) {
                 if let conversation {
                     ConversationDetailsSheet(conversation: conversation, contextLength: contextLength)
@@ -224,7 +219,7 @@ struct ChatView: View {
                 if !now && isStreamingHere { controller.revealAllNow() } // user scrolled away: show everything now
             }
             .onChange(of: showAttach) { _, on in if on { composerFocused = false } }
-            .onChange(of: showModelPicker) { _, on in if on { composerFocused = false } }
+            .onChange(of: showChatSettings) { _, on in if on { composerFocused = false } }
             .onChange(of: showUsage) { _, on in if on { composerFocused = false } }
             .onChange(of: composerFocused) { _, focused in
                 // Keep the latest message visible when the keyboard opens.
@@ -269,7 +264,12 @@ struct ChatView: View {
                         .contentTransition(.opacity)
                         .animation(DS.Motion.ease, value: conversation?.title)
                     if let model = selectedModelTitle {
-                        Text(model).font(DS.Typography.uiCaption).foregroundStyle(theme.textSecondary).lineLimit(1)
+                        Button { showChatSettings = true } label: {
+                            Text(verbatim: model).font(DS.Typography.uiCaption).foregroundStyle(theme.textSecondary).lineLimit(1)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(Text("Model, \(model)"))
+                        .accessibilityHint(Text("Opens settings."))
                     }
                 }
                 Spacer(minLength: 0)
@@ -494,18 +494,36 @@ struct ChatView: View {
             onStop: { controller.stop() },
             onCancelEdit: editing == nil ? nil : { withAnimation(DS.Motion.snappy) { cancelEdit() } },
             onPasteImages: pasteHandler,
-            chip: {
-                ModelEffortChip(
-                    modelName: selectedModelTitle ?? String(localized: "Select model"),
-                    effortTitle: (selectedModel?.supportsEffort ?? false) ? selection.effort.title : nil) {
-                    composerFocused = false
-                    showModelPicker = true
-                }
-            },
+            accessory: { settingsButton },
             isFocused: $composerFocused)
         #if os(macOS)
         .readingColumn()
         #endif
+    }
+
+    /// The gauge: tap for the chat settings, touch and hold for the effort levels.
+    private var settingsButton: some View {
+        let levels = selectedModel?.effortLevels ?? []
+        let effort = selection.effort
+        return ModelSettingsButton(
+            effortFraction: levels.isEmpty ? nil : EffortScale.fraction(of: effort, in: levels),
+            valueDescription: levels.isEmpty ? (selectedModelTitle ?? String(localized: "None")) : effort.title,
+            action: { composerFocused = false; showChatSettings = true }) {
+            EffortMenuItems(levels: levels, selected: effort, onSelect: apply(effort:))
+        }
+        #if os(macOS)
+        .popover(isPresented: $showChatSettings, arrowEdge: .top) { chatSettings }
+        #endif
+    }
+
+    private var chatSettings: some View {
+        let s = selection
+        return ChatSettingsView(
+            connectionID: s.connectionID, modelID: s.modelID, effort: s.effort,
+            onSelectModel: apply(connectionID:modelID:),
+            onSelectEffort: apply(effort:),
+            onReset: { ChatDefaults.reset(settings: settings, conversation: conversation) },
+            onManageModels: { showChatSettings = false; onOpenSettings() })
     }
 
     private var pasteHandler: (([Data]) -> Void)? {
@@ -641,7 +659,7 @@ struct ChatView: View {
         func openRequestedSheet() {
             switch DebugHooks.openSheet {
             case "usage" where conversation != nil: showUsage = true
-            case "model": showModelPicker = true
+            case "model", "chatsettings": showChatSettings = true
             case "settings", "diagnostics", "licenses", "connection": onOpenSettings()
             case "attach": showAttach = true
             case "code": debugViewer = true
@@ -670,6 +688,13 @@ struct ChatView: View {
             try? await Task.sleep(for: .seconds(1))
         }
         openRequestedSheet()
+        if let text = DebugHooks.value("StrataDraft") { draft.text = text }
+        #if os(iOS)
+        if let n = DebugHooks.value("StrataOpenMenu").flatMap(Int.init) {
+            try? await Task.sleep(for: .seconds(1.5))
+            DebugHooks.presentMenu(index: n)
+        }
+        #endif
         #endif
     }
 }
@@ -700,7 +725,7 @@ final class ComposerDraft {
 }
 
 /// Reads the draft so `ChatView` does not: a keystroke re-renders only the composer.
-private struct ComposerHost<Chip: View>: View {
+private struct ComposerHost<Accessory: View>: View {
     @Bindable var draft: ComposerDraft
     let isStreaming: Bool
     let isBusy: Bool
@@ -710,7 +735,7 @@ private struct ComposerHost<Chip: View>: View {
     let onStop: () -> Void
     var onCancelEdit: (() -> Void)?
     var onPasteImages: (([Data]) -> Void)?
-    @ViewBuilder let chip: () -> Chip
+    @ViewBuilder let accessory: () -> Accessory
     #if os(macOS)
     var isFocused: Binding<Bool>
     #else
@@ -731,7 +756,7 @@ private struct ComposerHost<Chip: View>: View {
             onPasteImages: onPasteImages,
             onSend: onSend,
             onStop: onStop,
-            chip: chip,
+            accessory: accessory,
             isFocused: isFocused)
     }
 }

@@ -28,7 +28,7 @@ flows through `DSTheme(accent:)`; `accentOnTint` is the accent re-balanced to re
 | File | Components |
 | --- | --- |
 | `Buttons.swift` | `GlassIconButton`, `GlassIconMenu`, `GlassIconMenuPlain`, `StreamingIndicator`, `ContextRing`, `ContextRingButton`, `AttachmentThumbnail` |
-| `Composer.swift` | `ComposerBar` (text field, attach, send/stop, model chip), `ModelEffortChip`, `ComposerAttachment` |
+| `Composer.swift` | `ComposerBar` (idle pill or two rows: text field, attach, settings accessory, send/stop), `ModelSettingsButton` and `EffortGaugeIcon` (the effort dial), `ComposerAttachment` |
 | `Messages.swift` | `MessageBubble`, `AssistantMessage` (+ `AssistantContent`), `MessageActionBar`, the MarkdownUI `Theme` for tables and complex blocks |
 | `ProcessSegments.swift` | `ThinkingCard`, `ActivityCard`, `LiveThinkingTail`, `LiveToolsTail`, `ProcessDivider` |
 | `Activity.swift` | `SourceChip`, `FaviconView`, `ActivityRow`, `ActivityStatusLine`, `ActivitySummaryRow`, `TimelineSheet`, `SourcesRow`, `SourceCard`, `SourcesSheet`, `FlowLayout`, `TrailingFade` |

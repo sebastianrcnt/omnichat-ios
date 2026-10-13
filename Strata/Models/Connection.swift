@@ -46,6 +46,18 @@ struct ModelInfo: Codable, Identifiable, Hashable, Sendable {
         isManual = try c.decodeIfPresent(Bool.self, forKey: .isManual) ?? false
     }
 
+    /// The reasoning effort levels this model offers, lowest first (none when it takes no `reasoning_effort`).
+    var effortLevels: [Effort] { supportsEffort ? Effort.allCases : [] }
+
+    /// "Images · Effort · Web tools": what the model can do, for a row subtitle.
+    var capabilitiesSummary: String? {
+        var parts: [String] = []
+        if supportsImages { parts.append(String(localized: "Images")) }
+        if supportsEffort { parts.append(String(localized: "Effort")) }
+        if supportsTools { parts.append(String(localized: "Web tools")) }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     /// User override, then the value from `/models`, then the app-wide default.
     func effectiveContextLength(default fallback: Int) -> Int {
         contextLength ?? fetchedContextLength ?? fallback
@@ -69,6 +81,9 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
     /// User-set display names, keyed by model id. Display-only: requests always send the real id. Kept apart from
     /// `models` so a name survives `/models` refreshes, even when a model briefly drops out of the list.
     var modelAliases: [String: String] = [:]
+    /// Models the user hid from the composer's model menu ("Show in picker" off). Display-only, kept apart from
+    /// `models` like the aliases so it survives `/models` refreshes.
+    var hiddenModelIDs: Set<String> = []
 
     init(id: UUID = UUID(), name: String, baseURL: String, customHeaders: String = "", models: [ModelInfo] = [],
          systemPrompt: String = DefaultPrompts.citation, supportsResumable: Bool? = nil) {
@@ -91,6 +106,7 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
         supportsResumable = try c.decodeIfPresent(Bool.self, forKey: .supportsResumable) ?? (id == Self.strataID)
         systemPrompt = try c.decodeIfPresent(String.self, forKey: .systemPrompt) ?? DefaultPrompts.citation
         modelAliases = try c.decodeIfPresent([String: String].self, forKey: .modelAliases) ?? [:]
+        hiddenModelIDs = try c.decodeIfPresent(Set<String>.self, forKey: .hiddenModelIDs) ?? []
     }
 
     static func strataPreset() -> Connection {
@@ -117,6 +133,13 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
     /// Sets (or, for nil / blank text, removes) a model's alias. The text is trimmed and capped.
     mutating func setAlias(_ alias: String?, forModel modelID: String) {
         modelAliases[modelID] = ModelAlias.normalized(alias)
+    }
+
+    /// Whether the model is listed in the composer's model menu (default on).
+    func showsInPicker(_ modelID: String) -> Bool { !hiddenModelIDs.contains(modelID) }
+
+    mutating func setShowsInPicker(_ shown: Bool, forModel modelID: String) {
+        if shown { hiddenModelIDs.remove(modelID) } else { hiddenModelIDs.insert(modelID) }
     }
 
     var parsedHeaders: [(name: String, value: String)] {

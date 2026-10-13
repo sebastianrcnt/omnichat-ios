@@ -8,6 +8,8 @@ import Foundation
 ///   -StrataAutoSend "hello"                        send a message right after launch
 ///   -StrataDebugBranch switch|editbar               after the first answer: edit + regenerate, or open edit mode
 ///   -StrataOpenSheet usage|model|settings|connection|attach|details|diagnostics   open a sheet right after launch
+///   -StrataDraft "text"                            put text in the composer after launch (expanded composer)
+///   -StrataOpenMenu 2                              then open the n-th pull-down menu on screen (top to bottom)
 /// Canned tool results so the UI can be exercised without the network.
 struct FakeWebTools: ToolExecuting {
     func execute(name: String, arguments: String) async -> ToolOutput {
@@ -219,4 +221,37 @@ enum DebugHooks {
     @MainActor static var autoSendFired = false
     static var openSheet: String? { value("StrataOpenSheet") }
 }
+
+#if os(iOS)
+import UIKit
+import ObjectiveC
+
+extension DebugHooks {
+    /// Opens the `index`-th context-menu-backed control on screen (sorted top to bottom, then left to right), the
+    /// way a tap would, so screenshots can show an open SwiftUI `Menu`. Debug builds only; uses a private UIKit entry.
+    @MainActor
+    static func presentMenu(index: Int) {
+        let windows = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap(\.windows)
+        var found: [(frame: CGRect, interaction: UIContextMenuInteraction)] = []
+        func walk(_ view: UIView, in window: UIWindow) {
+            guard !view.isHidden, view.alpha > 0 else { return }
+            for case let m as UIContextMenuInteraction in view.interactions {
+                found.append((view.convert(view.bounds, to: window), m))
+            }
+            view.subviews.forEach { walk($0, in: window) }
+        }
+        windows.forEach { walk($0, in: $0) }
+        found.sort { ($0.frame.minY, $0.frame.minX) < ($1.frame.minY, $1.frame.minX) }
+        for (i, f) in found.enumerated() { NSLog("StrataOpenMenu %d: %@", i, NSCoder.string(for: f.frame)) }
+        guard index < found.count else { return }
+        let target = found[index]
+        let selector = NSSelectorFromString("_presentMenuAtLocation:")
+        guard let method = class_getInstanceMethod(type(of: target.interaction), selector) else { return }
+        typealias Present = @convention(c) (AnyObject, Selector, CGPoint) -> Void
+        let present = unsafeBitCast(method_getImplementation(method), to: Present.self)
+        let view = target.interaction.view
+        present(target.interaction, selector, CGPoint(x: view?.bounds.midX ?? 0, y: view?.bounds.midY ?? 0))
+    }
+}
+#endif
 #endif

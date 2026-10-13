@@ -210,7 +210,9 @@ struct ConnectionEditor: View {
                     GroupedSection(header: "Models", footer: fetchStatus.map { LocalizedStringKey($0) }) {
                         ForEach(connection.models) { model in
                             SettingsRow(modelID: model.id, alias: connection.alias(forModel: model.id),
-                                        subtitle: ModelPickerSheet.capabilities(model),
+                                        subtitle: connection.showsInPicker(model.id)
+                                            ? model.capabilitiesSummary
+                                            : [String(localized: "Hidden"), model.capabilitiesSummary].compactMap { $0 }.joined(separator: " · "),
                                         value: model.effectiveContextLength(default: AppSettings.defaultContextLength).formatted(),
                                         showsChevron: true) { editingModel = model.id }
                         }
@@ -310,6 +312,11 @@ struct ModelEditor: View {
             if let model {
                 GroupedSection(header: "Display name", footer: "Shown instead of the model id in the app. Requests still use the id. Leave blank to show the id.") {
                     SettingsFieldRow(title: "Display name", prompt: LocalizedStringKey(modelID), text: $aliasText)
+                }
+                GroupedSection(footer: "Off keeps this model out of the composer's model menu. A chat already using it keeps it.") {
+                    SettingsToggleRow(title: "Show in picker",
+                                      isOn: Binding(get: { connections.connection(connectionID)?.showsInPicker(modelID) ?? true },
+                                                    set: { connections.setModelShownInPicker($0, connectionID: connectionID, modelID: modelID) }))
                 }
                 GroupedSection(header: "Context", footer: model.fetchedContextLength.map { LocalizedStringKey("The server reports \($0.formatted()) tokens. Leave blank to use it.") }) {
                     SettingsFieldRow(title: "Context length",

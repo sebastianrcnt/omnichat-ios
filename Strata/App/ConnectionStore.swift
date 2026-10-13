@@ -62,6 +62,14 @@ final class ConnectionStore {
         upsert(c)
     }
 
+    /// Shows or hides a model in the composer's model menu. Display-only; requests are unchanged.
+    func setModelShownInPicker(_ shown: Bool, connectionID: UUID, modelID: String) {
+        guard var c = connection(connectionID) else { return }
+        c.setShowsInPicker(shown, forModel: modelID)
+        guard c != connection(connectionID) else { return }
+        upsert(c)
+    }
+
     func apiKey(for id: UUID) -> String? { keys.key(for: id) }
 
     func setAPIKey(_ key: String?, for id: UUID) throws { try keys.setKey(key, for: id) }
