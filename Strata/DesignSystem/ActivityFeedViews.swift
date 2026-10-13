@@ -203,7 +203,7 @@ struct FeedCardView: View {
         if card.isRunning {
             ProgressView().controlSize(.mini)
         } else if card.isError {
-            Text("Failed").font(DS.Typography.feedMeta).foregroundStyle(theme.warning)
+            Text("Failed").font(DS.Typography.feedMeta).foregroundStyle(theme.textTertiary)
         } else if collapsed {
             HStack(spacing: DS.Spacing.xs + 2) {
                 if card.hasLoadingRow { ProgressView().controlSize(.mini) }
@@ -284,40 +284,41 @@ struct FeedCardView: View {
     }
 }
 
-/// A result row: favicon, title, domain; a row the model read is tinted and ends in its status.
+/// A result row: favicon, title, domain. Rows the model read keep the primary text color while the others are dimmed;
+/// a read in progress ends in a ring, and one that failed in a gray cross.
 struct FeedRowView: View {
     @Environment(\.theme) private var theme
     @Environment(\.openURL) private var openURL
     let row: FeedRow
 
     var body: some View {
-        let picked = row.read != nil
+        let read = row.read == .read || row.read == .thin
+        let failed = row.read == .failed
         Button {
             if let url = URL(string: row.url) { openURL(url) }
         } label: {
             HStack(spacing: 9) {
                 FaviconView(host: row.host, size: DS.IconSize.feedFavicon, square: true)
+                    .opacity(read ? 1 : 0.6)
                 Text(row.title)
                     .font(DS.Typography.feed)
-                    .foregroundStyle(picked ? theme.accentOnTint : theme.textPrimary)
+                    .foregroundStyle(read || row.read?.isFinished == false ? theme.textPrimary : theme.textSecondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                if !picked {
-                    Text(DomainFormatter.short(row.host))
-                        .font(DS.Typography.feedMeta)
-                        .foregroundStyle(theme.textTertiary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .frame(maxWidth: 92, alignment: .trailing)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .layoutPriority(1)
-                }
-                if let read = row.read { ReadStatusMark(read: read) }
+                Text(DomainFormatter.short(row.host))
+                    .font(DS.Typography.feedMeta)
+                    .foregroundStyle(read ? theme.textSecondary : theme.textTertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: 92, alignment: .trailing)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
+                if let mark = row.read, !mark.isFinished || failed { ReadStatusMark(read: mark) }
             }
+            .opacity(failed ? 0.7 : 1)
             .padding(.vertical, 7)
             .padding(.horizontal, 8)
-            .background(picked ? theme.pickFill : .clear, in: RoundedRectangle(cornerRadius: DS.Radius.cardRow, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -338,8 +339,8 @@ struct FeedRowView: View {
     }
 }
 
-/// The status at a read row's end: progress while loading, then a check, an amber mark for little content, or a red
-/// cross when the page could not be read.
+/// The mark at a read row's end: progress while loading, a quiet gray cross when the page could not be read. A page
+/// that was read needs no mark; its row simply stays undimmed.
 struct ReadStatusMark: View {
     @Environment(\.theme) private var theme
     let read: FeedRead
@@ -349,12 +350,11 @@ struct ReadStatusMark: View {
             switch read {
             case .loading(let id):
                 ReadProgressRing(callID: id)
-            case .read:
-                Image(systemName: "checkmark.circle.fill").foregroundStyle(theme.success)
-            case .thin:
-                Image(systemName: "exclamationmark.circle.fill").foregroundStyle(theme.warning)
+            case .read, .thin:
+                EmptyView()
             case .failed:
-                Image(systemName: "xmark.circle.fill").foregroundStyle(theme.destructive)
+                Image(systemName: "xmark").font(.system(size: DS.IconSize.feedStatus - 4, weight: .semibold))
+                    .foregroundStyle(theme.textTertiary)
             }
         }
         .font(.system(size: DS.IconSize.feedStatus))
@@ -374,10 +374,10 @@ struct ReadProgressRing: View {
     var body: some View {
         let progress = ToolProgress.shared.value(for: callID)
         ZStack {
-            Circle().stroke(theme.accentOnTint.opacity(0.25), lineWidth: 2)
+            Circle().stroke(theme.textTertiary.opacity(0.35), lineWidth: 2)
             Circle()
                 .trim(from: 0, to: max(0.18, progress ?? 0.25))
-                .stroke(theme.accentOnTint, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                .stroke(theme.textSecondary, style: StrokeStyle(lineWidth: 2, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .rotationEffect(.degrees(progress == nil && spin ? 360 : 0))
                 .animation(.linear(duration: 0.18), value: progress)
