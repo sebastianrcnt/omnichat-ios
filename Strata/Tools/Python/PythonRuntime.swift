@@ -84,7 +84,7 @@ enum PythonOutcome: Sendable, Equatable {
         case "crashed":
             self = .outOfMemory(detail: reply.message)
         default:
-            self = .failed(reply.message ?? String(localized: "unknown error"))
+            self = .failed(reply.message ?? "unknown error")
         }
     }
 }
@@ -197,10 +197,10 @@ struct PythonSessionLedger: Sendable, Equatable {
         return now.timeIntervalSince(lastUsed) >= Self.idleLimit
     }
 
-    /// Switching chats disposes the interpreter of the one left (not while a run is going on).
-    func shouldDispose(onSwitchTo conversation: UUID?) -> Bool {
+    /// Switching chats disposes the interpreter of the one left, unless that chat's reply is still running (`busy`).
+    func shouldDispose(onSwitchTo conversation: UUID?, busy: UUID? = nil) -> Bool {
         guard let owner else { return false }
-        return owner != conversation
+        return owner != conversation && owner != busy
     }
 }
 
@@ -370,9 +370,24 @@ final class PythonRuntime {
     var makeServer: () -> PyodideServer? = { PyodideServer.live() }
     let images: ToolImageStore
 
+    #if os(macOS)
+    private var pressureSource: DispatchSourceMemoryPressure?
+    #endif
+
     init(images: ToolImageStore = .shared) {
         self.images = images
-        MemoryPurge.register { [weak self] in self?.memoryPressure() }
+        MemoryPurge.register { [weak self, images] in
+            self?.memoryPressure()
+            images.purgeCache()
+            ToolImageCache.purge()
+        }
+        #if os(macOS)
+        // A Mac has no memory warning; the system's memory-pressure signal stands in for it.
+        let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: .main)
+        source.setEventHandler { [weak self] in MainActor.assumeIsolated { self?.memoryPressure() } }
+        source.resume()
+        pressureSource = source
+        #endif
     }
 
     var isRunning: Bool { running }
@@ -407,7 +422,7 @@ final class PythonRuntime {
                 pngs = reply.figures?.map(\.png) ?? []
                 if reply.status == "crashed" { host.resetWorker() }
             } else {
-                outcome = .failed(String(localized: "the Python page gave no answer"))
+                outcome = .failed("the Python page gave no answer")
             }
         } catch is CancellationError {
             return ToolOutput(text: "Error: cancelled.", isError: true)
@@ -415,7 +430,7 @@ final class PythonRuntime {
             disposeHost()
             outcome = .timedOut(phase: "run", elapsed: backstop, limit: limits.run)
         } catch PythonHostError.unavailable {
-            outcome = .failed(String(localized: "the Python runtime is missing from the app bundle"))
+            outcome = .failed("the Python runtime is missing from the app bundle")
         } catch {
             // The web content process died (memory), or the call failed with it.
             let wasTerminated = host?.terminated ?? true
@@ -466,9 +481,9 @@ final class PythonRuntime {
         idleTimer = nil
     }
 
-    /// The chat on screen changed.
-    func conversationDidChange(to conversation: UUID?) {
-        if ledger.shouldDispose(onSwitchTo: conversation) { dispose() }
+    /// The chat on screen changed. `busy`: the conversation whose reply is running (its interpreter stays).
+    func conversationDidChange(to conversation: UUID?, busy: UUID? = nil) {
+        if ledger.shouldDispose(onSwitchTo: conversation, busy: busy) { dispose() }
     }
 
     func memoryPressure() { dispose() }

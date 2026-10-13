@@ -88,19 +88,27 @@ struct ActivityFeedView: View {
             ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
                 let auto = FeedCollapse.autoCollapsed(index: index, cards: cards, isStreaming: isStreaming, answerStarted: answerStarted)
                 let collapsed = FeedCollapse.isCollapsed(auto: auto, override: overrides[card.id], epoch: epoch)
-                FeedCardView(card: card, collapsed: collapsed, showAll: showingAll.contains(card.id), staggerRows: isStreaming,
-                             onToggle: {
-                                 withAnimation(reduceMotion ? nil : Self.fold) {
-                                     overrides[card.id] = FeedCollapse.toggled(auto: auto, current: collapsed, epoch: epoch)
-                                 }
-                             },
-                             onShowAll: { // toggles: "+N more" expands, "Show less" folds back
-                                 withAnimation(reduceMotion ? nil : Self.fold) {
-                                     if showingAll.remove(card.id) == nil { showingAll.insert(card.id) }
-                                 }
-                             },
-                             onDetails: onDetails)
-                    .transition(.enter(reduceMotion: reduceMotion))
+                let toggle = {
+                    withAnimation(reduceMotion ? nil : Self.fold) {
+                        overrides[card.id] = FeedCollapse.toggled(auto: auto, current: collapsed, epoch: epoch)
+                    }
+                }
+                Group {
+                    switch card.kind {
+                    case .python, .image:
+                        PythonFeedCard(card: card, collapsed: collapsed, onToggle: toggle, onDetails: onDetails)
+                    case .search, .pages:
+                        FeedCardView(card: card, collapsed: collapsed, showAll: showingAll.contains(card.id), staggerRows: isStreaming,
+                                     onToggle: toggle,
+                                     onShowAll: { // toggles: "+N more" expands, "Show less" folds back
+                                         withAnimation(reduceMotion ? nil : Self.fold) {
+                                             if showingAll.remove(card.id) == nil { showingAll.insert(card.id) }
+                                         }
+                                     },
+                                     onDetails: onDetails)
+                    }
+                }
+                .transition(.enter(reduceMotion: reduceMotion))
             }
         }
         .animation(reduceMotion ? nil : DS.Motion.enter, value: cards.map(\.id))
@@ -196,6 +204,8 @@ struct FeedCardView: View {
             card.hasLoadingRow
                 ? (card.extras.count == 1 ? String(localized: "Reading 1 page…") : String(localized: "Reading \(card.extras.count) pages…"))
                 : (card.extras.count == 1 ? String(localized: "Read 1 page") : String(localized: "Read \(card.extras.count) pages"))
+        case .python: String(localized: "Ran Python")
+        case .image(let id): String(localized: "Viewed \(id)")
         }
     }
 
@@ -203,6 +213,8 @@ struct FeedCardView: View {
         switch card.kind {
         case .search(let query): String(localized: "Search: \(query)")
         case .pages: String(localized: "Pages read")
+        case .python: String(localized: "Ran Python")
+        case .image(let id): String(localized: "Viewed \(id)")
         }
     }
 
@@ -242,6 +254,8 @@ struct FeedCardView: View {
         switch card.kind {
         case .pages:
             return card.failedCount > 0 ? String(localized: "\(card.failedCount) failed") : ""
+        case .python, .image:
+            return ""
         case .search:
             let count = card.results.count == 1 ? String(localized: "1 result") : String(localized: "\(card.results.count) results")
             guard let engine = card.engine else { return count }

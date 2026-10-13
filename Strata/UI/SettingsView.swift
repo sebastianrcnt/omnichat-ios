@@ -99,6 +99,8 @@ struct SettingsView: View {
                         }
                     }
 
+                    PythonSettingsSection()
+
                     GroupedSection(header: "Answers", footer: "If the model searches and then stops without writing anything, it is asked once more for the answer.") {
                         SettingsToggleRow(title: "Continue when the answer is empty", isOn: $settings.continueOnEmptyAnswer)
                         SettingsToggleRow(title: "Generate chat titles",
@@ -399,5 +401,59 @@ struct ModelEditor: View {
             if capped != text { aliasText = capped; return }
             connections.setModelAlias(text, connectionID: connectionID, modelID: modelID)
         }
+    }
+}
+
+/// Settings > Python: on/off, the time limit of one run, and the packages downloaded so far.
+struct PythonSettingsSection: View {
+    @Environment(\.theme) private var theme
+    @Environment(\.appSettings) private var settings
+    @State private var packageBytes: Int64?
+
+    var body: some View {
+        @Bindable var settings = settings
+        GroupedSection(header: "Python", footer: "The model can run Python code on this device with run_python (Pyodide \(Pyodide.version)). Packages such as numpy, sympy and pandas are downloaded the first time they are used and kept for later.") {
+            SettingsToggleRow(title: "Python", subtitle: "Let the model run code and make charts.", isOn: $settings.pythonEnabled)
+            if settings.pythonEnabled {
+                HStack {
+                    Text("Python time limit").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
+                    Spacer()
+                    Picker("Python time limit", selection: $settings.pythonTimeLimit) {
+                        ForEach(PythonSettings.timeLimitOptions, id: \.self) { Text(PythonSettings.label(seconds: $0)).tag($0) }
+                    }
+                    .labelsHidden()
+                    .tint(theme.textSecondary)
+                }
+                .padding(.horizontal, DS.Spacing.lg)
+                .padding(.vertical, DS.Spacing.sm)
+            }
+            HStack {
+                VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+                    Text("Downloaded packages").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
+                    Text(verbatim: packageBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "…")
+                        .font(DS.Typography.uiCaption).foregroundStyle(theme.textSecondary)
+                }
+                Spacer()
+                Button("Clear") { clear() }
+                    .disabled((packageBytes ?? 0) == 0)
+                    .tint(theme.accent)
+            }
+            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.vertical, DS.Spacing.sm)
+        }
+        .onChange(of: settings.pythonEnabled) { _, on in if !on { PythonRuntime.shared.dispose() } }
+        .task { await measure() }
+    }
+
+    private func measure() async {
+        packageBytes = await Task.detached(priority: .utility) {
+            PyodidePackageCache(directory: Pyodide.packagesRoot).size
+        }.value
+    }
+
+    private func clear() {
+        PythonRuntime.shared.dispose() // a running interpreter may hold loaded packages; the next one fetches again
+        PyodidePackageCache(directory: Pyodide.packagesRoot).clear()
+        Task { await measure() }
     }
 }

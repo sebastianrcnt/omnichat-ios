@@ -16,11 +16,14 @@ enum Pyodide {
     /// The page's (and the worker's) policy: scripts, workers and network requests only from the app's own scheme.
     static let contentSecurityPolicy = "default-src 'none'; script-src strata-py: 'wasm-unsafe-eval'; worker-src strata-py:; connect-src strata-py:"
 
-    /// `Caches/PyodidePackages/<version>`.
-    static var defaultCacheDirectory: URL {
+    /// `Caches/PyodidePackages`: every downloaded package, all versions (Settings shows its size and clears it).
+    static var packagesRoot: URL {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
         return caches.appendingPathComponent("PyodidePackages", isDirectory: true)
     }
+
+    /// `Caches/PyodidePackages/<version>`.
+    static var defaultCacheDirectory: URL { packagesRoot.appendingPathComponent(version, isDirectory: true) }
 
     /// The `PyRuntime` folder in the app bundle.
     static var bundleRoot: URL? { Bundle.main.url(forResource: "PyRuntime", withExtension: nil) }

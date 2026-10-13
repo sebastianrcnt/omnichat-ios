@@ -120,6 +120,10 @@ struct ActivityEntry: Identifiable, Equatable {
     enum Kind: Equatable {
         case search(query: String, sources: [SourceInfo])
         case visit(url: String, host: String)
+        /// `run_python`: the code, what the model read back, and the figures.
+        case python(code: String, output: String, figures: [ToolImage])
+        /// `view_image`.
+        case image(id: String, image: ToolImage?)
     }
     let id: String
     var kind: Kind
@@ -141,6 +145,10 @@ struct ActivityEntry: Identifiable, Equatable {
         isError = call.isError
         if call.name == ToolNames.webSearch {
             kind = .search(query: call.primaryArgument, sources: call.sourceIDs.compactMap { sources[$0] })
+        } else if call.name == ToolNames.runPython {
+            kind = .python(code: call.primaryArgument, output: call.result, figures: call.figures ?? [])
+        } else if call.name == ToolNames.viewImage {
+            kind = .image(id: call.primaryArgument, image: call.viewedImage)
         } else {
             kind = .visit(url: call.primaryArgument, host: Self.host(of: call.primaryArgument))
             isContinuation = call.fetchOffset > 0
@@ -154,6 +162,10 @@ struct ActivityEntry: Identifiable, Equatable {
         isError = false
         if pending.name == ToolNames.webSearch {
             kind = .search(query: pending.primaryArgument, sources: [])
+        } else if pending.name == ToolNames.runPython {
+            kind = .python(code: pending.primaryArgument, output: "", figures: [])
+        } else if pending.name == ToolNames.viewImage {
+            kind = .image(id: pending.primaryArgument, image: nil)
         } else {
             kind = .visit(url: pending.primaryArgument, host: Self.host(of: pending.primaryArgument))
             isContinuation = pending.offset > 0
@@ -246,6 +258,32 @@ struct ActivityRow: View {
                 }
                 if entry.isRunning, progress == nil { ProgressView().controlSize(.mini) }
                 Spacer(minLength: 0)
+            }
+        case .python(let code, let output, let figures):
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                HStack(spacing: DS.Spacing.sm) {
+                    icon("chevron.left.forwardslash.chevron.right")
+                    Text(entry.isRunning ? "Running Python…" : "Ran Python").font(DS.Typography.uiSmall).foregroundStyle(theme.textPrimary)
+                    if entry.isRunning {
+                        ProgressView().controlSize(.mini)
+                    } else if entry.isError {
+                        Text(PythonFailure(errorText: output).label).font(DS.Typography.uiCaption).foregroundStyle(theme.warning)
+                    }
+                    Spacer(minLength: 0)
+                }
+                if wrapsChips {
+                    PythonRunDetail(code: code, output: output, figures: figures, isRunning: entry.isRunning, isError: entry.isError)
+                }
+            }
+        case .image(let id, let image):
+            HStack(spacing: DS.Spacing.sm) {
+                icon("photo")
+                Text(entry.isRunning ? "Viewing \(id)…" : "Viewed \(id)").font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary)
+                    .lineLimit(1)
+                if entry.isRunning { ProgressView().controlSize(.mini) }
+                else if entry.isError { Text("failed").font(DS.Typography.uiCaption).foregroundStyle(theme.warning) }
+                Spacer(minLength: 0)
+                if let image, wrapsChips { ToolImageThumbnail(image: image, height: 44) }
             }
         }
     }

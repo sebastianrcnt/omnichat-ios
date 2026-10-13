@@ -76,6 +76,12 @@ struct FeedCall: Equatable, Sendable {
     var failure: FetchFailure?
     /// The plugin a `run_plugin` call ran (its row is the plugin's page, titled with the plugin's name).
     var plugin: String?
+    /// The tool, when it is not a web tool: `run_python` (its own card with code and output) or `view_image`.
+    var tool: String?
+    /// A Python run's output as the model read it (empty while it runs).
+    var output = ""
+    var figures: [ToolImage] = []
+    var viewedImage: ToolImage?
 
     init(id: String, isSearch: Bool, argument: String, status: Status, sourceIDs: [Int] = [], engine: String? = nil, thin: Bool = false) {
         self.id = id
@@ -94,11 +100,18 @@ struct FeedCall: Equatable, Sendable {
                   thin: record.name == ToolNames.webFetch && record.isThinPage)
         if record.isError { failure = FetchFailure(errorText: record.result) }
         if record.name == ToolNames.runPlugin { plugin = PluginCall.name(in: record.arguments) }
+        if record.name == ToolNames.runPython || record.name == ToolNames.viewImage {
+            tool = record.name
+            output = record.result
+            figures = record.figures ?? []
+            viewedImage = record.viewedImage
+        }
     }
 
     init(pending: PendingToolCall) {
         self.init(id: pending.id, isSearch: pending.name == ToolNames.webSearch, argument: pending.primaryArgument, status: .running)
         plugin = pending.plugin
+        if pending.name == ToolNames.runPython || pending.name == ToolNames.viewImage { tool = pending.name }
     }
 
     /// Finished rounds, then the running round in request order (a finished call keeps its place); each id once.
@@ -153,6 +166,28 @@ struct FeedRow: Identifiable, Equatable, Sendable {
     var failure: FetchFailure?
 }
 
+/// Why a Python run failed, from its result text, for a short label like a page read's.
+enum PythonFailure: Equatable, Sendable {
+    case timedOut, outOfMemory, exception, failed
+
+    init(errorText: String) {
+        let t = errorText.lowercased()
+        if t.contains("timed out after") { self = .timedOut }
+        else if t.contains("out of memory") { self = .outOfMemory }
+        else if t.contains("could not run") || t.hasPrefix("error: ") { self = .failed }
+        else { self = .exception }
+    }
+
+    var label: String {
+        switch self {
+        case .timedOut: String(localized: "Timed out")
+        case .outOfMemory: String(localized: "Out of memory")
+        case .exception: String(localized: "Error")
+        case .failed: String(localized: "Failed")
+        }
+    }
+}
+
 /// Why a page could not be read, from the tool's error text, for a short label on the row.
 enum FetchFailure: Equatable, Sendable {
     case timedOut, blocked, certificate, noText, failed
@@ -183,6 +218,10 @@ struct FeedCard: Identifiable, Equatable, Sendable {
         case search(query: String)
         /// Pages read: one card per run of consecutive reads, wherever the links came from.
         case pages
+        /// One `run_python` call.
+        case python(code: String)
+        /// One `view_image` call.
+        case image(id: String)
     }
 
     var id: String
@@ -194,6 +233,10 @@ struct FeedCard: Identifiable, Equatable, Sendable {
     var results: [FeedRow] = []
     /// The pages of a `.pages` card.
     var extras: [FeedRow] = []
+    /// A `.python` card's output and figures, a `.image` card's image, and why either failed.
+    var output = ""
+    var figures: [ToolImage] = []
+    var pythonFailure: PythonFailure?
 
     var rows: [FeedRow] { results + extras }
     var hasLoadingRow: Bool { rows.contains { if case .loading? = $0.read { return true } else { return false } } }
@@ -218,7 +261,15 @@ enum ActivityFeed {
         var cards: [FeedCard] = []
         var readRun = false // the previous call was a read
         for (order, call) in calls.enumerated() {
-            if call.isSearch {
+            if let tool = call.tool {
+                readRun = false
+                var card = FeedCard(id: call.id, kind: tool == ToolNames.runPython ? .python(code: call.argument) : .image(id: call.argument),
+                                    isRunning: call.status == .running, isError: call.status == .failed)
+                card.output = call.output
+                card.figures = tool == ToolNames.runPython ? call.figures : (call.viewedImage.map { [$0] } ?? [])
+                if call.status == .failed { card.pythonFailure = PythonFailure(errorText: call.output) }
+                cards.append(card)
+            } else if call.isSearch {
                 readRun = false
                 var card = FeedCard(id: call.id, kind: .search(query: call.argument), engine: call.engine,
                                     isRunning: call.status == .running, isError: call.status == .failed)

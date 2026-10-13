@@ -30,6 +30,8 @@ private struct ChatLifecycle: ViewModifier {
             }
             .onChange(of: selected?.id) { _, _ in
                 controller.forgetRenderStates(except: Set((selected?.messages ?? []).map(\.id)))
+                // The chat left behind loses its Python interpreter, unless its reply is still running.
+                PythonRuntime.shared.conversationDidChange(to: selected?.id, busy: controller.activeConversationID)
             }
     }
 

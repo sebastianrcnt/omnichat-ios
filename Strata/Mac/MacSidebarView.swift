@@ -100,6 +100,7 @@ struct MacSidebarView: View {
     private func delete(_ conversation: Conversation) {
         if selected?.id == conversation.id { selected = nil }
         Diagnostics.forget(conversation.id)
+        PythonRuntime.shared.conversationDeleted(conversation.id)
         context.delete(conversation)
         try? context.save()
     }
