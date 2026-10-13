@@ -104,6 +104,17 @@ TRANSLATE_SAMPLE = (
     "Remember that sorting large collections takes more time than people usually expect."
 )
 
+TABLE_SAMPLE = (
+    "## 비교\n\n"
+    "Glass belongs on controls [{a}].\n\n"
+    "| 항목 | **설명** | 출처 [{a}] | 코드 | Notes on a rather long column |\n"
+    "| :--- | --- | :---: | --- | ---: |\n"
+    "| 컨트롤 | 버튼과 바에 사용 [{a}] | 공식 [{a}][{b}] | `glass[1]` | Keep tint rare and use it for the single most important action only [{c}] |\n"
+    "| 본문 | *never* behind text | [{b}] | `x` | 가독성이 떨어집니다 |\n"
+    "| Pipe \\| escaped | [link](https://swift.org) | — | `a \\| b` | done |\n\n"
+    "That is all [{c}]."
+)
+
 FONT_SAMPLE = (
     "## Liquid Glass 사용 가이드\n\n"
     "Liquid Glass는 **컨트롤과 내비게이션**에만 쓰세요. Apply it to *controls* and bars, never to body text [{a}][{b}]. "
@@ -428,7 +439,9 @@ class Handler(BaseHTTPRequestHandler):
             b = ids[1] if len(ids) > 1 else ids[0]
             c = ids[2] if len(ids) > 2 else ids[0]
             self.stream_reasoning(REASONING_2)
-            if "fontsample" in user_text.lower():
+            if "tablesample" in user_text.lower():
+                self.stream_content(TABLE_SAMPLE.format(a=a, b=b, c=c))
+            elif "fontsample" in user_text.lower():
                 self.stream_content(FONT_SAMPLE.format(a=a, b=b, c=c))
             elif "short" in user_text.lower():
                 self.stream_content(f"Apply glass to **controls** only, never to body text [{a}][{b}][{c}].")

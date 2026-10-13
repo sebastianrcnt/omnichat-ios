@@ -62,8 +62,8 @@ private struct TailBlocksView: View {
     }
 }
 
-/// A closed block. Prose blocks use the inline renderer (so citation chips work); code, tables and
-/// complex nested structures use MarkdownUI. Equatable so SwiftUI skips unchanged blocks.
+/// A closed block. Prose blocks and top-level tables use the inline renderer (so citation chips work); code
+/// has its own view and complex nested structures use MarkdownUI. Equatable so SwiftUI skips unchanged blocks.
 struct MarkdownBlockView: View, Equatable {
     let block: MarkdownBlock
     let theme: DSTheme
@@ -78,6 +78,8 @@ struct MarkdownBlockView: View, Equatable {
             CodeBlockView(content: CodeBlockContent(blockText: block.text)).equatable()
         } else if block.kind == .thematicBreak {
             Divider()
+        } else if block.kind == .table, let table = MarkdownTable.parse(block.text) {
+            MarkdownTableView(table: table, typeScale: typeScale)
         } else {
             Markdown(block.markdownUIText)
                 .markdownTheme(.strata(theme, scale: typeScale))
@@ -112,6 +114,177 @@ extension MarkdownBlock {
         case .code, .table, .thematicBreak:
             return false
         }
+    }
+}
+
+// MARK: - Tables
+
+/// A GFM table split into cells. Cell text is still inline Markdown (rendered with the inline renderer).
+struct MarkdownTable: Equatable, Sendable {
+    enum Alignment: Equatable, Sendable { case leading, center, trailing }
+
+    var header: [String]
+    var alignments: [Alignment]
+    /// Body rows, each padded or cut to the header's column count.
+    var rows: [[String]]
+
+    var columnCount: Int { header.count }
+
+    /// Parses a table block (header row, delimiter row, body rows). Nil if it is not one.
+    nonisolated static func parse(_ text: String) -> MarkdownTable? {
+        let lines = text.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        guard lines.count >= 2 else { return nil }
+        let header = cells(lines[0])
+        let delimiter = cells(lines[1])
+        guard !header.isEmpty, delimiter.allSatisfy({ $0.contains("-") && $0.allSatisfy { "-: ".contains($0) } }) else { return nil }
+        let alignments: [Alignment] = (0..<header.count).map { i in
+            guard i < delimiter.count else { return .leading }
+            let d = delimiter[i]
+            switch (d.hasPrefix(":"), d.hasSuffix(":")) {
+            case (true, true): return .center
+            case (false, true): return .trailing
+            default: return .leading
+            }
+        }
+        let rows = lines.dropFirst(2).map { line -> [String] in
+            var row = cells(line)
+            if row.count > header.count { row.removeLast(row.count - header.count) }
+            while row.count < header.count { row.append("") }
+            return row
+        }
+        return MarkdownTable(header: header, alignments: alignments, rows: rows)
+    }
+
+    /// Splits a row on unescaped pipes (GFM: a pipe splits even inside a code span unless escaped). `\|` becomes `|`.
+    nonisolated static func cells(_ line: String) -> [String] {
+        var cells: [String] = []
+        var current = ""
+        var escaped = false
+        for ch in line {
+            if escaped {
+                if ch != "|" { current.append("\\") }
+                current.append(ch)
+                escaped = false
+            } else if ch == "\\" {
+                escaped = true
+            } else if ch == "|" {
+                cells.append(current)
+                current = ""
+            } else {
+                current.append(ch)
+            }
+        }
+        if escaped { current.append("\\") }
+        cells.append(current)
+        // The optional leading and trailing pipes leave empty edge cells.
+        if line.hasPrefix("|"), cells.first?.trimmingCharacters(in: .whitespaces).isEmpty == true { cells.removeFirst() }
+        if cells.count > 1, cells.last?.trimmingCharacters(in: .whitespaces).isEmpty == true { cells.removeLast() }
+        return cells.map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+}
+
+/// A finished table: header row on a tinted band, natural-width columns (long cells wrap at a cap),
+/// horizontally scrollable, and cells through the inline renderer so citation chips work.
+struct MarkdownTableView: View {
+    @Environment(\.theme) private var theme
+    let table: MarkdownTable
+    var typeScale: CGFloat = 1
+
+    var body: some View {
+        let columns = Array(0..<table.columnCount)
+        ScrollView(.horizontal) {
+            Grid(alignment: .topLeading, horizontalSpacing: 0, verticalSpacing: 0) {
+                GridRow {
+                    ForEach(columns, id: \.self) { c in
+                        cell(table.header[c], column: c, header: true)
+                            .gridColumnAlignment(Self.horizontal(table.alignments[c]))
+                    }
+                }
+                ForEach(Array(table.rows.enumerated()), id: \.offset) { _, row in
+                    Rectangle().fill(theme.separator).frame(height: 1).gridCellUnsizedAxes(.horizontal)
+                    // Baseline-aligned, so a cell holding only a (smaller) chip lines up with its neighbours.
+                    GridRow(alignment: .firstTextBaseline) {
+                        ForEach(columns, id: \.self) { c in cell(row[c], column: c, header: false) }
+                    }
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
+        .overlay { RoundedRectangle(cornerRadius: DS.Radius.md).stroke(theme.separator, lineWidth: 1) }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func cell(_ source: String, column: Int, header: Bool) -> some View {
+        let alignment = table.alignments[column]
+        return TableCellText(source: source, header: header, alignment: alignment, maxWidth: 260 * typeScale)
+            .padding(.vertical, DS.Spacing.sm)
+            .padding(.horizontal, DS.Spacing.md)
+            // Fill the grid cell so the header band has no gaps when cells differ in height.
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: Alignment(horizontal: Self.horizontal(alignment), vertical: .top))
+            .background(header ? theme.fillTertiary : Color.clear)
+    }
+
+    static func horizontal(_ a: MarkdownTable.Alignment) -> HorizontalAlignment {
+        switch a {
+        case .leading: .leading
+        case .center: .center
+        case .trailing: .trailing
+        }
+    }
+}
+
+/// One table cell: inline Markdown with compact citation chips, at its natural width up to `maxWidth`, then wrapping.
+struct TableCellText: View {
+    @Environment(\.citations) private var citations
+    @Environment(\.theme) private var theme
+    @ScaledMetric(relativeTo: .caption2) private var chipHeight: CGFloat = 17
+    let source: String
+    let header: Bool
+    var alignment: MarkdownTable.Alignment = .leading
+    var maxWidth: CGFloat = 260
+
+    /// The cell's attributed text. Bold is drawn in the semibold weight, as in prose (the header is semibold throughout).
+    nonisolated static func attributed(_ source: String, sources: [Int: SourceInfo],
+                                       chipColor: Color = .secondary) -> AttributedString {
+        let result = InlineMarkdownText.attributed(source, sources: sources, isOpen: false,
+                                                   chipFont: DS.Typography.chipCompact, chipColor: chipColor)
+        return InlineMarkdownText.withSemiboldStrong(result, font: DS.Typography.tableHeader)
+    }
+
+    var body: some View {
+        let composed = InlineMarkdownText.composed(Self.attributed(source, sources: citations.sources,
+                                                                   chipColor: theme.textSecondary))
+        let text = composed.text
+            .font(header ? DS.Typography.tableHeader : DS.Typography.tableCell)
+            .dsLeading(.ui)
+            .foregroundStyle(theme.textPrimary)
+            .multilineTextAlignment(alignment == .center ? .center : alignment == .trailing ? .trailing : .leading)
+        CappedWidth(maxWidth: maxWidth) {
+            if composed.hasChips {
+                // The header band is already chipFill-tinted: its chips take the page colour so they still show.
+                text.textRenderer(ChipTextRenderer(fill: header ? theme.background : theme.chipFill, height: chipHeight))
+            } else {
+                text.textSelection(.enabled)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// Lays its child out at the proposed width, capped at `maxWidth`. With no proposal (a horizontal scroll view)
+/// the child gets `maxWidth`, so text takes its natural width when short and wraps at the cap when long.
+struct CappedWidth: Layout {
+    var maxWidth: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let child = subviews.first else { return .zero }
+        return child.sizeThatFits(ProposedViewSize(width: min(proposal.width ?? maxWidth, maxWidth), height: proposal.height))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
     }
 }
 

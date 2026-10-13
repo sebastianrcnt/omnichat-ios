@@ -57,8 +57,10 @@ network delta -> RevealController (smoothing) -> IncrementalBlockParser (backgro
 - **Inline renderer** (`InlineMarkdownText.attributed`): `TildeEscaper` -> `CitationParser` ->
   `CJKEmphasisFixer` -> `OptimisticCloser` (open blocks only) -> `LenientEmphasis.normalize` ->
   `AttributedString(markdown:)` (inline only) -> `stripZeroWidth`. Paragraphs, headings, quotes and
-  list items use it; tables and other complex finished blocks fall back to MarkdownUI
-  (`markdownUIText`), which loses chips but keeps everything else.
+  list items use it, and so do the cells of a closed top-level table (`MarkdownTable` splits the rows,
+  `MarkdownTableView` lays them out in a `Grid`: header band, natural-width columns that wrap at a cap,
+  horizontal scrolling, compact chips via `TableCellText`). Other complex finished blocks (a table nested
+  in a list or quote) fall back to MarkdownUI (`markdownUIText`), which loses chips but keeps everything else.
 - **Code blocks** (`DesignSystem/CodeBlocks.swift`): an open fence streams into a fixed-height,
   bottom-following plain monospaced box; the finished block has a header (language, Copy), collapses
   past 18 lines, and opens a full-screen viewer. No syntax highlighting.

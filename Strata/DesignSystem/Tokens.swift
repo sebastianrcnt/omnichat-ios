@@ -87,6 +87,11 @@ enum DS {
         static let largeTitle = pretendard(22, relativeTo: .title2, weight: .medium)
         /// Inline citation chip text.
         static let chipInline = pretendard(12, relativeTo: .caption, weight: .medium)
+        /// Citation chip inside a table cell: smaller, so a chip does not widen its column much.
+        static let chipCompact = pretendard(11, relativeTo: .caption2, weight: .medium)
+        /// Table cells in an answer, and the header row.
+        static let tableCell = pretendard(15, relativeTo: .subheadline)
+        static let tableHeader = pretendard(15, relativeTo: .subheadline, weight: .semibold)
         /// Headings inside an answer.
         static func heading(_ level: Int) -> Font {
             switch level {

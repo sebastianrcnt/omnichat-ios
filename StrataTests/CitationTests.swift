@@ -174,3 +174,53 @@ struct TimelineItemTests {
         #expect(TimelineItem.build(chunks: [], steps: [], pending: [], sources: [:]).isEmpty)
     }
 }
+
+struct MarkdownTableTests {
+    private func citeRuns(_ s: AttributedString) -> [String] {
+        s.runs.compactMap { run in run.link?.scheme == CitationParser.scheme ? run.link!.absoluteString : nil }
+    }
+
+    @Test func parsesHeaderAlignmentsAndRows() throws {
+        let t = try #require(MarkdownTable.parse("| 항목 | **설명** | n |\n| :--- | :-: | --: |\n| a | b [1] | 1 |\n| only |"))
+        #expect(t.header == ["항목", "**설명**", "n"])
+        #expect(t.alignments == [.leading, .center, .trailing])
+        #expect(t.rows == [["a", "b [1]", "1"], ["only", "", ""]])
+    }
+
+    @Test func escapedPipesStayInTheCell() {
+        #expect(MarkdownTable.cells("| a \\| b | `x \\| y` | c |") == ["a | b", "`x | y`", "c"])
+        #expect(MarkdownTable.cells("a | b") == ["a", "b"]) // no edge pipes
+    }
+
+    @Test func notATableWithoutADelimiterRow() {
+        #expect(MarkdownTable.parse("| a | b |\n| c | d |") == nil)
+    }
+
+    @Test func cellCitationsBecomeChipLinks() {
+        let cell = TableCellText.attributed("공식 [1][2]", sources: known)
+        #expect(citeRuns(cell) == ["strata-cite://1,2"])
+        #expect(!String(cell.characters).contains("[1]"))
+        #expect(String(cell.characters).contains("apple.com"))
+        // Header cells go through the same path.
+        let header = TableCellText.attributed("출처 [3]", sources: known)
+        #expect(citeRuns(header) == ["strata-cite://3"])
+    }
+
+    @Test func markersInCodeSpansStayLiteralInCells() {
+        let cell = TableCellText.attributed("`glass[1]` and [2]", sources: known)
+        #expect(String(cell.characters).contains("glass[1]"))
+        #expect(citeRuns(cell) == ["strata-cite://2"])
+    }
+
+    @Test func boldInACellIsSemiboldNotSystemBold() {
+        let cell = TableCellText.attributed("**설명**", sources: [:])
+        #expect(cell.runs.allSatisfy { $0.inlinePresentationIntent?.contains(.stronglyEmphasized) != true })
+        #expect(String(cell.characters) == "설명")
+    }
+
+    @Test func closedTableBlockRendersWithTheTableView() {
+        let blocks = IncrementalBlockParser.parse("| a | b |\n|---|---|\n| 1 [1] | 2 |\n\nAfter.")
+        #expect(blocks[0].kind == .table && blocks[0].isClosed)
+        #expect(MarkdownTable.parse(blocks[0].text)?.rows == [["1 [1]", "2"]])
+    }
+}
