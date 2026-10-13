@@ -58,7 +58,6 @@ struct MacImageAttaching: ViewModifier {
 struct MacChatChrome<MenuContent: View>: ViewModifier {
     @Environment(\.theme) private var theme
     let title: String
-    let subtitle: String
     let contextFraction: Double?
     @Binding var showUsage: Bool
     @Binding var showAttach: Bool
@@ -70,7 +69,6 @@ struct MacChatChrome<MenuContent: View>: ViewModifier {
     func body(content: Content) -> some View {
         content
             .navigationTitle(title)
-            .navigationSubtitle(subtitle)
             // The chat scrolls under the title bar: give it a surface so answer text never shows through the title.
             .toolbarBackground(theme.background, for: .windowToolbar)
             .toolbarBackgroundVisibility(.visible, for: .windowToolbar)

@@ -18,7 +18,7 @@ enum EffortScale {
     }
 }
 
-/// The models the composer's settings sheet lists, grouped by connection.
+/// The models the "Select model" sheet lists, grouped by connection.
 enum ModelPickerCatalog {
     struct Item: Hashable, Identifiable {
         var connectionID: UUID
@@ -27,6 +27,8 @@ enum ModelPickerCatalog {
         var title: String
         /// The real id under an alias; nil when the title already is the id.
         var subtitle: String?
+        /// "Images · Effort · Web tools".
+        var capabilities: String?
         var id: String { "\(connectionID.uuidString)/\(modelID)" }
     }
 
@@ -45,28 +47,10 @@ enum ModelPickerCatalog {
                 .filter { c.showsInPicker($0.id) || (c.id == currentConnectionID && $0.id == currentModelID) }
                 .map { m in
                     let alias = c.alias(forModel: m.id)
-                    return Item(connectionID: c.id, modelID: m.id, title: alias ?? m.id, subtitle: alias == nil ? nil : m.id)
+                    return Item(connectionID: c.id, modelID: m.id, title: alias ?? m.id, subtitle: alias == nil ? nil : m.id,
+                                capabilities: m.capabilitiesSummary)
                 }
             return items.isEmpty ? nil : Group(connectionID: c.id, name: c.name, items: items)
         }
-    }
-}
-
-/// "Reset to defaults" in the composer's settings: the effort goes back to the default level and the search engine to
-/// Auto. The model is kept: there is no defined default model, only a fallback for when the chosen one is gone.
-enum ChatDefaults {
-    static let searchEngine: SearchEnginePreference = .auto
-
-    @MainActor
-    static func isAtDefaults(effort: Effort, supportsEffort: Bool, settings: AppSettings) -> Bool {
-        (!supportsEffort || effort == .default) && settings.searchEngine == searchEngine
-    }
-
-    /// Applies the defaults to the app settings and, when there is one, the open conversation.
-    @MainActor
-    static func reset(settings: AppSettings, conversation: Conversation?) {
-        settings.lastEffort = .default
-        conversation?.effort = .default
-        settings.searchEngine = searchEngine
     }
 }

@@ -23,7 +23,7 @@ struct ChatView: View {
     #if os(macOS)
     @State private var showNoImageSupport = false
     #endif
-    /// Model, effort and search engine: a sheet on the phone, a popover from the gauge on a Mac.
+    /// "Select model" (models, effort, search engine): a sheet on the phone, a popover from the gauge on a Mac.
     @State private var showChatSettings = false
     /// The composer's height, so the floating "Answer now" capsule sits just above it.
     @State private var composerHeight: CGFloat = 0
@@ -135,7 +135,6 @@ struct ChatView: View {
             #if os(macOS)
             .modifier(MacChatChrome(
                 title: conversation?.displayTitle ?? String(localized: "New chat"),
-                subtitle: selectedModelTitle ?? "",
                 contextFraction: conversation?.lastUsage == nil ? nil : contextFraction,
                 showUsage: $showUsage, showAttach: $showAttach, showNoImageSupport: $showNoImageSupport,
                 onPickImages: addAttachments, onEnableImages: enableImagesForSelectedModel,
@@ -266,14 +265,6 @@ struct ChatView: View {
                         .lineLimit(1)
                         .contentTransition(.opacity)
                         .animation(DS.Motion.ease, value: conversation?.title)
-                    if let model = selectedModelTitle {
-                        Button { showChatSettings = true } label: {
-                            Text(verbatim: model).font(DS.Typography.uiCaption).foregroundStyle(theme.textSecondary).lineLimit(1)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(Text("Model, \(model)"))
-                        .accessibilityHint(Text("Opens settings."))
-                    }
                 }
                 Spacer(minLength: 0)
                 ContextRingButton(fraction: conversation?.lastUsage == nil ? nil : contextFraction) {
@@ -533,12 +524,11 @@ struct ChatView: View {
 
     private var chatSettings: some View {
         let s = selection
-        return ChatSettingsView(
-            connectionID: s.connectionID, modelID: s.modelID, effort: s.effort,
+        return ModelPickerSheet(
+            selectedConnectionID: s.connectionID, selectedModelID: s.modelID, effort: s.effort,
             onSelectModel: apply(connectionID:modelID:),
             onSelectEffort: apply(effort:),
-            onReset: { ChatDefaults.reset(settings: settings, conversation: conversation) },
-            onManageModels: { showChatSettings = false; onOpenSettings() })
+            onOpenSettings: { showChatSettings = false; onOpenSettings() })
     }
 
     private var pasteHandler: (([Data]) -> Void)? {

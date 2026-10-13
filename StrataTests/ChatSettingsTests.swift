@@ -57,6 +57,7 @@ struct ChatSettingsTests {
         #expect(groups[0].items.map(\.modelID) == ["a1", "a3"])
         #expect(groups[0].items[0].title == "Alpha")
         #expect(groups[0].items[0].subtitle == "a1")
+        #expect(groups[0].items[0].capabilities == ModelInfo(id: "a1").capabilitiesSummary)
         #expect(groups[0].items[1].title == "a3")
         #expect(groups[0].items[1].subtitle == nil)
     }
@@ -92,36 +93,6 @@ struct ChatSettingsTests {
         let decoded = try JSONDecoder().decode(Connection.self, from: Data(old.utf8))
         #expect(decoded.hiddenModelIDs.isEmpty)
         #expect(decoded.showsInPicker("x"))
-    }
-
-    // MARK: Reset to defaults
-
-    @Test func resetRestoresEffortAndSearchEngineButKeepsTheModel() {
-        let settings = AppSettings(defaults: freshDefaults())
-        settings.lastEffort = .max
-        settings.searchEngine = .naver
-        settings.lastModelID = "keep-me"
-        let conversation = Conversation(connectionID: Connection.strataID, modelID: "chat-model", effort: .low)
-        #expect(!ChatDefaults.isAtDefaults(effort: conversation.effort, supportsEffort: true, settings: settings))
-
-        ChatDefaults.reset(settings: settings, conversation: conversation)
-
-        #expect(settings.lastEffort == .default)
-        #expect(conversation.effort == .default)
-        #expect(settings.searchEngine == .auto)
-        #expect(settings.lastModelID == "keep-me")
-        #expect(conversation.modelID == "chat-model")
-        #expect(conversation.connectionID == Connection.strataID)
-        #expect(ChatDefaults.isAtDefaults(effort: conversation.effort, supportsEffort: true, settings: settings))
-    }
-
-    @Test func effortIsIgnoredForDefaultsWhenTheModelHasNone() {
-        let settings = AppSettings(defaults: freshDefaults())
-        #expect(ChatDefaults.isAtDefaults(effort: .max, supportsEffort: false, settings: settings))
-        settings.searchEngine = .bing
-        #expect(!ChatDefaults.isAtDefaults(effort: .max, supportsEffort: false, settings: settings))
-        ChatDefaults.reset(settings: settings, conversation: nil)
-        #expect(settings.searchEngine == .auto)
     }
 
     @Test func composerExpandsWhenFocusedOrHoldingADraft() {

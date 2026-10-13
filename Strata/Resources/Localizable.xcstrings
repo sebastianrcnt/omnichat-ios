@@ -125,7 +125,6 @@
     "Active turn": {},
     "Add": {},
     "Add a connection in Settings, then fetch its models or add one by hand.": {},
-    "Add a model in Settings > Connections.": {},
     "Add an API key for %@ in Settings.": {},
     "Add connection": {},
     "Add model": {},
@@ -149,6 +148,7 @@
     "Assistant": {},
     "Attachments": {},
     "Auto": {},
+    "Auto searches Naver for Korean queries and Bing otherwise. If the engine fails or finds nothing, the next one is tried.": {},
     "Auto searches Naver for Korean queries and Bing otherwise. If the engine fails or finds nothing, the next one is tried. web_fetch returns up to the fetch length per call; longer pages continue in further calls.": {},
     "Available": {},
     "Back": {},
@@ -313,7 +313,6 @@
     "Loading…": {},
     "Low": {},
     "Manage connections": {},
-    "Manage models…": {},
     "Max": {},
     "Medium": {},
     "Memory": {},
@@ -323,7 +322,6 @@
     "Messages": {},
     "Missing resumable event sequence.": {},
     "Missing stream event; replay is not contiguous.": {},
-    "Model": {},
     "Model and effort": {},
     "Model and reasoning effort": {},
     "Model and reasoning effort, %@": {},
@@ -334,7 +332,6 @@
     "Name: value": {
       "shouldTranslate": false
     },
-    "Naver for Korean, Bing otherwise": {},
     "New Chat": {},
     "New chat": {},
     "New chat (⌘N)": {},
@@ -393,7 +390,6 @@
     "Read more of %@": {},
     "Reading": {},
     "Reasoning": {},
-    "Reasoning effort": {},
     "Reasoning tokens": {},
     "Recent": {},
     "Recent requests": {},
@@ -417,7 +413,6 @@
     "Requests sent from this device since the app started appear here.": {},
     "Reset name": {},
     "Reset to default": {},
-    "Reset to defaults": {},
     "Resumable replies": {},
     "Resume data": {
       "extractionState": "stale"

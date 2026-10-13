@@ -13,216 +13,129 @@ enum TokenFormat {
     }
 }
 
-// MARK: - Chat settings (model, effort, search engine)
+// MARK: - Model picker
 
-/// The composer's settings: a compact sheet on the phone, a popover on a Mac. Every change applies at once.
-struct ChatSettingsView: View {
-    @Environment(\.theme) private var theme
-    @Environment(\.dismiss) private var dismiss
+/// The gauge's sheet (a popover on a Mac): the models under their connection headers, then effort and search engine.
+struct ModelPickerSheet: View {
     @Environment(\.connectionStore) private var connections
     @Environment(\.appSettings) private var settings
-    @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.dismiss) private var dismiss
 
-    let connectionID: UUID?
-    let modelID: String?
+    let selectedConnectionID: UUID?
+    let selectedModelID: String?
     let effort: Effort
     let onSelectModel: (UUID, String) -> Void
     let onSelectEffort: (Effort) -> Void
-    let onReset: () -> Void
-    let onManageModels: () -> Void
+    let onOpenSettings: () -> Void
 
-    @State private var contentHeight: CGFloat = 420
+    @State private var page: Page = .root
+    @State private var currentEffort: Effort
+    @State private var renaming: ModelRenameTarget?
 
-    private struct ModelKey: Hashable { var connectionID: UUID?; var modelID: String? }
+    enum Page { case root, effort, search }
 
-    private var model: ModelInfo? { connections.connection(connectionID)?.models.first { $0.id == modelID } }
-    private var levels: [Effort] { model?.effortLevels ?? [] }
-    private var groups: [ModelPickerCatalog.Group] {
-        ModelPickerCatalog.groups(connections: connections.connections, currentConnectionID: connectionID, currentModelID: modelID)
+    init(selectedConnectionID: UUID?, selectedModelID: String?, effort: Effort,
+         onSelectModel: @escaping (UUID, String) -> Void, onSelectEffort: @escaping (Effort) -> Void,
+         onOpenSettings: @escaping () -> Void) {
+        self.selectedConnectionID = selectedConnectionID
+        self.selectedModelID = selectedModelID
+        self.effort = effort
+        self.onSelectModel = onSelectModel
+        self.onSelectEffort = onSelectEffort
+        self.onOpenSettings = onOpenSettings
+        _currentEffort = State(initialValue: effort)
+    }
+
+    private var selectedModel: ModelInfo? {
+        connections.connection(selectedConnectionID)?.models.first { $0.id == selectedModelID }
     }
 
     var body: some View {
-        #if os(macOS)
-        content
-            .frame(width: 360)
-            .fixedSize(horizontal: false, vertical: true)
-        #else
-        ScrollView {
-            content.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+        Group {
+            switch page {
+            case .root: root
+            case .effort: effortPage
+            case .search: searchPage
+            }
         }
-        .scrollBounceBehavior(.basedOnSize)
-        .background(theme.background.ignoresSafeArea())
-        .presentationBackground(theme.background)
-        .presentationDetents([.height(contentHeight)])
+        #if os(iOS)
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         #endif
+        .modelRenameAlert($renaming)
     }
 
-    private var content: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-            Text("Settings").font(DS.Typography.title).foregroundStyle(theme.textPrimary)
-                .frame(maxWidth: .infinity)
-                .accessibilityAddTraits(.isHeader)
-            GroupedSection {
-                row("Model") { modelMenu }
-                if !levels.isEmpty {
-                    row("Reasoning effort") { effortMenu }
-                }
-                row("Search engine") { searchMenu }
-            }
-            GroupedSection {
-                SettingsRow(systemImage: "slider.horizontal.3", title: "Manage models…", showsChevron: true) {
-                    dismiss()
-                    onManageModels()
-                }
-                SettingsRow(systemImage: "arrow.counterclockwise", title: "Reset to defaults", action: onReset)
-                    .disabled(ChatDefaults.isAtDefaults(effort: effort, supportsEffort: !levels.isEmpty, settings: settings))
-                    .opacity(ChatDefaults.isAtDefaults(effort: effort, supportsEffort: !levels.isEmpty, settings: settings) ? 0.5 : 1)
-            }
-            Button { dismiss() } label: {
-                Text("Done").font(DS.Typography.uiEmphasis).frame(maxWidth: .infinity)
-                    .padding(.vertical, DS.Spacing.xs)
-            }
-            .buttonStyle(.glassProminent)
-            .controlSize(.large)
-            .tint(theme.accent)
-            .keyboardShortcut(.defaultAction)
-        }
-        .padding(.horizontal, DS.Spacing.lg)
-        .padding(.top, DS.Spacing.xl)
-        .padding(.bottom, DS.Spacing.lg)
-    }
-
-    // MARK: Rows
-
-    /// A title with its menu on the trailing side; stacked at accessibility text sizes so nothing runs off the edge.
-    private func row<Control: View>(_ title: LocalizedStringKey, @ViewBuilder control: () -> Control) -> some View {
-        let layout = typeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: DS.Spacing.xs))
-            : AnyLayout(HStackLayout(spacing: DS.Spacing.md))
-        return layout {
-            Text(title).font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
-                .layoutPriority(1)
-            if !typeSize.isAccessibilitySize { Spacer(minLength: DS.Spacing.sm) }
-            control()
-        }
-        .padding(.horizontal, DS.Spacing.lg)
-        .padding(.vertical, DS.Spacing.sm)
-        .frame(minHeight: DS.IconSize.minHitTarget)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// The trailing face of a pull-down: the current value and up-down chevrons.
-    private func menuLabel(_ value: String) -> some View {
-        HStack(spacing: DS.Spacing.xs) {
-            Text(verbatim: value).lineLimit(1).truncationMode(.middle)
-            Image(systemName: "chevron.up.chevron.down").font(.system(size: DS.IconSize.sm * 0.85, weight: .semibold))
-        }
-        .font(DS.Typography.ui)
-        .foregroundStyle(theme.textSecondary)
-        .contentShape(Rectangle())
-    }
-
-    private var currentModelTitle: String {
-        connections.displayName(connectionID: connectionID, modelID: modelID) ?? String(localized: "None")
-    }
-
-    // MARK: Model
-
-    @ViewBuilder
-    private var modelMenu: some View {
-        let groups = groups
-        #if os(macOS)
-        Picker(selection: Binding(get: { ModelKey(connectionID: connectionID, modelID: modelID) },
-                                  set: { if let c = $0.connectionID, let m = $0.modelID { onSelectModel(c, m) } })) {
-            ForEach(groups) { g in
-                if groups.count > 1 {
-                    Section(g.name) { modelItems(g) }
-                } else {
-                    modelItems(g)
-                }
-            }
-        } label: { Text("Model") }
-        .labelsHidden()
-        .pickerStyle(.menu)
-        .fixedSize()
-        #else
-        Menu {
+    private var root: some View {
+        let groups = ModelPickerCatalog.groups(connections: connections.connections,
+                                               currentConnectionID: selectedConnectionID, currentModelID: selectedModelID)
+        return SheetScaffold(title: "Select model") {
             if groups.isEmpty {
-                Text("Add a model in Settings > Connections.")
-            }
-            ForEach(groups) { g in
-                if groups.count > 1 {
-                    Section(g.name) { modelItems(g) }
-                } else {
-                    modelItems(g)
+                GroupedSection(footer: "Add a connection in Settings, then fetch its models or add one by hand.") {
+                    SettingsRow(title: "No models yet")
                 }
             }
-        } label: { menuLabel(currentModelTitle) }
-        .accessibilityLabel(Text("Model"))
-        .accessibilityValue(Text(verbatim: currentModelTitle))
-        #endif
-    }
-
-    @ViewBuilder
-    private func modelItems(_ group: ModelPickerCatalog.Group) -> some View {
-        ForEach(group.items) { item in
-            #if os(macOS)
-            Text(verbatim: item.title).tag(ModelKey(connectionID: item.connectionID, modelID: item.modelID))
-            #else
-            Toggle(isOn: Binding(get: { item.connectionID == connectionID && item.modelID == modelID },
-                                 set: { _ in onSelectModel(item.connectionID, item.modelID) })) {
-                Text(verbatim: item.title)
-                if let subtitle = item.subtitle { Text(verbatim: subtitle) }
+            ForEach(groups) { group in
+                GroupedSection(header: LocalizedStringKey(group.name)) {
+                    ForEach(group.items) { item in
+                        SettingsRow(modelID: item.modelID, alias: item.subtitle == nil ? nil : item.title,
+                                    subtitle: item.capabilities,
+                                    isChecked: item.connectionID == selectedConnectionID && item.modelID == selectedModelID) {
+                            onSelectModel(item.connectionID, item.modelID)
+                            dismiss()
+                        }
+                        .contextMenu {
+                            Button("Rename…", systemImage: "pencil") {
+                                renaming = ModelRenameTarget(connectionID: item.connectionID, modelID: item.modelID)
+                            }
+                            if item.subtitle != nil {
+                                Button("Reset name", systemImage: "arrow.counterclockwise") {
+                                    connections.setModelAlias(nil, connectionID: item.connectionID, modelID: item.modelID)
+                                }
+                            }
+                        }
+                    }
+                }
             }
-            #endif
+            GroupedSection {
+                if selectedModel?.supportsEffort == true {
+                    SettingsRow(title: "Effort", value: currentEffort.title, showsChevron: true) {
+                        withAnimation(DS.Motion.snappy) { page = .effort }
+                    }
+                }
+                SettingsRow(title: "Search engine", value: settings.searchEngine.label, showsChevron: true) {
+                    withAnimation(DS.Motion.snappy) { page = .search }
+                }
+            }
+            GroupedSection {
+                SettingsRow(systemImage: "slider.horizontal.3", title: "Manage connections", showsChevron: true, action: onOpenSettings)
+            }
         }
     }
 
-    // MARK: Effort
-
-    @ViewBuilder
-    private var effortMenu: some View {
-        #if os(macOS)
-        Picker(selection: Binding(get: { effort }, set: onSelectEffort)) {
-            ForEach(levels) { e in Text(e.title).tag(e) }
-        } label: { Text("Reasoning effort") }
-        .labelsHidden()
-        .pickerStyle(.menu)
-        .fixedSize()
-        #else
-        Menu {
-            EffortMenuItems(levels: levels, selected: effort, onSelect: onSelectEffort)
-        } label: { menuLabel(effort.title) }
-        .accessibilityLabel(Text("Reasoning effort"))
-        .accessibilityValue(Text(effort.title))
-        #endif
-    }
-
-    // MARK: Search engine
-
-    @ViewBuilder
-    private var searchMenu: some View {
-        @Bindable var settings = settings
-        #if os(macOS)
-        Picker(selection: $settings.searchEngine) {
-            ForEach(SearchEnginePreference.allCases) { Text($0.label).tag($0) }
-        } label: { Text("Search engine") }
-        .labelsHidden()
-        .pickerStyle(.menu)
-        .fixedSize()
-        #else
-        Menu {
-            ForEach(SearchEnginePreference.allCases) { engine in
-                Toggle(isOn: Binding(get: { settings.searchEngine == engine }, set: { _ in settings.searchEngine = engine })) {
-                    Text(engine.label)
-                    if engine == .auto { Text("Naver for Korean, Bing otherwise") }
+    private var effortPage: some View {
+        SheetScaffold(title: "Effort", leading: .back({ withAnimation(DS.Motion.snappy) { page = .root } })) {
+            GroupedSection(footer: "Higher effort lets the model think longer. It costs more time and tokens. Limits are the engine's thinking-token caps.") {
+                ForEach(selectedModel?.effortLevels ?? []) { e in
+                    SettingsRow(title: LocalizedStringKey(e.isRecommended ? String(localized: "\(e.title) (recommended)") : e.title),
+                                subtitle: e.hint, isChecked: e == currentEffort) {
+                        currentEffort = e
+                        onSelectEffort(e)
+                    }
                 }
             }
-        } label: { menuLabel(settings.searchEngine.label) }
-        .accessibilityLabel(Text("Search engine"))
-        .accessibilityValue(Text(settings.searchEngine.label))
-        #endif
+        }
+    }
+
+    private var searchPage: some View {
+        SheetScaffold(title: "Search engine", leading: .back({ withAnimation(DS.Motion.snappy) { page = .root } })) {
+            GroupedSection(footer: "Auto searches Naver for Korean queries and Bing otherwise. If the engine fails or finds nothing, the next one is tried.") {
+                ForEach(SearchEnginePreference.allCases) { engine in
+                    SettingsRow(title: LocalizedStringKey(engine.label), isChecked: engine == settings.searchEngine) {
+                        settings.searchEngine = engine
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -240,6 +153,47 @@ struct EffortMenuItems: View {
                 Text(e.isRecommended ? String(localized: "Recommended · \(e.hint)") : e.hint)
             }
         }
+    }
+}
+
+// MARK: - Model rename
+
+/// A model whose display name is being edited.
+struct ModelRenameTarget: Identifiable, Equatable {
+    var connectionID: UUID
+    var modelID: String
+    var id: String { "\(connectionID.uuidString)/\(modelID)" }
+}
+
+/// Asks for a model's display name. Saving blank text removes the alias.
+private struct ModelRenameAlert: ViewModifier {
+    @Environment(\.connectionStore) private var connections
+    @Binding var target: ModelRenameTarget?
+    @State private var text = ""
+
+    func body(content: Content) -> some View {
+        content
+            .alert("Rename model", isPresented: Binding(get: { target != nil }, set: { if !$0 { target = nil } }),
+                   presenting: target) { t in
+                TextField("Display name", text: $text, prompt: Text(verbatim: t.modelID))
+                Button("Save") {
+                    connections.setModelAlias(text, connectionID: t.connectionID, modelID: t.modelID)
+                    target = nil
+                }
+                Button("Cancel", role: .cancel) { target = nil }
+            } message: { t in
+                Text("Shown in place of \(t.modelID). Requests still use the real model id. Leave empty to use the id.")
+            }
+            .onChange(of: target) { _, t in
+                guard let t else { return }
+                text = connections.connection(t.connectionID)?.alias(forModel: t.modelID) ?? ""
+            }
+    }
+}
+
+extension View {
+    func modelRenameAlert(_ target: Binding<ModelRenameTarget?>) -> some View {
+        modifier(ModelRenameAlert(target: target))
     }
 }
 
