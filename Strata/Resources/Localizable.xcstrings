@@ -63,36 +63,9 @@
       }
     },
     "%lld read": {},
-    "This answer · %lld": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이번 답변 · %lld"
-          }
-        }
-      }
-    },
-    "Whole chat · %lld": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "대화 전체 · %lld"
-          }
-        }
-      }
-    },
-    "%lld read · %lld": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$lld개 읽음 · %2$lld개"
-          }
-        }
-      }
-    },
+    "This answer · %lld": {},
+    "Whole chat · %lld": {},
+    "%lld read · %lld": {},
     "%lld results": {
       "localizations": {
         "en": {
@@ -139,16 +112,7 @@
     },
     "%lld%% used": {},
     "%lldk characters": {},
-    "+ %lld more results": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "+ 나머지 %lld개"
-          }
-        }
-      }
-    },
+    "+ %lld more results": {},
     "+%lld more": {},
     "1 page": {},
     "1 result": {},
@@ -171,16 +135,7 @@
     "Add photo": {},
     "Add photos": {},
     "Answer body, serif": {},
-    "Answer now": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "지금 답하기"
-          }
-        }
-      }
-    },
+    "Answer now": {},
     "Answered early": {},
     "Answers": {},
     "Any OpenAI-compatible endpoint. API keys are stored in the Keychain.": {},
@@ -227,16 +182,7 @@
     "Context window": {},
     "Context: %lld%% used": {},
     "Context: no usage yet": {},
-    "Continue when the answer is empty": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "답이 비면 자동으로 이어서 답하기"
-          }
-        }
-      }
-    },
+    "Continue when the answer is empty": {},
     "Conversation details": {},
     "Copied": {},
     "Copy": {},
@@ -428,16 +374,7 @@
     "Read more": {},
     "Read more of": {},
     "Read more of %@": {},
-    "Read pages · %lld": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "페이지 읽기 · %lld"
-          }
-        }
-      }
-    },
+    "Read pages · %lld": {},
     "Reading": {},
     "Reasoning": {},
     "Reasoning tokens": {},
