@@ -47,7 +47,7 @@ struct ThinkingCard: View {
                 Text(seconds.map { String(localized: "Thought for \(ProcessSummary.duration($0))") } ?? String(localized: "Thinking"))
                     .font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
             }
-            Text(ReasoningSpaces.collapse(text))
+            Text(ReasoningSpaces.collapse(ReasoningDisplay.trimmed(text)))
                 .font(DS.Typography.uiSmall)
                 .dsLeading(.thinking)
                 .foregroundStyle(theme.textSecondary)

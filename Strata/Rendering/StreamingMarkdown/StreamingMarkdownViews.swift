@@ -537,6 +537,19 @@ private extension Substring {
 
 // MARK: - Reasoning
 
+/// Display-only cleanup of reasoning text: a paragraph that follows a tool call can start (or end) with stray newlines,
+/// which would show as an empty line under the "Thinking" header. Stored reasoning is never changed.
+enum ReasoningDisplay {
+    nonisolated static func trimmed(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Whether the text shows anything at all once trimmed.
+    nonisolated static func isVisible(_ text: String) -> Bool {
+        text.contains { !$0.isWhitespace }
+    }
+}
+
 /// Raw reasoning chain as plain text: finalized paragraphs are cached views; only the tail changes.
 struct ReasoningTextView: View {
     let model: ReasoningChunkModel
@@ -563,7 +576,7 @@ struct ReasoningChunkView: View, Equatable {
     @Environment(\.theme) private var theme
     let chunk: ReasoningChunkModel.Chunk
     var body: some View {
-        Text(chunk.text).font(DS.Typography.uiSmall).dsLeading(.thinking).foregroundStyle(theme.textSecondary)
+        Text(ReasoningDisplay.trimmed(chunk.text)).font(DS.Typography.uiSmall).dsLeading(.thinking).foregroundStyle(theme.textSecondary)
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -581,12 +594,13 @@ struct ReasoningTail: View {
 
     var body: some View {
         Group {
-            if !model.tail.isEmpty {
+            let shown = ReasoningDisplay.trimmed(model.tail)
+            if !shown.isEmpty {
                 if model.freshSpans.isEmpty || reduceMotion {
-                    text(AttributedString(model.tail))
+                    text(AttributedString(shown))
                 } else {
                     TimelineView(.animation) { context in
-                        text(InlineMarkdownText.faded(AttributedString(model.tail), spans: model.freshSpans,
+                        text(InlineMarkdownText.faded(AttributedString(shown), spans: model.freshSpans,
                                                       color: theme.textSecondary, now: context.date))
                     }
                 }

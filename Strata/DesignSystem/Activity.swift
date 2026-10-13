@@ -459,7 +459,8 @@ struct TimelineSheet: View {
             ScrollViewReader { proxy in
                 let groups = TimelineGroup.group(items)
                 let tailInLast: Bool = { if case .thinking? = groups.last { return true } else { return false } }()
-                if groups.isEmpty && reasoning.tail.isEmpty {
+                let visibleTail = ReasoningDisplay.isVisible(reasoning.tail)
+                if groups.isEmpty && !visibleTail {
                     Text("Waiting for the model to think…")
                         .font(DS.Typography.uiSmall).foregroundStyle(theme.textTertiary)
                 }
@@ -475,7 +476,7 @@ struct TimelineSheet: View {
                         }
                         .transition(.enter(reduceMotion: reduceMotion))
                     }
-                    if !tailInLast && !reasoning.tail.isEmpty {
+                    if !tailInLast && visibleTail {
                         ThinkingBlock(chunks: [], live: reasoning) { follow(proxy) }
                             .transition(.enter(reduceMotion: reduceMotion))
                     }

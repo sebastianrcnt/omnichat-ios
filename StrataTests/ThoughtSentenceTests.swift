@@ -145,3 +145,23 @@ struct ThoughtSlotTests {
         #expect(ReasoningLinePreview.opacity(hasThought: gate.displayed != nil, toolRunning: false) == 1)
     }
 }
+
+@MainActor
+struct ReasoningDisplayTests {
+    @Test func strayNewlinesAroundAParagraphAreNotShown() {
+        // A paragraph after a tool call can start with the newlines of the section break.
+        #expect(ReasoningDisplay.trimmed("\nNow read the page.") == "Now read the page.")
+        #expect(ReasoningDisplay.trimmed("\n\n  Compare them.\n") == "Compare them.")
+        #expect(ReasoningDisplay.trimmed("Inner\n\nlines stay.") == "Inner\n\nlines stay.")
+        #expect(!ReasoningDisplay.isVisible("\n"))
+        #expect(!ReasoningDisplay.isVisible("  \n "))
+        #expect(ReasoningDisplay.isVisible("\nx"))
+    }
+
+    @Test func storedReasoningIsUntouched() {
+        let model = ReasoningChunkModel(text: "First.\n\n\nSecond after a tool.", smoothing: false)
+        #expect(model.text == "First.\n\n\nSecond after a tool.")
+        #expect(model.tail.hasPrefix("\n"), "the model keeps the raw text; only the view trims it")
+        #expect(ReasoningDisplay.trimmed(model.tail) == "Second after a tool.")
+    }
+}
