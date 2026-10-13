@@ -471,10 +471,11 @@ final class ChatController {
         let plugins = endpoint.model.supportsTools ? PluginRegistry.bundled.promptSection(enabled: AppSettings.currentEnabledPlugins) : ""
         let system = ConversationDate.systemPrompt(base: endpoint.systemPrompt, day: conversation.systemDay, plugins: plugins)
         if let compacted = conversation.compactedHistory(path: path) {
-            return MessageAssembler.apiMessages(from: compacted.rest, systemPrompt: system, replacing: compacted.replacement)
+            return MessageAssembler.apiMessages(from: compacted.rest, systemPrompt: system, replacing: compacted.replacement,
+                                                readsImages: endpoint.model.supportsImages)
         }
         let history = path.filter { $0.role == .user || !$0.text.isEmpty || !$0.steps.isEmpty }.map(\.historyMessage)
-        return MessageAssembler.apiMessages(from: history, systemPrompt: system)
+        return MessageAssembler.apiMessages(from: history, systemPrompt: system, readsImages: endpoint.model.supportsImages)
     }
 
     /// The window, the room for an answer and the context size before this turn's own message.

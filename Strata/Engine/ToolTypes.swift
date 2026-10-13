@@ -191,7 +191,10 @@ struct HistoryMessage: Sendable, Equatable {
 enum MessageAssembler {
     /// Convert stored conversation messages to API messages, expanding tool steps.
     /// - Parameter replacing: messages that stand for the history before `history` (a compaction's replacement).
-    static func apiMessages(from history: [HistoryMessage], systemPrompt: String = "", replacing: [APIMessage] = []) -> [APIMessage] {
+    /// - Parameter readsImages: false for a model without image input (the chat switched to one after images were
+    ///   attached): each image becomes a fixed note, so the request isn't rejected and the model knows one was there.
+    static func apiMessages(from history: [HistoryMessage], systemPrompt: String = "", replacing: [APIMessage] = [],
+                            readsImages: Bool = true) -> [APIMessage] {
         var out: [APIMessage] = []
         let trimmedPrompt = systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedPrompt.isEmpty { out.append(.system(trimmedPrompt)) }
@@ -202,6 +205,9 @@ enum MessageAssembler {
                 let urls = m.imageDataURLs.isEmpty ? m.images.map { ContentPart.dataURLString(jpeg: $0) } : m.imageDataURLs
                 if urls.isEmpty {
                     out.append(.user(m.text))
+                } else if !readsImages {
+                    let notes = Array(repeating: omittedImageNote, count: urls.count).joined(separator: "\n")
+                    out.append(.user(m.text.isEmpty ? notes : notes + "\n\n" + m.text))
                 } else {
                     var parts: [ContentPart] = urls.map { ContentPart.imageURL($0) }
                     if !m.text.isEmpty { parts.append(.text(m.text)) }
@@ -220,6 +226,9 @@ enum MessageAssembler {
         }
         return out
     }
+
+    /// Stands for an image when the model can't read images. Fixed text, so the prefix stays the same between requests.
+    static let omittedImageNote = "[Image omitted: the current model can't read images.]"
 
     /// Append the assistant message carrying `tool_calls`, then one `tool` message per call.
     static func appendToolRound(to messages: inout [APIMessage], assistantContent: String,

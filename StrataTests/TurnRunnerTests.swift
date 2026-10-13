@@ -113,6 +113,19 @@ struct TurnRunnerTests {
         #expect(api[4] == .user("next"))
     }
 
+    @Test func aModelWithoutImageInputGetsANoteInPlaceOfEachImage() {
+        let jpeg = Data([1, 2, 3])
+        let history = [HistoryMessage(role: "user", text: "look", images: [jpeg, jpeg]),
+                       HistoryMessage(role: "user", text: "", images: [jpeg])]
+        let api = MessageAssembler.apiMessages(from: history, readsImages: false)
+        let note: String = MessageAssembler.omittedImageNote
+        let first: String = note + "\n" + note + "\n\nlook"
+        #expect(api.count == 2)
+        #expect(api[0] == .user(first))
+        #expect(api[1] == .user(note))
+        #expect(MessageAssembler.apiMessages(from: history)[0] == .user(parts: [.jpegDataURL(jpeg), .jpegDataURL(jpeg), .text("look")]))
+    }
+
     @Test func toolCallRecordPrimaryArgument() {
         let s = ToolCallRecord(id: "1", name: "web_search", arguments: "{\"query\":\"hello\"}", result: "", isError: false)
         let f = ToolCallRecord(id: "2", name: "web_fetch", arguments: "{\"url\":\"https://a.b\"}", result: "", isError: false)
