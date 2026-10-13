@@ -560,6 +560,16 @@ final class ChatController {
         }
     }
 
+    /// The Context sheet's split of `total` tokens by category, estimated from what the next request would send (the
+    /// same history and tools as a turn). Display only: nothing is sent or stored. Nil when the chat has no endpoint.
+    func contextSplit(conversation: Conversation, total: Int) -> [Int]? {
+        guard let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID)
+        else { return nil }
+        let messages = apiHistory(path: conversation.activePath, conversation: conversation, endpoint: endpoint)
+        return ContextEstimator.split(messages: messages, tools: endpoint.model.supportsTools ? ToolDefinition.standard : nil,
+                                      total: total)
+    }
+
     /// One throttled checkpoint write: the large half only when it changed, the small half always, together.
     private func persist(_ snapshot: CheckpointPersister.Snapshot, message: Message, conversation: Conversation, context: ModelContext) {
         if let data = snapshot.staticData { message.resumeData = data }

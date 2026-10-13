@@ -61,7 +61,7 @@ struct MacChatChrome<MenuContent: View>: ViewModifier {
     /// The title request is running: the title shimmers (`TitlingText`).
     let isTitling: Bool
     let contextFraction: Double?
-    @Binding var showUsage: Bool
+    @Binding var showContext: Bool
     @Binding var showAttach: Bool
     @Binding var showNoImageSupport: Bool
     let onPickImages: ([Data]) -> Void
@@ -86,7 +86,7 @@ struct MacChatChrome<MenuContent: View>: ViewModifier {
                 }
                 .sharedBackgroundVisibility(.hidden)
                 ToolbarItemGroup(placement: .primaryAction) {
-                    Button { showUsage = true } label: { ContextRing(fraction: contextFraction) }
+                    Button { showContext = true } label: { ContextRing(fraction: contextFraction) }
                         .help("Context usage")
                     Menu(content: menu) { Label("More", systemImage: "ellipsis") }
                         .menuIndicator(.hidden)

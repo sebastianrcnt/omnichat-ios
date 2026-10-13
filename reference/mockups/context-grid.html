@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Context Grid</title>
+<style>
+:root{--bg:#141414;--sheet:#1c1c1f;--card:#242428;--line:#303036;--text:#f2f2f4;--dim:#9b9ba3;--faint:#67676f;--accent:#e0499a;
+  --c-sys:#8e8e96;--c-tools:#6b8afd;--c-hist:#e0499a;--c-web:#34c3a0;--c-think:#f0a33a;--c-img:#b07cf7;--c-free:#2a2a2f;--warn:#f0a33a}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,system-ui,sans-serif;overflow-x:hidden;-webkit-tap-highlight-color:transparent}
+.wrap{max-width:430px;margin:0 auto;padding:18px 16px 60px}
+h1{font-size:19px;margin:4px 0}
+.sub{color:var(--dim);font-size:13px;line-height:1.55;margin-bottom:12px}
+.row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.row button{border:0;background:var(--card);color:var(--text);border-radius:15px;height:30px;padding:0 13px;font-size:13px}
+.row button.on{background:var(--text);color:var(--bg);font-weight:600}
+.sheet{background:var(--sheet);border-radius:22px;padding:14px 16px 16px;border:1px solid var(--line);min-width:0}
+.grab{width:36px;height:5px;border-radius:3px;background:#3a3a40;margin:0 auto 10px}
+.title{text-align:center;font-weight:600;font-size:16px;margin-bottom:12px}
+.big{font-size:30px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.big small{font-size:14px;color:var(--dim);font-weight:500;margin-left:4px}
+.meta{font-size:12.5px;color:var(--dim);margin:2px 0 12px;font-variant-numeric:tabular-nums}
+.grid{display:grid;grid-template-columns:repeat(20,1fr);gap:3px;position:relative}
+.cell{aspect-ratio:1;border-radius:3px;background:var(--c-free);transform:scale(.2);opacity:0;
+  transition:transform .42s cubic-bezier(.2,1.4,.4,1),opacity .3s ease,background-color .35s ease,filter .25s ease}
+.cell.in{transform:scale(1);opacity:1}
+.cell.warn{box-shadow:inset 0 0 0 1px rgba(240,163,58,.55)}
+.cell.dim{filter:saturate(.2) brightness(.45)}
+.cell.pulse{animation:pulse .9s ease-out}
+@keyframes pulse{0%{transform:scale(1.5);filter:brightness(1.8)}100%{transform:scale(1)}}
+.scale{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--faint);margin-top:8px}
+.scale b{color:var(--dim);font-weight:500}
+.mini{position:relative;height:4px;border-radius:2px;background:var(--c-free);margin-top:6px;overflow:hidden}
+.mini i{position:absolute;left:0;top:0;bottom:0;background:var(--dim);border-radius:2px;transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.mini .zoomed{background:rgba(255,255,255,.12)}
+.legend{margin-top:12px;display:flex;flex-direction:column;gap:0}
+.li{display:flex;align-items:center;gap:10px;font-size:14px;padding:7px 4px;border-radius:10px;cursor:pointer;transition:background .2s,opacity .2s}
+.li:active,.li.sel{background:var(--card)}
+.legend.focus .li:not(.sel){opacity:.45}
+.li .sw{width:10px;height:10px;border-radius:3px;flex:none}
+.li .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li .v{color:var(--dim);font-variant-numeric:tabular-nums;font-size:13px}
+.li .p{width:46px;text-align:right;color:var(--faint);font-variant-numeric:tabular-nums;font-size:12.5px}
+.btn{display:block;width:100%;margin-top:12px;height:44px;border-radius:22px;border:0;background:var(--card);color:var(--text);font-size:15px;font-weight:600}
+.note{font-size:12.5px;color:var(--dim);line-height:1.55;margin-top:14px}
+.note b{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Context grid (B, developed)</h1>
+  <div class="sub">200칸 격자. 창이 커도 비어 보이지 않게 <b>자동 배율</b>을 써요. 항목을 누르면 그 칸만 강조돼요.</div>
+  <div class="row" id="wins"></div>
+  <div class="row"><button id="replay">Replay</button><button id="turn">+ Simulate a turn</button><button id="reset">Reset</button></div>
+  <div class="sheet">
+    <div class="grab"></div><div class="title">Context</div>
+    <div class="big" id="big"></div>
+    <div class="meta" id="meta"></div>
+    <div class="grid" id="grid"></div>
+    <div class="scale"><span id="unit"></span><b id="zoomlbl"></b></div>
+    <div class="mini" id="mini"><i class="zoomed" id="mz"></i><i id="mu"></i></div>
+    <div class="legend" id="legend"></div>
+    <button class="btn">Summarize now</button>
+  </div>
+  <div class="note">
+    <b>자동 배율</b>: 사용량이 창의 25% 미만이면 격자가 창 전체가 아니라 "사용량의 약 2배 되는 깔끔한 크기"(64k, 128k, 256k…)를 보여줘요. 아래 얇은 막대가 실제 창에서 그 구간이 어디인지 알려줘요. 사용량이 커지면 배율이 바뀌면서 칸이 다시 채워지는 애니메이션이 나와요.<br><br>
+    <b>요약 지점</b>: 창 90%에 해당하는 칸부터 주황 테두리. 배율 구간 안에 들어올 때만 보여요.<br>
+    <b>순서</b>: 시간순 대신 종류별로 묶어서 채워요(시스템 → 도구 → 메시지 → 웹 → 생각 → 이미지).
+  </div>
+</div>
+<script>
+const CELLS = 200;
+const CATS = [
+  ["System prompt","--c-sys"],["Tool definitions","--c-tools"],["Messages","--c-hist"],
+  ["Web results & pages","--c-web"],["Reasoning kept","--c-think"],["Images","--c-img"]];
+const START = [2400,1900,18600,61200,4300,3100];
+let vals = START.slice(), win = 262144, focus = -1, shownScale = 0;
+const k = n => n>=1048576 ? (n/1048576).toFixed(n%1048576?1:0)+"M" : n>=1000 ? (n/1000).toFixed(n>=10000?0:1)+"k" : ""+n;
+// windows and zoom ranges are powers of two: 128k, 256k, 1M
+const kb = n => n>=1048576 ? (n/1048576)+"M" : (n/1024)+"k";
+const NICE = [32768,65536,131072,262144,524288,1048576,2097152];
+
+function scaleFor(used){
+  if (used >= win*0.25) return win;
+  const want = used*2;
+  return NICE.find(n => n >= want && n <= win) || win;
+}
+const grid = document.getElementById("grid");
+for (let i=0;i<CELLS;i++){ const c=document.createElement("i"); c.className="cell"; grid.appendChild(c); }
+const cells = [...grid.children];
+
+function layout(scale){
+  // whole cells per category, at least one when present; largest remainders fill the rest
+  const per = scale/CELLS, used = vals.reduce((a,b)=>a+b,0);
+  const exact = vals.map(v=>v/per);
+  let n = exact.map(x=>x>0?Math.max(1,Math.floor(x)):0);
+  let target = Math.min(CELLS, Math.round(used/per));
+  let rem = exact.map((x,i)=>[x-Math.floor(x),i]).sort((a,b)=>b[0]-a[0]);
+  let sum = n.reduce((a,b)=>a+b,0), j=0;
+  while (sum < target && j < rem.length*4){ const i=rem[j%rem.length][1]; if(vals[i]>0){n[i]++;sum++;} j++; }
+  const owner = []; n.forEach((m,i)=>{ for(let t=0;t<m;t++) owner.push(i); });
+  return owner.slice(0,CELLS);
+}
+
+function render({animate=true, pulseFrom=-1}={}){
+  const used = vals.reduce((a,b)=>a+b,0), scale = scaleFor(used), per = scale/CELLS;
+  const rescale = shownScale && shownScale !== scale;
+  const owner = layout(scale);
+  const warnFrom = Math.floor(win*0.9/per);
+  cells.forEach((c,i)=>{
+    const o = owner[i];
+    const apply = () => {
+      c.style.backgroundColor = o===undefined ? "" : `var(${CATS[o][1]})`;
+      c.classList.toggle("warn", o===undefined && i>=warnFrom);
+      c.classList.toggle("dim", focus>=0 && o!==focus);
+      c.classList.add("in");
+      if (pulseFrom>=0 && i>=pulseFrom && o!==undefined){ c.classList.remove("pulse"); void c.offsetWidth; c.classList.add("pulse"); }
+    };
+    if (animate && (rescale || !c.classList.contains("in"))){
+      c.classList.remove("in");
+      // a wave: filled cells first in order, free cells after, row by row
+      const d = (o===undefined ? 280 + (i%20)*6 + Math.floor(i/20)*10 : i*4);
+      setTimeout(apply, d + (rescale ? 120 : 0));
+    } else apply();
+  });
+  shownScale = scale;
+  document.getElementById("unit").textContent = `1 cell ≈ ${k(Math.round(per))} tokens`;
+  document.getElementById("zoomlbl").textContent = scale < win ? `Showing ${kb(scale)} of ${kb(win)}` : `Whole window`;
+  document.getElementById("mz").style.width = (scale/win*100)+"%";
+  document.getElementById("mu").style.width = Math.max(0.8, used/win*100)+"%";
+  countTo(document.getElementById("big"), used, n => `${k(n)}<small>/ ${kb(win)} tokens</small>`);
+  document.getElementById("meta").textContent = `${(used/win*100).toFixed(1)}% used · summarizes at ${k(Math.floor(win*0.9))}`;
+  document.getElementById("legend").className = "legend" + (focus>=0 ? " focus" : "");
+  document.getElementById("legend").innerHTML = CATS.map(([nm,c],i)=>`<div class="li${focus===i?" sel":""}" data-i="${i}"><span class="sw" style="background:var(${c})"></span><span class="nm">${nm}</span><span class="v">${k(vals[i])}</span><span class="p">${(vals[i]/win*100).toFixed(1)}%</span></div>`).join("")
+    + `<div class="li" style="cursor:default"><span class="sw" style="background:var(--c-free)"></span><span class="nm">Free</span><span class="v">${k(win-used)}</span><span class="p">${((win-used)/win*100).toFixed(1)}%</span></div>`;
+  document.querySelectorAll(".li[data-i]").forEach(el=>el.onclick=()=>{ const i=+el.dataset.i; focus = focus===i ? -1 : i; render({animate:false}); });
+}
+
+let counter;
+function countTo(el, to, fmt){
+  const from = +(el.dataset.n||0); el.dataset.n = to; cancelAnimationFrame(counter);
+  const t0 = performance.now();
+  const step = t => { const p = Math.min(1,(t-t0)/600), e = 1-Math.pow(1-p,3); el.innerHTML = fmt(Math.round(from+(to-from)*e)); if(p<1) counter=requestAnimationFrame(step); };
+  counter = requestAnimationFrame(step);
+}
+
+function replay(){ cells.forEach(c=>{c.classList.remove("in");c.style.backgroundColor="";}); shownScale=0; document.getElementById("big").dataset.n=0; render(); }
+document.getElementById("replay").onclick = replay;
+document.getElementById("reset").onclick = () => { vals = START.slice(); focus=-1; replay(); };
+document.getElementById("turn").onclick = () => {
+  const before = layout(scaleFor(vals.reduce((a,b)=>a+b,0))).length;
+  vals[2] += 1800; vals[3] += 22000; vals[4] += 1200;
+  render({pulseFrom: before});
+};
+const WINS = [131072,262144,1048576];
+document.getElementById("wins").innerHTML = WINS.map(w=>`<button data-w="${w}">${kb(w)} window</button>`).join("");
+document.querySelectorAll("#wins button").forEach(b=>b.onclick=()=>{ win=+b.dataset.w; mark(); render(); });
+const mark = () => document.querySelectorAll("#wins button").forEach(b=>b.classList.toggle("on",+b.dataset.w===win));
+if (location.search.includes("static")) document.head.insertAdjacentHTML("beforeend","<style>.cell{transition:none!important;animation:none!important}</style>");
+if (location.hash) win = +location.hash.slice(1) || win;
+mark(); render();
+</script>
+</body>
+</html>

@@ -89,6 +89,8 @@ enum DS {
         static let ui = pretendard(17, relativeTo: .body)
         static let uiEmphasis = pretendard(17, relativeTo: .body, weight: .medium)
         static let uiSmall = pretendard(15, relativeTo: .subheadline)
+        /// The Context sheet's total ("92k").
+        static let contextTotal = pretendard(30, relativeTo: .largeTitle, weight: .bold)
         /// Composer chip label (does not scale: the composer's row has a fixed height).
         static let chip = Font.custom(family, fixedSize: 15)
         static let uiCaption = pretendard(12, relativeTo: .caption)
@@ -301,6 +303,20 @@ struct DSTheme: Equatable {
     var pickFill: Color { accent.opacity(0.14) }
     /// Block quote card: about 4% white on dark, 4% black on light.
     var quoteFill: Color { Color(light: 0x000000, dark: 0xFFFFFF, lightAlpha: 0.04, darkAlpha: 0.04) }
+
+    // Context sheet (reference/mockups/context-grid.html): one color per category, messages in the accent.
+    func contextCategory(_ category: ContextCategory) -> Color {
+        switch category {
+        case .system: Color(light: 0x8E8E96, dark: 0x8E8E96)
+        case .tools: Color(light: 0x4F6EF7, dark: 0x6B8AFD)
+        case .messages: accent
+        case .web: Color(light: 0x1FA987, dark: 0x34C3A0)
+        case .reasoning: Color(light: 0xE08E1B, dark: 0xF0A33A)
+        case .images: Color(light: 0x9B5DF0, dark: 0xB07CF7)
+        }
+    }
+    /// A free cell in the context grid.
+    var contextFree: Color { Color(light: 0xE4E4E8, dark: 0x2A2A2F) }
 }
 
 private struct ThemeKey: EnvironmentKey { static let defaultValue = DSTheme() }

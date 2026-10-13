@@ -35,7 +35,7 @@ struct ChatView: View {
     @State private var showChatSettings = false
     /// The composer's height, so the floating "Answer now" capsule sits just above it.
     @State private var composerHeight: CGFloat = 0
-    @State private var showUsage = false
+    @State private var showContext = false
     @State private var showDetails = false
     #if DEBUG
     @State private var branchDebugDone = false
@@ -158,7 +158,7 @@ struct ChatView: View {
                 title: conversation?.displayTitle ?? String(localized: "New chat"),
                 isTitling: controller.isTitling(conversation?.id),
                 contextFraction: conversation?.lastUsage == nil ? nil : contextFraction,
-                showUsage: $showUsage, showAttach: $showAttach, showNoImageSupport: $showNoImageSupport,
+                showContext: $showContext, showAttach: $showAttach, showNoImageSupport: $showNoImageSupport,
                 onPickImages: addAttachments, onEnableImages: enableImagesForSelectedModel,
                 menu: { menuContent }))
             #endif
@@ -191,9 +191,10 @@ struct ChatView: View {
                         .environment(\.theme, theme)
                 }
             }
-            .sheet(isPresented: $showUsage) {
-                UsageSheet(conversation: conversation, contextLength: contextLength,
-                           connection: connections.connection(selection.connectionID))
+            .sheet(isPresented: $showContext) {
+                ContextSheet(conversation: conversation, window: contextLength, maxOutput: selectedModel?.maxOutputTokens,
+                             connection: connections.connection(selection.connectionID))
+                    .environment(\.theme, theme)
             }
             .sheet(item: $timeline) { request in
                 let message = request.message
@@ -247,7 +248,7 @@ struct ChatView: View {
             }
             .onChange(of: showAttach) { _, on in if on { composerFocused = false } }
             .onChange(of: showChatSettings) { _, on in if on { composerFocused = false } }
-            .onChange(of: showUsage) { _, on in if on { composerFocused = false } }
+            .onChange(of: showContext) { _, on in if on { composerFocused = false } }
             .onChange(of: composerFocused) { _, focused in
                 // Keep the latest message visible when the keyboard opens.
                 // A pinned question stays where it is when the keyboard opens.
@@ -294,7 +295,7 @@ struct ChatView: View {
                 Spacer(minLength: 0)
                 ContextRingButton(fraction: conversation?.lastUsage == nil ? nil : contextFraction) {
                     composerFocused = false
-                    showUsage = true
+                    showContext = true
                 }
                 GlassIconMenu(systemName: "ellipsis", label: "More") { menuContent }
             }
@@ -657,7 +658,7 @@ struct ChatView: View {
             }
             return
         }
-        guard let sheet = DebugHooks.openSheet, sheet.hasPrefix("timeline") || ["usage", "rename", "details", "compaction", "summarize", "translate"].contains(sheet) else { return }
+        guard let sheet = DebugHooks.openSheet, sheet.hasPrefix("timeline") || ["usage", "context", "rename", "details", "compaction", "summarize", "translate"].contains(sheet) else { return }
         if sheet == "translate" { // translates the first answer once it is in
             if controller.activeMessageID == nil, !branchDebugDone, let m = conversation?.leafMessage, m.role == .assistant {
                 branchDebugDone = true
@@ -687,8 +688,8 @@ struct ChatView: View {
             if controller.activeMessageID == nil, conversation != nil { showDetails = true }
             return
         }
-        if sheet == "usage" {
-            if controller.activeMessageID == nil, conversation?.messages.contains(where: { $0.role == .assistant }) == true { showUsage = true }
+        if sheet == "usage" || sheet == "context" {
+            if controller.activeMessageID == nil, conversation?.messages.contains(where: { $0.role == .assistant }) == true { showContext = true }
             return
         }
         if sheet == "timelinelive" {
@@ -724,7 +725,7 @@ struct ChatView: View {
         #if DEBUG
         func openRequestedSheet() {
             switch DebugHooks.openSheet {
-            case "usage" where conversation != nil: showUsage = true
+            case "usage" where conversation != nil: showContext = true
             case "model", "chatsettings": showChatSettings = true
             case "settings", "diagnostics", "licenses", "connection": onOpenSettings()
             case "attach": showAttach = true
