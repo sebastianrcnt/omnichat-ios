@@ -66,7 +66,7 @@ enum ReadabilitySource {
 /// It stays attached to the key window at near-zero alpha so WebKit does not throttle it. (On a Mac it lives in a
 /// borderless, fully transparent window parked far outside every screen.)
 @MainActor
-final class HiddenWebView: NSObject, WKNavigationDelegate, FetchablePage {
+final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage {
     static let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
 
     let webView: WKWebView
@@ -200,6 +200,26 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, FetchablePage {
                 throw WebToolError.script(error.localizedDescription)
             }
         }
+    }
+
+    /// Runs a function body that may `await` (a plugin's promise) and returns its string result, like `evaluate`.
+    func callAsync(_ body: String, timeout: Duration) async throws -> String {
+        try await Deadline.run(timeout, timeoutError: WebToolError.timeout, onAbort: { [weak self] in self?.webView.stopLoading() }) { [webView] in
+            do {
+                let value = try await webView.callAsyncJavaScript(body, contentWorld: .page)
+                return (value as? String) ?? ""
+            } catch {
+                throw WebToolError.script(error.localizedDescription)
+            }
+        }
+    }
+
+    /// Ends a pending `load` with `CancellationError` but leaves the page loading: a plugin runs on a page that is
+    /// ready to read though it has not finished (and may never).
+    func abandonLoad() {
+        guard let cont = continuation else { return }
+        continuation = nil
+        cont.resume(throwing: CancellationError())
     }
 
     func evaluateString(_ js: String) async throws -> String {

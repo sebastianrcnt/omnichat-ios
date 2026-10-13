@@ -20,7 +20,7 @@ struct SourceInfo: Codable, Hashable, Identifiable, Sendable {
 enum SourceUsage {
     static func ids(calls: [ToolCallRecord], text: String, known: Set<Int>) -> [Int] {
         var ids: [Int] = []
-        for id in calls.filter({ $0.name == ToolNames.webFetch }).flatMap(\.sourceIDs) where !ids.contains(id) { ids.append(id) }
+        for id in calls.filter({ ToolNames.readsPage($0.name) }).flatMap(\.sourceIDs) where !ids.contains(id) { ids.append(id) }
         for id in CitationParser.citedIDs(in: text, known: known) where !ids.contains(id) { ids.append(id) }
         return ids
     }

@@ -166,10 +166,10 @@ enum ConversationDate {
         return "Current date: \(day) (\(names[utc.component(.weekday, from: date) - 1]))."
     }
 
-    /// The conversation's system message: the user's prompt (if any) and the frozen date line.
-    static func systemPrompt(base: String, day: String) -> String {
-        let trimmed = base.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? line(day: day) : trimmed + "\n\n" + line(day: day)
+    /// The conversation's system message: the user's prompt (if any), the enabled plugins (if any) and the frozen date line.
+    static func systemPrompt(base: String, day: String, plugins: String = "") -> String {
+        let parts = [base.trimmingCharacters(in: .whitespacesAndNewlines), plugins, line(day: day)]
+        return parts.filter { !$0.isEmpty }.joined(separator: "\n\n")
     }
 }
 

@@ -84,6 +84,21 @@ struct SettingsView: View {
                         .padding(.vertical, DS.Spacing.sm)
                     }
 
+                    GroupedSection(header: "Plugins", footer: "Site plugins the model can run with run_plugin. A plugin that is on is listed in the system prompt.") {
+                        if PluginRegistry.bundled.plugins.isEmpty {
+                            SettingsRow(title: "No plugins")
+                        }
+                        ForEach(PluginRegistry.bundled.plugins) { plugin in
+                            // Interpolated, so names and descriptions show as written (no Markdown).
+                            SettingsToggleRow(title: "\(plugin.name)", subtitle: "\(plugin.manifest.description)",
+                                              isOn: Binding(
+                                                get: { settings.enabledPlugins.contains(plugin.name) },
+                                                set: { on in
+                                                    if on { settings.enabledPlugins.insert(plugin.name) } else { settings.enabledPlugins.remove(plugin.name) }
+                                                }))
+                        }
+                    }
+
                     GroupedSection(header: "Answers", footer: "If the model searches and then stops without writing anything, it is asked once more for the answer.") {
                         SettingsToggleRow(title: "Continue when the answer is empty", isOn: $settings.continueOnEmptyAnswer)
                         SettingsToggleRow(title: "Generate chat titles",

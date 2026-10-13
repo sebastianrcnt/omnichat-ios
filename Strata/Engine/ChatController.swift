@@ -9,6 +9,8 @@ struct PendingToolCall: Identifiable, Equatable {
     var primaryArgument: String
     /// `web_fetch` offset; above zero it is a continuation of an earlier read.
     var offset: Int = 0
+    /// The plugin a `run_plugin` call runs.
+    var plugin: String?
 }
 
 /// Drives generation for the app: persists messages, runs the turn, publishes live state for the UI.
@@ -437,7 +439,8 @@ final class ChatController {
         case .toolsRequested(let calls):
             tracker.finishThinking()
             tracker.beginTools(calls)
-            pendingCalls = calls.map { PendingToolCall(id: $0.id, name: $0.name, primaryArgument: ToolCallRecord(id: $0.id, name: $0.name, arguments: $0.arguments, result: "", isError: false).primaryArgument, offset: ToolCallRecord.fetchOffset(in: $0.arguments)) }
+            pendingCalls = calls.map { PendingToolCall(id: $0.id, name: $0.name, primaryArgument: ToolCallRecord(id: $0.id, name: $0.name, arguments: $0.arguments, result: "", isError: false).primaryArgument, offset: ToolCallRecord.fetchOffset(in: $0.arguments),
+                                                    plugin: $0.name == ToolNames.runPlugin ? PluginCall.name(in: $0.arguments) : nil) }
             roundRequested = pendingCalls
             if let first = pendingCalls.first { phase = .tool(name: first.name, argument: first.primaryArgument) }
         case .toolFinished(let record):
@@ -465,7 +468,8 @@ final class ChatController {
 
     /// The messages to send for `path`: the conversation's latest compaction on it, then what follows its anchor.
     private func apiHistory(path: [Message], conversation: Conversation, endpoint: Endpoint) -> [APIMessage] {
-        let system = ConversationDate.systemPrompt(base: endpoint.systemPrompt, day: conversation.systemDay)
+        let plugins = endpoint.model.supportsTools ? PluginRegistry.bundled.promptSection(enabled: AppSettings.currentEnabledPlugins) : ""
+        let system = ConversationDate.systemPrompt(base: endpoint.systemPrompt, day: conversation.systemDay, plugins: plugins)
         if let compacted = conversation.compactedHistory(path: path) {
             return MessageAssembler.apiMessages(from: compacted.rest, systemPrompt: system, replacing: compacted.replacement)
         }

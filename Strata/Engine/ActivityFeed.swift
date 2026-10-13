@@ -74,6 +74,8 @@ struct FeedCall: Equatable, Sendable {
     var thin = false
     /// Why a failed call failed, from its result text.
     var failure: FetchFailure?
+    /// The plugin a `run_plugin` call ran (its row is the plugin's page, titled with the plugin's name).
+    var plugin: String?
 
     init(id: String, isSearch: Bool, argument: String, status: Status, sourceIDs: [Int] = [], engine: String? = nil, thin: Bool = false) {
         self.id = id
@@ -91,10 +93,12 @@ struct FeedCall: Equatable, Sendable {
                   engine: record.name == ToolNames.webSearch ? record.searchEngine : nil,
                   thin: record.name == ToolNames.webFetch && record.isThinPage)
         if record.isError { failure = FetchFailure(errorText: record.result) }
+        if record.name == ToolNames.runPlugin { plugin = PluginCall.name(in: record.arguments) }
     }
 
     init(pending: PendingToolCall) {
         self.init(id: pending.id, isSearch: pending.name == ToolNames.webSearch, argument: pending.primaryArgument, status: .running)
+        plugin = pending.plugin
     }
 
     /// Finished rounds, then the running round in request order (a finished call keeps its place); each id once.
@@ -277,7 +281,9 @@ enum ActivityFeed {
         }
         let url = page?.url ?? call.argument
         let host = SourceInfo(id: 0, title: "", url: url, snippet: "").host
-        let row = FeedRow(id: keys[0], title: page.map { $0.title.isEmpty ? $0.host : $0.title } ?? host, host: host, url: url,
+        var title = page.map { $0.title.isEmpty ? $0.host : $0.title } ?? host
+        if let plugin = call.plugin, !plugin.isEmpty { title = page.map { $0.title.isEmpty || $0.title == plugin ? plugin : plugin + " · " + $0.title } ?? plugin }
+        let row = FeedRow(id: keys[0], title: title, host: host, url: url,
                           read: state, readOrder: order, failure: state == .failed ? call.failure : nil)
         if !continuingRun || cards.last?.kind != .pages { cards.append(FeedCard(id: "pages-" + call.id, kind: .pages)) }
         cards[cards.count - 1].extras.append(row)

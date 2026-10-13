@@ -83,13 +83,14 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
         thinPage = try c.decodeIfPresent(Bool.self, forKey: .thinPage)
     }
 
-    /// Human-readable argument (the query or URL).
+    /// Human-readable argument (the query or URL; for a plugin, the page it opens).
     var primaryArgument: String {
         guard let data = arguments.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return arguments }
         switch name {
         case "web_search": return (obj["query"] as? String) ?? arguments
         case "web_fetch": return (obj["url"] as? String) ?? arguments
+        case "run_plugin": return PluginCall.pageURL(in: arguments) ?? (obj["name"] as? String) ?? arguments
         default: return arguments
         }
     }
@@ -171,6 +172,10 @@ struct ToolStep: Codable, Hashable, Sendable {
 enum ToolNames {
     static let webSearch = "web_search"
     static let webFetch = "web_fetch"
+    static let runPlugin = "run_plugin"
+
+    /// Tools that read a page (and count as one in the summaries).
+    static func readsPage(_ name: String) -> Bool { name == webFetch || name == runPlugin }
 }
 
 /// Plain-value message used to build API history without touching SwiftData.

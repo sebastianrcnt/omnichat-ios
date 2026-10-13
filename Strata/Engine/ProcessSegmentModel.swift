@@ -21,7 +21,7 @@ struct ProcessSegment: Codable, Hashable, Identifiable, Sendable {
         let searches = calls.filter { $0.name == ToolNames.webSearch }
         var sites = Set<Int>()
         for call in searches { sites.formUnion(call.sourceIDs) }
-        let pages = calls.filter { $0.name == ToolNames.webFetch && $0.fetchOffset == 0 }.count
+        let pages = calls.filter { ToolNames.readsPage($0.name) && $0.fetchOffset == 0 }.count
         let continued = calls.contains { $0.name == ToolNames.webFetch && $0.fetchOffset > 0 }
         var parts: [String] = []
         if !searches.isEmpty {

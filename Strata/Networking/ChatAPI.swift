@@ -149,7 +149,7 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
     var type = "function"
     var function: Function
 
-    /// The two fixed tools. Never change these casually: they are part of the cached prefix.
+    /// The fixed tools. Never change these casually: they are part of the cached prefix.
     static let webSearch = ToolDefinition(function: .init(
         name: "web_search",
         description: "Search the web and return the top results (title, URL, snippet). Use for current events, facts you are unsure about, or to find pages to read.",
@@ -165,7 +165,16 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
                                        "offset": .init(type: "integer", description: "Character offset into the page text to start from. Defaults to 0.")],
                           required: ["url"])))
 
-    static let standard: [ToolDefinition] = [webSearch, webFetch]
+    /// Runs one of the site plugins the system prompt lists. Which plugins exist is never part of this definition, so
+    /// adding or turning on a plugin leaves the tools (and the cached prefix up to the system prompt) unchanged.
+    static let runPlugin = ToolDefinition(function: .init(
+        name: "run_plugin",
+        description: "Run a site plugin: a small script that opens a page on one specific site and returns structured data from it. Only plugins listed in the system prompt exist; when none are listed, do not call this tool.",
+        parameters: .init(properties: ["name": .init(description: "The plugin name, exactly as listed."),
+                                       "args": .init(description: "The plugin's arguments as a JSON object string, for example {\"key\": \"value\"}. Omit when the plugin takes none.")],
+                          required: ["name"])))
+
+    static let standard: [ToolDefinition] = [webSearch, webFetch, runPlugin]
 }
 
 /// Token usage from the final streamed chunk.

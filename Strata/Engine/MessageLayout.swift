@@ -52,7 +52,7 @@ struct ProcessSummary: Equatable {
         else { seconds = thinking.isEmpty ? nil : fallbackSeconds }
         let calls = segments.flatMap(\.calls)
         searches = calls.filter { $0.name == ToolNames.webSearch }.count
-        pages = calls.filter { $0.name == ToolNames.webFetch && $0.fetchOffset == 0 }.count
+        pages = calls.filter { ToolNames.readsPage($0.name) && $0.fetchOffset == 0 }.count
     }
 
     /// "4s", "1m 22s".

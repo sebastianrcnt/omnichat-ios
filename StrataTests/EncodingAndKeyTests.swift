@@ -49,13 +49,13 @@ struct EncodingTests {
         #expect(obj["stream"] as? Bool == true)
         #expect((obj["stream_options"] as? [String: Any])?["include_usage"] as? Bool == true)
         #expect(obj["reasoning_effort"] as? String == "high")
-        #expect((obj["tools"] as? [[String: Any]])?.count == 2)
+        #expect((obj["tools"] as? [[String: Any]])?.count == 3)
         #expect(obj["tool_choice"] == nil)
     }
 
     @Test func toolDefinitionsAreByteStable() throws {
         let a = try ChatRequest.encoder.encode(ToolDefinition.standard)
-        let b = try ChatRequest.encoder.encode([ToolDefinition.webSearch, ToolDefinition.webFetch])
+        let b = try ChatRequest.encoder.encode([ToolDefinition.webSearch, ToolDefinition.webFetch, ToolDefinition.runPlugin])
         #expect(a == b)
         let text = String(decoding: a, as: UTF8.self)
         #expect(text.hasPrefix("[{\"function\":{\"description\":"))

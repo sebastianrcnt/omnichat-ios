@@ -1,0 +1,13 @@
+{
+  "name": "wikipedia_summary",
+  "description": "A Wikipedia article's title, lead paragraphs and infobox rows.",
+  "args": [
+    { "name": "title", "description": "The article title, for example Alan Turing", "required": true },
+    { "name": "lang", "description": "The Wikipedia language code, for example en or ko", "default": "en" },
+    { "name": "paragraphs", "description": "How many lead paragraphs to return, 1 to 10", "default": "3" }
+  ],
+  "url": "https://{lang}.wikipedia.org/wiki/{title}",
+  "hosts": ["wikipedia.org"],
+  "settle": 0,
+  "waitFor": "#mw-content-text"
+}

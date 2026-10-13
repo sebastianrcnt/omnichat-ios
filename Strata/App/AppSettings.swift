@@ -78,6 +78,12 @@ final class AppSettings {
         UserDefaults.standard.string(forKey: "searchEngine").flatMap(SearchEnginePreference.init(rawValue:)) ?? .auto
     }
 
+    /// The plugins turned on in Settings. Read by the plugin tool and the system prompt off the main actor.
+    nonisolated static var currentEnabledPlugins: Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: enabledPluginsKey) ?? [])
+    }
+    nonisolated static let enabledPluginsKey = "enabledPlugins"
+
     private let defaults: UserDefaults
 
     var accentHex: String { didSet { defaults.set(accentHex, forKey: "accentHex") } }
@@ -100,6 +106,8 @@ final class AppSettings {
     /// 0...6, xSmall ... xxxLarge; 3 is the default size.
     var textSizeStep: Int { didSet { defaults.set(textSizeStep, forKey: "textSizeStep") } }
     var lastEffortRaw: String { didSet { defaults.set(lastEffortRaw, forKey: "lastEffort") } }
+    /// Site plugins the model may run (all off until turned on).
+    var enabledPlugins: Set<String> { didSet { defaults.set(enabledPlugins.sorted(), forKey: Self.enabledPluginsKey) } }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -117,6 +125,7 @@ final class AppSettings {
         generateTitles = defaults.object(forKey: "generateTitles") == nil ? true : defaults.bool(forKey: "generateTitles")
         developerMode = defaults.bool(forKey: "developerMode")
         lastEffortRaw = defaults.string(forKey: "lastEffort") ?? Effort.default.rawValue
+        enabledPlugins = Set(defaults.stringArray(forKey: Self.enabledPluginsKey) ?? [])
         // `bool` and `integer` also read launch-argument strings ("NO", "0"), which `as? Bool` would not.
         useSystemTextSize = defaults.object(forKey: "useSystemTextSize") == nil ? true : defaults.bool(forKey: "useSystemTextSize")
         textSizeStep = defaults.object(forKey: "textSizeStep") == nil

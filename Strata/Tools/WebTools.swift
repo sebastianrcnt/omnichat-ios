@@ -355,6 +355,9 @@ struct WebFetchTool {
 
 /// Dispatches model tool calls to the on-device tools.
 struct ToolRouter: ToolExecuting {
+    /// Runs a plugin by name with its args (a JSON object string, "" for none). Test seam; `nil` uses `RunPluginTool`.
+    var pluginRunner: (@Sendable (_ name: String, _ args: String) async -> ToolOutput)?
+
     var usesWebKit: Bool { true }
     func execute(name: String, arguments: String) async -> ToolOutput {
         let args = (arguments.data(using: .utf8).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }) ?? [:]
@@ -374,8 +377,25 @@ struct ToolRouter: ToolExecuting {
             }
             let offset = (args["offset"] as? Int) ?? (args["offset"] as? Double).map(Int.init) ?? Int((args["offset"] as? String) ?? "") ?? 0
             return await WebFetchTool().run(urlString: url, offset: offset)
+        case ToolNames.runPlugin:
+            guard let plugin = args["name"] as? String else {
+                return ToolOutput(text: "Error: missing required argument \"name\".", isError: true)
+            }
+            let pluginArgs = Self.pluginArguments(args["args"])
+            if let pluginRunner { return await pluginRunner(plugin, pluginArgs) }
+            return await RunPluginTool().run(name: plugin, arguments: pluginArgs)
         default:
             return ToolOutput(text: "Error: unknown tool \"\(name)\".", isError: true)
+        }
+    }
+
+    /// The `args` of a `run_plugin` call as a string: models send the JSON object string the schema asks for, or
+    /// sometimes the object itself.
+    static func pluginArguments(_ value: Any?) -> String {
+        switch value {
+        case let s as String: return s
+        case let obj as [String: Any]: return PluginManifest.json(obj)
+        default: return ""
         }
     }
 }
