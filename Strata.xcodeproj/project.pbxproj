@@ -103,6 +103,7 @@
 		565A64B4B05089F325EC7696 /* Messages.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20AFA546F5B8911AF644FF5 /* Messages.swift */; };
 		570A24C7325542D3CD52BE71 /* RequestInspection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 039C4D95DE3E932F7D0EB67D /* RequestInspection.swift */; };
 		5979247FCDF49AC20D6C3472 /* FetchPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 694AA33940881B512682FD28 /* FetchPipeline.swift */; };
+		599BD0A34E25235EB6688000 /* StreamPacingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A2D7C1E0284AFFF48149B8A /* StreamPacingTests.swift */; };
 		5A9F3049B5A68B7F3C3D46B0 /* Pretendard-Medium.otf in Resources */ = {isa = PBXBuildFile; fileRef = 4AD9287753DFCCE312939C73 /* Pretendard-Medium.otf */; };
 		5B97326687D39CF393E05AF1 /* ImageProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E08F0D934A25CA44E443328 /* ImageProcessor.swift */; };
 		5D87B925992AC9EBB7A96C02 /* DebugBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF02DB6A733BBE52D18499D5 /* DebugBundle.swift */; };
@@ -317,6 +318,7 @@
 		28192AEFEA602E26941A9F24 /* DiagnosticsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsViews.swift; sourceTree = "<group>"; };
 		2899D197DC24DD35D3ED8CEE /* TranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationService.swift; sourceTree = "<group>"; };
 		2903D95098EA1DA463B52EBC /* CheckpointPersisterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckpointPersisterTests.swift; sourceTree = "<group>"; };
+		2A2D7C1E0284AFFF48149B8A /* StreamPacingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamPacingTests.swift; sourceTree = "<group>"; };
 		2A73ADE2586D58C97EEF31AB /* RequestRing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestRing.swift; sourceTree = "<group>"; };
 		2FCFE1A61E07F2EE5636D7C1 /* Pretendard-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Pretendard-OFL.txt"; sourceTree = "<group>"; };
 		319409447FC087642A7844D5 /* ChipText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChipText.swift; sourceTree = "<group>"; };
@@ -538,6 +540,7 @@
 				886C8F6D9B0406EB7F52AB97 /* SSEAndStreamTests.swift */,
 				23D74F0D9535BDC2282EFC76 /* StreamingMarkdownTests.swift */,
 				6B27DE42F1884B7DB8E59F70 /* StreamingPerfTests.swift */,
+				2A2D7C1E0284AFFF48149B8A /* StreamPacingTests.swift */,
 				26570D51DE24CF846438D804 /* SyntaxHighlightTests.swift */,
 				1B13CAD466BE4E5D1157F58C /* TextSizeTests.swift */,
 				51F73404257AB826A0402DBF /* ThoughtSentenceTests.swift */,
@@ -1020,6 +1023,7 @@
 				6F0815E31AE206A439DA29D4 /* QuoteCitationTests.swift in Sources */,
 				BE08AB7DE04F0AA49A4F084A /* ResumeTests.swift in Sources */,
 				A27748A1CA53762E03335950 /* SSEAndStreamTests.swift in Sources */,
+				599BD0A34E25235EB6688000 /* StreamPacingTests.swift in Sources */,
 				A9CC45A9AA351A2C398F1EEA /* StreamingMarkdownTests.swift in Sources */,
 				91D1D4AD2ED4052F6BA9AC0C /* StreamingPerfTests.swift in Sources */,
 				1EA9B96960F5F2EC3798DB4B /* SyntaxHighlightTests.swift in Sources */,

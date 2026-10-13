@@ -54,3 +54,18 @@ enum ModelPickerCatalog {
         }
     }
 }
+
+/// Identity of the chat view. A new chat creates its conversation on the first send; the view stays (so the question
+/// it just sent stays pinned) instead of being rebuilt the way it is for any other change of conversation.
+struct ChatViewKey: Equatable {
+    private(set) var id = UUID()
+
+    /// Keeps the view when `new` is the conversation the empty chat just started answering; otherwise a fresh view.
+    static func keepsView(old: UUID?, new: UUID?, active: UUID?) -> Bool {
+        old == nil && new != nil && new == active
+    }
+
+    mutating func update(old: UUID?, new: UUID?, active: UUID?) {
+        if !Self.keepsView(old: old, new: new, active: active) { id = UUID() }
+    }
+}

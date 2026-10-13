@@ -20,7 +20,8 @@ final class StreamingMarkdownModel {
 
     /// Everything received so far (not necessarily revealed yet).
     @ObservationIgnored private(set) var text = ""
-    @ObservationIgnored private var reveal = RevealController()
+    /// Answers are paced evenly (`RevealPacing`); reasoning keeps the proportional reveal.
+    @ObservationIgnored private var reveal = RevealController(pacing: RevealPacing())
     @ObservationIgnored private var tickScheduled = false
     @ObservationIgnored private let activation = ActivationFlush()
     /// Whether anyone can see the screen; replaced in tests.
@@ -33,6 +34,18 @@ final class StreamingMarkdownModel {
     struct FreshSpan: Equatable, Sendable {
         var length: Int
         var born: Date
+        /// How long the span takes to fade in, and whether it eases out (answers) or ramps linearly (reasoning).
+        var duration: TimeInterval = StreamingMarkdownModel.fadeDuration
+        var easeOut = false
+
+        func isFading(at now: Date) -> Bool { now.timeIntervalSince(born) <= duration }
+
+        /// Opacity at `now`, from a faint start to 1.
+        func alpha(at now: Date) -> Double {
+            let t = min(1, max(0, now.timeIntervalSince(born) / max(duration, 0.001)))
+            let eased = easeOut ? 1 - (1 - t) * (1 - t) * (1 - t) : t
+            return max(0.05, eased)
+        }
     }
 
     init(text: String = "", smoothing: Bool = true) {
@@ -78,7 +91,7 @@ final class StreamingMarkdownModel {
     /// Drop everything (a new tool round starts a fresh answer).
     func reset() {
         text = ""
-        reveal = RevealController()
+        reveal = RevealController(pacing: RevealPacing())
         pipeline?.send(.reset)
         finalized = []
         tail = []
@@ -89,7 +102,7 @@ final class StreamingMarkdownModel {
     /// Replace the document synchronously (finished messages loaded from history).
     func load(_ newText: String) {
         pipeline = nil
-        reveal = RevealController()
+        reveal = RevealController(pacing: RevealPacing())
         text = newText
         finalized = IncrementalBlockParser.parse(newText)
         tail = []
@@ -118,17 +131,20 @@ final class StreamingMarkdownModel {
         let delta = smoothing ? reveal.tick(dt: dt) : reveal.flushAll()
         if !delta.isEmpty { publish(delta, fresh: smoothing) }
         let now = Date()
-        if !freshSpans.isEmpty, freshSpans.allSatisfy({ now.timeIntervalSince($0.born) > Self.fadeDuration }) { freshSpans = [] }
+        if !freshSpans.isEmpty, !freshSpans.contains(where: { $0.isFading(at: now) }) { freshSpans = [] }
         if reveal.hasBacklog || !freshSpans.isEmpty { scheduleTick() }
     }
 
-    static let fadeDuration: TimeInterval = 0.15
+    /// Reasoning's fade-in (linear).
+    nonisolated static let fadeDuration: TimeInterval = 0.15
+    /// A live answer's fade-in: longer, easing out, so evenly paced words settle in softly.
+    nonisolated static let answerFadeDuration: TimeInterval = 0.45
 
     private func publish(_ delta: String, fresh: Bool) {
         if fresh {
             let now = Date()
-            freshSpans = freshSpans.filter { now.timeIntervalSince($0.born) <= Self.fadeDuration }
-            freshSpans.append(FreshSpan(length: delta.count, born: now))
+            freshSpans = freshSpans.filter { $0.isFading(at: now) }
+            freshSpans.append(FreshSpan(length: delta.count, born: now, duration: Self.answerFadeDuration, easeOut: true))
         }
         if pipeline == nil {
             // Everything received before this delta, by byte count (Character counts drift across chunk boundaries).
@@ -291,12 +307,12 @@ final class ReasoningChunkModel {
             consume(delta)
             if smoothing {
                 let now = Date()
-                freshSpans = freshSpans.filter { now.timeIntervalSince($0.born) <= StreamingMarkdownModel.fadeDuration }
+                freshSpans = freshSpans.filter { $0.isFading(at: now) }
                 freshSpans.append(.init(length: delta.count, born: now))
             }
         }
         let now = Date()
-        if !freshSpans.isEmpty, freshSpans.allSatisfy({ now.timeIntervalSince($0.born) > StreamingMarkdownModel.fadeDuration }) { freshSpans = [] }
+        if !freshSpans.isEmpty, !freshSpans.contains(where: { $0.isFading(at: now) }) { freshSpans = [] }
         if reveal.hasBacklog || !freshSpans.isEmpty { scheduleTick() }
     }
 

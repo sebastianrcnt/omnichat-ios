@@ -557,7 +557,8 @@ struct InlineMarkdownText: View {
         if spans.isEmpty {
             styled(attributed)
         } else {
-            let allFaded = spans.allSatisfy { Date().timeIntervalSince($0.born) > StreamingMarkdownModel.fadeDuration }
+            let now = Date()
+            let allFaded = !spans.contains { $0.isFading(at: now) }
             TimelineView(.animation(paused: allFaded)) { context in
                 styled(Self.faded(attributed, spans: spans, color: color, now: context.date), selectable: false)
             }
@@ -590,9 +591,8 @@ struct InlineMarkdownText: View {
         var ramps: [(covered: Int, alpha: Double)] = []
         for span in spans.reversed() {
             covered = min(total, covered + span.length)
-            let age = now.timeIntervalSince(span.born)
-            if age < StreamingMarkdownModel.fadeDuration, covered > 0 {
-                ramps.append((covered, max(0.05, age / StreamingMarkdownModel.fadeDuration)))
+            if span.isFading(at: now), covered > 0 {
+                ramps.append((covered, span.alpha(at: now)))
             }
         }
         // Oldest (largest) range first, so newer spans override with their own opacity.

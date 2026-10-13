@@ -6,8 +6,10 @@ import SwiftData
 struct MacRootView: View {
     @Environment(\.theme) private var theme
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.chatController) private var controller
 
     @State private var selected: Conversation?
+    @State private var chatKey = ChatViewKey()
     @State private var columns = NavigationSplitViewVisibility.all
     @State private var focusToken = 0
     @State private var findToken = 0
@@ -25,10 +27,11 @@ struct MacRootView: View {
         } detail: {
             ChatView(conversation: $selected, onOpenSidebar: {}, onOpenSettings: { openSettings() },
                      onNewChat: newChat, focusToken: focusToken)
-                .id(selected?.id)
+                .id(chatKey.id)
                 .background(theme.background)
         }
         .frame(minWidth: 760, minHeight: 520)
+        .onChange(of: selected?.id) { old, new in chatKey.update(old: old, new: new, active: controller.activeConversationID) }
         .chatLifecycle(selected: $selected)
         .onAppear { WindowActions.shared.install(newChat: newChat, findChats: findChats) }
     }

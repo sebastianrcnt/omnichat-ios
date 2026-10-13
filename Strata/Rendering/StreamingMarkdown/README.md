@@ -10,10 +10,12 @@ network delta -> RevealController (smoothing) -> IncrementalBlockParser (backgro
 ```
 
 1. **RevealController** (`RevealController.swift`) decouples arrival from display. Received text queues
-   as a backlog; each ~33 ms tick reveals `max(minStep, backlog * dt / targetLag)` characters
-   (`targetLag` = 200 ms). Cuts prefer word boundaries and never split a grapheme cluster. On stream end,
-   stop, or when the user scrolls away, everything is flushed at once. Settings has a "Smooth streaming"
-   switch; off reveals everything that has arrived on each tick.
+   as a backlog. A live answer is paced evenly (`RevealPacing`): it is shown at 0.85 x the measured incoming
+   rate (last second of arrivals), but at least `backlog / 0.35 s`, so the display never trails by more than
+   about 0.35 s; cuts fall on whole words and never split a grapheme cluster. Reasoning keeps the older step,
+   `max(minStep, backlog * dt / targetLag)` per ~33 ms tick (`targetLag` = 200 ms). On stream end or stop
+   everything is flushed at once. Settings has a "Smooth streaming" switch; off reveals everything that has
+   arrived on each tick.
 2. **BlockScanner** is a cheap line-based splitter into top-level blocks (paragraph, heading, list,
    blockquote, fenced/indented code, table, thematic break). It does not build an AST. It was written
    instead of using apple/swift-markdown because that package pulls in a second cmark-gfm that clashes
@@ -29,8 +31,8 @@ network delta -> RevealController (smoothing) -> IncrementalBlockParser (backgro
 5. **Views** (`StreamingMarkdownViews.swift`): finalized blocks and closed tail blocks render with
    MarkdownUI through an `Equatable` `MarkdownBlockView`, so unchanged blocks are never re-evaluated. The
    one open (last) block uses a cheap path: inline Markdown into `AttributedString`, open fences as plain
-   monospaced text, unfinished tables as raw rows. The newly revealed span fades in over ~150 ms (tail
-   only, off with Reduce Motion).
+   monospaced text, unfinished tables as raw rows. The newly revealed span fades in over 0.45 s, easing out
+   (one opacity ramp per recent span on the tail's text, not a view per token; off with Reduce Motion).
 
 ## Details
 

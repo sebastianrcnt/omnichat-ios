@@ -5,8 +5,10 @@ import SwiftData
 /// Chat plus a left drawer with the history.
 struct RootView: View {
     @Environment(\.theme) private var theme
+    @Environment(\.chatController) private var controller
 
     @State private var selected: Conversation?
+    @State private var chatKey = ChatViewKey()
     @State private var sidebarOpen = false
     @State private var showSettings = false
     @State private var focusToken = 0
@@ -25,7 +27,7 @@ struct RootView: View {
             DrawerLayer(drag: drag, isOpen: sidebarOpen, width: sidebarWidth, onClose: closeSidebar) {
                 ChatView(conversation: $selected, onOpenSidebar: { setSidebar(true) }, onOpenSettings: { openSettings() },
                          onNewChat: newChat, focusToken: focusToken)
-                    .id(selected?.id)
+                    .id(chatKey.id)
                     .background(theme.background.ignoresSafeArea())
             }
         }
@@ -43,6 +45,7 @@ struct RootView: View {
         .sheet(isPresented: $showSettings) { SettingsView().inAppLinks() }
         .inAppLinks()
         .chatLifecycle(selected: $selected)
+        .onChange(of: selected?.id) { old, new in chatKey.update(old: old, new: new, active: controller.activeConversationID) }
     }
 
     private func openSettings() {

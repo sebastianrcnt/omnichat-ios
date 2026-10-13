@@ -19,6 +19,12 @@ struct ChatView: View {
     @State private var draft = ComposerDraft()
     @State private var position = ScrollPosition(edge: .bottom)
     @State private var atBottom = true
+    /// The question being answered, held at the top of the screen from its send until the next send or until the user
+    /// scrolls the room reserved under it out of view. Nil when nothing is pinned (a chat just opened).
+    @State private var pinnedID: UUID?
+    /// Heights for the room under the pinned question; read only by `PinReserve`, so scrolling and streaming never
+    /// re-evaluate this view.
+    @State private var pin = PinLayout()
     @State private var showAttach = false
     #if os(macOS)
     @State private var showNoImageSupport = false
@@ -140,8 +146,14 @@ struct ChatView: View {
                 onPickImages: addAttachments, onEnableImages: enableImagesForSelectedModel,
                 menu: { menuContent }))
             #endif
-            .overlay(alignment: .bottom) { jumpButton }
-            .overlay(alignment: .bottom) { answerNowCapsule }
+            .overlay(alignment: .bottom) {
+                // Stacked, so the jump button and "Answer now" never overlap.
+                VStack(spacing: 0) {
+                    jumpButton
+                    answerNowCapsule
+                }
+                .padding(.bottom, composerHeight + DS.Spacing.sm)
+            }
             // Where a language that is not installed yet is downloaded and the answer translated.
             .translationTask(controller.translation.configuration) { session in
                 let translator = SessionTranslator(session)
@@ -217,15 +229,13 @@ struct ChatView: View {
                     }
                 }
             }
-            .onChange(of: atBottom) { _, now in
-                if !now && isStreamingHere { controller.revealAllNow() } // user scrolled away: show everything now
-            }
             .onChange(of: showAttach) { _, on in if on { composerFocused = false } }
             .onChange(of: showChatSettings) { _, on in if on { composerFocused = false } }
             .onChange(of: showUsage) { _, on in if on { composerFocused = false } }
             .onChange(of: composerFocused) { _, focused in
                 // Keep the latest message visible when the keyboard opens.
-                if focused && atBottom { withAnimation(DS.Motion.spring) { position.scrollTo(edge: .bottom) } }
+                // A pinned question stays where it is when the keyboard opens.
+                if focused && atBottom && pinnedID == nil { withAnimation(DS.Motion.spring) { position.scrollTo(edge: .bottom) } }
             }
             .task(id: focusToken) {
                 guard focusToken > 0 else { return }
@@ -323,6 +333,8 @@ struct ChatView: View {
                     let summaries = conversation.compactions(anchoredIn: items)
                     ForEach(items) { message in
                         row(message, isLast: message.id == items.last?.id, branch: tree.branch(of: message.id))
+                            .id(message.id)
+                            .modifier(PinTopReader(isPinned: message.id == pinnedID, pin: pin))
                         ForEach(summaries[message.id] ?? []) { record in
                             CompactionDivider { compactionNotes = record }
                         }
@@ -333,16 +345,32 @@ struct ChatView: View {
                 }
                 Color.clear.frame(height: DS.Spacing.lg).id("bottom")
                     .onScrollVisibilityChange(threshold: 0.01) { atBottom = $0 } // true scroll position: is the end of the chat on screen?
+                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(PinLayout.space)).minY } action: { pin.contentEnd = $0 }
+                if pinnedID != nil { PinReserve(pin: pin) }
             }
             .padding(.horizontal, DS.Spacing.page)
             .padding(.top, DS.Spacing.md)
+            .coordinateSpace(.named(PinLayout.space))
             #if os(macOS)
             .readingColumn()
             #endif
         }
         .scrollPosition($position)
-        .defaultScrollAnchor(.bottom)
-        .defaultScrollAnchor(.bottom, for: .sizeChanges) // growing content keeps the pinned bottom in step with its animation
+        // A chat opens at its latest messages. Nothing follows the bottom afterwards: a new answer grows under its
+        // pinned question, and the jump button offers the end once it runs past the screen.
+        .defaultScrollAnchor(.bottom, for: .initialOffset)
+        .onScrollGeometryChange(for: PinLayout.Viewport.self) { g in
+            PinLayout.Viewport(height: g.containerSize.height - g.contentInsets.top - g.contentInsets.bottom,
+                               visibleBottom: g.visibleRect.maxY - g.contentInsets.bottom)
+        } action: { _, v in
+            pin.viewport = v.height
+            pin.visibleBottom = v.visibleBottom
+        }
+        .onScrollPhaseChange { old, new in
+            // The user scrolled: once the room under the answer is out of view it can go without moving anything.
+            guard pinnedID != nil, new == .idle, old == .interacting || old == .decelerating else { return }
+            if pin.reserveOutOfView { pinnedID = nil }
+        }
         .scrollDismissesKeyboard(.interactively)
         .scrollEdgeEffectStyle(.soft, for: .top)
         .scrollEdgeEffectStyle(.soft, for: .bottom)
@@ -409,7 +437,7 @@ struct ChatView: View {
                 onOpenSources: { sourcesItem = SourceListItem(sources: $0) },
                 onCopy: { Pasteboard.copy(MarkdownPlain.text(from: shownText)) },
                 onRegenerate: {
-                    if let c = conversation { controller.regenerate(conversation: c, context: context) }
+                    if let c = conversation { controller.regenerate(conversation: c, context: context); pinLatestQuestion() }
                 },
                 onOpenSettings: onOpenSettings,
                 onCopyRaw: { Pasteboard.copy(shownText) },
@@ -462,14 +490,27 @@ struct ChatView: View {
     private var jumpButton: some View {
         Group {
             if !atBottom && conversation != nil {
-                GlassIconButton(systemName: "arrow.down", label: "Jump to bottom", diameter: DS.IconSize.compactControlDiameter + 4) {
-                    withAnimation(DS.Motion.spring) { position.scrollTo(edge: .bottom) }
+                GlassIconButton(systemName: "arrow.down", label: "Jump to bottom", diameter: DS.IconSize.compactControlDiameter,
+                                iconSize: DS.IconSize.composerIcon) {
+                    withAnimation(DS.Motion.spring) { position.scrollTo(id: "bottom", anchor: .bottom) }
                 }
+                .padding(.bottom, DS.Spacing.sm)
                 .transition(.scale.combined(with: .opacity))
             }
         }
-        .padding(.bottom, DS.Spacing.composerClearance)
         .animation(DS.Motion.snappy, value: atBottom)
+    }
+
+    /// Holds the question being answered at the top: room is reserved under it, then one animated scroll puts it there.
+    /// Used for a send, an edit and a regenerate.
+    private func pinLatestQuestion() {
+        guard let id = conversation?.activePath.last(where: { $0.role == .user && !$0.isHiddenInTranscript })?.id else { return }
+        pinnedID = id
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(60)) // the row and the room under it are laid out first
+            guard pinnedID == id else { return }
+            withAnimation(DS.Motion.spring) { position.scrollTo(id: id, anchor: .top) }
+        }
     }
 
     // MARK: Composer
@@ -503,7 +544,6 @@ struct ChatView: View {
             let running = controller.roundRequested.filter { $0.name == ToolNames.webSearch }.count
             AnswerNowCapsule(start: controller.turnStart ?? .now, completedToolRounds: controller.completedToolRounds,
                              searches: saved + running, phase: controller.phase) { controller.answerNow() }
-                .padding(.bottom, composerHeight + DS.Spacing.sm)
         }
     }
 
@@ -584,7 +624,7 @@ struct ChatView: View {
             savedDraft = nil
         }
         controller.send(text: text, images: images, thumbnails: thumbnails, conversation: target, context: context, editing: edited)
-        withAnimation(DS.Motion.spring) { position.scrollTo(edge: .bottom) }
+        pinLatestQuestion()
     }
 
     #if DEBUG
@@ -764,4 +804,51 @@ private struct ComposerHost<Accessory: View>: View {
             accessory: accessory,
             isFocused: isFocused)
     }
+}
+
+/// Geometry for pinning a question to the top while its answer streams. A reference type written from geometry
+/// callbacks and read only by `PinReserve`, so neither scrolling nor a growing answer re-evaluates the chat.
+@MainActor
+@Observable
+final class PinLayout {
+    static let space = "chatContent"
+
+    struct Viewport: Equatable { var height: CGFloat; var visibleBottom: CGFloat }
+
+    /// Top of the pinned question and end of the transcript, in content coordinates.
+    var pinnedTop: CGFloat = 0
+    var contentEnd: CGFloat = 0
+    /// The visible height (between the header and the composer).
+    var viewport: CGFloat = 0
+    @ObservationIgnored var visibleBottom: CGFloat = 0
+
+    /// Room under the transcript so the pinned question can sit at the top of the screen.
+    var reserve: CGFloat { Self.reserve(viewport: viewport, pinnedTop: pinnedTop, contentEnd: contentEnd) }
+
+    nonisolated static func reserve(viewport: CGFloat, pinnedTop: CGFloat, contentEnd: CGFloat) -> CGFloat {
+        max(0, viewport - (contentEnd - pinnedTop))
+    }
+
+    /// Nothing of the reserved room is on screen, so dropping it moves nothing.
+    var reserveOutOfView: Bool { reserve <= 0 || visibleBottom <= contentEnd + 1 }
+}
+
+/// Measures the pinned question's top.
+private struct PinTopReader: ViewModifier {
+    let isPinned: Bool
+    let pin: PinLayout
+
+    func body(content: Content) -> some View {
+        if isPinned {
+            content.onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(PinLayout.space)).minY } action: { pin.pinnedTop = $0 }
+        } else {
+            content
+        }
+    }
+}
+
+/// The room under a pinned question's answer. It shrinks as the answer grows into it, never by a jump.
+private struct PinReserve: View {
+    let pin: PinLayout
+    var body: some View { Color.clear.frame(height: pin.reserve).accessibilityHidden(true) }
 }

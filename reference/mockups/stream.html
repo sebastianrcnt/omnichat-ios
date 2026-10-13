@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Streaming Reveal</title>
+<style>
+:root{--bg:#141414;--surface:#1d1d20;--raised:#2a2a2d;--line:#2f2f34;--text:#f2f2f4;--dim:#9b9ba3;--faint:#67676f;--accent2:#b9a2ff}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,system-ui,sans-serif;overflow-x:hidden}
+.wrap{max-width:430px;margin:0 auto;padding:16px 16px 40px}
+h1{font-size:19px;margin:4px 0 4px}
+.sub{color:var(--dim);font-size:13px;line-height:1.55;margin-bottom:12px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.tabs button{border:1px solid var(--line);background:transparent;color:var(--dim);border-radius:16px;height:32px;padding:0 12px;font-size:13.5px}
+.tabs button.on{background:var(--text);color:var(--bg);border-color:var(--text);font-weight:600}
+.desc{font-size:13px;color:var(--dim);line-height:1.5;min-height:40px;margin-bottom:8px}
+.phone{position:relative;height:min(600px,72vh);border:1px solid var(--line);border-radius:22px;overflow:hidden;background:var(--bg)}
+.chat{position:absolute;inset:0 0 64px 0;overflow-y:auto;padding:14px 16px 20px;scrollbar-width:none}
+.chat::-webkit-scrollbar{display:none}
+.user{margin:14px 0 14px auto;max-width:80%;width:fit-content;background:var(--raised);border-radius:18px;padding:9px 14px;font-size:15.5px;line-height:1.45}
+.thought{font-size:13.5px;color:var(--faint);margin:4px 0 8px}
+.ans{font-size:16px;line-height:1.7}
+.ans p{margin:0 0 12px}
+.old{color:var(--text)}
+.composer{position:absolute;left:10px;right:10px;bottom:10px;height:44px;border-radius:22px;background:var(--surface);color:var(--faint);font-size:15px;display:flex;align-items:center;padding-left:16px}
+.down{position:absolute;left:50%;bottom:66px;transform:translate(-50%,8px);width:34px;height:34px;border-radius:17px;background:var(--raised);border:1px solid var(--line);color:var(--text);display:grid;place-items:center;font-size:16px;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s}
+.down.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.row{display:flex;gap:8px;margin-top:10px;align-items:center}
+.row button{border:0;background:var(--raised);color:var(--text);border-radius:16px;height:34px;padding:0 16px;font-size:14px}
+.row span{font-size:12.5px;color:var(--faint)}
+/* reveal styles */
+.t{display:inline}
+.fast{animation:fade .12s ease-out both}
+.slow{animation:fade .45s ease-out both}
+.blur{animation:blur .6s ease-out both}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes blur{from{opacity:0;filter:blur(5px)}to{opacity:1;filter:blur(0)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>답변 나타나는 방식</h1>
+  <div class="sub">같은 답을 같은 속도로, 실제처럼 뭉텅이로 끊겨 오게 보내고, 보여주는 방식만 바꿨어요. 방식과 속도(토큰/초)를 고르면 처음부터 다시 재생돼요.</div>
+  <div class="tabs" id="tabs"></div>
+  <div class="tabs" id="speeds"></div>
+  <div class="desc" id="desc"></div>
+  <div class="phone">
+    <div class="chat" id="chat"></div>
+    <div class="down" id="down">↓</div>
+    <div class="composer">메시지</div>
+  </div>
+  <div class="row"><button id="replay">다시 재생</button><span id="stat"></span></div>
+</div>
+<script>
+const VARIANTS = {
+  now: {name:"현재", desc:"토큰이 오는 대로 바로 찍고(0.12초 페이드), 올 때마다 맨 아래로 점프해요.", pace:false, anim:"fast", scroll:"jump"},
+  A:   {name:"A", desc:"일정한 속도로 흘려 보내고 0.45초 페이드. 화면은 아래로 부드럽게 미끄러지며 따라가요.", pace:true, anim:"slow", scroll:"smooth"},
+  B:   {name:"B (추천)", desc:"일정한 속도 + 0.45초 페이드. 질문을 위에 고정하고 화면은 안 움직여요. 넘치면 ↓ 버튼만 떠요.", pace:true, anim:"slow", scroll:"pin"},
+  C:   {name:"C", desc:"B와 같은데 단어가 살짝 흐릿했다가 또렷해지며 나타나요(0.6초).", pace:true, anim:"blur", scroll:"pin"},
+  D:   {name:"D", desc:"흘려 보내기 없이 오는 대로 찍되 0.45초 페이드 + 위에 고정. 흘려 보내기의 효과를 비교해 보세요.", pace:false, anim:"slow", scroll:"pin"},
+};
+const PARAS = [
+  "올해 출생아 수는 1~8월 누적 기준으로 전년 같은 기간보다 7% 가까이 늘었어요. 2015년 이후 처음으로 두 해 연속 증가한 흐름이에요.",
+  "가장 큰 이유는 결혼 건수가 늘어난 거예요. 코로나 때 미뤄졌던 결혼이 2023년부터 몰리면서, 1~2년 뒤 첫째 출산으로 이어지고 있어요. 30대 초반 인구가 많은 에코붐 세대 효과도 겹쳤고요.",
+  "다만 구조적인 반등으로 보기는 아직 일러요. 첫째 출산은 늘었지만 둘째 이상은 여전히 줄고 있고, 합계출산율도 0.8명 안팎으로 OECD 최하위권이에요.",
+  "지역별로 보면 세종과 인천의 증가 폭이 컸고, 서울도 오랜만에 늘었어요. 반대로 일부 도 지역은 여전히 감소세라 지역 격차는 더 벌어졌어요.",
+  "정부는 신혼부부 주거 지원과 육아휴직 급여 인상이 효과를 냈다고 보지만, 전문가들은 정책 효과를 따로 떼어 보기는 어렵다고 말해요. 결혼 자체가 늘어난 영향이 훨씬 크기 때문이에요.",
+  "앞으로 2~3년은 결혼 건수가 높은 수준을 유지할 걸로 보여서 출생아 수도 당분간은 소폭 증가할 가능성이 커요. 하지만 2030년 전후로 30대 인구가 줄기 시작하면 다시 감소로 돌아설 수 있다는 전망도 있어요.",
+  "정리하면, 지금의 증가는 미뤄졌던 결혼과 인구 구조가 만든 일시적 효과가 크고, 이 흐름이 이어지려면 둘째 출산이 늘어나는지가 관건이에요.",
+];
+// tokens: Korean words split roughly in 2-char chunks, spaces attached
+function tokenize(){
+  const out=[];
+  PARAS.forEach((p,pi)=>{
+    const words=p.split(/(?<= )/);
+    words.forEach((w,wi)=>{
+      for(let i=0;i<w.length;i+=2) out.push({t:w.slice(i,i+2), para:pi, first: wi===0&&i===0});
+    });
+  });
+  return out;
+}
+const TOKENS=tokenize();
+// bursty arrival schedule, seeded so every variant gets the same timing
+// average rate = tps tokens/s, but arriving in uneven bursts like a real network stream
+function schedule(tps){
+  let s=7; const rnd=()=>(s=(s*16807)%2147483647)/2147483647;
+  const times=[]; let t=700, i=0;
+  while(i<TOKENS.length){
+    const n=2+Math.floor(rnd()*Math.max(4,tps/12));
+    for(let k=0;k<n&&i<TOKENS.length;k++,i++) times.push(t);
+    t+=n/tps*1000*(0.3+rnd()*1.4);
+  }
+  return times;
+}
+const SPEEDS=[50,100,200,300];
+let tps=100, TIMES=schedule(tps);
+
+const chat=document.getElementById("chat"), down=document.getElementById("down"), stat=document.getElementById("stat");
+let run=0, cur="B";
+
+function setup(){
+  chat.innerHTML=`
+    <div class="user">출산율 요즘 어때?</div>
+    <div class="ans old"><p>최근 통계를 보면 출생아 수가 조금씩 늘고 있어요. 자세히 찾아볼까요?</p></div>
+    <div class="user" id="q">응, 올해 출생아 수가 왜 늘었는지 정리해줘</div>
+    <div id="turn"><div class="thought">✦ 12초 동안 생각함 ›</div><div class="ans" id="ans"></div></div>`;
+  chat.scrollTop=chat.scrollHeight;
+}
+
+function play(key){
+  cur=key; const v=VARIANTS[key]; const my=++run;
+  document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.k===key));
+  document.getElementById("desc").textContent=v.desc;
+  setup(); down.classList.remove("show");
+  const ans=document.getElementById("ans"), turn=document.getElementById("turn"), q=document.getElementById("q");
+  let paras=[];
+  const emit=tok=>{
+    if(!paras[tok.para]){const p=document.createElement("p");ans.appendChild(p);paras[tok.para]=p;}
+    const sp=document.createElement("span"); sp.className="t "+v.anim; sp.textContent=tok.t; paras[tok.para].appendChild(sp);
+  };
+  if(v.scroll==="pin"){
+    // leave room so the question can sit at the top, then glide it up once
+    turn.style.minHeight=(chat.clientHeight-q.offsetHeight-40)+"px";
+    setTimeout(()=>{ if(my===run) chat.scrollTo({top:q.offsetTop-14,behavior:"smooth"}); },150);
+  }
+  const start=performance.now(); let arrived=0, shown=0, budget=0, last=start;
+  function frame(now){
+    if(my!==run) return;
+    const el=now-start, dt=(now-last)/1000; last=now;
+    while(arrived<TOKENS.length && TIMES[arrived]<=el) arrived++;
+    if(v.pace){
+      const backlog=TOKENS.slice(shown,arrived).reduce((a,t)=>a+t.t.length,0);
+      // steady at roughly the incoming rate, catching up when the backlog grows
+      const cps=Math.max(tps*2*0.85, backlog/0.35);
+      budget+=cps*dt;
+      while(shown<arrived && budget>=TOKENS[shown].t.length){ budget-=TOKENS[shown].t.length; emit(TOKENS[shown++]); }
+      if(shown===arrived) budget=Math.min(budget,2);
+    } else {
+      const before=shown;
+      while(shown<arrived) emit(TOKENS[shown++]);
+      if(v.scroll==="jump" && shown!==before) chat.scrollTop=chat.scrollHeight;
+    }
+    if(v.scroll==="smooth"){
+      const target=chat.scrollHeight-chat.clientHeight;
+      if(target>chat.scrollTop) chat.scrollTop+=Math.max(0.5,(target-chat.scrollTop)*0.08);
+    }
+    if(v.scroll==="pin"){
+      down.classList.toggle("show", chat.scrollHeight-chat.scrollTop-chat.clientHeight>30 && ans.getBoundingClientRect().bottom>chat.getBoundingClientRect().bottom);
+    }
+    stat.textContent=shown<TOKENS.length?`재생 중… ${Math.round(shown/TOKENS.length*100)}%`:"끝";
+    if(shown<TOKENS.length || v.scroll==="smooth") requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+down.onclick=()=>chat.scrollTo({top:chat.scrollHeight,behavior:"smooth"});
+chat.addEventListener("scroll",()=>{ if(VARIANTS[cur].scroll==="pin") down.classList.toggle("show", chat.scrollHeight-chat.scrollTop-chat.clientHeight>30); });
+document.getElementById("tabs").innerHTML=Object.entries(VARIANTS).map(([k,v])=>`<button data-k="${k}">${v.name}</button>`).join("");
+document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>play(b.dataset.k));
+document.getElementById("speeds").innerHTML=SPEEDS.map(v=>`<button data-s="${v}">${v} 토큰/초</button>`).join("");
+const markSpeed=()=>document.querySelectorAll("#speeds button").forEach(b=>b.classList.toggle("on",+b.dataset.s===tps));
+document.querySelectorAll("#speeds button").forEach(b=>b.onclick=()=>{tps=+b.dataset.s;TIMES=schedule(tps);markSpeed();play(cur);});
+markSpeed();
+document.getElementById("replay").onclick=()=>play(cur);
+play(location.hash.slice(1)||"now");
+</script>
+</body>
+</html>
