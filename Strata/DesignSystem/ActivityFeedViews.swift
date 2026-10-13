@@ -93,7 +93,11 @@ struct ActivityFeedView: View {
                                      overrides[card.id] = FeedCollapse.toggled(auto: auto, current: collapsed, epoch: epoch)
                                  }
                              },
-                             onShowAll: { withAnimation(reduceMotion ? nil : Self.fold) { _ = showingAll.insert(card.id) } },
+                             onShowAll: { // toggles: "+N more" expands, "Show less" folds back
+                                 withAnimation(reduceMotion ? nil : Self.fold) {
+                                     if showingAll.remove(card.id) == nil { showingAll.insert(card.id) }
+                                 }
+                             },
                              onDetails: onDetails)
                     .transition(.enter(reduceMotion: reduceMotion))
             }
@@ -252,13 +256,14 @@ struct FeedCardView: View {
         let results = card.visibleResults(expanded: showAll)
         let visible = min(revealed, results.count + card.extras.count)
         let hidden = card.hiddenCount(expanded: showAll)
+        let foldable = showAll && card.hiddenCount(expanded: false) > 0
         return VStack(alignment: .leading, spacing: 0) {
             ForEach(results.prefix(visible)) { row in
                 FeedRowView(row: row).transition(rowTransition)
             }
-            if hidden > 0 && visible >= results.count {
+            if (hidden > 0 || foldable) && visible >= results.count {
                 Button(action: onShowAll) {
-                    Text(card.isReading ? "+ \(hidden) more results" : "+\(hidden) more")
+                    Text(foldable ? "Show less" : card.isReading ? "+ \(hidden) more results" : "+\(hidden) more")
                         .font(DS.Typography.feed)
                         .foregroundStyle(theme.textTertiary)
                         .padding(.horizontal, 8)
