@@ -137,12 +137,12 @@ struct AnswerNowCapsule: View {
                         Label("Answer now", systemImage: "forward.end.fill")
                             .font(DS.Typography.capsule)
                             .labelIconToTitleSpacing(DS.Spacing.xs + 2)
-                            .foregroundStyle(theme.textPrimary)
+                            .imageScale(.small)
+                            .foregroundStyle(theme.textSecondary)
                             .padding(.horizontal, DS.Spacing.md + 2)
                             .frame(minHeight: DS.IconSize.capsuleHeight)
-                            .background(.regularMaterial, in: Capsule())
-                            .overlay(Capsule().strokeBorder(theme.separator, lineWidth: 0.5))
-                            .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
+                            // A floating control, like the composer below it, so the same glass.
+                            .glassEffect(.regular.interactive(), in: Capsule())
                             .contentShape(Capsule().inset(by: -DS.Spacing.sm))
                     }
                     .buttonStyle(.plain)
@@ -162,8 +162,8 @@ struct ComposerAttachment: Identifiable, Equatable {
     var thumbnail: Data?
 }
 
-/// Floating glass composer. Idle (empty, not focused) it is a one-line pill: plus, the placeholder, and stop while a
-/// reply runs. Focused or holding a draft it grows to two rows: the text on top, then plus, the settings accessory
+/// Floating glass composer. Idle (empty, not focused) it is a one-line pill: plus, the placeholder, and send (stop while
+/// a reply runs). Focused or holding a draft it grows to two rows: the text on top, then plus, the settings accessory
 /// (the model and effort gauge) and send. On a Mac it always shows both rows: there is room, and no keyboard to make.
 struct ComposerBar<Accessory: View>: View {
     @Environment(\.theme) private var theme
@@ -244,7 +244,7 @@ struct ComposerBar<Accessory: View>: View {
                     field
                         .padding(.horizontal, DS.Spacing.xs)
                         .frame(minHeight: expanded ? nil : DS.IconSize.compactControlDiameter)
-                    if !expanded && isStreaming { sendButton.matchedGeometryEffect(id: "send", in: controls) }
+                    if !expanded { sendButton.matchedGeometryEffect(id: "send", in: controls) }
                 }
                 if expanded {
                     HStack(spacing: DS.Spacing.sm) {
