@@ -282,9 +282,8 @@ struct AssistantMessage: View {
 
     /// Visited pages plus cited results, for the "Sources" list.
     private var usedSources: [SourceInfo] {
-        var ids: [Int] = content.calls.filter { $0.name == ToolNames.webFetch }.flatMap(\.sourceIDs)
-        for id in CitationParser.citedIDs(in: render.markdown.text, known: Set(citations.sources.keys)) where !ids.contains(id) { ids.append(id) }
-        return ids.compactMap { citations.sources[$0] }
+        SourceUsage.ids(calls: content.calls, text: render.markdown.text, known: Set(citations.sources.keys))
+            .compactMap { citations.sources[$0] }
     }
 
     @ViewBuilder
@@ -356,7 +355,7 @@ struct AssistantMessage: View {
                 .padding(DS.Spacing.md)
                 .background(theme.warning.opacity(0.12), in: RoundedRectangle(cornerRadius: DS.Radius.md))
             }
-            if !content.isStreaming, !content.calls.isEmpty {
+            if !content.isStreaming { // also for an answer without tools that cites earlier sources
                 let used = usedSources
                 if !used.isEmpty { SourcesRow(count: used.count) { onOpenSources(used) } }
             }

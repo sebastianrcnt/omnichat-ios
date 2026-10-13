@@ -16,6 +16,16 @@ struct SourceInfo: Codable, Hashable, Identifiable, Sendable {
     var shortHost: String { DomainFormatter.short(host) }
 }
 
+/// The sources an answer used: the pages it read, then the results it cited, each id once.
+enum SourceUsage {
+    static func ids(calls: [ToolCallRecord], text: String, known: Set<Int>) -> [Int] {
+        var ids: [Int] = []
+        for id in calls.filter({ $0.name == ToolNames.webFetch }).flatMap(\.sourceIDs) where !ids.contains(id) { ids.append(id) }
+        for id in CitationParser.citedIDs(in: text, known: known) where !ids.contains(id) { ids.append(id) }
+        return ids
+    }
+}
+
 /// Assigns conversation-wide source ids. The same URL (ignoring fragment, a trailing slash and case of
 /// the host) always keeps its first id, including across turns.
 @MainActor

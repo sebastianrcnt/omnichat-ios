@@ -63,6 +63,26 @@
       }
     },
     "%lld read": {},
+    "This answer · %lld": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이번 답변 · %lld"
+          }
+        }
+      }
+    },
+    "Whole chat · %lld": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "대화 전체 · %lld"
+          }
+        }
+      }
+    },
     "%lld read · %lld": {
       "localizations": {
         "ko": {

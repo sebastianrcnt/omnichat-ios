@@ -125,6 +125,19 @@ struct ChatView: View {
         return CitationContext(sources: Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) }))
     }
 
+    /// Every source an answer on the active path read or cited, in order: the Sources sheet's "All" list.
+    private var conversationUsedSources: [SourceInfo] {
+        guard let conversation else { return [] }
+        let byID = citationContext.sources
+        let known = Set(byID.keys)
+        var ids: [Int] = []
+        for message in conversation.activePath where message.role == .assistant {
+            for id in SourceUsage.ids(calls: message.segments.flatMap(\.calls), text: message.text, known: known)
+            where !ids.contains(id) { ids.append(id) }
+        }
+        return ids.compactMap { byID[$0] }
+    }
+
     private var isStreamingHere: Bool {
         conversation.map { controller.isStreaming($0) } ?? false
     }
@@ -204,7 +217,7 @@ struct ChatView: View {
                 SourcesSheet(title: item.sources.count == 1 ? "Source" : "Sources", sources: item.sources)
             }
             .sheet(item: $sourcesItem) { item in
-                SourcesSheet(title: "Sources", sources: item.sources)
+                SourcesSheet(title: "Sources", sources: item.sources, all: item.all)
             }
             #if DEBUG
             .fullScreenCoverOrSheet(isPresented: $debugViewer) {
@@ -434,7 +447,7 @@ struct ChatView: View {
                 render: controller.renderState(for: message),
                 onOpenTimeline: { timeline = TimelineRequest(message: message, showsTools: true) },
                 onOpenReasoning: { timeline = TimelineRequest(message: message, showsTools: false) },
-                onOpenSources: { sourcesItem = SourceListItem(sources: $0) },
+                onOpenSources: { sourcesItem = SourceListItem(sources: $0, all: conversationUsedSources) },
                 onCopy: { Pasteboard.copy(MarkdownPlain.text(from: shownText)) },
                 onRegenerate: {
                     if let c = conversation { controller.regenerate(conversation: c, context: context); pinLatestQuestion() }
@@ -753,6 +766,8 @@ struct TimelineRequest: Identifiable {
 
 struct SourceListItem: Identifiable {
     let sources: [SourceInfo]
+    /// The whole conversation's sources, when the sheet offers them.
+    var all: [SourceInfo] = []
     var id: String { sources.map { String($0.id) }.joined(separator: ",") }
 }
 

@@ -568,9 +568,21 @@ private struct SourceCardButtonStyle: ButtonStyle {
 struct SourcesSheet: View {
     let title: LocalizedStringKey
     let sources: [SourceInfo]
+    /// The whole conversation's sources; when it holds more than `sources`, a picker switches between the two.
+    var all: [SourceInfo] = []
+    @State private var showAll = false
+
     var body: some View {
         SheetScaffold(title: title) {
-            ForEach(sources) { source in
+            if all.count > sources.count {
+                Picker("Sources", selection: $showAll) {
+                    Text("This answer · \(sources.count)").tag(false)
+                    Text("Whole chat · \(all.count)").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+            ForEach(showAll ? all : sources) { source in
                 SourceCard(source: source) { InAppBrowser.present($0) }
             }
         }
