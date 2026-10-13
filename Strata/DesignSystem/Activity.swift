@@ -493,17 +493,17 @@ struct SourcesRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: DS.Spacing.sm) {
-                Image(systemName: "link").font(.system(size: DS.IconSize.md)).foregroundStyle(theme.textSecondary)
-                Text("Sources").font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary)
-                Text("\(count)").font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: DS.IconSize.sm, weight: .semibold)).foregroundStyle(theme.textTertiary)
-                Spacer(minLength: 0)
-            }
-            .contentShape(Rectangle())
+            // A plain chip, like the citation chips in the text: "26 sources".
+            Text(count == 1 ? "1 source" : "\(count) sources")
+                .font(DS.Typography.uiCaption)
+                .foregroundStyle(theme.textSecondary)
+                .padding(.horizontal, DS.Spacing.sm + 2)
+                .padding(.vertical, DS.Spacing.xs)
+                .background(theme.chipFill, in: Capsule())
+                .contentShape(Capsule().inset(by: -DS.Spacing.xs))
         }
         .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
