@@ -247,21 +247,16 @@ struct WebFetchTool {
     /// Loads under way; fetches of the same page in one round share one. `nil` uses the shared registry.
     var inFlight: InFlightLoads?
 
-    /// Runs in the page. `Readability` comes from the user script the fetch views carry. The text is cut to
-    /// `maxCharacters` here, so nothing larger is ever sent back to the app.
+    /// Runs in the page. `strataExtract` (Extractor.js, after Readability) comes from the user script the fetch views
+    /// carry; the flow itself lives there. The text is cut to `maxCharacters` in the page, so nothing larger is ever
+    /// sent back to the app. Without the script, the body's text is used.
     static func extractionScript(maxCharacters: Int) -> String {
         """
         (function() {
           var cap = \(maxCharacters);
-          function clip(t) { t = t || ""; return t.length > cap ? t.slice(0, cap) : t; }
-          function fallback() { return document.body ? document.body.innerText : ""; }
-          try {
-            var article = new Readability(document.cloneNode(true)).parse();
-            if (article && article.textContent && article.textContent.trim().length > 0) {
-              return JSON.stringify({ title: article.title || document.title || "", text: clip(article.textContent), readable: true });
-            }
-          } catch (e) {}
-          return JSON.stringify({ title: document.title || "", text: clip(fallback()), readable: false });
+          if (typeof strataExtract === "function") { try { return strataExtract(cap); } catch (e) {} }
+          var t = document.body ? document.body.innerText : "";
+          return JSON.stringify({ title: document.title || "", text: (t || "").slice(0, cap), readable: false, method: "page" });
         })()
         """
     }

@@ -203,7 +203,9 @@
 		B04EBA073FD9CB5713190809 /* FaviconStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 365D18DBEBDB9F32011FF48E /* FaviconStore.swift */; };
 		B068634A599595F1E8991250 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FBA5468712941136393FEC1A /* Assets.xcassets */; };
 		B16C2F2B9997ECCCD116E28E /* FeatureSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E6C287262866F59E11F85B0 /* FeatureSheets.swift */; };
+		B371B90F8E67F389F95FD455 /* Extractor.js in Resources */ = {isa = PBXBuildFile; fileRef = ED524999CBCA5CB9BAD91F93 /* Extractor.js */; };
 		B3A6BDB0E77B8EC72876295D /* Pretendard-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = 1E5AA880379D6904315E023D /* Pretendard-Regular.otf */; };
+		B429545519794A317F23087B /* Extractor.js in Resources */ = {isa = PBXBuildFile; fileRef = ED524999CBCA5CB9BAD91F93 /* Extractor.js */; };
 		B45E91F4CD5780E5524E2953 /* SharedModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01214F3CAB9EAFE1F3B1AA03 /* SharedModels.swift */; };
 		B49F9CFEE04A529CD91FD193 /* ChatSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E59111DFEC2815CA7A165FF /* ChatSettingsTests.swift */; };
 		B54DFC47E6C1773419F772E2 /* ThoughtSentenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51F73404257AB826A0402DBF /* ThoughtSentenceTests.swift */; };
@@ -443,6 +445,7 @@
 		EADB3352B26461738C5DAF17 /* AutoRenameTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoRenameTests.swift; sourceTree = "<group>"; };
 		EC3A5A90BF9ACE5ED7A72FE7 /* StrataTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = StrataTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		EC51A091339A5DC6AB34A2D0 /* ModelAliasTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelAliasTests.swift; sourceTree = "<group>"; };
+		ED524999CBCA5CB9BAD91F93 /* Extractor.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = Extractor.js; sourceTree = "<group>"; };
 		EF5B920549D60E7E1258E825 /* ChatAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatAPI.swift; sourceTree = "<group>"; };
 		EFEB12E3B760901977A8D37F /* LenientEmphasis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LenientEmphasis.swift; sourceTree = "<group>"; };
 		F42DD6DE488FF594429FF03E /* MessageTreeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageTreeTests.swift; sourceTree = "<group>"; };
@@ -628,6 +631,7 @@
 		4074299D6D152783F48EE32B /* Readability */ = {
 			isa = PBXGroup;
 			children = (
+				ED524999CBCA5CB9BAD91F93 /* Extractor.js */,
 				6EFA02B98F9B308CB4726D0F /* Readability.js */,
 			);
 			path = Readability;
@@ -956,6 +960,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				AFE6BFC2773DFCB7BB6E558C /* Assets.xcassets in Resources */,
+				B429545519794A317F23087B /* Extractor.js in Resources */,
 				AE3EEF0A0AAF40971D5887EC /* InfoPlist.xcstrings in Resources */,
 				60D0D804991CDF313064751D /* Localizable.xcstrings in Resources */,
 				29824B9835F5D735FD2CB993 /* Pretendard-Bold.otf in Resources */,
@@ -975,6 +980,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B068634A599595F1E8991250 /* Assets.xcassets in Resources */,
+				B371B90F8E67F389F95FD455 /* Extractor.js in Resources */,
 				69F48892C13E96F27066826F /* InfoPlist.xcstrings in Resources */,
 				70E34A401D6455FC3E2DC067 /* Localizable.xcstrings in Resources */,
 				A9736FECF1D6AF059533565F /* Pretendard-Bold.otf in Resources */,

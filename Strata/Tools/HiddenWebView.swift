@@ -27,11 +27,16 @@ enum SharedWebData {
     static let store = WKWebsiteDataStore.nonPersistent()
 }
 
-/// The page text extractor, read once from the bundle.
+/// The page text extractor, read once from the bundle: Readability, then `Extractor.js` (which defines
+/// `strataExtract`), joined into one user script.
 enum ReadabilitySource {
     static let script: String? = {
-        guard let url = Bundle.main.url(forResource: "Readability", withExtension: "js") else { return nil }
-        return try? String(contentsOf: url, encoding: .utf8)
+        let parts = ["Readability", "Extractor"].map { name -> String? in
+            guard let url = Bundle.main.url(forResource: name, withExtension: "js") else { return nil }
+            return try? String(contentsOf: url, encoding: .utf8)
+        }
+        guard let reader = parts[0], let extractor = parts[1] else { return nil }
+        return reader + "\n;\n" + extractor
     }()
 }
 
