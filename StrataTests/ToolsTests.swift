@@ -201,6 +201,20 @@ struct SearchEngineSelectionTests {
         #expect(SearchEngine.decodeBingRedirect("https://www.bing.com/ck/a?u=zz") == nil)
     }
 
+    @Test func searchToolOffersTheEnginesAndFetchStaysUnchanged() throws {
+        let search = String(decoding: try ChatRequest.encoder.encode(ToolDefinition.webSearch), as: UTF8.self)
+        #expect(search.contains(#""engine":{"description":"#))
+        #expect(search.contains(#""enum":["naver","bing","duckduckgo"]"#))
+        #expect(search.contains(#""required":["query"]"#))
+        let fetch = String(decoding: try ChatRequest.encoder.encode(ToolDefinition.webFetch), as: UTF8.self)
+        #expect(!fetch.contains("enum"))
+    }
+
+    @Test func aPickedEngineLeadsTheChain() throws {
+        #expect(SearchEngines.chain(for: "swift", preference: .naver).map(\.id) == ["naver", "bing", "duckduckgo"])
+        #expect(SearchEngines.chain(for: "\u{C11C}\u{C6B8}", preference: .bing).map(\.id) == ["bing", "duckduckgo"])
+    }
+
     @Test func bingTransformIsWiredInTheEngine() throws {
         let bing = try bundled("bing")
         #expect(bing.transformURL("https://www.bing.com/ck/a?u=a1\(b64url("https://e.com/z"))") == "https://e.com/z")

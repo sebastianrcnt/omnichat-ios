@@ -363,7 +363,10 @@ struct ToolRouter: ToolExecuting {
             guard let query = args["query"] as? String else {
                 return ToolOutput(text: "Error: missing required argument \"query\".", isError: true)
             }
-            let engines = SearchEngines.chain(for: query, preference: AppSettings.currentSearchEngine)
+            // The model may pick the engine; anything else (or nothing) uses the user's setting.
+            let picked = (args["engine"] as? String).flatMap { SearchEnginePreference(rawValue: $0.lowercased()) }
+            let preference = picked.flatMap { $0 == .auto ? nil : $0 } ?? AppSettings.currentSearchEngine
+            let engines = SearchEngines.chain(for: query, preference: preference)
             return await WebSearchTool(engines: engines).run(query: query)
         case ToolNames.webFetch:
             guard let url = args["url"] as? String else {

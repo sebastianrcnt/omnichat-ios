@@ -81,7 +81,7 @@ extension SearchEngine {
     }
 }
 
-/// The user's choice in Settings > Search engine. Purely internal: the tool definitions never mention it.
+/// The user's choice in Settings > Search engine, and the engine the model may name in a `web_search` call (`engine`).
 enum SearchEnginePreference: String, CaseIterable, Identifiable, Sendable {
     case auto, duckduckgo, bing, naver
 

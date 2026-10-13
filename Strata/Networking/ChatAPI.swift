@@ -131,7 +131,13 @@ struct ChatRequest: Encodable, Sendable {
 struct ToolDefinition: Encodable, Sendable, Equatable {
     struct Function: Encodable, Sendable, Equatable {
         struct Parameters: Encodable, Sendable, Equatable {
-            struct Property: Encodable, Sendable, Equatable { var type = "string"; var description: String }
+            struct Property: Encodable, Sendable, Equatable {
+                var type = "string"
+                var description: String
+                /// Allowed values; left out of the JSON when unset.
+                var choices: [String]?
+                enum CodingKeys: String, CodingKey { case type, description, choices = "enum" }
+            }
             var type = "object"
             var properties: [String: Property]
             var required: [String]
@@ -147,7 +153,10 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
     static let webSearch = ToolDefinition(function: .init(
         name: "web_search",
         description: "Search the web and return the top results (title, URL, snippet). Use for current events, facts you are unsure about, or to find pages to read.",
-        parameters: .init(properties: ["query": .init(description: "The search query.")], required: ["query"])))
+        parameters: .init(properties: ["query": .init(description: "The search query."),
+                                       "engine": .init(description: "Optional. The search engine to use: naver for Korean topics (Korean news, places, blogs, communities), bing for most other searches, duckduckgo as an alternative to bing. Leave it out to use the user's default.",
+                                                       choices: ["naver", "bing", "duckduckgo"])],
+                          required: ["query"])))
 
     static let webFetch = ToolDefinition(function: .init(
         name: "web_fetch",
