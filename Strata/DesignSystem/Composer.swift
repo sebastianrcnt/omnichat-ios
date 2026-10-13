@@ -25,8 +25,9 @@ struct EffortGaugeIcon: View {
 /// The dial's arc: 270 degrees, open at the bottom, from lower left clockwise to lower right.
 struct GaugeArc: Shape {
     var progress: Double
-    /// The dial sits a little low in its square, since the open bottom is empty.
-    static let centerDrop: CGFloat = 0.08
+    /// The dial sits a little low in its square, since the open bottom is empty. Kept small: the hub is what the eye
+    /// centers on, and a larger drop made the dial look low in its round button.
+    static let centerDrop: CGFloat = 0.04
     static let start = 135.0
     static let sweep = 270.0
 
