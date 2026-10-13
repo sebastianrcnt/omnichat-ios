@@ -12,6 +12,8 @@ enum CitationParser {
 
     /// Thin space around the label gives the chip background some padding.
     private static let pad = "\u{2007}" // figure space (non-breaking, so a chip never splits from its padding)
+    /// Hair space: a line-break opportunity before a chip, about a point wide.
+    private static let breakBefore = "\u{200A}"
 
     static func citeURL(ids: [Int]) -> String {
         "\(scheme)://" + ids.map(String.init).joined(separator: ",")
@@ -104,6 +106,9 @@ enum CitationParser {
                     if known.isEmpty {
                         out = out.trimmingTrailingSpace() // hidden entirely
                     } else {
+                        // The chip's padding does not break, so a chip written right after a word ("습니다[1]") would
+                        // carry that word to the next line with it. A hair space in front lets the chip wrap alone.
+                        if let last = out.last, !last.isWhitespace { out += breakBefore }
                         out += chip(known, sources: sources)
                     }
                     i = end

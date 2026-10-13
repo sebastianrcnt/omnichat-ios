@@ -192,7 +192,7 @@ struct FetchPipelineTests {
         #expect(result.title == "A page")
         #expect(result.text == "Hello\n\nworld here")
         #expect(result.url == "https://example.com/final")
-        #expect(page.evaluated.count == 1 && page.evaluated[0].contains("Readability"))
+        #expect(page.evaluated.count == 1 && page.evaluated[0].contains("strataExtract"))
         #expect(page.onProgress == nil) // detached afterwards
     }
 

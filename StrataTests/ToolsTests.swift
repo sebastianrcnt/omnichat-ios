@@ -164,8 +164,9 @@ struct DDGExtractionTests {
     @Test func readabilityExtractsArticle() async throws {
         let page = try await load("article")
         defer { page.dispose() }
-        let readability = try #require(Bundle.main.url(forResource: "Readability", withExtension: "js"))
-        _ = try await page.evaluateString(try String(contentsOf: readability, encoding: .utf8) + "\n;'ok'")
+        // The fetch views' user script: Readability, then Extractor.js.
+        let reader = try #require(ReadabilitySource.script)
+        _ = try await page.evaluateString(reader + "\n;'ok'")
         let json = try await page.evaluateString(WebFetchTool.extractionScript)
         let obj = try #require(try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
         let text = try #require(obj["text"] as? String)
