@@ -89,6 +89,8 @@ final class AppSettings {
     var smoothStreaming: Bool { didSet { defaults.set(smoothStreaming, forKey: "smoothStreaming") } }
     /// After tools, an empty answer gets one more request asking for it (`EmptyAnswerRetry`). Off by default.
     var continueOnEmptyAnswer: Bool { didSet { defaults.set(continueOnEmptyAnswer, forKey: "continueOnEmptyAnswer") } }
+    /// After the first answer, a short side request names the chat (`AutoRename`). On by default.
+    var generateTitles: Bool { didSet { defaults.set(generateTitles, forKey: "generateTitles") } }
     /// Shows Settings > Developer > Diagnostics.
     var developerMode: Bool { didSet { defaults.set(developerMode, forKey: "developerMode") } }
     /// Follow the system's text size (default), or use `textSizeStep`.
@@ -109,6 +111,7 @@ final class AppSettings {
         searchEngine = defaults.string(forKey: "searchEngine").flatMap(SearchEnginePreference.init(rawValue:)) ?? .auto
         smoothStreaming = defaults.object(forKey: "smoothStreaming") as? Bool ?? true
         continueOnEmptyAnswer = defaults.bool(forKey: "continueOnEmptyAnswer")
+        generateTitles = defaults.object(forKey: "generateTitles") == nil ? true : defaults.bool(forKey: "generateTitles")
         developerMode = defaults.bool(forKey: "developerMode")
         lastEffortRaw = defaults.string(forKey: "lastEffort") ?? Effort.default.rawValue
         // `bool` and `integer` also read launch-argument strings ("NO", "0"), which `as? Bool` would not.

@@ -75,6 +75,9 @@ struct SettingsView: View {
 
                     GroupedSection(header: "Answers", footer: "If the model searches and then stops without writing anything, it is asked once more for the answer.") {
                         SettingsToggleRow(title: "Continue when the answer is empty", isOn: $settings.continueOnEmptyAnswer)
+                        SettingsToggleRow(title: "Generate chat titles",
+                                          subtitle: "After the first answer, ask the model for a short title.",
+                                          isOn: $settings.generateTitles)
                     }
 
                     GroupedSection(header: "Context", footer: "Used for the context ring when a model does not report its context length.") {

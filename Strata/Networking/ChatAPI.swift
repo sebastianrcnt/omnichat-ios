@@ -100,10 +100,18 @@ struct ChatRequest: Encodable, Sendable {
     var toolChoice: String?
     /// Only the side requests (auto-rename) cap output; chat requests leave it unset so the prefix bytes stay identical.
     var maxTokens: Int?
+    /// Only the title request sets this (to turn thinking off); chat requests leave it unset.
+    var chatTemplateKwargs: ChatTemplateKwargs?
+
+    struct ChatTemplateKwargs: Encodable, Sendable, Equatable {
+        var enableThinking: Bool
+        enum CodingKeys: String, CodingKey { case enableThinking = "enable_thinking" }
+    }
 
     enum CodingKeys: String, CodingKey {
         case model, messages, stream, tools
         case maxTokens = "max_tokens"
+        case chatTemplateKwargs = "chat_template_kwargs"
         case streamOptions = "stream_options"
         case reasoningEffort = "reasoning_effort"
         case toolChoice = "tool_choice"

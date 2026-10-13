@@ -166,18 +166,38 @@ final class ChatController {
         generate(conversation: conversation, context: context, under: parent)
     }
 
-    /// Names the conversation with a standalone side request, in the background. Failure keeps the old title.
-    /// `force` (the menu item) overwrites even a user-set title and marks the new title as not user-set.
+    /// Conversations whose title request is running. Transient: a relaunch mid-request just leaves the placeholder.
+    private(set) var titlingConversationIDs: Set<UUID> = []
+
+    func isTitling(_ conversationID: UUID?) -> Bool {
+        conversationID.map { titlingConversationIDs.contains($0) } ?? false
+    }
+
+    /// Names the conversation with a standalone side request, in the background. Failure keeps the old title, quietly.
+    /// `force` ("Regenerate title") overwrites even a user-set title and marks the new title as not user-set; it runs
+    /// whether or not automatic titles are on in Settings.
     func autoRename(conversation: Conversation, context: ModelContext, force: Bool) {
-        guard let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID),
-              endpoint.apiKey?.isEmpty == false,
-              let prompt = AutoRename.prompt(currentTitle: conversation.title, lines: conversation.namingLines) else { return }
+        guard !titlingConversationIDs.contains(conversation.id),
+              let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID),
+              !Self.needsKey(endpoint, connections: connections),
+              let prompt = AutoRename.prompt(lines: conversation.namingLines) else { return }
         let streamer = streamer
+        let ring = requestRing
+        let conversationID = conversation.id
+        let titleAtStart = conversation.title
         conversation.autoRenameDone = true
-        Task { @MainActor in
-            let name = await AutoRename.generate(prompt: prompt, endpoint: endpoint, streamer: streamer)
+        titlingConversationIDs.insert(conversationID)
+        Task { @MainActor [weak self] in
+            defer { self?.titlingConversationIDs.remove(conversationID) }
+            let name = await AutoRename.generate(prompt: prompt, endpoint: endpoint, streamer: streamer) { event in
+                switch event {
+                case .sent(let id, let url, let body): ring.record(conversationID: conversationID, url: url, body: body, id: id)
+                case .finished(let id, let reason, let usage): ring.complete(id, finishReason: reason, usage: usage)
+                }
+            }
             guard let name, conversation.modelContext != nil else { return }
-            if !force && conversation.titleIsUserSet { return } // renamed by hand while the request ran
+            // Renamed by hand while the request ran: the user's title wins.
+            if conversation.title != titleAtStart || (!force && conversation.titleIsUserSet) { return }
             conversation.title = name
             if force { conversation.titleIsUserSet = false }
             try? context.save()
@@ -587,7 +607,8 @@ final class ChatController {
         autoNaming = DebugHooks.value("StrataNoAutoRename") == nil // keeps request-count smoke tests exact
         #endif
         if error == nil, !message.stoppedByUser, autoNaming,
-           AutoRename.shouldRunAutomatically(titleIsUserSet: conversation.titleIsUserSet, alreadyAutoNamed: conversation.autoRenameDone,
+           AutoRename.shouldRunAutomatically(enabled: settings.generateTitles,
+                                             titleIsUserSet: conversation.titleIsUserSet, alreadyAutoNamed: conversation.autoRenameDone,
                                              completedAnswers: conversation.completedAnswerCount) {
             autoRename(conversation: conversation, context: context, force: false)
         }

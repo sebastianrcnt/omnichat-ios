@@ -5,7 +5,7 @@ import SwiftData
 
 /// Streams the given deltas, then either finishes, throws, or hangs until cancelled.
 final class ProgrammableStreamer: ChatStreaming, @unchecked Sendable {
-    enum End { case finish, fail(Error), hang }
+    enum End { case finish, fail(Error), hang, finishAfter(Duration) }
     private let lock = NSLock()
     private var plans: [([ChatDelta], End)]
     private(set) var requests: [ChatRequest] = []
@@ -22,6 +22,7 @@ final class ProgrammableStreamer: ChatStreaming, @unchecked Sendable {
             case .finish: c.finish()
             case .fail(let e): c.finish(throwing: e)
             case .hang: break // never finishes on its own; cancelling the consuming task ends iteration
+            case .finishAfter(let delay): Task { try? await Task.sleep(for: delay); c.finish() }
             }
         }
     }
