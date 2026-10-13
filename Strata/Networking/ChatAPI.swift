@@ -174,7 +174,27 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
                                        "args": .init(description: "The plugin's arguments as a JSON object string, for example {\"key\": \"value\"}. Omit when the plugin takes none.")],
                           required: ["name"])))
 
+    static let runPython = ToolDefinition(function: .init(
+        name: "run_python",
+        description: "Run Python 3 code on the user's device (Pyodide) and return its printed output, the value of the last expression, or the traceback. numpy, scipy, sympy, pandas, matplotlib and the standard library are available; they load on first import. Variables and imports persist between calls within this chat until the session is reset. Figures left open by matplotlib are saved as PNG images and listed in the result. There is no direct internet access; pure-Python packages from PyPI can be installed with `import micropip; await micropip.install(\"name\")`. Each call has a time limit.",
+        parameters: .init(properties: ["code": .init(description: "The Python code to run. Use print() for output; the value of the last expression is shown too.")],
+                          required: ["code"])))
+
+    static let viewImage = ToolDefinition(function: .init(
+        name: "view_image",
+        description: "Look at an image produced earlier in this chat, such as a figure saved by run_python. The image is attached to the conversation right after the result.",
+        parameters: .init(properties: ["id": .init(description: "The image id, for example figure-1.")],
+                          required: ["id"])))
+
+    /// The web tools, always sent to a model with tools.
     static let standard: [ToolDefinition] = [webSearch, webFetch, runPlugin]
+
+    /// The tools of a request: fixed for a given setting and model, so the cached prefix never changes within a chat
+    /// unless the setting or the model does. `view_image` needs a model that reads images.
+    static func available(python: Bool, images: Bool) -> [ToolDefinition] {
+        guard python else { return standard }
+        return standard + (images ? [runPython, viewImage] : [runPython])
+    }
 }
 
 /// Token usage from the final streamed chunk.

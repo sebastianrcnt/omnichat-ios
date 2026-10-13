@@ -21,6 +21,7 @@
 		08CC82D76737405E0EAE634A /* ChatClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC9B4C0F5B7D9EA0C318B662 /* ChatClient.swift */; };
 		0AA8B19E1FBC8AA1CD5BFA3F /* Conversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCFE8ACA7DF44925496D753 /* Conversation.swift */; };
 		0B66F514E7BAD4B14630D51A /* KeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 225A9D52503C945DAD353346 /* KeyStore.swift */; };
+		0BD47474831A4DF86A71B58F /* PyRuntime in Resources */ = {isa = PBXBuildFile; fileRef = D885671F11503105E839A70B /* PyRuntime */; };
 		0CC2BD255DF2D13E88ABF0EC /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8466A7CDF21ACE56C1F711D2 /* AppSettings.swift */; };
 		0DC1C2E2FC13DF167A4A01F3 /* P2PerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A622DCD2F41352D5522EDFA /* P2PerformanceTests.swift */; };
 		0E9E153E53EB4F8BC58069E1 /* ddg-challenge.html in Resources */ = {isa = PBXBuildFile; fileRef = BBF73B4F94D85C972052389E /* ddg-challenge.html */; };
@@ -107,12 +108,14 @@
 		548645DA1E0C06F0D9EB2E4B /* ChatController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C03FBF59DC6F9A1BD1C0A47 /* ChatController.swift */; };
 		54AA0FA69A881A61FD542A4C /* ToolProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5D32B8964A505B794CA379 /* ToolProgress.swift */; };
 		55653DCA14F8524A7B81E99C /* ModelSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CE7DDF672A184EEA699E6B6 /* ModelSelection.swift */; };
+		55F86F699C54515BBCA61138 /* PythonFigures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 689795A776DB38F58B854B51 /* PythonFigures.swift */; };
 		565A64B4B05089F325EC7696 /* Messages.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20AFA546F5B8911AF644FF5 /* Messages.swift */; };
 		570A24C7325542D3CD52BE71 /* RequestInspection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 039C4D95DE3E932F7D0EB67D /* RequestInspection.swift */; };
 		5778FF916B3D00C297FE1B1E /* PluginRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B141DC5A18167B93E51A1676 /* PluginRunner.swift */; };
 		5979247FCDF49AC20D6C3472 /* FetchPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 694AA33940881B512682FD28 /* FetchPipeline.swift */; };
 		599BD0A34E25235EB6688000 /* StreamPacingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A2D7C1E0284AFFF48149B8A /* StreamPacingTests.swift */; };
 		5A9F3049B5A68B7F3C3D46B0 /* Pretendard-Medium.otf in Resources */ = {isa = PBXBuildFile; fileRef = 4AD9287753DFCCE312939C73 /* Pretendard-Medium.otf */; };
+		5B54319231F66AB260EA8828 /* PyodideServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A6AC1D6A0D425D2934E4B1D /* PyodideServer.swift */; };
 		5B97326687D39CF393E05AF1 /* ImageProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E08F0D934A25CA44E443328 /* ImageProcessor.swift */; };
 		5D87B925992AC9EBB7A96C02 /* DebugBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF02DB6A733BBE52D18499D5 /* DebugBundle.swift */; };
 		5DE1FB9CA2AD5FB98F1B6C83 /* MarkdownBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = C48316140F6C91D3CBA80AB7 /* MarkdownBlock.swift */; };
@@ -129,6 +132,7 @@
 		6758F027C7489205BE19642E /* MessageLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13423FE5A72BA79F03249F91 /* MessageLayoutTests.swift */; };
 		681EC0F7CE54C42B6E47E4F2 /* AutoRename.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9B43C3393EEFAD90D95BA9B /* AutoRename.swift */; };
 		68251F5ECF73365321AED967 /* ChatLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5AC0A7BCD327ACF820153EA /* ChatLifecycle.swift */; };
+		682B3FA45D683F485F6342F8 /* PyodideServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A6AC1D6A0D425D2934E4B1D /* PyodideServer.swift */; };
 		68E90130CDAE128AD08FAB8F /* KeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 225A9D52503C945DAD353346 /* KeyStore.swift */; };
 		69F48892C13E96F27066826F /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 6946DA516AFD242CE9D85CF0 /* InfoPlist.xcstrings */; };
 		6A5C08E10E0175A18CE665DB /* TurnRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5939AEB1A666782A72840E /* TurnRunnerTests.swift */; };
@@ -204,9 +208,12 @@
 		A3174723B1CB8D5BDC8A3BAF /* TurnCheckpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 619C5072CAB9E071F0FFE21E /* TurnCheckpoint.swift */; };
 		A400F2059FD780FFD574CCD3 /* MacRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47232D28ED3A73F94A9C06BF /* MacRootView.swift */; };
 		A53F1B61DEA355DE66547C85 /* CheckpointPersisterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2903D95098EA1DA463B52EBC /* CheckpointPersisterTests.swift */; };
+		A5FF899CC4F9262F57D90F5F /* PythonRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5280BB687C005E6ECA5D7CA6 /* PythonRuntime.swift */; };
 		A63A4385A9E867437FCC6F0A /* Sources.swift in Sources */ = {isa = PBXBuildFile; fileRef = 603FD8755196D4C36A00346F /* Sources.swift */; };
+		A7F9A516AA2BA729C4452A39 /* PythonRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5280BB687C005E6ECA5D7CA6 /* PythonRuntime.swift */; };
 		A9736FECF1D6AF059533565F /* Pretendard-Bold.otf in Resources */ = {isa = PBXBuildFile; fileRef = 335A89D1EA6C94CE1A622FE0 /* Pretendard-Bold.otf */; };
 		A9CC45A9AA351A2C398F1EEA /* StreamingMarkdownTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23D74F0D9535BDC2282EFC76 /* StreamingMarkdownTests.swift */; };
+		AC5B9BB1ECC121E76601798C /* PythonIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A8F2001AC39567BD8A1D60D /* PythonIntegrationTests.swift */; };
 		ACA454DF837E63C459F8B464 /* wikipedia_summary.plugin.js in Resources */ = {isa = PBXBuildFile; fileRef = D9A60A138EBA6EF67BAF0B4A /* wikipedia_summary.plugin.js */; };
 		ACC1F1202CF5DEBC51C2D4AD /* DebugHooks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62C6E50D199A95EB9EB282FD /* DebugHooks.swift */; };
 		AD63799B477EBC2957D18D39 /* HiddenWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2591276CC7B49180E08D4971 /* HiddenWebView.swift */; };
@@ -257,8 +264,10 @@
 		CC812653C20345500F46BF32 /* Pretendard-Medium.otf in Resources */ = {isa = PBXBuildFile; fileRef = 4AD9287753DFCCE312939C73 /* Pretendard-Medium.otf */; };
 		CCCCA6CC8C6F35CC9E056C21 /* Dictation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 998841C6FE4AED2FF59DC7EC /* Dictation.swift */; };
 		CE1B4ECA196778728E7EA4C1 /* ContextSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17C8B76F60CF255F7FCBAEDB /* ContextSheet.swift */; };
+		CEB021C07023729D842B6B6C /* PyRuntime in Resources */ = {isa = PBXBuildFile; fileRef = D885671F11503105E839A70B /* PyRuntime */; };
 		CEDFC1919CC1221DD2B11C71 /* DiagnosticCounters.swift in Sources */ = {isa = PBXBuildFile; fileRef = E323287078B8754E837F745D /* DiagnosticCounters.swift */; };
 		CF4419B7FDB59826E9B3E860 /* PluginRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B141DC5A18167B93E51A1676 /* PluginRunner.swift */; };
+		CFDF09F10704FB0893C3F7E8 /* PythonFigures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 689795A776DB38F58B854B51 /* PythonFigures.swift */; };
 		CFEF59E4843D76B9B2AB2059 /* CitationParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = FECE9D6C44DB462F37226F03 /* CitationParser.swift */; };
 		D1E17F7AD7FD38951D8FF71C /* Keyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFC8B1300DC3FB01ECF19A2F /* Keyboard.swift */; };
 		D2A7FD7FD3194E242CD819C2 /* CodeBlocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8591D2FBB734E1956666DBD /* CodeBlocks.swift */; };
@@ -380,6 +389,7 @@
 		4E659CD4EAC77F222AED42AC /* Redaction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Redaction.swift; sourceTree = "<group>"; };
 		4FCFE8ACA7DF44925496D753 /* Conversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Conversation.swift; sourceTree = "<group>"; };
 		51F73404257AB826A0402DBF /* ThoughtSentenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThoughtSentenceTests.swift; sourceTree = "<group>"; };
+		5280BB687C005E6ECA5D7CA6 /* PythonRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonRuntime.swift; sourceTree = "<group>"; };
 		577C99863BBA69F6E419DF04 /* naver-results.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "naver-results.html"; sourceTree = "<group>"; };
 		57C860BFAC93144D535EE9CD /* CompactionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactionTests.swift; sourceTree = "<group>"; };
 		5E59111DFEC2815CA7A165FF /* ChatSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSettingsTests.swift; sourceTree = "<group>"; };
@@ -392,6 +402,7 @@
 		648F250AFB2520ECD6FBA4E7 /* Effort.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Effort.swift; sourceTree = "<group>"; };
 		66B56A8CE4450D02BB8C0419 /* StreamingMarkdownViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamingMarkdownViews.swift; sourceTree = "<group>"; };
 		67A397A75060DA5AB167DF7C /* CompactionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactionViews.swift; sourceTree = "<group>"; };
+		689795A776DB38F58B854B51 /* PythonFigures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonFigures.swift; sourceTree = "<group>"; };
 		6946DA516AFD242CE9D85CF0 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		694AA33940881B512682FD28 /* FetchPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FetchPipeline.swift; sourceTree = "<group>"; };
 		69EA84DD75CFA6988FD9FBA5 /* PerformanceFixesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceFixesTests.swift; sourceTree = "<group>"; };
@@ -426,6 +437,8 @@
 		9615B53146C4A5C894C4D40D /* WebViewPool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebViewPool.swift; sourceTree = "<group>"; };
 		986B69DEECDDC6A5FF0DE689 /* ChatOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatOptions.swift; sourceTree = "<group>"; };
 		998841C6FE4AED2FF59DC7EC /* Dictation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dictation.swift; sourceTree = "<group>"; };
+		9A6AC1D6A0D425D2934E4B1D /* PyodideServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PyodideServer.swift; sourceTree = "<group>"; };
+		9A8F2001AC39567BD8A1D60D /* PythonIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonIntegrationTests.swift; sourceTree = "<group>"; };
 		9B655A48CCD825D9D0172DEE /* SSE.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSE.swift; sourceTree = "<group>"; };
 		9CE7DDF672A184EEA699E6B6 /* ModelSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelSelection.swift; sourceTree = "<group>"; };
 		9D076370B98BDA6E9EC30D9D /* ReasoningSpaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReasoningSpaces.swift; sourceTree = "<group>"; };
@@ -471,6 +484,7 @@
 		CEA1AB82E5C9F803670E2297 /* PluginTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginTests.swift; sourceTree = "<group>"; };
 		CEBD4BA8EA9CBAB919310F52 /* ContextGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextGrid.swift; sourceTree = "<group>"; };
 		CF397966E028F30C37940F09 /* article.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = article.html; sourceTree = "<group>"; };
+		D885671F11503105E839A70B /* PyRuntime */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PyRuntime; path = Strata/Resources/PyRuntime; sourceTree = SOURCE_ROOT; };
 		D9A60A138EBA6EF67BAF0B4A /* wikipedia_summary.plugin.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = wikipedia_summary.plugin.js; sourceTree = "<group>"; };
 		D9B7287789884909C961D282 /* engines.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = engines.json; sourceTree = "<group>"; };
 		DBA39B2742E57D52847046B7 /* WebToolErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebToolErrorTests.swift; sourceTree = "<group>"; };
@@ -583,6 +597,7 @@
 				69EA84DD75CFA6988FD9FBA5 /* PerformanceFixesTests.swift */,
 				CEA1AB82E5C9F803670E2297 /* PluginTests.swift */,
 				8D35FCBD9685D8FFD316494C /* ProcessSegmentTests.swift */,
+				9A8F2001AC39567BD8A1D60D /* PythonIntegrationTests.swift */,
 				342661A12FE2062C81D8B547 /* QuoteCitationTests.swift */,
 				DE43918539189B11FD7FA06F /* ResumeTests.swift */,
 				886C8F6D9B0406EB7F52AB97 /* SSEAndStreamTests.swift */,
@@ -682,6 +697,16 @@
 				6EFA02B98F9B308CB4726D0F /* Readability.js */,
 			);
 			path = Readability;
+			sourceTree = "<group>";
+		};
+		41A67A5283B7B2AAF6F30100 /* Python */ = {
+			isa = PBXGroup;
+			children = (
+				9A6AC1D6A0D425D2934E4B1D /* PyodideServer.swift */,
+				689795A776DB38F58B854B51 /* PythonFigures.swift */,
+				5280BB687C005E6ECA5D7CA6 /* PythonRuntime.swift */,
+			);
+			path = Python;
 			sourceTree = "<group>";
 		};
 		4AC753904E570346129666E3 /* Plugins */ = {
@@ -804,6 +829,7 @@
 				351880CB8EBA8A140400449B /* Info.plist */,
 				6946DA516AFD242CE9D85CF0 /* InfoPlist.xcstrings */,
 				9DF5CC77FC1395D564A9F6FF /* Localizable.xcstrings */,
+				D885671F11503105E839A70B /* PyRuntime */,
 				B1DF6CF450DD9EFDBBC4DFD2 /* Fonts */,
 				90586FFEDA5C2DE4C141593D /* Highlight */,
 				4AC753904E570346129666E3 /* Plugins */,
@@ -825,6 +851,7 @@
 				9F060271B290FC6006ED6EB6 /* URLGuard.swift */,
 				9EDDB9156BDFEC4520B3C1E0 /* WebTools.swift */,
 				9615B53146C4A5C894C4D40D /* WebViewPool.swift */,
+				41A67A5283B7B2AAF6F30100 /* Python */,
 			);
 			path = Tools;
 			sourceTree = "<group>";
@@ -1040,6 +1067,7 @@
 				B3A6BDB0E77B8EC72876295D /* Pretendard-Regular.otf in Resources */,
 				C9E842EA25B09124526FDBF7 /* Pretendard-SemiBold.otf in Resources */,
 				FF59AE2CB85C5E6106DFFAB7 /* PretendardVariable.ttf in Resources */,
+				CEB021C07023729D842B6B6C /* PyRuntime in Resources */,
 				F95FE1C377AE2B715B1832EE /* Readability.js in Resources */,
 				7589CFE5900E2ED316232342 /* engines.json in Resources */,
 				3E304E8994888C5840B3E92D /* highlight.js in Resources */,
@@ -1062,6 +1090,7 @@
 				72CA2798F91C33F1F8FC562A /* Pretendard-Regular.otf in Resources */,
 				3D93CA9C16702E780FC5A740 /* Pretendard-SemiBold.otf in Resources */,
 				22E3E3354F0088679BD7AF90 /* PretendardVariable.ttf in Resources */,
+				0BD47474831A4DF86A71B58F /* PyRuntime in Resources */,
 				25B098E8B2FFA9E841AFD196 /* Readability.js in Resources */,
 				2347F1AD8687AF9774EF1204 /* engines.json in Resources */,
 				181EFDC2EA74CEDD105F8870 /* highlight.js in Resources */,
@@ -1104,6 +1133,7 @@
 				13F18EEAA4D0AA7EAD7A2407 /* PerformanceFixesTests.swift in Sources */,
 				06C3F18826B96E1CE607BA9A /* PluginTests.swift in Sources */,
 				34E022A9049E6A1924ECD5C0 /* ProcessSegmentTests.swift in Sources */,
+				AC5B9BB1ECC121E76601798C /* PythonIntegrationTests.swift in Sources */,
 				6F0815E31AE206A439DA29D4 /* QuoteCitationTests.swift in Sources */,
 				BE08AB7DE04F0AA49A4F084A /* ResumeTests.swift in Sources */,
 				A27748A1CA53762E03335950 /* SSEAndStreamTests.swift in Sources */,
@@ -1196,6 +1226,9 @@
 				CF4419B7FDB59826E9B3E860 /* PluginRunner.swift in Sources */,
 				29825640B2033A6C4B739BE7 /* ProcessSegmentModel.swift in Sources */,
 				1B2572A99F43D2C2B5132BEB /* ProcessSegments.swift in Sources */,
+				5B54319231F66AB260EA8828 /* PyodideServer.swift in Sources */,
+				CFDF09F10704FB0893C3F7E8 /* PythonFigures.swift in Sources */,
+				A5FF899CC4F9262F57D90F5F /* PythonRuntime.swift in Sources */,
 				93B3C71AE5DAFCDB0DB4B313 /* QuoteCitations.swift in Sources */,
 				3006DBD25FA6EDFB749628CA /* RateLimiter.swift in Sources */,
 				78592FCE02A576640C947C03 /* ReasoningSpaces.swift in Sources */,
@@ -1315,6 +1348,9 @@
 				5778FF916B3D00C297FE1B1E /* PluginRunner.swift in Sources */,
 				16AF34E2559E0EA1E6AC89C5 /* ProcessSegmentModel.swift in Sources */,
 				22D853C6287BACD18129747C /* ProcessSegments.swift in Sources */,
+				682B3FA45D683F485F6342F8 /* PyodideServer.swift in Sources */,
+				55F86F699C54515BBCA61138 /* PythonFigures.swift in Sources */,
+				A7F9A516AA2BA729C4452A39 /* PythonRuntime.swift in Sources */,
 				92F0C04504430F572ABC5E76 /* QuoteCitations.swift in Sources */,
 				45CACCD11F64860A42537A04 /* RateLimiter.swift in Sources */,
 				C48C022B81E313E8DB806867 /* ReasoningSpaces.swift in Sources */,

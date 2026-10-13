@@ -27,6 +27,11 @@ targets:
       - path: Strata
         excludes:
           - "**/*.md"
+          - Resources/PyRuntime
+          - Resources/PyRuntime/**
+      - path: Strata/Resources/PyRuntime
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: MarkdownUI
     settings:
@@ -72,6 +77,11 @@ targets:
         excludes:
           - "**/*.md"
           - Resources/Info.plist
+          - Resources/PyRuntime
+          - Resources/PyRuntime/**
+      - path: Strata/Resources/PyRuntime
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: MarkdownUI
     entitlements:

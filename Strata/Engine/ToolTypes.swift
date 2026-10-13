@@ -16,6 +16,10 @@ struct ToolOutput: Sendable, Equatable {
     var sources: [SourceCandidate] = []
     /// The search engine that answered a `web_search` (named in the text the model sees).
     var engine: String?
+    /// Figures a `run_python` call saved (listed in `text`).
+    var figures: [ToolImage] = []
+    /// The image a `view_image` call attaches: it goes to the model in a user message right after the tool results.
+    var viewedImage: ToolImage?
 }
 
 /// A tool result that finished before the results ahead of it in the round, held (and checkpointed) until it can be
@@ -26,6 +30,8 @@ struct RawToolResult: Codable, Sendable, Equatable {
     var isError: Bool
     var sources: [SourceCandidate]
     var engine: String?
+    var figures: [ToolImage]?
+    var viewedImage: ToolImage?
 
     init(callID: String, output: ToolOutput) {
         self.callID = callID
@@ -33,9 +39,13 @@ struct RawToolResult: Codable, Sendable, Equatable {
         isError = output.isError
         sources = output.sources
         engine = output.engine
+        figures = output.figures.isEmpty ? nil : output.figures
+        viewedImage = output.viewedImage
     }
 
-    var output: ToolOutput { ToolOutput(text: text, isError: isError, sources: sources, engine: engine) }
+    var output: ToolOutput {
+        ToolOutput(text: text, isError: isError, sources: sources, engine: engine, figures: figures ?? [], viewedImage: viewedImage)
+    }
 }
 
 protocol ToolExecuting: Sendable {
@@ -60,6 +70,9 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
     var engine: String?
     var pageCharacters: Int?
     var thinPage: Bool?
+    /// Figures a `run_python` call saved, and the image a `view_image` call attached (sent again with every request).
+    var figures: [ToolImage]?
+    var viewedImage: ToolImage?
 
     init(id: String, name: String, arguments: String, result: String, isError: Bool, sourceIDs: [Int] = []) {
         self.id = id
@@ -81,6 +94,8 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
         engine = try c.decodeIfPresent(String.self, forKey: .engine)
         pageCharacters = try c.decodeIfPresent(Int.self, forKey: .pageCharacters)
         thinPage = try c.decodeIfPresent(Bool.self, forKey: .thinPage)
+        figures = try c.decodeIfPresent([ToolImage].self, forKey: .figures)
+        viewedImage = try c.decodeIfPresent(ToolImage.self, forKey: .viewedImage)
     }
 
     /// Human-readable argument (the query or URL; for a plugin, the page it opens).
@@ -91,6 +106,8 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
         case "web_search": return (obj["query"] as? String) ?? arguments
         case "web_fetch": return (obj["url"] as? String) ?? arguments
         case "run_plugin": return PluginCall.pageURL(in: arguments) ?? (obj["name"] as? String) ?? arguments
+        case "run_python": return (obj["code"] as? String) ?? arguments
+        case "view_image": return (obj["id"] as? String) ?? arguments
         default: return arguments
         }
     }
@@ -109,9 +126,16 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
 
     var toolCall: ToolCall { ToolCall(id: id, name: name, arguments: arguments) }
 
+    /// The result as the next requests send it again (with the image a `view_image` call attached).
+    var output: ToolOutput { ToolOutput(text: result, isError: isError, figures: figures ?? [], viewedImage: viewedImage) }
+
     /// The record without its result text: all a process row needs, so segments never hold fetched page bodies.
+    /// A Python run keeps its output (the card shows it; it is capped like a page slice).
     var displayOnly: ToolCallRecord {
-        var out = ToolCallRecord(id: id, name: name, arguments: arguments, result: "", isError: isError, sourceIDs: sourceIDs)
+        var out = ToolCallRecord(id: id, name: name, arguments: arguments, result: name == ToolNames.runPython ? result : "",
+                                 isError: isError, sourceIDs: sourceIDs)
+        out.figures = figures
+        out.viewedImage = viewedImage
         if name == ToolNames.webSearch {
             out.engine = searchEngine
         } else if name == ToolNames.webFetch, !isError {
@@ -173,6 +197,8 @@ enum ToolNames {
     static let webSearch = "web_search"
     static let webFetch = "web_fetch"
     static let runPlugin = "run_plugin"
+    static let runPython = "run_python"
+    static let viewImage = "view_image"
 
     /// Tools that read a page (and count as one in the summaries).
     static func readsPage(_ name: String) -> Bool { name == webFetch || name == runPlugin }
@@ -217,7 +243,7 @@ enum MessageAssembler {
                 for step in m.steps {
                     appendToolRound(to: &out, assistantContent: step.assistantContent,
                                     calls: step.calls.map(\.toolCall),
-                                    results: step.calls.map { ToolOutput(text: $0.result, isError: $0.isError) })
+                                    results: step.calls.map(\.output), readsImages: readsImages)
                 }
                 if !m.text.isEmpty || m.steps.isEmpty { out.append(.assistant(m.text)) }
             default:
@@ -230,12 +256,33 @@ enum MessageAssembler {
     /// Stands for an image when the model can't read images. Fixed text, so the prefix stays the same between requests.
     static let omittedImageNote = "[Image omitted: the current model can't read images.]"
 
-    /// Append the assistant message carrying `tool_calls`, then one `tool` message per call.
+    /// Append the assistant message carrying `tool_calls`, then one `tool` message per call. Images `view_image`
+    /// attached follow in one `user` message after the last tool message (a tool message carries text only), so the
+    /// order stays assistant → tool… → user, valid for OpenAI-style APIs and Qwen chat templates. It is rebuilt the
+    /// same way from the saved records for every later request, so its bytes never change.
     static func appendToolRound(to messages: inout [APIMessage], assistantContent: String,
-                                calls: [ToolCall], results: [ToolOutput]) {
+                                calls: [ToolCall], results: [ToolOutput], readsImages: Bool = true,
+                                images: ToolImageStore = .shared) {
         messages.append(.assistant(assistantContent, toolCalls: calls))
         for (call, result) in zip(calls, results) {
             messages.append(.tool(callID: call.id, content: result.text))
         }
+        let viewed = zip(calls, results).compactMap { _, result in result.isError ? nil : result.viewedImage }
+        guard !viewed.isEmpty else { return }
+        if readsImages {
+            var parts: [ContentPart] = []
+            for image in viewed {
+                parts.append(.text(viewedImageLabel(image)))
+                if let url = images.dataURL(file: image.file) { parts.append(.imageURL(url)) } else { parts.append(.text(missingImageNote)) }
+            }
+            messages.append(.user(parts: parts))
+        } else {
+            let text = viewed.map { viewedImageLabel($0) + "\n" + omittedImageNote }.joined(separator: "\n\n")
+            messages.append(.user(text))
+        }
     }
+
+    /// Heads an image `view_image` attached.
+    static func viewedImageLabel(_ image: ToolImage) -> String { "[view_image: \(image.id), \(image.width)x\(image.height)]" }
+    static let missingImageNote = "[Image unavailable: it is no longer stored on this device.]"
 }

@@ -367,6 +367,7 @@ final class ChatController {
         var runner = TurnRunner(streamer: streamer, tools: tools)
         runner.toolsDisabled = assistant.answeredEarly
         runner.continueOnEmptyAnswer = settings.continueOnEmptyAnswer
+        runner.python = settings.pythonEnabled
         let ring = requestRing
         let conversationID = conversation.id
         runner.requestLog = { event in
@@ -386,8 +387,12 @@ final class ChatController {
             let tracker = TurnTracker(message: assistant, conversation: conversation, render: render, checkpoint: checkpoint)
             self.sourceStore = sourceStore
             do {
-                let outcome = try await runner.run(endpoint: endpoint, messages: messages, effort: effort, sources: sourceStore, checkpoint: checkpoint) { event in
-                    try self.handle(event, tracker: tracker, context: context)
+                let outcome = try await ToolContext.$conversationID.withValue(conversationID) {
+                    try await ToolContext.$readsImages.withValue(endpoint.model.supportsImages) {
+                        try await runner.run(endpoint: endpoint, messages: messages, effort: effort, sources: sourceStore, checkpoint: checkpoint) { event in
+                            try self.handle(event, tracker: tracker, context: context)
+                        }
+                    }
                 }
                 tracker.finishThinking()
                 conversation.sources = sourceStore.items
@@ -478,6 +483,11 @@ final class ChatController {
         return MessageAssembler.apiMessages(from: history, systemPrompt: system, readsImages: endpoint.model.supportsImages)
     }
 
+    /// The tools a turn sends (see `ToolDefinition.available`).
+    private func requestTools(_ endpoint: Endpoint) -> [ToolDefinition] {
+        ToolDefinition.available(python: settings.pythonEnabled, images: endpoint.model.supportsImages)
+    }
+
     /// The window, the room for an answer and the context size before this turn's own message.
     private func contextWindow(for endpoint: Endpoint) -> Int {
         var window = endpoint.model.effectiveContextLength(default: settings.defaultContextLength)
@@ -529,7 +539,7 @@ final class ChatController {
         let window = contextWindow(for: endpoint)
         var request = ChatRequest(model: endpoint.model.id, messages: messages)
         if endpoint.model.supportsEffort { request.reasoningEffort = conversation.effort.apiValue }
-        if endpoint.model.supportsTools { request.tools = ToolDefinition.standard }
+        if endpoint.model.supportsTools { request.tools = requestTools(endpoint) }
         compactingConversationID = conversation.id
         activeConversationID = conversation.id
         phase = .compacting
@@ -571,7 +581,7 @@ final class ChatController {
         guard let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID)
         else { return nil }
         let messages = apiHistory(path: conversation.activePath, conversation: conversation, endpoint: endpoint)
-        return ContextEstimator.split(messages: messages, tools: endpoint.model.supportsTools ? ToolDefinition.standard : nil,
+        return ContextEstimator.split(messages: messages, tools: endpoint.model.supportsTools ? requestTools(endpoint) : nil,
                                       total: total)
     }
 

@@ -69,6 +69,8 @@ struct TurnRunner: Sendable {
     var continueOnEmptyAnswer = false
     /// Told about each request actually sent (not the replay of one restored from a checkpoint).
     var requestLog: (@MainActor @Sendable (RequestLogEvent) -> Void)?
+    /// Offer `run_python` (and `view_image` to a model that reads images). Settings > Python; off in tests by default.
+    var python = false
 
     /// - Parameter messages: the API history up to and including the new user message.
     @MainActor
@@ -85,6 +87,8 @@ struct TurnRunner: Sendable {
         var hitCap = false
         var finalReasoning = ""
         let toolsEnabled = endpoint.model.supportsTools
+        let readsImages = endpoint.model.supportsImages
+        let toolList = ToolDefinition.available(python: python, images: readsImages)
 
         var meter = compaction?.meter ?? ContextMeter()
         if restored != nil { meter = .estimate(messages) }
@@ -94,7 +98,7 @@ struct TurnRunner: Sendable {
             var request = ChatRequest(model: endpoint.model.id, messages: messages)
             if endpoint.model.supportsEffort, let effort { request.reasoningEffort = effort.apiValue }
             if toolsEnabled {
-                request.tools = ToolDefinition.standard // identical on every request
+                request.tools = toolList // identical on every request
                 if capped { request.toolChoice = "none" }
             }
             return request
@@ -213,7 +217,7 @@ struct TurnRunner: Sendable {
             // history and the source ids are what a one-by-one run would produce; a result that finishes early waits
             // (and is checkpointed) until the calls before it are done.
             var records: [ToolCallRecord] = checkpoint.records
-            var outputs = records.map { ToolOutput(text: $0.result, isError: $0.isError) }
+            var outputs = records.map(\.output)
             for record in records { try onEvent(.toolFinished(record)) }
             var finished: [Int: ToolOutput] = [:]
             let flushed = Set(records.map(\.id))
@@ -237,8 +241,10 @@ struct TurnRunner: Sendable {
                         let blocks = zip(infos, out.sources).map { SourceFormatter.block($0, content: $1.content) }.joined(separator: "\n")
                         out.text = out.engine.map { "Results from \($0):\n" + blocks } ?? blocks
                     }
-                    let record = ToolCallRecord(id: call.id, name: call.name, arguments: call.arguments,
+                    var record = ToolCallRecord(id: call.id, name: call.name, arguments: call.arguments,
                                                 result: out.text, isError: out.isError, sourceIDs: ids)
+                    record.figures = out.figures.isEmpty ? nil : out.figures
+                    record.viewedImage = out.viewedImage
                     records.append(record)
                     outputs.append(out)
                     checkpoint.pendingResults?.removeAll { $0.callID == call.id }
@@ -261,7 +267,8 @@ struct TurnRunner: Sendable {
             }
             try Task.checkCancellation()
             let before = messages.count
-            MessageAssembler.appendToolRound(to: &messages, assistantContent: acc.content, calls: calls, results: outputs)
+            MessageAssembler.appendToolRound(to: &messages, assistantContent: acc.content, calls: calls, results: outputs,
+                                             readsImages: readsImages)
             // The reported usage already counts the assistant message that made the calls; the results are new.
             for m in messages[before...] where !(usageCounted && m.role == "assistant") { meter.append(m) }
             steps.append(ToolStep(assistantContent: acc.content, calls: records))

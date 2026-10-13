@@ -116,7 +116,7 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage {
     }
 
     #if canImport(UIKit)
-    private static var keyWindow: UIWindow? {
+    static var keyWindow: UIWindow? {
         UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows)

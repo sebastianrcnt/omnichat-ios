@@ -357,6 +357,9 @@ struct WebFetchTool {
 struct ToolRouter: ToolExecuting {
     /// Runs a plugin by name with its args (a JSON object string, "" for none). Test seam; `nil` uses `RunPluginTool`.
     var pluginRunner: (@Sendable (_ name: String, _ args: String) async -> ToolOutput)?
+    /// Runs Python code for a conversation. Test seam; `nil` uses `PythonRuntime.shared`.
+    var pythonRunner: (@Sendable (_ code: String, _ conversation: UUID, _ canView: Bool) async -> ToolOutput)?
+    var images: ToolImageStore = .shared
 
     var usesWebKit: Bool { true }
     func execute(name: String, arguments: String) async -> ToolOutput {
@@ -384,6 +387,22 @@ struct ToolRouter: ToolExecuting {
             let pluginArgs = Self.pluginArguments(args["args"])
             if let pluginRunner { return await pluginRunner(plugin, pluginArgs) }
             return await RunPluginTool().run(name: plugin, arguments: pluginArgs)
+        case ToolNames.runPython:
+            guard let code = args["code"] as? String else {
+                return ToolOutput(text: "Error: missing required argument \"code\".", isError: true)
+            }
+            guard let conversation = ToolContext.conversationID else {
+                return ToolOutput(text: "Error: Python is not available here.", isError: true)
+            }
+            let canView = ToolContext.readsImages
+            if let pythonRunner { return await pythonRunner(code, conversation, canView) }
+            return await PythonRuntime.shared.run(code: code, conversationID: conversation, canView: canView)
+        case ToolNames.viewImage:
+            guard let id = args["id"] as? String else {
+                return ToolOutput(text: "Error: missing required argument \"id\".", isError: true)
+            }
+            return ViewImageTool(store: images).run(id: id, conversationID: ToolContext.conversationID,
+                                                    readsImages: ToolContext.readsImages)
         default:
             return ToolOutput(text: "Error: unknown tool \"\(name)\".", isError: true)
         }
@@ -397,5 +416,23 @@ struct ToolRouter: ToolExecuting {
         case let obj as [String: Any]: return PluginManifest.json(obj)
         default: return ""
         }
+    }
+}
+
+/// `view_image`: attaches an image made earlier in the chat (see `MessageAssembler.appendToolRound`).
+struct ViewImageTool {
+    var store: ToolImageStore = .shared
+
+    func run(id: String, conversationID: UUID?, readsImages: Bool) -> ToolOutput {
+        guard readsImages else {
+            return ToolOutput(text: "Error: the current model can't read images, so view_image is not available.", isError: true)
+        }
+        let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let conversationID, let image = store.image(id: trimmed, conversationID: conversationID) else {
+            let known = conversationID.map { store.figureIDs(conversationID: $0) } ?? []
+            let list = known.isEmpty ? "No images exist in this chat yet." : "Available: " + known.joined(separator: ", ") + "."
+            return ToolOutput(text: "Error: no image with id \"\(trimmed)\". " + list, isError: true)
+        }
+        return ToolOutput(text: "\(image.listing) is attached in the next message.", viewedImage: image)
     }
 }

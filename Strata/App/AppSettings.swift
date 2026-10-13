@@ -110,6 +110,10 @@ final class AppSettings {
     var dictationLanguage: String { didSet { defaults.set(dictationLanguage, forKey: DictationLanguage.defaultsKey) } }
     /// Site plugins the model may run (all off until turned on).
     var enabledPlugins: Set<String> { didSet { defaults.set(enabledPlugins.sorted(), forKey: Self.enabledPluginsKey) } }
+    /// Offer `run_python` (on by default). `PythonSettings.isEnabled` reads the same key.
+    var pythonEnabled: Bool { didSet { defaults.set(pythonEnabled, forKey: PythonSettings.enabledKey) } }
+    /// Seconds one Python run may take (`PythonSettings.timeLimitSeconds` reads the same key).
+    var pythonTimeLimit: Int { didSet { defaults.set(pythonTimeLimit, forKey: PythonSettings.timeLimitKey) } }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -129,6 +133,9 @@ final class AppSettings {
         lastEffortRaw = defaults.string(forKey: "lastEffort") ?? Effort.default.rawValue
         enabledPlugins = Set(defaults.stringArray(forKey: Self.enabledPluginsKey) ?? [])
         dictationLanguage = defaults.string(forKey: DictationLanguage.defaultsKey) ?? DictationLanguage.defaultID()
+        pythonEnabled = defaults.object(forKey: PythonSettings.enabledKey) == nil ? true : defaults.bool(forKey: PythonSettings.enabledKey)
+        let limit = defaults.integer(forKey: PythonSettings.timeLimitKey)
+        pythonTimeLimit = PythonSettings.timeLimitOptions.contains(limit) ? limit : PythonSettings.defaultTimeLimit
         // `bool` and `integer` also read launch-argument strings ("NO", "0"), which `as? Bool` would not.
         useSystemTextSize = defaults.object(forKey: "useSystemTextSize") == nil ? true : defaults.bool(forKey: "useSystemTextSize")
         textSizeStep = defaults.object(forKey: "textSizeStep") == nil
