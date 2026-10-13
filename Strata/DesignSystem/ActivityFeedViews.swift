@@ -212,15 +212,19 @@ struct FeedCardView: View {
             ProgressView().controlSize(.mini)
         } else if card.isError {
             Text("Failed").font(DS.Typography.feedMeta).foregroundStyle(theme.textTertiary)
-        } else if collapsed {
+        } else {
             HStack(spacing: DS.Spacing.xs + 2) {
-                if card.hasLoadingRow { ProgressView().controlSize(.mini) }
-                Text(summary).font(DS.Typography.feedMeta).foregroundStyle(theme.textTertiary).lineLimit(1)
+                if collapsed {
+                    if card.hasLoadingRow { ProgressView().controlSize(.mini) }
+                    Text(summary).font(DS.Typography.feedMeta).foregroundStyle(theme.textTertiary).lineLimit(1)
+                } else if let engine = card.engine {
+                    engineBadge(engine)
+                }
+                // Points right when folded and down when open, turning with the fold.
                 Image(systemName: "chevron.right")
                     .font(.system(size: 10, weight: .semibold)).foregroundStyle(theme.textTertiary)
+                    .rotationEffect(.degrees(collapsed ? 0 : 90))
             }
-        } else if let engine = card.engine {
-            engineBadge(engine)
         }
     }
 
