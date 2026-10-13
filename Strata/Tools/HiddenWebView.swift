@@ -10,14 +10,30 @@ enum WebToolError: Error, LocalizedError, Equatable {
     case timeout
     case navigation(String)
     case script(String)
+    /// The site's TLS certificate failed validation (expired, self-signed, wrong name...). Never bypassed.
+    case insecure
 
     var errorDescription: String? {
         switch self {
         case .timeout: String(localized: "The page took too long to load.")
         case .navigation(let m): String(localized: "The page failed to load: \(m)")
         case .script(let m): String(localized: "Page script failed: \(m)")
+        // Read by the model, so it says what to do next.
+        case .insecure: "The site's security certificate is invalid (expired, self-signed or issued for another name), so the page was not opened. This site can't be read; use another source."
         }
     }
+
+    /// A load failure from WebKit, with certificate problems told apart from other failures.
+    static func loadFailure(_ error: Error) -> WebToolError {
+        let e = error as NSError
+        if e.domain == NSURLErrorDomain, Self.certificateCodes.contains(e.code) { return .insecure }
+        return .navigation(error.localizedDescription)
+    }
+
+    static let certificateCodes: Set<Int> = [
+        NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateHasBadDate, NSURLErrorServerCertificateUntrusted,
+        NSURLErrorServerCertificateHasUnknownRoot, NSURLErrorServerCertificateNotYetValid,
+    ]
 }
 
 /// One non-persistent data store for the whole session: every hidden view shares it (cookies last until the app quits,
@@ -210,12 +226,12 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, FetchablePage {
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        if isCurrent(navigation) { finish(.failure(WebToolError.navigation(error.localizedDescription))) }
+        if isCurrent(navigation) { finish(.failure(WebToolError.loadFailure(error))) }
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         // A policy cancel already resolved the continuation with the guard error.
-        if isCurrent(navigation) { finish(.failure(WebToolError.navigation(error.localizedDescription))) }
+        if isCurrent(navigation) { finish(.failure(WebToolError.loadFailure(error))) }
     }
 }
 
