@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Strata Browsing Demo</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+:root{
+  --bg:#141414; --surface:#1e1e20; --raised:#2a2a2d; --line:#333338;
+  --text:#f2f2f4; --dim:#9b9ba3; --faint:#6b6b73;
+  --accent:#8b5cf6; --accent2:#a78bfa; --accentbg:rgba(139,92,246,.16);
+  --ok:#34d399; --warn:#f59e0b; --hl:rgba(250,204,21,.38);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow-x:hidden;background:#0a0a0b;color:var(--text);font-family:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-serif}
+body{display:flex;align-items:center;justify-content:center;gap:28px;flex-wrap:wrap;padding:24px}
+.phone{position:relative;width:393px;height:852px;border-radius:56px;background:var(--bg);overflow:hidden;
+  box-shadow:0 0 0 12px #1c1c1f,0 0 0 13px #3a3a40,0 30px 80px rgba(0,0,0,.6)}
+.side{max-width:300px;color:var(--dim);font-size:14px;line-height:1.6}
+.side h1{color:var(--text);font-size:20px;margin:0 0 8px}
+.side button{margin-top:12px;background:var(--accent);color:#fff;border:0;border-radius:12px;padding:10px 16px;font:inherit;font-weight:600;cursor:pointer}
+@media (max-width:500px){
+  body{padding:0;display:block;background:var(--bg)}
+  .phone{width:100%;max-width:100vw;height:100dvh;border-radius:0;box-shadow:none}
+  .side{display:none}
+}
+/* status bar + island */
+.status{position:absolute;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 30px;font-weight:600;font-size:16px;z-index:30}
+.island{position:absolute;top:11px;left:50%;transform:translateX(-50%);height:36px;width:124px;border-radius:20px;background:#000;z-index:40;
+  display:flex;align-items:center;gap:8px;padding:0 12px;transition:width .5s cubic-bezier(.3,1.3,.5,1);overflow:hidden;white-space:nowrap}
+.island.live{width:250px}
+.island .ring{width:18px;height:18px;border-radius:50%;border:2.5px solid var(--accent);border-right-color:transparent;animation:spin 1s linear infinite;flex:none;opacity:0;transition:opacity .3s}
+.island.live .ring{opacity:1}
+.island .itext{font-size:13px;color:#ddd;opacity:0;transition:opacity .3s .2s}
+.island.live .itext{opacity:1}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* header */
+.header{position:absolute;top:54px;left:0;right:0;height:64px;display:flex;align-items:center;gap:12px;padding:0 16px;z-index:20;
+  background:linear-gradient(var(--bg) 70%,transparent)}
+.circle{width:44px;height:44px;border-radius:50%;background:var(--raised);display:grid;place-items:center;color:var(--text);font-size:18px;flex:none}
+.title{flex:1;min-width:0}
+.title b{display:block;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.title span{font-size:12px;color:var(--dim)}
+/* feed */
+.feed{overflow-x:hidden;position:absolute;top:118px;bottom:112px;left:0;right:0;overflow-y:auto;padding:8px 18px 40px;scroll-behavior:smooth}
+.feed::-webkit-scrollbar{display:none}
+.user{margin-left:auto;max-width:80%;background:var(--raised);padding:11px 15px;border-radius:20px;font-size:15.5px;line-height:1.55;width:fit-content}
+.think{margin-top:18px;color:var(--dim);font-size:14px;display:flex;gap:8px;align-items:center;min-height:22px}
+.think .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pulse 1.2s ease-in-out infinite;flex:none}
+.think.done .dot{animation:none;background:var(--faint)}
+@keyframes pulse{50%{opacity:.3;transform:scale(.7)}}
+.think .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity .25s}
+.fade-in{animation:fin .45s ease both}
+@keyframes fin{from{opacity:0;transform:translateY(6px)}}
+/* search block */
+.search{min-width:0;overflow:hidden;margin-top:12px;background:var(--surface);border-radius:16px;padding:12px 14px}
+.search .q{font-size:13px;color:var(--dim);display:flex;gap:6px;align-items:center}
+.search .q b{color:var(--text);font-weight:600}
+.search .eng{margin-left:auto;font-size:11px;color:var(--faint);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+.results{margin-top:8px;display:flex;flex-direction:column;gap:2px}
+.res{min-width:0;display:flex;gap:9px;align-items:center;padding:6px 6px;border-radius:9px;font-size:13px;transition:background .3s}
+.res .fav{width:18px;height:18px;border-radius:5px;display:grid;place-items:center;font-size:10px;font-weight:700;color:#fff;flex:none}
+.res .rt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.res .rd{color:var(--faint);font-size:11px;flex:none}
+.res.pick{background:var(--accentbg)}
+.res.pick .rt{color:var(--accent2)}
+/* tab cards */
+.tabs{display:flex;gap:10px;margin-top:12px;overflow-x:auto;padding-bottom:4px}
+.tabs::-webkit-scrollbar{display:none}
+.card{flex:none;width:112px;background:var(--surface);border-radius:14px;overflow:hidden;cursor:pointer;position:relative;border:1px solid var(--line);transition:transform .2s}
+.card:active{transform:scale(.96)}
+.card .top{display:flex;gap:6px;align-items:center;padding:7px 8px;font-size:11px}
+.card .top .fav{width:14px;height:14px;border-radius:4px;font-size:8px;display:grid;place-items:center;color:#fff;font-weight:700;flex:none}
+.card .top span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--dim)}
+.card .bar{height:2px;background:var(--line)}
+.card .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .6s ease}
+.card .mini{height:150px;overflow:hidden;position:relative;background:#fff}
+.card .mini .page{transform:scale(.285);transform-origin:0 0;width:393px;pointer-events:none}
+.card .st{position:absolute;left:6px;right:6px;bottom:6px;font-size:10.5px;background:rgba(20,20,20,.85);color:#ddd;border-radius:7px;padding:4px 6px;
+  backdrop-filter:blur(6px);display:flex;gap:5px;align-items:center}
+.card.done .st{color:var(--ok)}
+.card.fail{opacity:.75}
+.card.fail .st{color:var(--warn)}
+.card.fail .bar i{background:var(--warn)}
+/* answer */
+.answer{margin-top:16px;font-size:16px;line-height:1.75}
+.answer p{margin:0 0 12px}
+.chip{display:inline-block;font-size:12px;color:var(--dim);background:var(--raised);border-radius:999px;padding:1px 8px;margin-left:4px;vertical-align:2px}
+.timeline{margin-top:6px;display:flex;align-items:center;gap:8px;color:var(--dim);font-size:13.5px;padding:8px 0;cursor:pointer}
+.thumbs{display:flex}
+.thumbs div{width:26px;height:34px;border-radius:5px;border:1.5px solid var(--bg);background:#fff;margin-left:-8px;overflow:hidden}
+.thumbs div:first-child{margin-left:0}
+.thumbs .page{transform:scale(.066);transform-origin:0 0;width:393px}
+/* composer */
+.composer{position:absolute;left:12px;right:12px;bottom:26px;background:rgba(42,42,45,.85);backdrop-filter:blur(20px);border-radius:26px;padding:12px 14px;z-index:20;border:1px solid rgba(255,255,255,.06)}
+.composer .ph{color:var(--faint);font-size:15.5px;padding:2px 4px 10px}
+.composer .row{display:flex;gap:8px;align-items:center}
+.pill{background:var(--raised);border-radius:999px;padding:7px 13px;font-size:14px}
+.pill em{font-style:normal;color:var(--dim)}
+.send{margin-left:auto;width:36px;height:36px;border-radius:50%;background:var(--accent);display:grid;place-items:center;color:#fff;font-size:15px}
+.send.stop::after{content:"";width:11px;height:11px;border-radius:2px;background:#fff}
+/* fake pages */
+.page{background:#fff;color:#1a1a1a;font-family:-apple-system,"Apple SD Gothic Neo",system-ui,sans-serif;padding:0 0 60px}
+.page .nav{height:52px;display:flex;align-items:center;padding:0 16px;font-weight:800;font-size:18px;color:#fff}
+.page .crumb{font-size:12px;color:#888;padding:14px 18px 0}
+.page h2{font-size:22px;line-height:1.35;margin:8px 18px 10px}
+.page .meta{font-size:12px;color:#999;margin:0 18px 14px}
+.page .img{height:170px;margin:0 18px 16px;border-radius:8px}
+.page p{font-size:15.5px;line-height:1.7;margin:0 18px 14px;border-radius:4px;transition:background .6s}
+.page p.hl{background:var(--hl)}
+.page table{margin:4px 18px 16px;border-collapse:collapse;font-size:13.5px;width:calc(100% - 36px)}
+.page td,.page th{border:1px solid #ddd;padding:6px 8px;text-align:left;transition:background .6s}
+.page table.hl td,.page table.hl th{background:var(--hl)}
+.page .ad{margin:0 18px 16px;height:70px;border-radius:8px;background:repeating-linear-gradient(45deg,#f1f1f1 0 10px,#e9e9e9 10px 20px);display:grid;place-items:center;font-size:11px;color:#aaa}
+.page .captcha{margin:120px 30px;text-align:center;color:#444}
+.page .captcha .box{margin:18px auto;width:230px;border:1px solid #ccc;border-radius:6px;padding:14px;display:flex;gap:10px;align-items:center;font-size:14px}
+.page .captcha .box i{width:22px;height:22px;border:2px solid #bbb;border-radius:3px}
+/* watch mode */
+.watch{position:absolute;inset:0;z-index:50;background:#000;display:flex;flex-direction:column;
+  opacity:0;pointer-events:none;transform:scale(.4);transform-origin:var(--ox,50%) var(--oy,60%);transition:opacity .35s,transform .45s cubic-bezier(.2,.9,.3,1)}
+.watch.on{opacity:1;pointer-events:auto;transform:none}
+.wtop{height:110px;padding:56px 16px 0;display:flex;align-items:center;gap:10px;background:var(--bg)}
+.wtop .url{flex:1;background:var(--raised);border-radius:12px;height:36px;display:flex;align-items:center;gap:8px;padding:0 12px;font-size:14px;color:var(--dim);min-width:0}
+.wtop .url span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wtop .x{width:36px;height:36px;border-radius:50%;background:var(--raised);display:grid;place-items:center;cursor:pointer;flex:none}
+.wbar{height:2px;background:var(--line)}
+.wbar i{display:block;height:100%;width:0;background:var(--accent);transition:width .6s}
+.viewport{flex:1;position:relative;overflow:hidden;background:#fff}
+.viewport .scroller{position:absolute;left:0;right:0;top:0;transition:transform 1.4s cubic-bezier(.45,0,.2,1)}
+.cursor{position:absolute;left:0;top:0;width:22px;height:22px;z-index:5;transition:transform 1s cubic-bezier(.45,0,.2,1);pointer-events:none;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))}
+.cursor svg{display:block}
+.cursor.click::after{content:"";position:absolute;left:-10px;top:-10px;width:22px;height:22px;border-radius:50%;border:2px solid var(--accent);animation:ripple .5s ease-out}
+@keyframes ripple{from{transform:scale(.3);opacity:1}to{transform:scale(1.6);opacity:0}}
+.bubble{position:absolute;left:0;top:0;z-index:6;max-width:230px;background:var(--accent);color:#fff;font-size:13.5px;line-height:1.45;padding:8px 11px;border-radius:14px 14px 14px 4px;
+  box-shadow:0 6px 20px rgba(91,47,214,.45);transition:transform 1s cubic-bezier(.45,0,.2,1),opacity .3s;opacity:0;pointer-events:none}
+.bubble.show{opacity:1}
+.wfoot{height:96px;background:var(--bg);display:flex;flex-direction:column;align-items:center;gap:10px;padding-top:12px}
+.dots{display:flex;gap:7px}
+.dots i{width:7px;height:7px;border-radius:50%;background:var(--faint);transition:all .3s}
+.dots i.on{background:var(--accent2);width:18px;border-radius:4px}
+.wstat{font-size:13px;color:var(--dim)}
+.replay{position:absolute;right:16px;top:62px;z-index:25;font-size:12px;color:var(--dim);background:var(--raised);border-radius:999px;padding:5px 10px;cursor:pointer;display:none}
+</style>
+</head>
+<body>
+<div class="side">
+  <h1>Strata 브라우징 데모</h1>
+  질문을 보내면 검색 결과가 하나씩 쌓이고, 브라우저 3개가 탭 카드로 페이지를 읽어요. 그중 하나는 로봇 확인에 막혀 빙으로 넘어가요.<br><br>
+  탭 카드를 누르면 관전 모드로 커져서 커서, 형광펜, 말풍선이 보여요. 끝나면 답이 출처 칩과 함께 나와요.<br><br>
+  모든 내용은 가짜예요.
+  <br><button onclick="run()">다시 재생</button>
+</div>
+
+<div class="phone" id="phone">
+  <div class="status"><span>20:14</span><span>100</span></div>
+  <div class="island" id="island"><div class="ring"></div><div class="itext" id="itext">검색 중</div></div>
+  <div class="header">
+    <div class="circle">≡</div>
+    <div class="title"><b id="title">New chat</b><span>qwen3.8-flash-next</span></div>
+    <div class="circle" style="font-size:22px">◌</div>
+  </div>
+  <div class="replay" id="replay" onclick="run()">↻ 다시</div>
+  <div class="feed" id="feed"></div>
+  <div class="composer">
+    <div class="ph">Message</div>
+    <div class="row"><div class="circle" style="width:36px;height:36px">+</div><div class="pill">qwen3.8-flash-next <em>Medium</em></div><div class="send" id="send">↑</div></div>
+  </div>
+
+  <div class="watch" id="watch">
+    <div class="wtop"><div class="url"><span id="wfav"></span><span id="wurl"></span></div><div class="x" onclick="closeWatch()">✕</div></div>
+    <div class="wbar"><i id="wbar"></i></div>
+    <div class="viewport" id="viewport">
+      <div class="scroller" id="scroller"></div>
+      <div class="cursor" id="cursor"><svg width="22" height="22" viewBox="0 0 22 22"><path d="M3 2l15 8.5-6.6 1.6L8.6 19z" fill="#fff" stroke="#5b2fd6" stroke-width="1.8" stroke-linejoin="round"/></svg></div>
+      <div class="bubble" id="bubble"></div>
+    </div>
+    <div class="wfoot"><div class="dots" id="dots"></div><div class="wstat" id="wstat"></div></div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let token = 0;                       // bumps on replay so stale timelines stop
+const alive = t => t === token;
+
+const SITES = [
+  {id:"kostat", domain:"kostat.go.kr", color:"#1d4ed8", letter:"통", title:"2024년 출생통계(확정) 보도자료",
+   nav:"통계청", navc:"#1d4ed8"},
+  {id:"hani", domain:"hani.co.kr", color:"#0f766e", letter:"한", title:"출산율 9년 만에 반등… 원인은 혼인 증가",
+   nav:"한겨레", navc:"#0f766e"},
+  {id:"chosun", domain:"chosun.com", color:"#b91c1c", letter:"조", title:"합계출산율 0.75명, 바닥 찍었나",
+   nav:"조선일보", navc:"#b91c1c"},
+  {id:"bing", domain:"yna.co.kr", color:"#2563eb", letter:"연", title:"작년 출생아 23만8천명… 9년 만에 증가 전환",
+   nav:"연합뉴스", navc:"#2563eb"},
+];
+
+function pageHTML(s, captcha){
+  if (captcha) return `<div class="page"><div class="nav" style="background:${s.navc}">${s.nav}</div>
+    <div class="captcha"><b>잠시만 기다려 주세요</b><div style="font-size:13px;margin-top:8px;color:#777">자동 접속이 감지되었습니다</div>
+    <div class="box"><i></i>로봇이 아닙니다</div></div></div>`;
+  const body = {
+    kostat:[`2024년 출생아 수는 23만 8천 명으로 전년 대비 3.6% 증가했다.`,
+            `합계출산율은 0.75명으로 전년(0.72명)보다 0.03명 증가했다. 합계출산율이 증가한 것은 2015년 이후 9년 만이다.`,
+            `TABLE`,
+            `모(母)의 평균 출산 연령은 33.7세로 전년 대비 0.1세 상승했다.`,
+            `시도별로는 세종(1.03명)이 가장 높고, 서울(0.58명)이 가장 낮았다.`],
+    hani:[`출산율 반등의 가장 큰 배경으로는 코로나19 이후 미뤄졌던 혼인이 2022년 하반기부터 늘어난 점이 꼽힌다.`,
+          `혼인 건수는 2023년 19만 4천 건에서 2024년 22만 2천 건으로 14.8% 늘었다. 통상 혼인 뒤 2년 안에 첫째를 낳는 경향이 반영됐다는 분석이다.`,
+          `1991~1996년생 ‘에코붐 세대’가 30대 초반 주 출산 연령대에 진입한 것도 영향을 줬다.`,
+          `다만 전문가들은 구조적 반등으로 보기는 이르다고 지적한다.`],
+    chosun:[`정부는 올해 합계출산율이 0.79명 안팎까지 오를 것으로 내다봤다.`,
+            `하지만 여전히 OECD 회원국 가운데 유일하게 1명을 밑도는 수준이다.`],
+    bing:[`통계청이 26일 발표한 ‘2024년 출생통계’에 따르면 지난해 출생아 수는 23만 8천 300명으로 집계됐다.`,
+          `첫째아 비중은 61.5%로 역대 최고를 기록했으며, 둘째아 이상 출산은 여전히 감소세다.`,
+          `혼인 증가 효과가 이어지면서 올해 1~8월 출생아 수도 전년 동기 대비 7% 가까이 늘었다.`],
+  }[s.id];
+  const paras = body.map((t,i) => t === "TABLE"
+    ? `<table data-k="${i}"><tr><th>연도</th><th>출생아</th><th>합계출산율</th></tr><tr><td>2022</td><td>24.9만</td><td>0.78</td></tr><tr><td>2023</td><td>23.0만</td><td>0.72</td></tr><tr><td>2024</td><td>23.8만</td><td>0.75</td></tr></table>`
+    : `<p data-k="${i}">${t}</p>`).join("");
+  return `<div class="page"><div class="nav" style="background:${s.navc}">${s.nav}</div>
+    <div class="crumb">사회 › 인구</div><h2>${s.title}</h2><div class="meta">2025.02.26 12:00</div>
+    <div class="img" style="background:linear-gradient(135deg,${s.color}33,${s.color}88)"></div>
+    ${paras.replace(/(<\/p>)/, "$1<div class=\"ad\">AD</div>")}<p style="color:#aaa">관련 기사 · 많이 본 뉴스</p></div>`;
+}
+
+const RESULTS = [
+  ["kostat","2024년 출생·사망통계 잠정 결과 | 통계청"],
+  ["hani","출산율 9년 만에 반등… 원인은 혼인 증가"],
+  ["chosun","합계출산율 0.75명, 바닥 찍었나"],
+  ["","저출산 원인 분석 - 위키백과","ko.wikipedia.org","#555","W"],
+  ["","2024 출생아 수 그래프 한눈에 보기","naver.com","#16a34a","N"],
+  ["","합계출산율 국가별 비교 OECD","oecd.org","#0369a1","O"],
+  ["","출산 지원금 2025 총정리","blog.naver.com","#16a34a","b"],
+  ["","인구 절벽은 끝났나 [칼럼]","joongang.co.kr","#111","중"],
+];
+
+/* per-tab script for watch mode: [action, ...] */
+const PLANS = {
+  kostat:[["say","보도자료 첫 문단부터 볼게요"],["scroll",250],["hl",1,"0.75명, 9년 만의 증가네"],["scroll",420],["hl",2,"이 표에 3년치 수치가 다 있어요"],["scroll",640],["hl",4,"시도별 차이도 쓸 만해요"]],
+  hani:[["say","원인 분석 기사예요"],["scroll",260],["hl",0,"혼인 증가가 핵심 원인"],["hl",1,"혼인 14.8% 증가 수치 확인"],["scroll",520],["hl",2,"에코붐 세대 효과도 있네요"]],
+  bing:[["say","빙에서 찾은 대체 기사예요"],["scroll",250],["hl",1,"첫째아 비중 역대 최고"],["scroll",420],["hl",2,"올해도 증가세가 이어지는 중"]],
+};
+
+let tabs = [];   // {site, el, state, progress, captcha}
+let watching = -1;
+
+function favHTML(color, letter, size){ return `<div class="fav" style="background:${color}">${letter}</div>`; }
+
+function addFeed(html){ const d = document.createElement("div"); d.innerHTML = html; const el = d.firstElementChild; $("#feed").appendChild(el); followBottom(); return el; }
+function followBottom(){ const f = $("#feed"); f.scrollTop = f.scrollHeight; }
+
+function setIsland(text){ const i = $("#island"); if (text){ i.classList.add("live"); $("#itext").textContent = text; } else i.classList.remove("live"); }
+
+function setThink(text){
+  let t = $("#think");
+  if (!t){ t = addFeed(`<div class="think fade-in" id="think"><div class="dot"></div><div class="t"></div></div>`); }
+  const tt = t.querySelector(".t"); tt.style.opacity = 0;
+  setTimeout(() => { tt.textContent = text; tt.style.opacity = 1; }, 180);
+}
+
+function makeCard(site, i){
+  const el = document.createElement("div");
+  el.className = "card fade-in"; el.style.animationDelay = (i*120)+"ms";
+  el.innerHTML = `<div class="top">${favHTML(site.color, site.letter)}<span>${site.domain}</span></div><div class="bar"><i></i></div>
+    <div class="mini">${pageHTML(site, site.captcha)}<div class="st">여는 중…</div></div>`;
+  el.onclick = () => openWatch(tabs.indexOf(tabs.find(t => t.el === el)));
+  return el;
+}
+function setCard(tab, progress, status, cls){
+  tab.progress = progress; tab.status = status;
+  tab.el.querySelector(".bar i").style.width = progress + "%";
+  tab.el.querySelector(".st").textContent = status;
+  if (cls) tab.el.classList.add(cls);
+  if (watching >= 0 && tabs[watching] === tab){ $("#wbar").style.width = progress + "%"; $("#wstat").textContent = status; }
+}
+function swapCard(tab, site){
+  tab.site = site; tab.captcha = false;
+  tab.el.classList.remove("fail");
+  tab.el.querySelector(".top").innerHTML = `${favHTML(site.color, site.letter)}<span>${site.domain}</span>`;
+  tab.el.querySelector(".mini").innerHTML = `${pageHTML(site)}<div class="st">여는 중…</div>`;
+  if (watching >= 0 && tabs[watching] === tab) renderWatch();
+}
+
+/* ---------- watch mode ---------- */
+function openWatch(i){
+  if (i < 0) return;
+  watching = i;
+  const r = tabs[i].el.getBoundingClientRect(), p = $("#phone").getBoundingClientRect();
+  $("#watch").style.setProperty("--ox", (r.left - p.left + r.width/2) + "px");
+  $("#watch").style.setProperty("--oy", (r.top - p.top + r.height/2) + "px");
+  renderWatch();
+  $("#watch").classList.add("on");
+}
+function closeWatch(){ watching = -1; $("#watch").classList.remove("on"); $("#bubble").classList.remove("show"); }
+function renderWatch(){
+  const tab = tabs[watching]; if (!tab) return;
+  $("#wfav").innerHTML = favHTML(tab.site.color, tab.site.letter);
+  $("#wurl").textContent = tab.site.domain + "/news/2025/02/26";
+  $("#wbar").style.width = tab.progress + "%"; $("#wstat").textContent = tab.status;
+  $("#scroller").innerHTML = pageHTML(tab.site, tab.captcha);
+  $("#scroller").style.transition = "none"; $("#scroller").style.transform = `translateY(${-(tab.scroll||0)}px)`;
+  requestAnimationFrame(() => $("#scroller").style.transition = "");
+  (tab.hls||[]).forEach(k => { const e = $("#scroller").querySelector(`[data-k="${k}"]`); if (e) e.classList.add("hl"); });
+  $("#dots").innerHTML = tabs.map((t,j) => `<i class="${j===watching?"on":""}"></i>`).join("");
+  if (tab.lastSay) showBubble(tab.lastSay, tab.cx||120, tab.cy||200, true);
+  else $("#bubble").classList.remove("show");
+  moveCursor(tab.cx||200, tab.cy||160, true);
+}
+function moveCursor(x, y, instant){
+  const c = $("#cursor");
+  if (instant){ c.style.transition = "none"; requestAnimationFrame(() => c.style.transition = ""); }
+  c.style.transform = `translate(${x}px,${y}px)`;
+}
+function showBubble(text, x, y, instant){
+  const b = $("#bubble"); b.textContent = text; b.classList.add("show");
+  const vw = $("#viewport").clientWidth;
+  const bx = Math.min(x + 18, vw - 240), by = Math.max(y - 46, 8);
+  if (instant){ b.style.transition = "none"; requestAnimationFrame(() => b.style.transition = ""); }
+  b.style.transform = `translate(${bx}px,${by}px)`;
+}
+/* swipe between tabs in watch mode */
+(() => { let sx = null;
+  const v = () => $("#viewport");
+  document.addEventListener("touchstart", e => { if (watching >= 0 && v().contains(e.target)) sx = e.touches[0].clientX; }, {passive:true});
+  document.addEventListener("touchend", e => { if (sx == null) return; const dx = e.changedTouches[0].clientX - sx; sx = null;
+    if (Math.abs(dx) > 50){ watching = (watching + (dx < 0 ? 1 : -1) + tabs.length) % tabs.length; renderWatch(); } });
+  document.addEventListener("keydown", e => { if (watching < 0) return;
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft"){ watching = (watching + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length; renderWatch(); }
+    if (e.key === "Escape") closeWatch(); });
+})();
+
+/* drive one tab's reading script; updates the card always, the watch view when it is on screen */
+async function readTab(tab, t){
+  const plan = PLANS[tab.site.id] || [];
+  tab.hls = []; tab.scroll = 0; tab.cx = 200; tab.cy = 160;
+  let step = 0;
+  for (const [act, a, b] of plan){
+    if (!alive(t)) return;
+    step++;
+    const pct = 30 + Math.round(step / plan.length * 65);
+    const on = () => watching >= 0 && tabs[watching] === tab;
+    if (act === "say"){ tab.lastSay = a; setCard(tab, pct, "읽는 중…"); if (on()) showBubble(a, tab.cx, tab.cy); await sleep(1500); }
+    if (act === "scroll"){ tab.scroll = a; if (on()) $("#scroller").style.transform = `translateY(${-a}px)`; setCard(tab, pct, "읽는 중…"); await sleep(1300); }
+    if (act === "hl"){
+      tab.hls.push(a); tab.lastSay = b;
+      const pageEl = tab.el.querySelector(`.mini [data-k="${a}"]`); if (pageEl) pageEl.classList.add("hl");
+      if (on()){
+        const e = $("#scroller").querySelector(`[data-k="${a}"]`);
+        if (e){ const y = e.offsetTop - tab.scroll + 12, x = 40 + Math.random()*140; tab.cx = x; tab.cy = y;
+          moveCursor(x, y); await sleep(900); if (!alive(t)) return; e.classList.add("hl"); showBubble(b, x, y); }
+      } else { const e2 = tab.el.querySelector(`.mini [data-k="${a}"]`); if (e2){ tab.cy = 200; } }
+      setCard(tab, pct, "인용할 부분 표시"); await sleep(1700);
+    }
+  }
+  if (!alive(t)) return;
+  setCard(tab, 100, `✓ 완료 · ${(1800 + Math.round(Math.random()*2400)).toLocaleString()}자 읽음`, "done");
+  tab.lastSay = null; if (watching >= 0 && tabs[watching] === tab) $("#bubble").classList.remove("show");
+}
+
+async function streamText(el, html, t){
+  // reveal word by word, chips appear whole
+  const parts = html.split(/(<span class="chip">.*?<\/span>|\s+)/).filter(Boolean);
+  for (const p of parts){ if (!alive(t)) return; el.insertAdjacentHTML("beforeend", p); followBottom(); if (!/^\s+$/.test(p)) await sleep(38); }
+}
+
+async function run(){
+  const t = ++token;
+  closeWatch(); tabs = [];
+  $("#feed").innerHTML = ""; $("#title").textContent = "New chat"; $("#replay").style.display = "none";
+  $("#send").className = "send"; setIsland(null);
+  await sleep(500); if (!alive(t)) return;
+
+  addFeed(`<div class="user fade-in">2024년 한국 출산율 최신 수치랑 반등 원인 정리해줘</div>`);
+  $("#send").className = "send stop";
+  await sleep(500); if (!alive(t)) return;
+  $("#title").textContent = "2024 출산율 반등 원인";
+  setIsland("생각 중");
+  setThink("최신 통계청 발표부터 확인해야겠어요");
+  await sleep(1400); if (!alive(t)) return;
+
+  // search with results fading in one by one
+  setIsland("검색 중 · 네이버");
+  const s = addFeed(`<div class="search fade-in"><div class="q">🔍 <b>2024 합계출산율 반등 원인</b><span class="eng">네이버</span></div><div class="results"></div></div>`);
+  const list = s.querySelector(".results");
+  for (const [id, title, dom, col, let_] of RESULTS){
+    if (!alive(t)) return;
+    const site = SITES.find(x => x.id === id);
+    const d = document.createElement("div"); d.className = "res fade-in"; d.dataset.id = id;
+    d.innerHTML = `${favHTML(site?site.color:col, site?site.letter:let_)}<div class="rt">${title}</div><div class="rd">${site?site.domain:dom}</div>`;
+    list.appendChild(d); followBottom(); await sleep(170);
+  }
+  await sleep(500); if (!alive(t)) return;
+  setThink("통계청, 한겨레, 조선일보 세 곳을 읽어볼게요");
+  for (const id of ["kostat","hani","chosun"]){ list.querySelector(`[data-id="${id}"]`).classList.add("pick"); await sleep(260); }
+  await sleep(600); if (!alive(t)) return;
+
+  // three tab cards
+  setIsland("페이지 3개 읽는 중");
+  const row = addFeed(`<div class="tabs"></div>`);
+  const sites = [SITES[0], SITES[1], {...SITES[2], captcha:true}];
+  sites.forEach((site, i) => { const el = makeCard(site, i); row.appendChild(el); tabs.push({site, el, captcha: !!site.captcha, progress:0, status:"여는 중…"}); });
+  followBottom();
+  await sleep(500); if (!alive(t)) return;
+  tabs.forEach(tab => setCard(tab, 25, "여는 중…"));
+  await sleep(900); if (!alive(t)) return;
+
+  const reads = [];
+  reads.push(readTab(tabs[0], t));
+  await sleep(500);
+  reads.push(readTab(tabs[1], t));
+  // the third one hits a captcha, then falls back to Bing
+  setCard(tabs[2], 40, "⚠ 로봇 확인에 막힘", "fail");
+  await sleep(1600); if (!alive(t)) return;
+  setCard(tabs[2], 45, "빙으로 다시 찾는 중…");
+  setThink("조선일보가 막혔어요. 빙에서 같은 내용을 찾을게요");
+  await sleep(1300); if (!alive(t)) return;
+  swapCard(tabs[2], SITES[3]); setCard(tabs[2], 25, "여는 중… (빙)");
+  await sleep(800);
+  reads.push(readTab(tabs[2], t));
+
+  // auto-open watch mode on the first card to show the stage
+  await sleep(300); if (!alive(t)) return;
+  if (watching < 0) openWatch(0);
+  await sleep(5200); if (!alive(t)) return;
+  if (watching === 0){ watching = 1; renderWatch(); }
+  await Promise.all(reads); if (!alive(t)) return;
+  await sleep(900); if (!alive(t)) return;
+  closeWatch();
+  setIsland("답변 작성 중");
+  const th = $("#think"); th.classList.add("done"); th.querySelector(".t").textContent = "29초 동안 생각함 ›";
+
+  // timeline row with thumbnails
+  const tl = addFeed(`<div class="timeline fade-in"><div class="thumbs">${tabs.map(tb => `<div>${pageHTML(tb.site)}</div>`).join("")}</div>네이버에서 검색 · 페이지 3개 읽음 ›</div>`);
+  tl.onclick = () => openWatch(0);
+
+  const ans = addFeed(`<div class="answer"><p></p><p></p><p></p></div>`);
+  const ps = ans.querySelectorAll("p");
+  await streamText(ps[0], `<b>2024년 합계출산율은 0.75명</b>으로, 2015년 이후 9년 만에 처음 올랐어요. 출생아도 23만 8천 명으로 3.6% 늘었어요.<span class="chip">kostat.go.kr</span>`, t);
+  await streamText(ps[1], `가장 큰 원인은 <b>혼인 증가</b>예요. 코로나19로 미뤄진 결혼이 2022년 하반기부터 몰리면서 혼인이 14.8% 늘었고, 2년 안에 첫째를 낳는 흐름이 이어졌어요.<span class="chip">hani.co.kr</span>`, t);
+  await streamText(ps[2], `여기에 1991~96년생 에코붐 세대가 주 출산 연령에 들어선 효과가 겹쳤어요. 첫째아 비중은 61.5%로 역대 최고지만 둘째 이상은 여전히 줄고 있어서, 구조적 반등으로 보기는 이르다는 평가예요.<span class="chip">yna.co.kr</span>`, t);
+  if (!alive(t)) return;
+  $("#send").className = "send"; setIsland(null); $("#replay").style.display = "block";
+}
+run();
+</script>
+</body>
+</html>

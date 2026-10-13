@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Strata Feed Mockup</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+:root{
+  --bg:#141414; --surface:#1d1d20; --raised:#2a2a2d; --line:#2f2f34;
+  --text:#f2f2f4; --dim:#9b9ba3; --faint:#67676f;
+  --accent:#8b5cf6; --accent2:#b9a2ff; --accentbg:rgba(139,92,246,.14);
+  --ok:#5eead4; --warn:#fbbf24;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow-x:hidden;background:#0a0a0b;color:var(--text);font-family:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-serif}
+body{display:flex;align-items:center;justify-content:center;gap:28px;flex-wrap:wrap;padding:24px}
+.phone{position:relative;width:393px;height:852px;border-radius:56px;background:var(--bg);overflow:hidden;
+  box-shadow:0 0 0 12px #1c1c1f,0 0 0 13px #3a3a40,0 30px 80px rgba(0,0,0,.6)}
+.side{max-width:300px;color:var(--dim);font-size:14px;line-height:1.6}
+.side h1{color:var(--text);font-size:20px;margin:0 0 8px}
+.side button{margin:12px 8px 0 0;background:var(--accent);color:#fff;border:0;border-radius:12px;padding:10px 16px;font:inherit;font-weight:600;cursor:pointer}
+.side button.ghost{background:var(--raised)}
+@media (max-width:500px){
+  body{padding:0;display:block;background:var(--bg)}
+  .phone{width:100%;max-width:100vw;height:100dvh;border-radius:0;box-shadow:none}
+  .side{display:none}
+}
+.status{position:absolute;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 30px;font-weight:600;font-size:16px;z-index:30}
+.island{position:absolute;top:11px;left:50%;transform:translateX(-50%);height:36px;width:124px;border-radius:20px;background:#000;z-index:40}
+.header{position:absolute;top:54px;left:0;right:0;height:64px;display:flex;align-items:center;gap:12px;padding:0 16px;z-index:20;background:linear-gradient(var(--bg) 72%,transparent)}
+.circle{width:44px;height:44px;border-radius:50%;background:var(--raised);display:grid;place-items:center;color:var(--text);font-size:18px;flex:none}
+.title{flex:1;min-width:0}
+.title b{display:block;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.title span{font-size:12px;color:var(--dim)}
+.tbtn{font-size:12.5px;color:var(--dim);background:var(--raised);border-radius:999px;padding:6px 12px;cursor:pointer}
+.tools{display:none!important;position:absolute;right:16px;top:122px;z-index:25;display:none;gap:6px}
+.tools span{font-size:12px;color:var(--dim);background:var(--raised);border-radius:999px;padding:5px 10px;cursor:pointer}
+
+.feed{overflow-x:hidden;position:absolute;top:118px;bottom:112px;left:0;right:0;overflow-y:auto;padding:8px 18px 40px}
+.feed::-webkit-scrollbar{display:none}
+.user{margin-left:auto;max-width:82%;background:var(--raised);padding:11px 15px;border-radius:20px;font-size:15.5px;line-height:1.55;width:fit-content}
+
+/* thought line */
+.thought{margin-top:16px;display:flex;align-items:center;gap:8px;font-size:14.5px;color:var(--dim);min-height:24px;cursor:pointer}
+.thought .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none;animation:pulse 1.2s ease-in-out infinite}
+.thought .txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity .22s}
+.thought.done .dot{animation:none;background:none;width:auto;height:auto}
+.thought.done .dot::before{content:"✦";color:var(--faint);font-size:12px}
+.thought.done .txt{color:var(--dim)}
+.thought .chev{color:var(--faint)}
+@keyframes pulse{50%{opacity:.3;transform:scale(.7)}}
+
+/* search card */
+.card{margin-top:10px;background:var(--surface);border-radius:16px;overflow:hidden;border:1px solid var(--line);
+  display:grid;grid-template-rows:auto 1fr;grid-template-columns:minmax(0,1fr);min-width:0;transition:grid-template-rows .45s cubic-bezier(.3,.8,.3,1),margin .45s}
+.card .head{display:flex;align-items:center;gap:8px;padding:11px 14px;font-size:13.5px;color:var(--dim);cursor:pointer}
+.card .head .ic{width:18px;text-align:center;flex:none}
+.card .head b{color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.card .head .eng{margin-left:auto;font-size:11px;color:var(--faint);border:1px solid var(--line);border-radius:6px;padding:1px 6px;flex:none}
+.card .head .sum{margin-left:auto;font-size:12px;color:var(--faint);flex:none;display:none}
+.card .head .chev{color:var(--faint);flex:none;transition:transform .3s;display:none}
+.card .body{overflow:hidden;min-height:0}
+.card .rows{padding:0 6px 8px}
+.card.collapsed{grid-template-rows:auto 0fr}
+.card.collapsed .head .eng{display:none}
+.card.collapsed .head .sum,.card.collapsed .head .chev{display:block}
+.card.collapsed .head .sum{margin-left:auto}
+.row{display:flex;gap:9px;align-items:center;padding:7px 8px;border-radius:10px;font-size:13.5px;animation:fin .4s ease both}
+.row .fav{width:18px;height:18px;border-radius:5px;display:grid;place-items:center;font-size:10px;font-weight:700;color:#fff;flex:none}
+.row .rt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .rd{color:var(--faint);font-size:11.5px;flex:none;max-width:92px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .st{flex:none;font-size:11.5px;display:flex;align-items:center;gap:5px;color:var(--dim)}
+.row.pick{background:var(--accentbg)}
+.row.pick .rt{color:var(--accent2)}
+.row.pick .rd{display:none}
+.row .st.ok{color:var(--ok)}
+.row .st.warn{color:var(--warn)}
+.ring{width:13px;height:13px;border-radius:50%;border:2px solid var(--accent2);border-right-color:transparent;animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.more{font-size:12.5px;color:var(--faint);padding:4px 8px 2px;cursor:pointer}
+@keyframes fin{from{opacity:0;transform:translateY(5px)}}
+.fin{animation:fin .45s ease both}
+
+/* answer */
+.answer{margin-top:16px;font-size:16px;line-height:1.75}
+.answer p{margin:0 0 12px}
+.chip{display:inline-block;font-size:12px;color:var(--dim);background:var(--raised);border-radius:999px;padding:1px 8px;margin-left:4px;vertical-align:2px}
+.actions{display:flex;gap:18px;color:var(--faint);font-size:18px;margin-top:2px}
+
+.composer{position:absolute;left:12px;right:12px;bottom:26px;background:rgba(42,42,45,.86);backdrop-filter:blur(20px);border-radius:26px;padding:12px 14px;z-index:20;border:1px solid rgba(255,255,255,.06)}
+.composer .ph{color:var(--faint);font-size:15.5px;padding:2px 4px 10px}
+.composer .r{display:flex;gap:8px;align-items:center}
+.pill{background:var(--raised);border-radius:999px;padding:7px 13px;font-size:14px}
+.pill em{font-style:normal;color:var(--dim)}
+.send{margin-left:auto;width:36px;height:36px;border-radius:50%;background:var(--accent);display:grid;place-items:center;color:#fff;font-size:15px}
+.send.stop::after{content:"";width:11px;height:11px;border-radius:2px;background:#fff}
+.send.stop{font-size:0}
+</style>
+</head>
+<body>
+<div class="side">
+  <h1>채팅 피드 목업</h1>
+  생각은 한 줄로 두고, 검색할 때마다 결과 카드가 생겨요. 읽으러 간 결과에는 강조와 진행 상태가 붙고, 다 읽으면 몇 자 읽었는지 남아요.<br><br>
+  두 번째 검색이 시작되면 앞 카드는 한 줄로 접혀요. 접힌 카드를 누르면 다시 펼쳐져요.<br><br>
+  내용은 전부 가짜예요.
+  <br><button onclick="run()">재생</button><button class="ghost" onclick="finalState()">완료 상태</button>
+</div>
+
+<div class="phone">
+  <div class="status"><span>20:31</span><span>100</span></div>
+  <div class="island"></div>
+  <div class="header">
+    <div class="circle">≡</div>
+    <div class="title"><b id="title">New chat</b><span>Strata</span></div>
+    <div class="circle" style="font-size:22px">◌</div>
+  </div>
+  <div class="tools" id="tools"><span onclick="run()">↻ 재생</span><span onclick="finalState()">완료</span></div>
+  <div class="feed" id="feed"></div>
+  <div class="composer">
+    <div class="ph">Message</div>
+    <div class="r"><div class="circle" style="width:36px;height:36px">+</div><div class="pill">Strata <em>Medium</em></div><div class="send" id="send">↑</div></div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let token = 0, instant = false;
+const alive = t => t === token;
+const wait = ms => instant ? Promise.resolve() : sleep(ms);
+
+const S1 = {q:"2024 합계출산율 반등 원인", eng:"네이버", rows:[
+  ["통","#1d4ed8","2024년 출생통계(확정) 보도자료","kostat.go.kr"],
+  ["한","#0f766e","출산율 9년 만에 반등… 원인은 혼인 증가","hani.co.kr"],
+  ["조","#b91c1c","합계출산율 0.75명, 바닥 찍었나","chosun.com"],
+  ["W","#555","저출산 원인 분석 - 위키백과","ko.wikipedia.org"],
+  ["N","#16a34a","2024 출생아 수 그래프 한눈에 보기","naver.com"],
+  ["O","#0369a1","합계출산율 국가별 비교","oecd.org"],
+  ["b","#16a34a","출산 지원금 2025 총정리","blog.naver.com"],
+  ["중","#111","인구 절벽은 끝났나 [칼럼]","joongang.co.kr"]],
+  reads:[[0,"3,214자"],[1,"2,876자"],[2,null]]};
+const S2 = {q:"South Korea fertility rate 2024 rebound marriages", eng:"Bing", rows:[
+  ["R","#f97316","South Korea's birth rate rises for first time in nine years","reuters.com"],
+  ["B","#b91c1c","Why South Korea's fertility rate finally ticked up","bbc.com"],
+  ["F","#0f172a","South Korea: Fertility rate 1960–2024","statista.com"],
+  ["G","#2563eb","Marriage boom after pandemic lifts births in Korea","theguardian.com"],
+  ["A","#1e3a8a","Korea's demographic crisis explained","asia.nikkei.com"],
+  ["W","#555","Aging of South Korea - Wikipedia","en.wikipedia.org"]],
+  reads:[[0,"4,102자"],[1,"3,560자"]]};
+
+const feed = () => $("#feed");
+function add(html){ const d = document.createElement("div"); d.innerHTML = html.trim(); const el = d.firstElementChild; feed().appendChild(el); follow(); return el; }
+function follow(){ const f = feed(); if (!instant) f.scrollTo({top:f.scrollHeight, behavior:"smooth"}); else f.scrollTop = f.scrollHeight; }
+const fav = (l,c) => `<div class="fav" style="background:${c}">${l}</div>`;
+
+let thoughtEl, thinkStart;
+function thought(text){
+  if (!thoughtEl){ thoughtEl = add(`<div class="thought fin"><div class="dot"></div><div class="txt"></div></div>`); }
+  const t = thoughtEl.querySelector(".txt");
+  if (instant){ t.textContent = text; return; }
+  t.style.opacity = 0; setTimeout(() => { t.textContent = text; t.style.opacity = 1; }, 200);
+}
+function thoughtDone(secs){
+  thoughtEl.classList.add("done");
+  thoughtEl.querySelector(".txt").innerHTML = `${secs}초 동안 생각함 <span class="chev">›</span>`;
+}
+
+async function searchCard(s, t){
+  const shown = 5;
+  const el = add(`<div class="card fin">
+    <div class="head"><span class="ic">🔍</span><b>${s.q}</b><span class="eng">${s.eng}</span><span class="sum"></span><span class="chev">›</span></div>
+    <div class="body"><div class="rows"></div></div></div>`);
+  el.querySelector(".head").onclick = () => { if (el.classList.contains("collapsed")) el.classList.remove("collapsed"); else if (el.dataset.done) el.classList.add("collapsed"); };
+  const rows = el.querySelector(".rows");
+  for (let i = 0; i < s.rows.length; i++){
+    if (!alive(t)) return el;
+    const [l,c,title,dom] = s.rows[i];
+    if (i === shown){ rows.insertAdjacentHTML("beforeend", `<div class="more fin">+${s.rows.length - shown}개 더</div>`);
+      rows.lastElementChild.onclick = ev => { ev.stopPropagation(); ev.target.remove(); s.rows.slice(shown).forEach(r => rows.insertAdjacentHTML("beforeend", rowHTML(...r))); }; break; }
+    rows.insertAdjacentHTML("beforeend", rowHTML(l,c,title,dom)); follow();
+    await wait(150);
+  }
+  return el;
+}
+const rowHTML = (l,c,title,dom) => `<div class="row">${fav(l,c)}<div class="rt">${title}</div><div class="rd">${dom}</div><div class="st"></div></div>`;
+
+async function readPicks(el, s, t, failNote){
+  const rowEls = el.querySelectorAll(".row");
+  for (const [i] of s.reads){ rowEls[i].classList.add("pick"); rowEls[i].querySelector(".st").innerHTML = `<div class="ring"></div>`; await wait(220); }
+  // finish at staggered times, like three parallel fetches
+  const jobs = s.reads.map(([i, chars], k) => (async () => {
+    await wait(1400 + k*700 + (chars ? 0 : 400)); if (!alive(t)) return;
+    const st = rowEls[i].querySelector(".st");
+    if (chars){ st.className = "st ok"; st.textContent = "✓ " + chars; }
+    else { st.className = "st warn"; st.textContent = failNote; }
+  })());
+  await Promise.all(jobs);
+  el.dataset.done = 1;
+  const ok = s.reads.filter(r => r[1]).length;
+  el.querySelector(".sum").textContent = `${s.eng} · ${ok}개 읽음`;
+}
+
+async function stream(el, html, t){
+  if (instant){ el.innerHTML = html; return; }
+  const parts = html.split(/(<span class="chip">.*?<\/span>|<b>|<\/b>|\s+)/).filter(Boolean);
+  let buf = "";
+  for (const p of parts){ if (!alive(t)) return; buf += p; el.innerHTML = buf; follow(); if (!/^\s+$|^<\/?b>$/.test(p)) await sleep(36); }
+}
+
+const A = [
+  `<b>2024년 합계출산율은 0.75명</b>으로, 2015년 이후 9년 만에 처음 올랐어요. 출생아도 23만 8천 명으로 3.6% 늘었어요.<span class="chip">kostat.go.kr</span>`,
+  `가장 큰 원인은 <b>혼인 증가</b>예요. 코로나19로 미뤄진 결혼이 2022년 하반기부터 몰리면서 혼인이 14.8% 늘었고, 결혼 뒤 2년 안에 첫째를 낳는 흐름이 이어졌어요.<span class="chip">hani.co.kr</span><span class="chip">reuters.com</span>`,
+  `여기에 1991~96년생 에코붐 세대가 주 출산 연령에 들어선 효과가 겹쳤어요. 다만 둘째 이상 출산은 여전히 줄고 있어서, 구조적 반등으로 보기는 이르다는 평가가 많아요.<span class="chip">bbc.com</span>`];
+
+async function run(fast){
+  const t = ++token; instant = !!fast; thoughtEl = null;
+  feed().innerHTML = ""; $("#title").textContent = "New chat"; $("#tools").style.display = "none"; $("#send").className = "send";
+  await wait(400); if (!alive(t)) return;
+  add(`<div class="user fin">2024년 한국 출산율 최신 수치랑 반등 원인 정리해줘</div>`);
+  $("#send").className = "send stop";
+  await wait(500); if (!alive(t)) return;
+  $("#title").textContent = "2024 출산율 반등 원인";
+  thought("통계청 최신 발표부터 확인해야겠어요");
+  await wait(1500); if (!alive(t)) return;
+
+  const c1 = await searchCard(S1, t); if (!alive(t)) return;
+  await wait(400);
+  thought("통계청, 한겨레, 조선일보 세 곳을 읽어볼게요");
+  await readPicks(c1, S1, t, "⚠ 막힘"); if (!alive(t)) return;
+  await wait(500);
+  thought("원인 분석이 국내 기사뿐이네요. 해외 시각도 볼게요");
+  await wait(1500); if (!alive(t)) return;
+
+  c1.classList.add("collapsed");
+  await wait(350);
+  const c2 = await searchCard(S2, t); if (!alive(t)) return;
+  await wait(400);
+  thought("로이터와 BBC 기사를 읽을게요");
+  await readPicks(c2, S2, t); if (!alive(t)) return;
+  await wait(500);
+  thought("수치와 원인이 다 모였어요. 정리할게요");
+  await wait(1100); if (!alive(t)) return;
+
+  thoughtDone(31);
+  c2.classList.add("collapsed");
+  await wait(300);
+  const ans = add(`<div class="answer"><p></p><p></p><p></p></div>`);
+  const ps = ans.querySelectorAll("p");
+  for (let i = 0; i < 3; i++) await stream(ps[i], A[i], t);
+  if (!alive(t)) return;
+  add(`<div class="actions fin"><span>⧉</span><span>↻</span></div>`);
+  add(`<div class="fin" style="margin-top:22px;display:flex;gap:8px;justify-content:center"><span class="tbtn" onclick="run()">↻ 다시 재생</span><span class="tbtn" onclick="openAll()">카드 펼치기</span></div>`);
+  $("#send").className = "send"; 
+  if (fast) feed().scrollTop = 0;
+}
+function finalState(){ run(true); }
+function openAll(){ document.querySelectorAll('.card.collapsed').forEach(c => c.classList.remove('collapsed')); }
+if (location.search.includes("final")) finalState(); else run();
+</script>
+</body>
+</html>
