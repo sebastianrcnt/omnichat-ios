@@ -162,9 +162,13 @@ struct ComposerAttachment: Identifiable, Equatable {
     var thumbnail: Data?
 }
 
-/// Floating glass composer. Idle (empty, not focused) it is a one-line pill: plus, the placeholder, and send (stop while
-/// a reply runs). Focused or holding a draft it grows to two rows: the text on top, then plus, the settings accessory
-/// (the model and effort gauge) and send. On a Mac it always shows both rows: there is room, and no keyboard to make.
+/// Floating glass composer. Idle (empty, not focused) it is a one-line pill: plus, the placeholder, and the microphone
+/// (stop while a reply runs). Focused or holding a draft it grows to two rows: the text on top, then plus, the settings
+/// accessory (the model and effort gauge), the microphone and send. On a Mac it always shows both rows: there is room,
+/// and no keyboard to make.
+///
+/// Dictation from the pill turns it into cancel, a waveform, the live words, the time and a check that puts the words
+/// into the field. From the two rows the words are appended to the text, in the accent color until confirmed.
 struct ComposerBar<Accessory: View>: View {
     @Environment(\.theme) private var theme
 
@@ -192,6 +196,10 @@ struct ComposerBar<Accessory: View>: View {
     #endif
     @State private var inputHandle = TextInputHandle()
     @Namespace private var controls
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var dictation = DictationController(engine: SpeechDictationEngine())
+    /// Dictation started with the keyboard up: it comes back afterwards.
+    @State private var refocusAfterDictation = false
 
     /// Two rows (text, then controls) rather than the one-line pill.
     static func isExpanded(focused: Bool, text: String, hasAttachments: Bool, isEditing: Bool) -> Bool {
@@ -203,11 +211,9 @@ struct ComposerBar<Accessory: View>: View {
     }
 
     private var expanded: Bool {
-        #if os(macOS)
-        Self.isExpanded(focused: isFocused.wrappedValue, text: text, hasAttachments: !attachments.isEmpty, isEditing: onCancelEdit != nil)
-        #else
-        Self.isExpanded(focused: isFocused, text: text, hasAttachments: !attachments.isEmpty, isEditing: onCancelEdit != nil)
-        #endif
+        // Dictation keeps the shape it started in, although starting it lowers the keyboard.
+        if dictation.isActive { return dictation.isExpandedStyle }
+        return Self.isExpanded(focused: focused, text: text, hasAttachments: !attachments.isEmpty, isEditing: onCancelEdit != nil)
     }
 
     var body: some View {
@@ -240,18 +246,43 @@ struct ComposerBar<Accessory: View>: View {
                 }
                 // One row in both states, so the text field keeps its identity (and its focus) while the bar grows.
                 HStack(spacing: DS.Spacing.sm) {
-                    if !expanded { plusButton }
-                    field
-                        .padding(.horizontal, DS.Spacing.xs)
-                        .frame(minHeight: expanded ? nil : DS.IconSize.compactControlDiameter)
-                    if !expanded { sendButton.matchedGeometryEffect(id: "send", in: controls) }
+                    if !expanded {
+                        if dictation.isActive {
+                            cancelDictationButton
+                            if dictation.showsTranscript { DictationWaveform(levels: dictation.levels) }
+                        } else {
+                            plusButton
+                        }
+                    }
+                    fieldArea(expanded: expanded)
+                    if !expanded {
+                        if dictation.isActive {
+                            if dictation.showsTranscript { dictationTrailing }
+                        } else if !isStreaming && text.isEmpty && attachments.isEmpty {
+                            micButton(expanded: false)
+                        } else {
+                            sendButton.matchedGeometryEffect(id: "send", in: controls)
+                        }
+                    }
                 }
                 if expanded {
                     HStack(spacing: DS.Spacing.sm) {
-                        plusButton
-                        Spacer(minLength: DS.Spacing.sm)
-                        accessory()
-                        sendButton.matchedGeometryEffect(id: "send", in: controls)
+                        if dictation.isActive {
+                            cancelDictationButton
+                            if dictation.showsTranscript {
+                                DictationWaveform(levels: dictation.levels)
+                                Spacer(minLength: DS.Spacing.sm)
+                                dictationTrailing
+                            } else {
+                                DictationStatusLine(phase: dictation.phase)
+                            }
+                        } else {
+                            plusButton
+                            Spacer(minLength: DS.Spacing.sm)
+                            accessory()
+                            micButton(expanded: true)
+                            sendButton.matchedGeometryEffect(id: "send", in: controls)
+                        }
                     }
                     .padding(.top, DS.Spacing.sm) // the text field is the main area; buttons are a separate row
                     .transition(.opacity)
@@ -266,13 +297,151 @@ struct ComposerBar<Accessory: View>: View {
         .padding(.horizontal, DS.Spacing.md)
         .padding(.bottom, DS.Spacing.xs)
         .animation(DS.Motion.spring, value: expanded)
+        .animation(DS.Motion.snappy, value: dictation.phase)
+        .onChange(of: scenePhase) { _, phase in
+            // Going to the background stops the microphone; what was heard so far is kept.
+            if phase == .background, dictation.isActive { insert(dictation.stopKeepingText()) }
+        }
+        .onDisappear { dictation.cancel() }
+        .task(id: dictation.failure) {
+            guard dictation.failure != nil else { return }
+            try? await Task.sleep(for: .seconds(6))
+            dictation.dismissFailure()
+        }
+    }
+
+    /// The text field, hidden (but kept, with its identity) under the live words while dictating.
+    private func fieldArea(expanded: Bool) -> some View {
+        ZStack(alignment: expanded ? .topLeading : .leading) {
+            field
+                .padding(.horizontal, DS.Spacing.xs)
+                .frame(minHeight: expanded ? nil : DS.IconSize.compactControlDiameter)
+                .opacity(dictation.isActive ? 0 : 1)
+                .allowsHitTesting(!dictation.isActive)
+                .accessibilityHidden(dictation.isActive)
+            if dictation.isActive {
+                Group {
+                    if expanded {
+                        appendedWords
+                    } else if dictation.showsTranscript {
+                        DictationLiveLine(text: dictation.transcript)
+                    } else {
+                        DictationStatusLine(phase: dictation.phase)
+                    }
+                }
+                .padding(.horizontal, DS.Spacing.xs)
+                .transition(.opacity)
+            }
+        }
+    }
+
+    /// The text with the words heard so far after it, in the accent color until they are confirmed.
+    private var appendedWords: some View {
+        let words = dictation.transcript
+        var shown = AttributedString(text)
+        shown.foregroundColor = theme.textPrimary
+        if !words.isEmpty {
+            var tail = AttributedString(dictation.separator(after: text) + words)
+            tail.foregroundColor = theme.accent
+            shown += tail
+        }
+        return Group {
+            if text.isEmpty && words.isEmpty {
+                Text(dictation.showsTranscript ? "Listening…" : "Message").foregroundStyle(theme.textSecondary)
+            } else {
+                Text(shown)
+            }
+        }
+        .font(DS.Typography.ui)
+        .lineLimit(6)
+        .truncationMode(.head)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Time, stop (while a reply runs, so it stays reachable) and confirm.
+    @ViewBuilder
+    private var dictationTrailing: some View {
+        DictationElapsed(start: dictation.startedAt, end: dictation.endedAt)
+        if isStreaming { sendButton }
+        DictationConfirmButton(enabled: dictation.canConfirm, action: confirmDictation)
+            .matchedGeometryEffect(id: "send", in: controls)
+    }
+
+    private var cancelDictationButton: some View {
+        GlassIconButton(systemName: "xmark", label: dictation.failure == nil ? "Cancel dictation" : "Dismiss",
+                        diameter: DS.IconSize.compactControlDiameter, iconSize: DS.IconSize.composerIcon,
+                        action: cancelDictation)
+            .matchedGeometryEffect(id: "plus", in: controls)
+    }
+
+    private func micButton(expanded: Bool) -> some View {
+        GlassIconButton(systemName: "mic", label: "Dictate", diameter: DS.IconSize.compactControlDiameter,
+                        iconSize: DS.IconSize.composerIcon) { startDictation(expanded: expanded) }
+            .matchedGeometryEffect(id: "mic", in: controls)
+            #if os(macOS)
+            .help(Text("Dictate"))
+            #endif
+    }
+
+    // MARK: Dictation
+
+    private var focused: Bool {
+        get {
+            #if os(macOS)
+            isFocused.wrappedValue
+            #else
+            isFocused
+            #endif
+        }
+        nonmutating set {
+            #if os(macOS)
+            isFocused.wrappedValue = newValue
+            #else
+            isFocused = newValue
+            #endif
+        }
+    }
+
+    private func startDictation(expanded: Bool) {
+        refocusAfterDictation = expanded && focused
+        focused = false
+        dictation.start(expanded: expanded)
+    }
+
+    private func confirmDictation() {
+        Task {
+            insert(await dictation.confirm())
+            restoreFocus()
+        }
+    }
+
+    private func cancelDictation() {
+        dictation.cancel()
+        dictation.dismissFailure()
+        restoreFocus()
+    }
+
+    private func restoreFocus() {
+        if refocusAfterDictation { focused = true }
+        refocusAfterDictation = false
+    }
+
+    private func insert(_ words: String) {
+        guard !words.isEmpty else { return }
+        text = dictation.merge(words, into: text)
+    }
+
+    /// Sending ends any dictation first.
+    private func send() {
+        dictation.cancel()
+        onSend()
     }
 
     @ViewBuilder
     private var field: some View {
         #if os(macOS)
         MacComposerField(text: $text, isFocused: isFocused,
-                         textColor: theme.textPrimary, onReturn: { if canSend && !isStreaming { onSend() } },
+                         textColor: theme.textPrimary, onReturn: { if canSend && !isStreaming && !dictation.isActive { send() } },
                          onPasteImages: onPasteImages)
             .overlay(alignment: .topLeading) {
                 if text.isEmpty {
@@ -288,7 +457,7 @@ struct ComposerBar<Accessory: View>: View {
             .focused($isFocused)
             .withoutInputAssistantBar(handle: inputHandle)
             .returnSends(handle: inputHandle) { // Mac only; same rules as the send button
-                if canSend && !isStreaming { onSend() }
+                if canSend && !isStreaming && !dictation.isActive { send() }
             }
         #endif
     }
@@ -314,7 +483,7 @@ struct ComposerBar<Accessory: View>: View {
             .buttonStyle(.plain)
             .accessibilityLabel(Text("Stop"))
         } else {
-            Button(action: onSend) {
+            Button(action: send) {
                 Image(systemName: "arrow.up").font(.system(size: DS.IconSize.composerIcon, weight: .bold))
                     .foregroundStyle(canSend ? theme.onAccent : theme.textSecondary)
                     .frame(width: d, height: d)

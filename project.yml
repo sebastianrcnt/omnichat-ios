@@ -42,6 +42,8 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_NSCameraUsageDescription: Strata uses the camera to attach photos to your messages.
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: Strata reads photos you choose to attach to your messages.
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: Strata uses the microphone when you dictate a message.
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: Strata turns your dictation into text on this device.
         INFOPLIST_KEY_UIUserInterfaceStyle: Automatic
         SWIFT_EMIT_LOC_STRINGS: YES
     info:
@@ -78,6 +80,7 @@ targets:
         com.apple.security.app-sandbox: true
         com.apple.security.network.client: true
         com.apple.security.files.user-selected.read-only: true
+        com.apple.security.device.audio-input: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cc.coolservices.strata.mac
@@ -88,6 +91,8 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Strata
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: Strata uses the microphone when you dictate a message.
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: Strata turns your dictation into text on this Mac.
         SWIFT_EMIT_LOC_STRINGS: YES
     info:
       path: StrataMac/Info.plist
