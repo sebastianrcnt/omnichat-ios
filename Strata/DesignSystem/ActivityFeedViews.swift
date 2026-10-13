@@ -326,7 +326,8 @@ struct FeedRowView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Text(DomainFormatter.short(row.host))
+                // A failed read says why in place of the domain.
+                Text(failed ? (row.failure ?? .failed).label : DomainFormatter.short(row.host))
                     .font(DS.Typography.feedMeta)
                     .foregroundStyle(read ? theme.textSecondary : theme.textTertiary)
                     .lineLimit(1)
@@ -354,7 +355,7 @@ struct FeedRowView: View {
         case .loading?: String(localized: "Reading")
         case .read?: String(localized: "Read")
         case .thin?: String(localized: "Little content")
-        case .failed?: String(localized: "Couldn't read")
+        case .failed?: String(localized: "Couldn't read") + ": " + (row.failure ?? .failed).label
         }
     }
 }

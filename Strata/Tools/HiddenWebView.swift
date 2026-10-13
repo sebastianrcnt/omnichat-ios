@@ -23,6 +23,12 @@ enum WebToolError: Error, LocalizedError, Equatable {
         }
     }
 
+    /// What the model reads when a limit ran out: how long it waited and which limit it was.
+    static func timeoutMessage(after elapsed: Duration, limit: Duration, what: String) -> String {
+        "Timed out after \(FetchTimeouts.seconds(elapsed)): \(what) has a \(FetchTimeouts.seconds(limit)) limit. "
+            + "The site may be slow or may not answer automated browsers; try another source."
+    }
+
     /// A load failure from WebKit, with certificate problems told apart from other failures.
     static func loadFailure(_ error: Error) -> WebToolError {
         let e = error as NSError

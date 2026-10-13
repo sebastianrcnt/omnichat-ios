@@ -85,6 +85,8 @@ final class AppSettings {
     var lastConnectionID: UUID? { didSet { defaults.set(lastConnectionID?.uuidString, forKey: "lastConnectionID") } }
     var lastModelID: String? { didSet { defaults.set(lastModelID, forKey: "lastModelID") } }
     var fetchLength: Int { didSet { defaults.set(fetchLength, forKey: "fetchLength") } }
+    /// How long the hidden browser waits for a page (`FetchPatience.current` reads the same key).
+    var fetchPatience: FetchPatience { didSet { defaults.set(fetchPatience.rawValue, forKey: FetchPatience.defaultsKey) } }
     var searchEngine: SearchEnginePreference { didSet { defaults.set(searchEngine.rawValue, forKey: "searchEngine") } }
     var smoothStreaming: Bool { didSet { defaults.set(smoothStreaming, forKey: "smoothStreaming") } }
     /// After tools, an empty answer gets one more request asking for it (`EmptyAnswerRetry`). Off by default.
@@ -108,6 +110,7 @@ final class AppSettings {
         lastModelID = defaults.string(forKey: "lastModelID")
         let fl = defaults.integer(forKey: "fetchLength")
         fetchLength = Self.fetchLengthOptions.contains(fl) ? fl : Self.defaultFetchLength
+        fetchPatience = defaults.string(forKey: FetchPatience.defaultsKey).flatMap(FetchPatience.init(rawValue:)) ?? .standard
         searchEngine = defaults.string(forKey: "searchEngine").flatMap(SearchEnginePreference.init(rawValue:)) ?? .auto
         smoothStreaming = defaults.object(forKey: "smoothStreaming") as? Bool ?? true
         continueOnEmptyAnswer = defaults.bool(forKey: "continueOnEmptyAnswer")

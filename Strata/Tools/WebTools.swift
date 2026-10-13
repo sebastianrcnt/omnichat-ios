@@ -87,11 +87,11 @@ struct WebSearchTool {
     /// a bot challenge or an empty page.
     var engines: [SearchEngine]
 
-    var timeouts = FetchTimeouts.standard
+    var timeouts = FetchTimeouts.current
     /// Test seam; `nil` uses the hidden web view.
     var searcher: EngineSearcher?
 
-    init(engines: [SearchEngine], timeouts: FetchTimeouts = .standard, searcher: EngineSearcher? = nil) {
+    init(engines: [SearchEngine], timeouts: FetchTimeouts = .current, searcher: EngineSearcher? = nil) {
         self.engines = engines
         self.timeouts = timeouts
         self.searcher = searcher
@@ -108,6 +108,7 @@ struct WebSearchTool {
         var sawEmpty = false
         for engine in engines {
             guard let url = engine.searchURL(for: q) else { continue }
+            let started = ContinuousClock.now
             do {
                 let search = searcher ?? Self.searchWithWebView(timeouts: timeouts)
                 let results = try await Deadline.run(timeouts.overall) { try await search(engine, url) }
@@ -118,7 +119,10 @@ struct WebSearchTool {
             } catch is CancellationError {
                 return ToolOutput(text: "Error: cancelled.", isError: true)
             } catch {
-                failures.append(engines.count > 1 ? "\(engine.name): \(error.localizedDescription)" : error.localizedDescription)
+                let message = WebToolError.timeout == error as? WebToolError
+                    ? WebToolError.timeoutMessage(after: ContinuousClock.now - started, limit: timeouts.overall, what: "the search page")
+                    : error.localizedDescription
+                failures.append(engines.count > 1 ? "\(engine.name): \(message)" : message)
             }
         }
         // An engine that answered with nothing is an answer; errors alone are a failure.
@@ -243,7 +247,7 @@ struct WebFetchTool {
     var limit: Int = AppSettings.currentFetchLength
     /// Test seam; `nil` loads with the hidden web view.
     var loader: PageLoader?
-    var timeouts = FetchTimeouts.standard
+    var timeouts = FetchTimeouts.current
     /// Loads under way; fetches of the same page in one round share one. `nil` uses the shared registry.
     var inFlight: InFlightLoads?
 
@@ -276,17 +280,21 @@ struct WebFetchTool {
     /// cancelling it returns at once, whatever phase it is in.
     @MainActor
     func run(urlString: String, offset: Int = 0) async -> ToolOutput {
+        let started = ContinuousClock.now
         do {
-            return try await Deadline.run(timeouts.overall) { await self.fetchSlice(urlString: urlString, offset: offset) }
+            return try await Deadline.run(timeouts.overall) { await self.fetchSlice(urlString: urlString, offset: offset, started: started) }
         } catch is CancellationError {
             return ToolOutput(text: "Error: cancelled.", isError: true)
+        } catch WebToolError.timeout {
+            let text = WebToolError.timeoutMessage(after: ContinuousClock.now - started, limit: timeouts.overall, what: "the whole fetch")
+            return ToolOutput(text: "Error: \(text)", isError: true)
         } catch {
             return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true)
         }
     }
 
     @MainActor
-    private func fetchSlice(urlString: String, offset: Int) async -> ToolOutput {
+    private func fetchSlice(urlString: String, offset: Int, started: ContinuousClock.Instant) async -> ToolOutput {
         let url: URL
         do { url = try await Self.prepare(urlString, resolver: resolver) }
         catch { return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true) }
@@ -303,6 +311,9 @@ struct WebFetchTool {
                 page = try await (inFlight ?? .shared).load(key: SourceStore.key(for: url.absoluteString), callID: ToolContext.callID) { sink in
                     try await ToolContext.$progressSink.withValue(sink) { try await load(url) }
                 }
+            } catch WebToolError.timeout {
+                let text = WebToolError.timeoutMessage(after: ContinuousClock.now - started, limit: timeouts.load, what: "loading the page")
+                return ToolOutput(text: "Error: \(text)", isError: true)
             } catch {
                 return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true)
             }

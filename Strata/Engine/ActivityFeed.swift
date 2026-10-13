@@ -72,6 +72,8 @@ struct FeedCall: Equatable, Sendable {
     var sourceIDs: [Int] = []
     var engine: String?
     var thin = false
+    /// Why a failed call failed, from its result text.
+    var failure: FetchFailure?
 
     init(id: String, isSearch: Bool, argument: String, status: Status, sourceIDs: [Int] = [], engine: String? = nil, thin: Bool = false) {
         self.id = id
@@ -88,6 +90,7 @@ struct FeedCall: Equatable, Sendable {
                   status: record.isError ? .failed : .done, sourceIDs: record.sourceIDs,
                   engine: record.name == ToolNames.webSearch ? record.searchEngine : nil,
                   thin: record.name == ToolNames.webFetch && record.isThinPage)
+        if record.isError { failure = FetchFailure(errorText: record.result) }
     }
 
     init(pending: PendingToolCall) {
@@ -142,6 +145,33 @@ struct FeedRow: Identifiable, Equatable, Sendable {
     var read: FeedRead?
     /// When the first read of this page started (the call's place in the turn): read rows are listed in this order.
     var readOrder: Int?
+    /// Set while `read` is `.failed`: the short reason shown in place of the domain.
+    var failure: FetchFailure?
+}
+
+/// Why a page could not be read, from the tool's error text, for a short label on the row.
+enum FetchFailure: Equatable, Sendable {
+    case timedOut, blocked, certificate, noText, failed
+
+    init(errorText: String) {
+        let t = errorText.lowercased()
+        if t.contains("timed out") || t.contains("took too long") { self = .timedOut }
+        else if t.contains("certificate") { self = .certificate }
+        else if t.contains("no readable text") { self = .noText }
+        else if ["blocked", "not allowed", "challenge", "captcha", "403", "forbidden", "denied", "private"].contains(where: t.contains) {
+            self = .blocked
+        } else { self = .failed }
+    }
+
+    var label: String {
+        switch self {
+        case .timedOut: String(localized: "Timed out")
+        case .blocked: String(localized: "Blocked")
+        case .certificate: String(localized: "Bad certificate")
+        case .noText: String(localized: "No text")
+        case .failed: String(localized: "Failed")
+        }
+    }
 }
 
 struct FeedCard: Identifiable, Equatable, Sendable {
@@ -231,6 +261,7 @@ enum ActivityFeed {
         func mark(_ row: inout FeedRow) {
             if row.readOrder == nil { row.readOrder = order }
             row.read = row.read.map { $0.merged(with: state) } ?? state
+            row.failure = row.read == .failed ? call.failure : nil
         }
         for c in cards.indices.reversed() {
             if let r = cards[c].results.firstIndex(where: { keys.contains($0.id) }) {
@@ -247,7 +278,7 @@ enum ActivityFeed {
         let url = page?.url ?? call.argument
         let host = SourceInfo(id: 0, title: "", url: url, snippet: "").host
         let row = FeedRow(id: keys[0], title: page.map { $0.title.isEmpty ? $0.host : $0.title } ?? host, host: host, url: url,
-                          read: state, readOrder: order)
+                          read: state, readOrder: order, failure: state == .failed ? call.failure : nil)
         if !continuingRun || cards.last?.kind != .pages { cards.append(FeedCard(id: "pages-" + call.id, kind: .pages)) }
         cards[cards.count - 1].extras.append(row)
         return true

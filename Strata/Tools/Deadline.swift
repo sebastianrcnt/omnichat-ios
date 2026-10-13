@@ -14,6 +14,43 @@ struct FetchTimeouts: Sendable, Equatable {
     var overall: Duration = .seconds(25)
 
     static let standard = FetchTimeouts()
+
+    /// The limits for the user's "Page timeout" setting. Read by the tools off the main actor, per call.
+    static var current: FetchTimeouts { FetchPatience.current.timeouts }
+
+    /// "12.3 s", for messages the model reads.
+    static func seconds(_ d: Duration) -> String {
+        let s = Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18
+        return s == s.rounded() ? "\(Int(s)) s" : String(format: "%.1f s", s)
+    }
+}
+
+/// How long the hidden browser waits for a page: the "Page timeout" setting.
+enum FetchPatience: String, CaseIterable, Identifiable, Sendable {
+    case fast, standard, patient
+
+    var id: String { rawValue }
+
+    var timeouts: FetchTimeouts {
+        switch self {
+        case .fast: FetchTimeouts(load: .seconds(8), overall: .seconds(15))
+        case .standard: .standard
+        case .patient: FetchTimeouts(load: .seconds(30), overall: .seconds(45))
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .fast: String(localized: "Fast (15 s)")
+        case .standard: String(localized: "Standard (25 s)")
+        case .patient: String(localized: "Patient (45 s)")
+        }
+    }
+
+    static let defaultsKey = "fetchPatience"
+    static var current: FetchPatience {
+        UserDefaults.standard.string(forKey: defaultsKey).flatMap(FetchPatience.init(rawValue:)) ?? .standard
+    }
 }
 
 /// Races an operation against a time limit and against cancellation. Built on a continuation rather than a task

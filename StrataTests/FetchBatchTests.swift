@@ -332,7 +332,7 @@ struct FetchDeadlineTests {
         let start = ContinuousClock.now
         let out = await t.run(urlString: "https://example.com/slow")
         #expect(out.isError)
-        #expect(out.text.contains("took too long"))
+        #expect(out.text.contains("Timed out after"))
         #expect(ContinuousClock.now - start < .seconds(3))
     }
 

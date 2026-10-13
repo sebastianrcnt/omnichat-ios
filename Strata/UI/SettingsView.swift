@@ -71,6 +71,17 @@ struct SettingsView: View {
                         }
                         .padding(.horizontal, DS.Spacing.lg)
                         .padding(.vertical, DS.Spacing.sm)
+                        HStack {
+                            Text("Page timeout").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
+                            Spacer()
+                            Picker("Page timeout", selection: $settings.fetchPatience) {
+                                ForEach(FetchPatience.allCases) { Text($0.label).tag($0) }
+                            }
+                            .labelsHidden()
+                            .tint(theme.textSecondary)
+                        }
+                        .padding(.horizontal, DS.Spacing.lg)
+                        .padding(.vertical, DS.Spacing.sm)
                     }
 
                     GroupedSection(header: "Answers", footer: "If the model searches and then stops without writing anything, it is asked once more for the answer.") {
