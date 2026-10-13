@@ -181,7 +181,7 @@ enum FetchFailure: Equatable, Sendable {
 struct FeedCard: Identifiable, Equatable, Sendable {
     enum Kind: Equatable, Sendable {
         case search(query: String)
-        /// Pages read that no search card listed ("Read pages").
+        /// Pages read: one card per run of consecutive reads, wherever the links came from.
         case pages
     }
 
@@ -192,29 +192,21 @@ struct FeedCard: Identifiable, Equatable, Sendable {
     var isRunning = false
     var isError = false
     var results: [FeedRow] = []
-    /// The pages of a `.pages` card. (A search card's reads mark its result rows instead.)
+    /// The pages of a `.pages` card.
     var extras: [FeedRow] = []
 
     var rows: [FeedRow] { results + extras }
     var hasLoadingRow: Bool { rows.contains { if case .loading? = $0.read { return true } else { return false } } }
     /// Pages read successfully (or with little content).
     var readCount: Int { rows.filter { $0.read == .read || $0.read == .thin }.count }
+    var failedCount: Int { rows.filter { $0.read == .failed }.count }
 
-    /// Results shown before "+N more" while nothing from the card is being read.
+    /// Results shown before "+N more".
     static let initialRows = 5
 
-    /// At least one result is being read, has been read, or failed to load.
-    var isReading: Bool { results.contains { $0.read != nil } }
-
-    /// Folded: the first `initialRows` results until reading starts; from then on only the rows being read or read, in
-    /// the order their reads started (the rest fold into "+ N more results"). Expanded: every result in original order.
+    /// Folded: the first `initialRows` results. Expanded: every result.
     func visibleResults(expanded: Bool) -> [FeedRow] {
-        guard !expanded else { return results }
-        guard isReading else { return Array(results.prefix(Self.initialRows)) }
-        return results.enumerated()
-            .filter { $0.element.read != nil }
-            .sorted { ($0.element.readOrder ?? Int.max, $0.offset) < ($1.element.readOrder ?? Int.max, $1.offset) }
-            .map(\.element)
+        expanded ? results : Array(results.prefix(Self.initialRows))
     }
 
     func hiddenCount(expanded: Bool) -> Int { results.count - visibleResults(expanded: expanded).count }
@@ -224,10 +216,10 @@ enum ActivityFeed {
     /// The cards for a turn's calls, in call order.
     static func cards(calls: [FeedCall], sources: [Int: SourceInfo]) -> [FeedCard] {
         var cards: [FeedCard] = []
-        var directRun = false // the previous call was a read no search card listed
+        var readRun = false // the previous call was a read
         for (order, call) in calls.enumerated() {
             if call.isSearch {
-                directRun = false
+                readRun = false
                 var card = FeedCard(id: call.id, kind: .search(query: call.argument), engine: call.engine,
                                     isRunning: call.status == .running, isError: call.status == .failed)
                 var seen = Set<String>()
@@ -239,7 +231,8 @@ enum ActivityFeed {
                 }
                 cards.append(card)
             } else {
-                directRun = attach(fetch: call, order: order, to: &cards, continuingRun: directRun, sources: sources)
+                attach(fetch: call, order: order, to: &cards, continuingRun: readRun, sources: sources)
+                readRun = true
             }
         }
         return cards
@@ -253,41 +246,31 @@ enum ActivityFeed {
         }
     }
 
-    /// Marks the result row the page came from (the newest search card listing it). A page no search card listed
-    /// goes to a "Read pages" card: one per run of consecutive such reads, in call order; reading the same page again
-    /// updates its row. Returns whether this was such a direct read.
+    /// Adds a read to the feed's "Read pages" card: one card per run of consecutive reads (a parallel batch is one run),
+    /// in call order, so the feed only grows at the bottom and search cards never change. Reading the same page again
+    /// within the run (a retry, or reading on) updates its row.
     private static func attach(fetch call: FeedCall, order: Int, to cards: inout [FeedCard], continuingRun: Bool,
-                               sources: [Int: SourceInfo]) -> Bool {
+                               sources: [Int: SourceInfo]) {
         let page = call.sourceIDs.first.flatMap { sources[$0] }
         var keys = [FeedURL.key(call.argument)]
         if let page { keys.append(FeedURL.key(page.url)) } // the page's own URL, after redirects
         let state = readState(call)
-        func mark(_ row: inout FeedRow) {
-            if row.readOrder == nil { row.readOrder = order }
-            row.read = row.read.map { $0.merged(with: state) } ?? state
-            row.failure = row.read == .failed ? call.failure : nil
+        if continuingRun, let c = cards.indices.last, cards[c].kind == .pages,
+           let r = cards[c].extras.firstIndex(where: { keys.contains($0.id) }) {
+            cards[c].extras[r].read = cards[c].extras[r].read.map { $0.merged(with: state) } ?? state
+            cards[c].extras[r].failure = cards[c].extras[r].read == .failed ? call.failure : nil
+            return
         }
-        for c in cards.indices.reversed() {
-            if let r = cards[c].results.firstIndex(where: { keys.contains($0.id) }) {
-                mark(&cards[c].results[r])
-                return false
-            }
-        }
-        for c in cards.indices.reversed() where cards[c].kind == .pages {
-            if let r = cards[c].extras.firstIndex(where: { keys.contains($0.id) }) {
-                mark(&cards[c].extras[r])
-                return true
-            }
-        }
+        // Until the page's own source arrives, a search result listing the link gives the row its title.
+        let listed = cards.reversed().lazy.flatMap(\.results).first { keys.contains($0.id) }
         let url = page?.url ?? call.argument
         let host = SourceInfo(id: 0, title: "", url: url, snippet: "").host
-        var title = page.map { $0.title.isEmpty ? $0.host : $0.title } ?? host
+        var title = page.map { $0.title.isEmpty ? $0.host : $0.title } ?? listed?.title ?? host
         if let plugin = call.plugin, !plugin.isEmpty { title = page.map { $0.title.isEmpty || $0.title == plugin ? plugin : plugin + " · " + $0.title } ?? plugin }
         let row = FeedRow(id: keys[0], title: title, host: host, url: url,
                           read: state, readOrder: order, failure: state == .failed ? call.failure : nil)
         if !continuingRun || cards.last?.kind != .pages { cards.append(FeedCard(id: "pages-" + call.id, kind: .pages)) }
         cards[cards.count - 1].extras.append(row)
-        return true
     }
 }
 

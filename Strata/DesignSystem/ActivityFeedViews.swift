@@ -1,7 +1,8 @@
 import SwiftUI
 
-// The in-chat activity feed (see reference/mockups/feed.html): one thought line, then a card per web search whose
-// result rows show the pages the model read. Built from `ActivityFeed` values; the full history is the Timeline sheet.
+// The in-chat activity feed (see reference/mockups/feed.html and fetchblocks.html): one thought line, then the cards in
+// call order: one per web search, and one per run of page reads. Built from `ActivityFeed` values; the full history is
+// the Timeline sheet.
 
 // MARK: - Thought line
 
@@ -191,7 +192,10 @@ struct FeedCardView: View {
     private var title: String {
         switch card.kind {
         case .search(let query): query
-        case .pages: String(localized: "Read pages · \(card.extras.count)")
+        case .pages:
+            card.hasLoadingRow
+                ? (card.extras.count == 1 ? String(localized: "Reading 1 page…") : String(localized: "Reading \(card.extras.count) pages…"))
+                : (card.extras.count == 1 ? String(localized: "Read 1 page") : String(localized: "Read \(card.extras.count) pages"))
         }
     }
 
@@ -215,15 +219,8 @@ struct FeedCardView: View {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 10, weight: .semibold)).foregroundStyle(theme.textTertiary)
             }
-        } else if card.isReading || card.engine != nil {
-            HStack(spacing: DS.Spacing.xs + 2) {
-                // "2 read · 8" once the card's pages are being read.
-                if card.isReading {
-                    Text("\(card.readCount) read · \(card.results.count)")
-                        .font(DS.Typography.feedMeta).foregroundStyle(theme.textTertiary).lineLimit(1)
-                }
-                if let engine = card.engine { engineBadge(engine) }
-            }
+        } else if let engine = card.engine {
+            engineBadge(engine)
         }
     }
 
@@ -236,15 +233,13 @@ struct FeedCardView: View {
             .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(theme.separator, lineWidth: 1) }
     }
 
-    /// "Naver · 2 read", "Bing · 8 results", "2 pages".
+    /// "Bing · 8 results"; for pages, "1 failed" (the title already counts them).
     private var summary: String {
-        let read = card.readCount
         switch card.kind {
         case .pages:
-            return card.rows.count == 1 ? String(localized: "1 page") : String(localized: "\(card.rows.count) pages")
+            return card.failedCount > 0 ? String(localized: "\(card.failedCount) failed") : ""
         case .search:
-            let count = read > 0 ? String(localized: "\(read) read")
-                : (card.results.count == 1 ? String(localized: "1 result") : String(localized: "\(card.results.count) results"))
+            let count = card.results.count == 1 ? String(localized: "1 result") : String(localized: "\(card.results.count) results")
             guard let engine = card.engine else { return count }
             return String(localized: "\(engine) · \(count)")
         }
@@ -263,7 +258,7 @@ struct FeedCardView: View {
             }
             if (hidden > 0 || foldable) && visible >= results.count {
                 Button(action: onShowAll) {
-                    Text(foldable ? "Show less" : card.isReading ? "+ \(hidden) more results" : "+\(hidden) more")
+                    Text(foldable ? "Show less" : "+\(hidden) more")
                         .font(DS.Typography.feed)
                         .foregroundStyle(theme.textTertiary)
                         .padding(.horizontal, 8)
@@ -281,11 +276,7 @@ struct FeedCardView: View {
         }
         .padding(.horizontal, 6)
         .padding(.bottom, DS.Spacing.sm)
-        // Reading starts: the read rows move up once (and later reads slide in after them).
-        .animation(reduceMotion ? nil : Self.reorder, value: results.map(\.id))
     }
-
-    static let reorder = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.35)
 
     private var rowTransition: AnyTransition {
         reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 5))

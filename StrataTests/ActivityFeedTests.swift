@@ -104,69 +104,66 @@ struct ActivityFeedTests {
         #expect(cards.allSatisfy { $0.extras.isEmpty })
     }
 
-    @Test func aFetchAttachesToTheMatchingResultRow() {
+    @Test func pagesNoSearchListedGoToAPagesCard() {
+        let cards = ActivityFeed.cards(calls: [fetch("f0", "https://other.org/picked-by-the-model", ids: [11])], sources: sources)
+        #expect(cards.count == 1 && cards[0].kind == .pages)
+        #expect(cards[0].extras.map(\.title) == ["Picked page"])
+    }
+
+    @Test func readsGoToAPagesCardAndSearchCardsNeverChange() {
         let calls = [
             search("s1", ids: [1, 2, 3]),
-            fetch("f1", "http://kostat.go.kr/board/1/"),               // scheme and slash differ
+            fetch("f1", "http://kostat.go.kr/board/1/"),
             fetch("f2", "https://hani.co.kr/arti/2#top", status: .running),
             fetch("f3", "https://chosun.com/a/3", status: .failed),
         ]
-        let card = ActivityFeed.cards(calls: calls, sources: sources)[0]
-        #expect(card.results.map(\.read) == [.read, .loading(callID: "f2"), .failed])
-        #expect(card.extras.isEmpty, "no separate fetch rows")
-        #expect(card.hasLoadingRow && card.readCount == 1)
+        let cards = ActivityFeed.cards(calls: calls, sources: sources)
+        #expect(cards.map(\.kind) == [.search(query: "q"), .pages])
+        #expect(cards[0].results.allSatisfy { $0.read == nil }, "search rows are not marked")
+        #expect(cards[1].extras.map(\.read) == [.read, .loading(callID: "f2"), .failed])
+        #expect(cards[1].hasLoadingRow && cards[1].readCount == 1 && cards[1].failedCount == 1)
     }
 
-    @Test func aRedirectedPageMatchesThroughItsSource() {
-        // The model asked for a short link; the page that loaded (its source) is a result.
-        let card = ActivityFeed.cards(calls: [search("s1", ids: [1, 2]), fetch("f1", "https://t.co/abc", ids: [2])], sources: sources)[0]
-        #expect(card.results[1].read == .read && card.extras.isEmpty)
+    @Test func aReadOfAnOlderSearchsResultStillGoesToTheBottom() {
+        // Three searches, then a parallel batch reading results of the first and third: one card at the bottom.
+        let calls = [
+            search("s1", ids: [1, 2]), search("s2", ids: [9]), search("s3", ids: [10]),
+            fetch("f1", "https://kostat.go.kr/board/1", status: .running),
+            fetch("f2", "https://www.hani.co.kr/arti/2", status: .running),
+            fetch("f3", "https://bbc.com/10", status: .running),
+        ]
+        let cards = ActivityFeed.cards(calls: calls, sources: sources)
+        #expect(cards.count == 4 && cards[3].kind == .pages)
+        #expect(cards[3].extras.map(\.title) == ["Page 1", "Page 2", "Page 10"], "titled from the listing results while loading")
+        #expect(cards[0...2].allSatisfy { $0.results.allSatisfy { $0.read == nil } })
+    }
+
+    @Test func aRedirectedPageIsTitledFromItsSource() {
+        let cards = ActivityFeed.cards(calls: [fetch("f1", "https://t.co/abc", ids: [11])], sources: sources)
+        #expect(cards[0].extras.map(\.title) == ["Picked page"] && cards[0].extras[0].host == "other.org")
     }
 
     @Test func aThinPageIsMarked() {
-        let card = ActivityFeed.cards(calls: [search("s1", ids: [1]), fetch("f1", "https://kostat.go.kr/board/1", thin: true)], sources: sources)[0]
-        #expect(card.results[0].read == .thin)
+        let cards = ActivityFeed.cards(calls: [search("s1", ids: [1]), fetch("f1", "https://kostat.go.kr/board/1", thin: true)], sources: sources)
+        #expect(cards[1].extras[0].read == .thin)
     }
 
-    @Test func unlistedPagesGoToAPagesCardPerRunOfDirectReads() {
-        let before = ActivityFeed.cards(calls: [fetch("f0", "https://other.org/picked-by-the-model", ids: [11])], sources: sources)
-        #expect(before.count == 1 && before[0].kind == .pages)
-        #expect(before[0].extras.map(\.title) == ["Picked page"])
-
-        // Never appended to the latest search card.
-        let calls = [search("s1", ids: [1]), search("s2", ids: [9]), fetch("f1", "https://elsewhere.net/x"), fetch("f2", "https://elsewhere.net/x/", status: .running)]
-        let cards = ActivityFeed.cards(calls: calls, sources: sources)
-        #expect(cards.count == 3)
-        #expect(cards[0].extras.isEmpty && cards[1].extras.isEmpty)
-        #expect(cards[2].kind == .pages)
-        #expect(cards[2].extras.count == 1, "the same page read twice is one row")
-        #expect(cards[2].extras[0].host == "elsewhere.net" && cards[2].extras[0].read == .loading(callID: "f2"))
-    }
-
-    @Test func aSearchOrAListedReadEndsARunOfDirectReads() {
+    @Test func aSearchEndsARunOfReads() {
         let calls = [
             fetch("f1", "https://a.org/1"), fetch("f2", "https://b.org/2"),   // one Pages card
             search("s1", ids: [1, 2]),
             fetch("f3", "https://c.org/3"),                                    // a second one, after the search
-            fetch("f4", "https://kostat.go.kr/board/1"),                       // listed by s1
-            fetch("f5", "https://d.org/4"),                                    // a third
-            fetch("f6", "https://a.org/1", status: .failed),                   // a re-read updates its old row
+            fetch("f4", "https://kostat.go.kr/board/1"),                       // same run, though s1 listed it
+            fetch("f5", "https://c.org/3/", status: .failed),                  // a retry in the run updates its row
+            search("s2", ids: [9]),
+            fetch("f6", "https://a.org/1", status: .running),                  // a new run: a new row, the old card stays
         ]
         let cards = ActivityFeed.cards(calls: calls, sources: sources)
-        #expect(cards.map(\.kind) == [.pages, .search(query: "q"), .pages, .pages])
-        #expect(cards[0].extras.map(\.host) == ["a.org", "b.org"])
-        #expect(cards[0].extras[0].read == .read, "a failed retry never hides a success")
-        #expect(cards[2].extras.map(\.host) == ["c.org"])
-        #expect(cards[3].extras.map(\.host) == ["d.org"])
-        #expect(cards[1].results[0].read == .read)
-    }
-
-    @Test func aLaterReadOfTheSamePageUpdatesTheNewestCardHoldingIt() {
-        // Both searches found the same page: the newer card gets the read.
-        let calls = [search("s1", ids: [1, 2]), search("s2", ids: [2, 9]), fetch("f1", "https://hani.co.kr/arti/2")]
-        let cards = ActivityFeed.cards(calls: calls, sources: sources)
-        #expect(cards[0].results[1].read == nil)
-        #expect(cards[1].results[0].read == .read)
+        #expect(cards.map(\.kind) == [.pages, .search(query: "q"), .pages, .search(query: "q"), .pages])
+        #expect(cards[0].extras.map(\.host) == ["a.org", "b.org"] && cards[0].extras[0].read == .read)
+        #expect(cards[2].extras.map(\.host) == ["c.org", "kostat.go.kr"])
+        #expect(cards[2].extras[0].read == .read, "a failed retry never hides a success")
+        #expect(cards[4].extras.map(\.read) == [.loading(callID: "f6")])
     }
 
     @Test func readStatesMerge() {
@@ -177,31 +174,12 @@ struct ActivityFeedTests {
         #expect(FeedRead.read.merged(with: .thin) == .read)
     }
 
-    @Test func fiveRowsThenMoreUntilReadingStarts() {
-        let card = ActivityFeed.cards(calls: [search("s1", ids: Array(1...8))], sources: sources)[0]
-        #expect(!card.isReading)
+    @Test func fiveRowsThenMore() {
+        let calls = [search("s1", ids: Array(1...8)), fetch("f1", "https://blog.naver.com/u/7")]
+        let card = ActivityFeed.cards(calls: calls, sources: sources)[0]
         #expect(card.visibleResults(expanded: false).map(\.host) == ["kostat.go.kr", "hani.co.kr", "chosun.com", "ko.wikipedia.org", "naver.com"])
         #expect(card.hiddenCount(expanded: false) == 3)
-    }
-
-    @Test func onceReadingStartsOnlyReadRowsShowInTheOrderTheirReadsStarted() {
-        let calls = [
-            search("s1", ids: Array(1...8)),
-            fetch("f1", "https://blog.naver.com/u/7"),                         // result 7 first
-            fetch("f2", "https://hani.co.kr/arti/2", status: .running),         // then result 2
-            fetch("f3", "https://chosun.com/a/3", status: .failed),             // a failed read counts too
-            fetch("f4", "https://blog.naver.com/u/7"),                         // reading on keeps its place
-        ]
-        let card = ActivityFeed.cards(calls: calls, sources: sources)[0]
-        #expect(card.isReading)
-        #expect(card.visibleResults(expanded: false).map(\.host) == ["blog.naver.com", "hani.co.kr", "chosun.com"])
-        #expect(card.hiddenCount(expanded: false) == 5)
-        #expect(card.readCount == 1)
-        // Expanded: every result in its original order, read rows still marked.
-        let all = card.visibleResults(expanded: true)
-        #expect(all.map(\.host) == ["kostat.go.kr", "hani.co.kr", "chosun.com", "ko.wikipedia.org", "naver.com", "oecd.org", "blog.naver.com", "joongang.co.kr"])
-        #expect(all[6].read == .read && all[1].read == .loading(callID: "f2"))
-        #expect(card.hiddenCount(expanded: true) == 0)
+        #expect(card.visibleResults(expanded: true).count == 8 && card.hiddenCount(expanded: true) == 0)
     }
 
     @Test func callsKeepRequestOrderAndAppearOnce() {
@@ -226,7 +204,7 @@ struct FeedCollapseTests {
 
     @Test func anOlderCardStaysOpenWhileOneOfItsPagesLoads() {
         var loading = cards
-        loading[0].results = [FeedRow(id: "x", title: "x", host: "x.com", url: "https://x.com", read: .loading(callID: "f"))]
+        loading[0].extras = [FeedRow(id: "x", title: "x", host: "x.com", url: "https://x.com", read: .loading(callID: "f"))]
         #expect(!FeedCollapse.autoCollapsed(index: 0, cards: loading, isStreaming: true, answerStarted: false))
     }
 

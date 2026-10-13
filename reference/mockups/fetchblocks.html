@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fetch Blocks</title>
+<style>
+:root{--bg:#141414;--surface:#1d1d20;--raised:#2a2a2d;--line:#2f2f34;--text:#f2f2f4;--dim:#9b9ba3;--faint:#5f5f67;--accent2:#b9a2ff;--green:#34c759}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,system-ui,sans-serif;overflow-x:hidden}
+.wrap{max-width:430px;margin:0 auto;padding:18px 16px 80px}
+h1{font-size:19px;margin:4px 0}
+.sub{color:var(--dim);font-size:13px;line-height:1.55}
+.tabs{display:flex;gap:6px;margin:14px 0 6px;background:var(--surface);border-radius:12px;padding:3px}
+.tabs button{flex:1;border:0;background:transparent;color:var(--dim);font-size:13.5px;height:32px;border-radius:9px}
+.tabs button.on{background:var(--raised);color:var(--text)}
+.note{font-size:12.5px;color:var(--dim);line-height:1.5;margin:6px 0 12px;min-height:38px}
+.ctl{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.ctl button{border:0;background:var(--raised);color:var(--text);border-radius:15px;height:32px;padding:0 14px;font-size:13.5px}
+.ctl label{font-size:12.5px;color:var(--dim);display:flex;gap:5px;align-items:center}
+.step{font-size:12px;color:var(--faint);margin-left:auto}
+.feed{display:flex;flex-direction:column;gap:8px}
+.card{background:var(--surface);border-radius:14px;min-width:0;overflow:hidden;transition:background .3s}
+.card.flash{background:#26262b}
+.head{display:flex;align-items:center;gap:8px;padding:10px 12px;font-size:13.5px;color:var(--dim);cursor:pointer}
+.head .ic{width:16px;text-align:center;flex:none}
+.head .q{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+.head .n{font-size:12px;color:var(--faint);flex:none}
+.head .chev{font-size:11px;color:var(--faint);transition:transform .25s}
+.card.open .chev{transform:rotate(90deg)}
+.body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .3s ease}
+.card.open .body{grid-template-rows:1fr}
+.body>div{overflow:hidden}
+.row{display:flex;align-items:center;gap:9px;padding:6px 12px;font-size:14px;min-width:0;color:var(--dim)}
+.row:last-child{padding-bottom:10px}
+.fav{width:16px;height:16px;border-radius:4px;background:var(--raised);flex:none;display:grid;place-items:center;font-size:9px;color:var(--dim)}
+.row .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .h{font-size:12px;color:var(--faint);flex:none;max-width:38%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row.read{color:var(--text)}
+.ck{color:var(--green);font-size:12px;flex:none;width:12px;text-align:center}
+.ckq{color:var(--faint);font-size:11px;flex:none;width:12px;text-align:center}
+.xx{color:var(--faint);font-size:12px;flex:none;width:12px;text-align:center}
+.spin{width:12px;height:12px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--dim);animation:r .8s linear infinite;flex:none}
+@keyframes r{to{transform:rotate(360deg)}}
+.more{padding:4px 12px 10px;font-size:12.5px;color:var(--faint)}
+.answer{font-size:14.5px;line-height:1.6;color:var(--text);padding:6px 2px;opacity:0;transition:opacity .4s}
+.answer.on{opacity:1}
+.tag{font-size:10.5px;color:var(--faint);border:1px solid var(--line);border-radius:5px;padding:0 4px;flex:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Fetch 표시 방식</h1>
+  <div class="sub">검색 3번 → 첫 번째 검색 결과 2개와 세 번째 결과 1개를 <b>병렬로</b> 읽음 → 하나 더 읽음 → 답변. ▶ 다음으로 한 단계씩 보세요. 카드 머리를 누르면 접고 펼 수 있어요.</div>
+  <div class="tabs"><button data-m="now">지금 (검색 카드에 표시)</button><button data-m="sep" class="on">제안 (항상 별도 블록)</button></div>
+  <div class="ctl">
+    <button id="next">▶ 다음</button><button id="reset">처음부터</button>
+    <label id="cklab"><input type="checkbox" id="marks"> 검색 결과에 읽음 체크</label>
+    <span class="step" id="step"></span>
+  </div>
+  <div class="note" id="note"></div>
+  <div class="feed" id="feed"></div>
+  <div class="answer" id="answer">서울대학교는 1946년 10월 15일 「국립서울대학교 설치령」에 따라 경성제국대학과 9개 관립 전문학교를 통합해 세워졌어요…</div>
+</div>
+<script>
+const S = [
+  {q:"서울대학교 설립 연도", r:[["서울대학교 - 나무위키","namu.wiki","나"],["서울대학교 연혁 | 서울대학교","snu.ac.kr","서"],["경성제국대학 - 위키백과","ko.wikipedia.org","W"],["서울대 설립 과정 총정리","blog.naver.com","블"],["국립서울대학교 설치령 (1946)","law.go.kr","법"]]},
+  {q:"국대안 파동", r:[["국대안 파동 - 우리역사넷","contents.history.go.kr","역"],["국대안 반대 운동 - 위키백과","ko.wikipedia.org","W"],["국대안 파동이란?","kin.naver.com","지"]]},
+  {q:"Seoul National University founded 1946", r:[["Seoul National University - Wikipedia","en.wikipedia.org","W"],["History | SNU","en.snu.ac.kr","S"],["SNU at 79 - Korea Herald","koreaherald.com","K"]]},
+];
+// steps: what has happened so far
+const STEPS = [
+  {ev:"s0", note:"검색 1."},
+  {ev:"s1", note:"검색 2. 이전 검색 카드는 접혀요."},
+  {ev:"s2", note:"검색 3."},
+  {ev:"f-start", fetch:[[0,0],[0,1],[2,0]], note:"병렬로 3페이지 읽기 시작: 검색 1에서 둘, 검색 3에서 하나."},
+  {ev:"f-done", note:"3페이지 다 읽음 (하나는 실패)."},
+  {ev:"f2-start", fetch:[[1,0]], note:"검색 2의 결과를 하나 더 읽기 시작."},
+  {ev:"f2-done", note:"다 읽음."},
+  {ev:"answer", note:"답변 시작: 모든 카드가 접혀요."},
+];
+const FAIL = "2,0";
+let mode = "sep", i = 0, manual = {};
+const $ = s => document.querySelector(s);
+const key = (a,b) => a+","+b;
+
+function state(){
+  // replay steps 0..i-1
+  const st = {searches:0, batches:[], status:{}, answering:false};
+  for (let k=0;k<i;k++){
+    const e = STEPS[k];
+    if (e.ev[0]==="s") st.searches++;
+    if (e.fetch){ st.batches.push(e.fetch.map(([a,b])=>key(a,b))); e.fetch.forEach(([a,b])=>st.status[key(a,b)]="loading"); }
+    if (e.ev==="f-done") ["0,0","0,1"].forEach(x=>st.status[x]="read"), st.status[FAIL]="fail";
+    if (e.ev==="f2-done") st.status["1,0"]="read";
+    if (e.ev==="answer") st.answering=true;
+  }
+  return st;
+}
+const icon = s => s==="loading" ? `<span class="spin"></span>` : s==="read" ? `<span class="ck">✓</span>` : s==="fail" ? `<span class="xx">✕</span>` : "";
+
+function render(){
+  const st = state();
+  const cards = [];
+  // build card list in order
+  let searchCount = 0, batchIdx = 0;
+  for (let k=0;k<i;k++){
+    const e = STEPS[k];
+    if (e.ev[0]==="s"){ cards.push({type:"search", s:searchCount++}); }
+    if (e.fetch && mode==="sep"){ cards.push({type:"read", b:batchIdx}); }
+    if (e.fetch) batchIdx++;
+  }
+  const loadingIn = c => {
+    if (c.type==="read") return st.batches[c.b].some(x=>st.status[x]==="loading");
+    return mode==="now" && S[c.s].r.some((_,j)=>st.status[key(c.s,j)]==="loading");
+  };
+  const html = cards.map((c, idx) => {
+    const id = c.type+(c.s ?? c.b);
+    let open = !st.answering && (idx===cards.length-1 || loadingIn(c));
+    if (manual[id] !== undefined) open = manual[id];
+    if (c.type==="search"){
+      const s = S[c.s];
+      let rows;
+      if (mode==="now"){
+        const readish = s.r.map((r,j)=>[r,j]).filter(([r,j])=>st.status[key(c.s,j)]);
+        const rest = s.r.map((r,j)=>[r,j]).filter(([r,j])=>!st.status[key(c.s,j)]);
+        const shown = readish.length ? readish : rest.slice(0,3);
+        const hidden = s.r.length - shown.length;
+        rows = shown.map(([r,j])=>{const x=st.status[key(c.s,j)]; return `<div class="row ${x==="read"?"read":""}"><span class="fav">${r[2]}</span><span class="t">${r[0]}</span>${x? icon(x) : `<span class="h">${r[1]}</span>`}</div>`}).join("")
+             + (hidden>0 ? `<div class="more">+ ${hidden} more results</div>` : "");
+      } else {
+        const marks = $("#marks").checked;
+        rows = s.r.slice(0,3).map((r,j)=>{const x=st.status[key(c.s,j)]; const m = marks && x==="read" ? `<span class="ckq">✓</span>` : ""; return `<div class="row"><span class="fav">${r[2]}</span><span class="t">${r[0]}</span><span class="h">${r[1]}</span>${m}</div>`}).join("")
+             + (s.r.length>3 ? `<div class="more">+ ${s.r.length-3} more results</div>` : "");
+      }
+      return `<div class="card ${open?"open":""}" data-id="${id}"><div class="head"><span class="ic">⌕</span><span class="q">${s.q}</span><span class="n">${s.r.length} results</span><span class="chev">›</span></div><div class="body"><div>${rows}</div></div></div>`;
+    } else {
+      const b = st.batches[c.b];
+      const loading = b.filter(x=>st.status[x]==="loading").length;
+      const title = loading ? `Reading ${b.length} page${b.length>1?"s":""}…` : `Read ${b.length} page${b.length>1?"s":""}`;
+      const rows = b.map(x=>{const [a,j]=x.split(",").map(Number); const r=S[a].r[j]; const s=st.status[x];
+        const h = s==="fail" ? `<span class="h">Timed out</span>` : `<span class="h">${r[1]}</span>`;
+        return `<div class="row ${s==="read"?"read":""}">${icon(s)}<span class="fav">${r[2]}</span><span class="t">${r[0]}</span>${h}</div>`}).join("");
+      return `<div class="card ${open?"open":""}" data-id="${id}"><div class="head"><span class="ic">◧</span><span class="q">${title}</span><span class="chev">›</span></div><div class="body"><div>${rows}</div></div></div>`;
+    }
+  }).join("");
+  $("#feed").innerHTML = html;
+  $("#answer").classList.toggle("on", st.answering);
+  $("#note").textContent = i ? STEPS[i-1].note + (mode==="now" && STEPS[i-1].fetch ? " → 접혀 있던 위쪽 카드가 다시 펼쳐져요." : "") : "▶ 다음을 누르세요.";
+  $("#step").textContent = `${i} / ${STEPS.length}`;
+  $("#cklab").style.display = mode==="sep" ? "flex" : "none";
+  document.querySelectorAll(".head").forEach(h=>h.onclick=()=>{const c=h.parentElement; manual[c.dataset.id]=!c.classList.contains("open"); render();});
+}
+$("#next").onclick=()=>{ if(i<STEPS.length){ i++; manual={}; render(); } };
+$("#reset").onclick=()=>{ i=0; manual={}; render(); };
+$("#marks").onchange=render;
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("on",x===b)); mode=b.dataset.m; manual={}; render();});
+const P = new URLSearchParams(location.search);
+if (P.get("m")) { mode = P.get("m"); document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("on", x.dataset.m===mode)); }
+if (P.get("step")) i = +P.get("step");
+render();
+</script>
+</body>
+</html>
