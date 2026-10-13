@@ -214,6 +214,7 @@
 		C209A7CAF31D4B3A404E13E9 /* IncrementalBlockParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = B72613A56D557C2C034E2812 /* IncrementalBlockParser.swift */; };
 		C3071A7734704701520A145F /* ConversationSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC11727CDAAF3FC02952FA2D /* ConversationSearch.swift */; };
 		C3D12A3347E215F4E823A775 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = F1503A15523DE0F285CD907E /* MarkdownUI */; };
+		C47CA8396A7C55038D7740D5 /* ModelAliasTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC51A091339A5DC6AB34A2D0 /* ModelAliasTests.swift */; };
 		C48C022B81E313E8DB806867 /* ReasoningSpaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D076370B98BDA6E9EC30D9D /* ReasoningSpaces.swift */; };
 		C4BFC95C8A59626A9FB896C8 /* ChatClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC9B4C0F5B7D9EA0C318B662 /* ChatClient.swift */; };
 		C6E0C3E3DF17F1CD6F152DB7 /* Effort.swift in Sources */ = {isa = PBXBuildFile; fileRef = 648F250AFB2520ECD6FBA4E7 /* Effort.swift */; };
@@ -420,6 +421,7 @@
 		E74E7C1ABCB884139F97BED1 /* ChatControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatControllerTests.swift; sourceTree = "<group>"; };
 		EADB3352B26461738C5DAF17 /* AutoRenameTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoRenameTests.swift; sourceTree = "<group>"; };
 		EC3A5A90BF9ACE5ED7A72FE7 /* StrataTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = StrataTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		EC51A091339A5DC6AB34A2D0 /* ModelAliasTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelAliasTests.swift; sourceTree = "<group>"; };
 		EF5B920549D60E7E1258E825 /* ChatAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatAPI.swift; sourceTree = "<group>"; };
 		EFEB12E3B760901977A8D37F /* LenientEmphasis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LenientEmphasis.swift; sourceTree = "<group>"; };
 		F42DD6DE488FF594429FF03E /* MessageTreeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageTreeTests.swift; sourceTree = "<group>"; };
@@ -502,6 +504,7 @@
 				BCE2F3453923C02BEC5F259D /* MemoryTests.swift */,
 				13423FE5A72BA79F03249F91 /* MessageLayoutTests.swift */,
 				F42DD6DE488FF594429FF03E /* MessageTreeTests.swift */,
+				EC51A091339A5DC6AB34A2D0 /* ModelAliasTests.swift */,
 				B3BBC86C33779550DEC50E5F /* ModelSelectionTests.swift */,
 				4A622DCD2F41352D5522EDFA /* P2PerformanceTests.swift */,
 				C3FC9C20B1D8A17C7643053D /* ParallelToolTests.swift */,
@@ -976,6 +979,7 @@
 				DD499E4391CDDB9EAAB7602C /* MemoryTests.swift in Sources */,
 				6758F027C7489205BE19642E /* MessageLayoutTests.swift in Sources */,
 				513E353263698BA6CD2BBE1F /* MessageTreeTests.swift in Sources */,
+				C47CA8396A7C55038D7740D5 /* ModelAliasTests.swift in Sources */,
 				FEB93A1A5A5DA4035142363C /* ModelSelectionTests.swift in Sources */,
 				0DC1C2E2FC13DF167A4A01F3 /* P2PerformanceTests.swift in Sources */,
 				FE41041D5B866618BF77EE98 /* ParallelToolTests.swift in Sources */,

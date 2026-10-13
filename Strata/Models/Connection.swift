@@ -66,6 +66,9 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
     /// Sent as the first (system) message. Empty disables it.
     var systemPrompt: String
     var supportsResumable: Bool
+    /// User-set display names, keyed by model id. Display-only: requests always send the real id. Kept apart from
+    /// `models` so a name survives `/models` refreshes, even when a model briefly drops out of the list.
+    var modelAliases: [String: String] = [:]
 
     init(id: UUID = UUID(), name: String, baseURL: String, customHeaders: String = "", models: [ModelInfo] = [],
          systemPrompt: String = DefaultPrompts.citation, supportsResumable: Bool? = nil) {
@@ -87,6 +90,7 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
         models = try c.decodeIfPresent([ModelInfo].self, forKey: .models) ?? []
         supportsResumable = try c.decodeIfPresent(Bool.self, forKey: .supportsResumable) ?? (id == Self.strataID)
         systemPrompt = try c.decodeIfPresent(String.self, forKey: .systemPrompt) ?? DefaultPrompts.citation
+        modelAliases = try c.decodeIfPresent([String: String].self, forKey: .modelAliases) ?? [:]
     }
 
     static func strataPreset() -> Connection {
@@ -102,6 +106,17 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
                   supportsImages: fetchedImages ?? isStrata, // the Strata engine reads images
                   supportsEffort: isStrata,
                   supportsTools: true)
+    }
+
+    /// The user's name for a model, or nil when it has none.
+    func alias(forModel modelID: String) -> String? { modelAliases[modelID] }
+
+    /// What the UI shows for a model: its alias when set, else its id.
+    func displayName(forModel modelID: String) -> String { alias(forModel: modelID) ?? modelID }
+
+    /// Sets (or, for nil / blank text, removes) a model's alias. The text is trimmed and capped.
+    mutating func setAlias(_ alias: String?, forModel modelID: String) {
+        modelAliases[modelID] = ModelAlias.normalized(alias)
     }
 
     var parsedHeaders: [(name: String, value: String)] {
@@ -122,6 +137,19 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
         guard let url = URL(string: s), let scheme = url.scheme?.lowercased(),
               scheme == "http" || scheme == "https", url.host != nil else { return nil }
         return url
+    }
+}
+
+/// Rules for user-set model display names.
+enum ModelAlias {
+    static let maxLength = 64
+
+    /// Trimmed and capped at `maxLength` characters; nil when nothing is left.
+    static func normalized(_ text: String?) -> String? {
+        guard let text else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return String(trimmed.prefix(maxLength)).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

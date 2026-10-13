@@ -76,6 +76,12 @@ struct ChatView: View {
         return connections.connection(s.connectionID)?.models.first { $0.id == s.modelID }
     }
 
+    /// The selected model as the user sees it: its alias when set, else the real id (requests always use the id).
+    private var selectedModelTitle: String? {
+        let s = selection
+        return connections.displayName(connectionID: s.connectionID, modelID: s.modelID)
+    }
+
     private func apply(connectionID: UUID, modelID: String) {
         settings.lastConnectionID = connectionID
         settings.lastModelID = modelID
@@ -126,7 +132,7 @@ struct ChatView: View {
             #if os(macOS)
             .modifier(MacChatChrome(
                 title: conversation?.displayTitle ?? String(localized: "New chat"),
-                subtitle: selection.modelID ?? "",
+                subtitle: selectedModelTitle ?? "",
                 contextFraction: conversation?.lastUsage == nil ? nil : contextFraction,
                 showUsage: $showUsage, showAttach: $showAttach, showNoImageSupport: $showNoImageSupport,
                 onPickImages: addAttachments, onEnableImages: enableImagesForSelectedModel,
@@ -140,7 +146,7 @@ struct ChatView: View {
             }
             #if os(iOS)
             .sheet(isPresented: $showAttach) {
-                AttachSheet(supportsImages: selectedModel?.supportsImages ?? false, modelName: selection.modelID,
+                AttachSheet(supportsImages: selectedModel?.supportsImages ?? false, modelName: selectedModelTitle,
                             onPick: addAttachments,
                             onEnableImages: enableImagesForSelectedModel)
             }
@@ -260,7 +266,7 @@ struct ChatView: View {
                         .lineLimit(1)
                         .contentTransition(.opacity)
                         .animation(DS.Motion.ease, value: conversation?.title)
-                    if let model = selection.modelID {
+                    if let model = selectedModelTitle {
                         Text(model).font(DS.Typography.uiCaption).foregroundStyle(theme.textSecondary).lineLimit(1)
                     }
                 }
@@ -487,7 +493,7 @@ struct ChatView: View {
             onPasteImages: pasteHandler,
             chip: {
                 ModelEffortChip(
-                    modelName: selection.modelID ?? String(localized: "Select model"),
+                    modelName: selectedModelTitle ?? String(localized: "Select model"),
                     effortTitle: (selectedModel?.supportsEffort ?? false) ? selection.effort.title : nil) {
                     composerFocused = false
                     showModelPicker = true

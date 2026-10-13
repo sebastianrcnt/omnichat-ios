@@ -107,6 +107,10 @@ struct SettingsRow: View {
     var showsChevron = false
     var isChecked = false
     var isDestructive = false
+    /// Shown instead of `title`, as typed (user text such as a model name: no localization lookup or Markdown).
+    var verbatimTitle: String?
+    /// A small single line under the title, as typed (e.g. a model's real id under its alias).
+    var detail: String?
     var action: (() -> Void)?
 
     var body: some View {
@@ -126,8 +130,15 @@ struct SettingsRow: View {
                     .frame(width: DS.IconSize.lg)
             }
             VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                Text(title).font(DS.Typography.ui)
-                    .foregroundStyle(isDestructive ? theme.destructive : theme.textPrimary)
+                Group {
+                    if let verbatimTitle { Text(verbatim: verbatimTitle) } else { Text(title) }
+                }
+                .font(DS.Typography.ui)
+                .foregroundStyle(isDestructive ? theme.destructive : theme.textPrimary)
+                if let detail {
+                    Text(verbatim: detail).font(DS.Typography.uiCaption).foregroundStyle(theme.textSecondary)
+                        .lineLimit(1).truncationMode(.middle)
+                }
                 if let subtitle {
                     Text(subtitle).font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary)
                         .multilineTextAlignment(.leading)
@@ -150,6 +161,15 @@ struct SettingsRow: View {
         .padding(.vertical, DS.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
+    }
+}
+
+extension SettingsRow {
+    /// A row for a model: its alias as the title with the real id small underneath, or just the id.
+    init(modelID: String, alias: String?, subtitle: String? = nil, value: String? = nil,
+         showsChevron: Bool = false, isChecked: Bool = false, action: (() -> Void)? = nil) {
+        self.init(title: "", subtitle: subtitle, value: value, showsChevron: showsChevron, isChecked: isChecked,
+                  verbatimTitle: alias ?? modelID, detail: alias == nil ? nil : modelID, action: action)
     }
 }
 

@@ -209,7 +209,8 @@ struct ConnectionEditor: View {
 
                     GroupedSection(header: "Models", footer: fetchStatus.map { LocalizedStringKey($0) }) {
                         ForEach(connection.models) { model in
-                            SettingsRow(title: LocalizedStringKey(model.id), subtitle: ModelPickerSheet.capabilities(model),
+                            SettingsRow(modelID: model.id, alias: connection.alias(forModel: model.id),
+                                        subtitle: ModelPickerSheet.capabilities(model),
                                         value: model.effectiveContextLength(default: AppSettings.defaultContextLength).formatted(),
                                         showsChevron: true) { editingModel = model.id }
                         }
@@ -295,6 +296,8 @@ struct ModelEditor: View {
     let modelID: String
 
     private var model: ModelInfo? { connections.connection(connectionID)?.models.first { $0.id == modelID } }
+    /// Edited here and saved trimmed, so typing a space between words is not undone mid-edit.
+    @State private var aliasText = ""
 
     private func update(_ change: (inout ModelInfo) -> Void) {
         guard var c = connections.connection(connectionID), let i = c.models.firstIndex(where: { $0.id == modelID }) else { return }
@@ -305,6 +308,9 @@ struct ModelEditor: View {
     var body: some View {
         SheetScaffold(title: LocalizedStringKey(modelID)) {
             if let model {
+                GroupedSection(header: "Display name", footer: "Shown instead of the model id in the app. Requests still use the id. Leave blank to show the id.") {
+                    SettingsFieldRow(title: "Display name", prompt: LocalizedStringKey(modelID), text: $aliasText)
+                }
                 GroupedSection(header: "Context", footer: model.fetchedContextLength.map { LocalizedStringKey("The server reports \($0.formatted()) tokens. Leave blank to use it.") }) {
                     SettingsFieldRow(title: "Context length",
                                      prompt: LocalizedStringKey(model.fetchedContextLength.map(String.init) ?? String(AppSettings.defaultContextLength)),
@@ -333,5 +339,11 @@ struct ModelEditor: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .onAppear { aliasText = connections.connection(connectionID)?.alias(forModel: modelID) ?? "" }
+        .onChange(of: aliasText) { _, text in
+            let capped = String(text.prefix(ModelAlias.maxLength))
+            if capped != text { aliasText = capped; return }
+            connections.setModelAlias(text, connectionID: connectionID, modelID: modelID)
+        }
     }
 }

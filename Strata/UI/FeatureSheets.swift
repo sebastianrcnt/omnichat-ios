@@ -28,6 +28,7 @@ struct ModelPickerSheet: View {
 
     @State private var page: Page = .root
     @State private var currentEffort: Effort
+    @State private var renaming: ModelRenameTarget?
 
     enum Page { case root, effort }
 
@@ -56,6 +57,7 @@ struct ModelPickerSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .modelRenameAlert($renaming)
     }
 
     private var root: some View {
@@ -68,10 +70,21 @@ struct ModelPickerSheet: View {
             ForEach(connections.connections.filter { !$0.models.isEmpty }) { conn in
                 GroupedSection(header: LocalizedStringKey(conn.name)) {
                     ForEach(conn.models) { model in
-                        SettingsRow(title: LocalizedStringKey(model.id), subtitle: Self.capabilities(model),
+                        let alias = conn.alias(forModel: model.id)
+                        SettingsRow(modelID: model.id, alias: alias, subtitle: Self.capabilities(model),
                                     isChecked: conn.id == selectedConnectionID && model.id == selectedModelID) {
                             onSelectModel(conn.id, model.id)
                             dismiss()
+                        }
+                        .contextMenu {
+                            Button("Rename…", systemImage: "pencil") {
+                                renaming = ModelRenameTarget(connectionID: conn.id, modelID: model.id)
+                            }
+                            if alias != nil {
+                                Button("Reset name", systemImage: "arrow.counterclockwise") {
+                                    connections.setModelAlias(nil, connectionID: conn.id, modelID: model.id)
+                                }
+                            }
                         }
                     }
                 }
@@ -109,6 +122,47 @@ struct ModelPickerSheet: View {
         if m.supportsEffort { parts.append(String(localized: "Effort")) }
         if m.supportsTools { parts.append(String(localized: "Web tools")) }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+}
+
+// MARK: - Model rename
+
+/// A model whose display name is being edited.
+struct ModelRenameTarget: Identifiable, Equatable {
+    var connectionID: UUID
+    var modelID: String
+    var id: String { "\(connectionID.uuidString)/\(modelID)" }
+}
+
+/// Asks for a model's display name. Saving blank text removes the alias.
+private struct ModelRenameAlert: ViewModifier {
+    @Environment(\.connectionStore) private var connections
+    @Binding var target: ModelRenameTarget?
+    @State private var text = ""
+
+    func body(content: Content) -> some View {
+        content
+            .alert("Rename model", isPresented: Binding(get: { target != nil }, set: { if !$0 { target = nil } }),
+                   presenting: target) { t in
+                TextField("Display name", text: $text, prompt: Text(verbatim: t.modelID))
+                Button("Save") {
+                    connections.setModelAlias(text, connectionID: t.connectionID, modelID: t.modelID)
+                    target = nil
+                }
+                Button("Cancel", role: .cancel) { target = nil }
+            } message: { t in
+                Text("Shown in place of \(t.modelID). Requests still use the real model id. Leave empty to use the id.")
+            }
+            .onChange(of: target) { _, t in
+                guard let t else { return }
+                text = connections.connection(t.connectionID)?.alias(forModel: t.modelID) ?? ""
+            }
+    }
+}
+
+extension View {
+    func modelRenameAlert(_ target: Binding<ModelRenameTarget?>) -> some View {
+        modifier(ModelRenameAlert(target: target))
     }
 }
 

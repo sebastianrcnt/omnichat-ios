@@ -48,6 +48,20 @@ final class ConnectionStore {
         save()
     }
 
+    /// What the UI shows for a model: the user's alias, else the id. Nil only when there is no model id.
+    func displayName(connectionID: UUID?, modelID: String?) -> String? {
+        guard let modelID else { return nil }
+        return connection(connectionID)?.displayName(forModel: modelID) ?? modelID
+    }
+
+    /// Sets or (with nil / blank text) clears a model's alias. Display-only; requests keep the real id.
+    func setModelAlias(_ alias: String?, connectionID: UUID, modelID: String) {
+        guard var c = connection(connectionID) else { return }
+        c.setAlias(alias, forModel: modelID)
+        guard c != connection(connectionID) else { return }
+        upsert(c)
+    }
+
     func apiKey(for id: UUID) -> String? { keys.key(for: id) }
 
     func setAPIKey(_ key: String?, for id: UUID) throws { try keys.setKey(key, for: id) }
