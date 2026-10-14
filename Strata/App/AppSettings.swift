@@ -107,6 +107,8 @@ final class AppSettings {
     /// 0...6, xSmall ... xxxLarge; 3 is the default size.
     var textSizeStep: Int { didSet { defaults.set(textSizeStep, forKey: "textSizeStep") } }
     var lastEffortRaw: String { didSet { defaults.set(lastEffortRaw, forKey: "lastEffort") } }
+    /// Models picked in "Select model", newest first (`RecentModels`).
+    var recentModels: [String] { didSet { defaults.set(recentModels, forKey: "recentModels") } }
     /// The language dictation listens for (`DictationLanguage.current` reads the same key).
     var dictationLanguage: String { didSet { defaults.set(dictationLanguage, forKey: DictationLanguage.defaultsKey) } }
     /// How the assistant should behave and respond (personality, tone, a name). Sent after the app prompt; a chat
@@ -135,6 +137,7 @@ final class AppSettings {
         generateTitles = defaults.object(forKey: "generateTitles") == nil ? true : defaults.bool(forKey: "generateTitles")
         developerMode = defaults.bool(forKey: "developerMode")
         lastEffortRaw = defaults.string(forKey: "lastEffort") ?? Effort.default.rawValue
+        recentModels = defaults.stringArray(forKey: "recentModels") ?? []
         userPreferences = defaults.string(forKey: Self.userPreferencesKey) ?? ""
         enabledPlugins = Set(defaults.stringArray(forKey: Self.enabledPluginsKey) ?? [])
         dictationLanguage = defaults.string(forKey: DictationLanguage.defaultsKey) ?? DictationLanguage.defaultID()

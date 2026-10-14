@@ -63,7 +63,7 @@ struct ChatSettingsTests {
         #expect(groups[0].items.map(\.modelID) == ["a1", "a3"])
         #expect(groups[0].items[0].title == "Alpha")
         #expect(groups[0].items[0].subtitle == "a1")
-        #expect(groups[0].items[0].capabilities == ModelInfo(id: "a1").capabilitiesSummary)
+        #expect(groups[0].items[0].limits == ModelPickerCatalog.limits(ModelInfo(id: "a1")))
         #expect(groups[0].items[1].title == "a3")
         #expect(groups[0].items[1].subtitle == nil)
     }

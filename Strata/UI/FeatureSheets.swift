@@ -15,8 +15,11 @@ enum TokenFormat {
 
 // MARK: - Model picker
 
-/// The gauge's sheet (a popover on a Mac): the models under their connection headers, then effort and search engine.
+/// The gauge's sheet (a popover on a Mac). With one connection it lists that connection's models; with several it shows
+/// the recent models (one tap to switch back) and a row per connection that opens its list. Effort and search engine
+/// come last.
 struct ModelPickerSheet: View {
+    @Environment(\.theme) private var theme
     @Environment(\.connectionStore) private var connections
     @Environment(\.appSettings) private var settings
     @Environment(\.dismiss) private var dismiss
@@ -31,8 +34,9 @@ struct ModelPickerSheet: View {
     @State private var page: Page = .root
     @State private var currentEffort: Effort
     @State private var renaming: ModelRenameTarget?
+    @State private var query = ""
 
-    enum Page { case root, effort, search }
+    enum Page: Equatable { case root, provider(UUID), effort, search }
 
     init(selectedConnectionID: UUID?, selectedModelID: String?, effort: Effort,
          onSelectModel: @escaping (UUID, String) -> Void, onSelectEffort: @escaping (Effort) -> Void,
@@ -54,6 +58,7 @@ struct ModelPickerSheet: View {
         Group {
             switch page {
             case .root: root
+            case .provider(let id): providerPage(id)
             case .effort: effortPage
             case .search: searchPage
             }
@@ -65,51 +70,122 @@ struct ModelPickerSheet: View {
         .modelRenameAlert($renaming)
     }
 
+    private var groups: [ModelPickerCatalog.Group] {
+        ModelPickerCatalog.groups(connections: connections.connections,
+                                  currentConnectionID: selectedConnectionID, currentModelID: selectedModelID)
+    }
+
     private var root: some View {
-        let groups = ModelPickerCatalog.groups(connections: connections.connections,
-                                               currentConnectionID: selectedConnectionID, currentModelID: selectedModelID)
+        let groups = groups
         return SheetScaffold(title: "Select model") {
             if groups.isEmpty {
                 GroupedSection(footer: "Add a connection in Settings, then fetch its models or add one by hand.") {
                     SettingsRow(title: "No models yet")
                 }
-            }
-            ForEach(groups) { group in
-                GroupedSection(header: LocalizedStringKey(group.name)) {
-                    ForEach(group.items) { item in
-                        SettingsRow(modelID: item.modelID, alias: item.subtitle == nil ? nil : item.title,
-                                    subtitle: item.capabilities,
-                                    isChecked: item.connectionID == selectedConnectionID && item.modelID == selectedModelID) {
-                            onSelectModel(item.connectionID, item.modelID)
-                            dismiss()
+            } else if groups.count == 1, let only = groups.first {
+                modelList(only)
+            } else {
+                let recent = ModelPickerCatalog.recent(groups: groups, recentKeys: settings.recentModels,
+                                                       currentConnectionID: selectedConnectionID, currentModelID: selectedModelID)
+                if !recent.isEmpty {
+                    GroupedSection(header: "Recent") {
+                        ForEach(recent) { item in
+                            let provider = groups.first { $0.connectionID == item.connectionID }?.name ?? ""
+                            modelRow(item, subtitle: [provider, item.limits].compactMap { $0 }.joined(separator: " · "))
                         }
-                        .contextMenu {
-                            Button("Rename…", systemImage: "pencil") {
-                                renaming = ModelRenameTarget(connectionID: item.connectionID, modelID: item.modelID)
-                            }
-                            if item.subtitle != nil {
-                                Button("Reset name", systemImage: "arrow.counterclockwise") {
-                                    connections.setModelAlias(nil, connectionID: item.connectionID, modelID: item.modelID)
-                                }
-                            }
+                    }
+                }
+                GroupedSection(header: "Providers") {
+                    ForEach(groups) { group in
+                        SettingsRow(title: "", value: group.items.count == 1
+                                        ? String(localized: "1 model") : String(localized: "\(group.items.count) models"),
+                                    showsChevron: true, verbatimTitle: group.name) {
+                            query = ""
+                            withAnimation(DS.Motion.snappy) { page = .provider(group.connectionID) }
                         }
                     }
                 }
             }
-            GroupedSection {
-                if selectedModel?.supportsEffort == true {
-                    SettingsRow(title: "Effort", value: currentEffort.resolved(in: selectedModel?.effortLevels(effortStyle) ?? []).title,
+            settingsSections
+        }
+    }
+
+    private func providerPage(_ id: UUID) -> some View {
+        let group = groups.first { $0.connectionID == id }
+        return SheetScaffold(title: LocalizedStringKey(group?.name ?? ""),
+                             leading: .back({ withAnimation(DS.Motion.snappy) { page = .root } })) {
+            if let group { modelList(group) }
+        }
+    }
+
+    /// A connection's models, with a search field when the list is long and a footer naming what they all share.
+    @ViewBuilder private func modelList(_ group: ModelPickerCatalog.Group) -> some View {
+        if group.items.count >= ModelPickerCatalog.searchThreshold {
+            HStack(spacing: DS.Spacing.sm) {
+                Image(systemName: "magnifyingglass").foregroundStyle(theme.textSecondary)
+                TextField("Search \(group.items.count) models", text: $query)
+                    .textFieldStyle(.plain)
+                    .font(DS.Typography.ui)
+                    .autocorrectionDisabled()
+                    #if os(iOS)
+                    .textInputAutocapitalization(.never)
+                    #endif
+                if !query.isEmpty {
+                    Button { query = "" } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(theme.textTertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear search")
+                }
+            }
+            .padding(.horizontal, DS.Spacing.md)
+            .padding(.vertical, DS.Spacing.sm)
+            .background(theme.surface, in: RoundedRectangle(cornerRadius: DS.Radius.md))
+        }
+        let items = ModelPickerCatalog.filter(group.items, query: query)
+        if items.isEmpty {
+            GroupedSection { SettingsRow(title: "No models match") }
+        } else {
+            GroupedSection(footer: query.isEmpty ? group.footer.map { LocalizedStringKey($0) } : nil) {
+                ForEach(items) { item in modelRow(item, subtitle: item.limits) }
+            }
+        }
+    }
+
+    private func modelRow(_ item: ModelPickerCatalog.Item, subtitle: String?) -> some View {
+        SettingsRow(modelID: item.modelID, alias: item.subtitle == nil ? nil : item.title,
+                    subtitle: subtitle?.isEmpty == true ? nil : subtitle,
+                    isChecked: item.connectionID == selectedConnectionID && item.modelID == selectedModelID) {
+            settings.recentModels = RecentModels.noting(item.connectionID, item.modelID, in: settings.recentModels)
+            onSelectModel(item.connectionID, item.modelID)
+            dismiss()
+        }
+        .contextMenu {
+            Button("Rename…", systemImage: "pencil") {
+                renaming = ModelRenameTarget(connectionID: item.connectionID, modelID: item.modelID)
+            }
+            if item.subtitle != nil {
+                Button("Reset name", systemImage: "arrow.counterclockwise") {
+                    connections.setModelAlias(nil, connectionID: item.connectionID, modelID: item.modelID)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var settingsSections: some View {
+        GroupedSection {
+            if selectedModel?.supportsEffort == true {
+                SettingsRow(title: "Effort", value: currentEffort.resolved(in: selectedModel?.effortLevels(effortStyle) ?? []).title,
                             showsChevron: true) {
-                        withAnimation(DS.Motion.snappy) { page = .effort }
-                    }
-                }
-                SettingsRow(title: "Search engine", value: settings.searchEngine.label, showsChevron: true) {
-                    withAnimation(DS.Motion.snappy) { page = .search }
+                    withAnimation(DS.Motion.snappy) { page = .effort }
                 }
             }
-            GroupedSection {
-                SettingsRow(systemImage: "slider.horizontal.3", title: "Manage connections", showsChevron: true, action: onOpenSettings)
+            SettingsRow(title: "Search engine", value: settings.searchEngine.label, showsChevron: true) {
+                withAnimation(DS.Motion.snappy) { page = .search }
             }
+        }
+        GroupedSection {
+            SettingsRow(systemImage: "slider.horizontal.3", title: "Manage connections", showsChevron: true, action: onOpenSettings)
         }
     }
 
