@@ -118,6 +118,7 @@ struct AttachmentThumbnail: View {
             }
             .frame(width: size, height: size)
             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.thumbnail))
+            .contentShape(RoundedRectangle(cornerRadius: DS.Radius.thumbnail)) // the clipped overflow still takes taps
 
             if let onRemove {
                 Button(action: onRemove) {

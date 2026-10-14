@@ -466,6 +466,9 @@ private struct PhotoTile: View {
             }
             .frame(width: DS.IconSize.cameraTile, height: DS.IconSize.cameraTile)
             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.lg))
+            // Clipping hides a scaled-to-fill photo's overflow but still hit-tests it: a wide photo would take taps
+            // meant for the tile before it.
+            .contentShape(RoundedRectangle(cornerRadius: DS.Radius.lg))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text("Photo"))
