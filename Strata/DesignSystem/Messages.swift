@@ -326,6 +326,11 @@ struct AssistantMessage: View {
                 }
             }
             .transition(.opacity)
+            // Once the answer is done, the turn's figures it didn't place still show, so none hides in a folded card.
+            if !content.isStreaming {
+                let unplaced = FigureReference.unplaced(content.calls.flatMap { $0.figures ?? [] }, text: render.markdown.text)
+                if !unplaced.isEmpty { UnplacedFigures(figures: unplaced) }
+            }
         }
         .animation(reduceMotion ? nil : DS.Motion.ease, value: showingTranslation)
         .animation(reduceMotion ? nil : DS.Motion.ease, value: tr.isTranslating)

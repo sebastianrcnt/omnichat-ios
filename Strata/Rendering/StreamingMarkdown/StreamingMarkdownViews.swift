@@ -4,6 +4,22 @@ import MarkdownUI
 /// Sources available for resolving `[N]` markers in a conversation.
 struct CitationContext: Equatable {
     var sources: [Int: SourceInfo] = [:]
+    /// Resolves `![caption](figure-N)` to the chat's stored figures (`FigureReference`).
+    var conversationID: UUID?
+}
+
+/// A paragraph of `![caption](figure-N)` lines: the figures, at the answer's width.
+private struct FigureBlockView: View {
+    let refs: [FigureReference.Ref]
+    let conversationID: UUID
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+            ForEach(refs, id: \.self) { ref in
+                AnswerFigure(image: FigureReference.image(id: ref.id, conversationID: conversationID), caption: ref.caption)
+            }
+        }
+    }
 }
 
 private struct CitationKey: EnvironmentKey { static let defaultValue = CitationContext() }
@@ -59,7 +75,9 @@ private struct TailBlocksView: View {
         // Quote source lines only among blocks that are already followed by another (closed) block.
         let quotes = QuoteCitations.plan(Array(tail.dropLast()))
         ForEach(Array(tail.enumerated()), id: \.element.id) { offset, block in
-            if offset == tail.count - 1 && !(block.kind == .table && block.isClosed) {
+            if block.kind == .paragraph, let cid = citations.conversationID, let refs = FigureReference.block(block.text) {
+                FigureBlockView(refs: refs, conversationID: cid)
+            } else if offset == tail.count - 1 && !(block.kind == .table && block.isClosed) {
                 OpenBlockView(block: block, spans: model.freshSpans)
             } else if quotes[block.id] != .absorbed {
                 // A block followed by another block is stable: full renderer, re-rendered only if its text changes.
@@ -82,7 +100,9 @@ struct MarkdownBlockView: View, Equatable {
     var quote: QuoteCitations.Plan?
 
     var body: some View {
-        if block.kind == .blockquote {
+        if block.kind == .paragraph, let cid = citations.conversationID, let refs = FigureReference.block(block.text) {
+            FigureBlockView(refs: refs, conversationID: cid)
+        } else if block.kind == .blockquote {
             if case .quote(let ids, let text)? = quote {
                 QuoteBlockView(source: text ?? block.text, simple: block.usesInlineRenderer, sourceIDs: ids, typeScale: typeScale)
             } else {

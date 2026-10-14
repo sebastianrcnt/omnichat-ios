@@ -104,7 +104,10 @@ enum AppPrompt {
     - If the sources are missing, unreadable or do not answer the question, say so, then answer from your own knowledge and make clear that it is not from the sources.
     """
 
-    static let python = "- For anything beyond simple arithmetic, calculate with run_python instead of in your head."
+    static let python = """
+    - For anything beyond simple arithmetic, calculate with run_python instead of in your head.
+    - To show a figure run_python saved, put ![short caption](figure-N) on its own line where it belongs in your reply.
+    """
 
     /// The app prompt for a model with (or without) tools, and with `run_python` offered or not.
     static func text(tools: Bool, python: Bool) -> String {

@@ -80,6 +80,15 @@ enum Pasteboard {
         NSPasteboard.general.setString(string, forType: .string)
         #endif
     }
+
+    static func copy(_ image: PlatformImage) {
+        #if canImport(UIKit)
+        UIPasteboard.general.image = image
+        #else
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.writeObjects([image])
+        #endif
+    }
 }
 
 /// App activation, as the platform reports it. iOS suspends an app that is not active; a Mac app keeps running.

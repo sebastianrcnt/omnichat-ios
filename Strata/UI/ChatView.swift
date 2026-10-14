@@ -124,7 +124,7 @@ struct ChatView: View {
 
     private var citationContext: CitationContext {
         let list = (conversation.map { controller.isStreaming($0) } ?? false) ? controller.liveSources : (conversation?.sources ?? [])
-        return CitationContext(sources: Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) }))
+        return CitationContext(sources: Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) }), conversationID: conversation?.id)
     }
 
     /// Every source an answer on the active path read or cited, in order: the Sources sheet's "All" list.

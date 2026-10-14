@@ -53,6 +53,77 @@ struct ToolImageThumbnail: View {
     }
 }
 
+/// A figure in an answer: the answer's width (never upscaled past its pixels), a caption under it, full size on a
+/// tap, and Copy / Share on a long press. A reference to a figure that isn't stored shows nothing.
+struct AnswerFigure: View {
+    @Environment(\.theme) private var theme
+    let image: ToolImage
+    var caption = ""
+    var store: ToolImageStore = .shared
+    @State private var loaded: PlatformImage?
+    @State private var missing = false
+    @State private var showFull = false
+
+    var body: some View {
+        if !missing {
+            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                Button { showFull = true } label: { picture }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text(verbatim: caption.isEmpty ? image.id : caption))
+                    .accessibilityHint(Text("Shows the image full size"))
+                    .contextMenu {
+                        if let loaded {
+                            Button("Copy", systemImage: "doc.on.doc") { Pasteboard.copy(loaded) }
+                        }
+                        ShareLink(item: store.root.appendingPathComponent(image.file)) {
+                            Label("Share…", systemImage: "square.and.arrow.up")
+                        }
+                    }
+                if !caption.isEmpty {
+                    Text(verbatim: caption).font(DS.Typography.uiCaption).foregroundStyle(theme.textSecondary)
+                }
+            }
+            .task(id: image.file) {
+                loaded = await ToolImageCache.image(for: image, store: store)
+                missing = loaded == nil
+            }
+            .sheet(isPresented: $showFull) { ToolImageViewer(image: image) }
+        }
+    }
+
+    @ViewBuilder private var picture: some View {
+        if let loaded {
+            let pixels = loaded.size
+            Image(platformImage: loaded).resizable().interpolation(.high).scaledToFit()
+                .frame(maxWidth: pixels.width > 0 ? pixels.width : nil)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
+                .overlay { RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous).strokeBorder(theme.separator, lineWidth: 1) }
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous).fill(theme.surfaceRaised)
+                .aspectRatio(4.0 / 3.0, contentMode: .fit)
+                .overlay { ProgressView().controlSize(.small) }
+        }
+    }
+}
+
+/// Figures from the turn that the answer didn't place with `![caption](figure-N)`: one or two at full width, more as
+/// a strip of tiles.
+struct UnplacedFigures: View {
+    let figures: [ToolImage]
+
+    var body: some View {
+        if figures.count <= 2 {
+            VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                ForEach(figures, id: \.file) { AnswerFigure(image: $0) }
+            }
+        } else {
+            ToolImageStrip(images: figures)
+        }
+    }
+}
+
 /// One figure, full size: fits the sheet, and zooms on a Mac/iPad-style pinch or a double tap.
 struct ToolImageViewer: View {
     @Environment(\.theme) private var theme
