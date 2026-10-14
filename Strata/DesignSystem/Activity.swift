@@ -463,7 +463,8 @@ struct TimelineSheet: View {
                 let tailInLast: Bool = { if case .thinking? = groups.last { return true } else { return false } }()
                 let visibleTail = ReasoningDisplay.isVisible(reasoning.tail)
                 if groups.isEmpty && !visibleTail {
-                    Text("Waiting for the model to think…")
+                    // A finished reply can have no reasoning to show: the model didn't think, or didn't share it.
+                    Text(isLive ? "Waiting for the model to think…" : "No reasoning was shared for this reply.")
                         .font(DS.Typography.uiSmall).foregroundStyle(theme.textTertiary)
                 }
                 VStack(alignment: .leading, spacing: DS.Spacing.md) {

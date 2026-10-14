@@ -207,6 +207,7 @@ struct ResponsesEventDecoder: Sendable {
     private var announcedCalls: Set<Int> = []
     private var reasoningWritten = false
     private var lastSummaryKey: String?
+    private var summarizedItems: Set<String> = []   // reasoning items whose summary streamed
     private(set) var finished = false
     private(set) var sawToolCall = false
 
@@ -216,13 +217,14 @@ struct ResponsesEventDecoder: Sendable {
         struct Item: Decodable {
             struct Summary: Decodable { var text: String? }
             var type: String?
+            var id: String?
             var callID: String?
             var name: String?
             var arguments: String?
             var summary: [Summary]?
             var encryptedContent: String?
             enum CodingKeys: String, CodingKey {
-                case type, name, arguments, summary
+                case type, id, name, arguments, summary
                 case callID = "call_id", encryptedContent = "encrypted_content"
             }
         }
@@ -255,7 +257,7 @@ struct ResponsesEventDecoder: Sendable {
         guard let data = payload.data(using: .utf8), let event = try? JSONDecoder().decode(Event.self, from: data) else {
             return ChatDelta()
         }
-        Self.log.debug("event \(event.type ?? "?", privacy: .public)")
+        Self.log.debug("event \(event.type ?? "?", privacy: .public) \(event.item?.type ?? "", privacy: .public)")
         var delta = ChatDelta()
         switch event.type {
         case "response.output_text.delta":
@@ -268,6 +270,7 @@ struct ResponsesEventDecoder: Sendable {
         case "response.reasoning_summary_text.delta", "response.reasoning_text.delta":
             if let d = event.delta, !d.isEmpty {
                 reasoningWritten = true
+                summarizedItems.insert(event.itemID ?? "")
                 delta.reasoning = d
             }
         case "response.output_item.added":
@@ -289,8 +292,13 @@ struct ResponsesEventDecoder: Sendable {
         case "response.output_item.done":
             guard let item = event.item else { break }
             if item.type == "reasoning" {
-                delta.reasoningItems = [ReasoningItem(summary: (item.summary ?? []).compactMap(\.text),
-                                                      encryptedContent: item.encryptedContent)]
+                let summary = (item.summary ?? []).compactMap(\.text).filter { !$0.isEmpty }
+                delta.reasoningItems = [ReasoningItem(summary: summary, encryptedContent: item.encryptedContent)]
+                // A summary that only arrives whole, on the finished item, is shown then.
+                if !summary.isEmpty && !summarizedItems.contains(item.id ?? "") {
+                    delta.reasoning = (reasoningWritten ? "\n\n" : "") + summary.joined(separator: "\n\n")
+                    reasoningWritten = true
+                }
             } else if item.type == "function_call" {
                 let index = toolIndex(event.outputIndex)
                 sawToolCall = true

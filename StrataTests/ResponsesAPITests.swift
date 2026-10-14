@@ -198,6 +198,23 @@ struct ResponsesStreamTests {
         #expect(acc.finishReason == "tool_calls")
     }
 
+    @Test func aSummaryOnlyOnTheFinishedItemIsShown() throws {
+        let sse = """
+        data: {"type":"response.output_item.added","output_index":0,"item":{"id":"rs_1","type":"reasoning","summary":[]}}
+
+        data: {"type":"response.output_item.done","output_index":0,"item":{"id":"rs_1","type":"reasoning","summary":[{"type":"summary_text","text":"First"},{"type":"summary_text","text":"Second"}]}}
+
+        data: {"type":"response.output_text.delta","output_index":1,"delta":"Answer"}
+
+        data: {"type":"response.completed","response":{"usage":{"input_tokens":5,"output_tokens":1}}}
+
+        """
+        var acc = StreamAccumulator()
+        for d in try ResponsesSamples.deltas(sse) { acc.apply(d) }
+        #expect(acc.reasoning == "First\n\nSecond")
+        #expect(acc.content == "Answer")
+    }
+
     @Test func plainAnswerFinishesWithStop() throws {
         let sse = """
         data: {"type":"response.output_text.delta","output_index":0,"delta":"Hello"}
