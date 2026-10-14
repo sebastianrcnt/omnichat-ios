@@ -45,6 +45,13 @@ enum ChatGPTModelsAPI {
                 continue
             }
             guard (200..<300).contains(status) else { throw ResponsesErrorMapper.error(status: status, data: data) }
+            // The catalog is model metadata, not account data: logged whole (in pieces, as the log cuts long lines) to
+            // see which fields it carries beyond the documented ones.
+            let text = String(decoding: data, as: UTF8.self)
+            for (i, start) in stride(from: 0, to: text.count, by: 800).enumerated() {
+                let piece = text.dropFirst(start).prefix(800)
+                ResponsesEventDecoder.log.debug("catalog[\(i, privacy: .public)] \(String(piece), privacy: .public)")
+            }
             return try parse(data)
         }
         throw APIError.http(status: 401, message: String(localized: "ChatGPT didn't accept the sign-in. Sign in again in Settings."))
