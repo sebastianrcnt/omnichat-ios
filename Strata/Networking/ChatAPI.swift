@@ -61,8 +61,11 @@ struct APIMessage: Sendable, Equatable, Encodable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case role, content, toolCalls = "tool_calls", toolCallID = "tool_call_id"
+        case role, content, toolCalls = "tool_calls", toolCallID = "tool_call_id", reasoningContent = "reasoning_content"
     }
+    /// Set in an encoder's `userInfo` for models that want their reasoning back with the turn's tool results
+    /// (`reasoning_content` on the assistant message, as DeepSeek and Kimi thinking modes take it).
+    static let echoReasoningKey = CodingUserInfoKey(rawValue: "strata.echoReasoning")!
     private enum CallKeys: String, CodingKey { case id, type, function }
     private enum FunctionKeys: String, CodingKey { case name, arguments }
 
@@ -85,6 +88,9 @@ struct APIMessage: Sendable, Equatable, Encodable {
             }
         }
         if let toolCallID { try c.encode(toolCallID, forKey: .toolCallID) }
+        if encoder.userInfo[Self.echoReasoningKey] as? Bool == true, role == "assistant", !reasoningItems.isEmpty {
+            try c.encode(reasoningItems.flatMap(\.summary).joined(separator: "\n\n"), forKey: .reasoningContent)
+        }
     }
 }
 

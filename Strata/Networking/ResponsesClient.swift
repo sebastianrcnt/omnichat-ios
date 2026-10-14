@@ -66,7 +66,8 @@ struct ResponsesClient: ChatStreaming {
     /// Reads the event stream through its terminal event. A stream that ends without `response.completed` (or
     /// `response.incomplete`) is an interrupted answer, not a finished one.
     static func consume(_ bytes: URLSession.AsyncBytes,
-                        into continuation: AsyncThrowingStream<ChatDelta, Error>.Continuation) async throws {
+                        into continuation: AsyncThrowingStream<ChatDelta, Error>.Continuation,
+                        incomplete: @autoclosure () -> String = String(localized: "The ChatGPT response ended before it was complete. Try again.")) async throws {
         var parser = SSEParser()
         var decoder = ResponsesEventDecoder()
         var line = Data()
@@ -88,7 +89,7 @@ struct ResponsesClient: ChatStreaming {
         if !line.isEmpty { try handle(parser.feed(line)) }
         try handle(parser.finish())
         if !decoder.finished {
-            throw APIError.transport(String(localized: "The ChatGPT response ended before it was complete. Try again."))
+            throw APIError.transport(incomplete())
         }
     }
 }
