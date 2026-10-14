@@ -84,4 +84,28 @@ struct PythonIntegrationTests {
         let file = try #require(plot.figures.first?.file)
         #expect(store.data(file: file).flatMap(ToolImageStore.pngSize)?.0 == 640)
     }
+
+    /// A figure is closed after its run is saved, but the model often keeps working on it in a later run
+    /// ("add a title"): the changed figure, or one the run ends on, is saved again; an untouched one is not.
+    @Test func aFigureChangedInALaterRunIsSavedAgain() async throws {
+        guard await Self.online() else { return }
+        let (python, _) = runtime()
+        defer { python.dispose() }
+        let chat = UUID()
+        let limits = PythonLimits(run: .seconds(60), setup: .seconds(240))
+        let first = await python.run(code: "import matplotlib.pyplot as plt\nfig, ax = plt.subplots()\nax.plot([1, 2, 3])",
+                                     conversationID: chat, limits: limits, canView: true)
+        #expect(first.figures.map(\.id) == ["figure-1"], "\(first.text)")
+        let edited = await python.run(code: "ax.set_title('Growth')", conversationID: chat, limits: limits, canView: true)
+        #expect(edited.figures.map(\.id) == ["figure-2"], "\(edited.text)")
+        let untouched = await python.run(code: "n = 1", conversationID: chat, limits: limits, canView: true)
+        #expect(untouched.figures.isEmpty, "\(untouched.text)")
+        let shown = await python.run(code: "fig", conversationID: chat, limits: limits, canView: true)
+        #expect(shown.figures.map(\.id) == ["figure-3"], "\(shown.text)")
+
+        let many = await python.run(code: "for i in range(10):\n    plt.figure()\n    plt.plot([i])", conversationID: chat,
+                                    limits: limits, canView: true)
+        #expect(many.figures.count == 8, "\(many.text)")
+        #expect(many.text.contains("2 more"), "\(many.text)")
+    }
 }

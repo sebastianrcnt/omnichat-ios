@@ -55,19 +55,48 @@ def format_error(e, filename):
         tb = tb.tb_next
     return "".join(traceback.format_exception(type(e), e, tb))
 
-def figures():
+def figure_of(value):
+    # A Figure, an Axes, or an array/list of Axes (plt.subplots(2, 2)) -> the figures they belong to.
+    from matplotlib.figure import Figure
+    from matplotlib.axes import Axes
+    if isinstance(value, Figure):
+        return [value]
+    if isinstance(value, Axes):
+        return [value.figure]
+    if isinstance(value, (list, tuple)):
+        items = value[:16]
+    elif type(value).__name__ == "ndarray" and getattr(value, "dtype", None) == object:
+        items = value.flat[:16]
+    else:
+        return []
+    return [a.figure for a in items if isinstance(a, Axes)]
+
+def figures(value):
+    # Open pyplot figures, plus figures from an earlier run that this run changed (they are closed once saved, so a
+    # later "add a title" would otherwise be lost) and the figure the run ends on, like a notebook shows it.
     plt = sys.modules.get("matplotlib.pyplot")
     if plt is None:
         return []
+    picked = [plt.figure(num) for num in plt.get_fignums()]
+    def add(fig, changed_only):
+        if all(fig is not f for f in picked) and (fig.stale or not changed_only):
+            picked.append(fig)
+    for fig in figure_of(value):
+        add(fig, False)
+    for v in list(namespace.values()):
+        for fig in figure_of(v):
+            add(fig, True)
     out = []
     try:
-        for num in plt.get_fignums()[:MAX_FIGURES]:
-            fig = plt.figure(num)
+        for fig in picked[:MAX_FIGURES]:
             buf = io.BytesIO()
             fig.savefig(buf, format="png", dpi=100)
             out.append(base64.b64encode(buf.getvalue()).decode("ascii"))
+            fig.stale = False  # saving doesn't clear it; a later change sets it again
     finally:
         plt.close("all")
+    if len(picked) > MAX_FIGURES:
+        print(f"[{len(picked) - MAX_FIGURES} more figures were not saved: at most {MAX_FIGURES} per run.]")
     return out
 
 async def run(code):
@@ -77,6 +106,7 @@ async def run(code):
     linecache.cache[filename] = (len(code), None, code.splitlines(True), filename)
     result = None
     error = None
+    value = None
     try:
         value = await eval_code_async(code, namespace, filename=filename)
         if value is not None:
@@ -87,15 +117,15 @@ async def run(code):
     except BaseException as e:
         error = format_error(e, filename)
     try:
+        figs = figures(value)
+    except BaseException as e:
+        figs = []
+        error = (error or "") + "Could not save the figures: " + "".join(traceback.format_exception_only(type(e), e))
+    try:
         sys.stdout.flush()
         sys.stderr.flush()
     except Exception:
         pass
-    try:
-        figs = figures()
-    except BaseException as e:
-        figs = []
-        error = (error or "") + "Could not save the figures: " + "".join(traceback.format_exception_only(type(e), e))
     return [result, error, figs]
 `;
 
