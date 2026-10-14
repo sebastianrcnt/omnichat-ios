@@ -136,9 +136,10 @@ struct ToolImageViewer: View {
             Group {
                 if let loaded {
                     let picture = Image(platformImage: loaded).resizable().interpolation(.high)
+                    let size = pixelSize(loaded)
                     if zoomed {
                         ScrollView([.horizontal, .vertical]) {
-                            picture.frame(width: CGFloat(image.width), height: CGFloat(image.height))
+                            picture.frame(width: size.width, height: size.height)
                         }
                     } else {
                         picture.scaledToFit().frame(maxWidth: .infinity)
@@ -149,11 +150,26 @@ struct ToolImageViewer: View {
             }
             .background(Color.white, in: RoundedRectangle(cornerRadius: DS.Radius.sm))
             .onTapGesture(count: 2) { zoomed.toggle() }
-            Text(verbatim: "\(image.width) × \(image.height)")
-                .font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
+            if let loaded {
+                let size = pixelSize(loaded)
+                Text(verbatim: "\(Int(size.width)) × \(Int(size.height))")
+                    .font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
+            }
         }
         .presentationDetents([.large])
         .task(id: image.file) { loaded = await ToolImageCache.image(for: image) }
+    }
+
+    /// The recorded size, else the decoded image's: a figure placed in an answer is opened by id, before its size is known
+    /// (zooming to a 0×0 frame made it vanish).
+    private func pixelSize(_ loaded: PlatformImage) -> CGSize {
+        if image.width > 0 && image.height > 0 { return CGSize(width: image.width, height: image.height) }
+        #if canImport(UIKit)
+        if let cg = loaded.cgImage { return CGSize(width: cg.width, height: cg.height) }
+        #else
+        if let rep = loaded.representations.first, rep.pixelsWide > 0 { return CGSize(width: rep.pixelsWide, height: rep.pixelsHigh) }
+        #endif
+        return loaded.size
     }
 }
 
