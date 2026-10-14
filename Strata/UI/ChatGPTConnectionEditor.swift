@@ -44,6 +44,12 @@ struct ChatGPTConnectionEditor: View {
                                 Task { await signIn() }
                             }
                             .disabled(flow != nil)
+                            #if os(macOS)
+                            if flow != nil {
+                                // The page is in the browser, which has no sheet to close: this is the way out.
+                                SettingsRow(systemImage: "xmark.circle", title: "Cancel sign-in") { flow?.cancel() }
+                            }
+                            #endif
                         }
                         SettingsRow(systemImage: "chart.bar", title: "Manage usage", showsChevron: true) {
                             openURL(ChatGPTOAuth.usageURL)

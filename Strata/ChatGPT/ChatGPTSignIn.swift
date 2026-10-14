@@ -70,6 +70,18 @@ final class ChatGPTSignIn: NSObject, ASWebAuthenticationPresentationContextProvi
         }
     }
 
+    #if os(macOS)
+    /// On a Mac the page opens in the default browser, like other desktop sign-ins: ASWebAuthenticationSession shows
+    /// nothing when that browser is Chrome. The attempt ends with the loopback callback, or `cancel()`.
+    private func waitForCallback(url: URL, server: LoopbackServer) async throws -> URL {
+        guard NSWorkspace.shared.open(url) else { throw ChatGPTAuthError.presentationFailed }
+        for await callback in server.received {
+            NSApplication.shared.activate()
+            return callback
+        }
+        throw ChatGPTAuthError.cancelled
+    }
+    #else
     /// Opens the sign-in page and waits for the loopback callback, or for the user to close the sheet.
     private func waitForCallback(url: URL, server: LoopbackServer) async throws -> URL {
         try await withThrowingTaskGroup(of: URL?.self) { group in
@@ -105,6 +117,7 @@ final class ChatGPTSignIn: NSObject, ASWebAuthenticationPresentationContextProvi
             throw ChatGPTAuthError.cancelled
         }
     }
+    #endif
 
     func cancel() {
         session?.cancel()
