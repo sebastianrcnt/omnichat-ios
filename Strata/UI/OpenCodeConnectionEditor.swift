@@ -25,6 +25,7 @@ struct OpenCodeConnectionEditor: View {
     @State private var fetching = false
     @State private var editingModel: String?
     @State private var copied = false
+    @State private var browser = DeviceSignInBrowser()
 
     private var connection: Connection? { connections.connection(connectionID) }
     private var signedIn: Bool { session != nil || hasAPIKey }
@@ -126,7 +127,7 @@ struct OpenCodeConnectionEditor: View {
 
     private var accountFooter: LocalizedStringKey {
         if device != nil {
-            return "Open the sign-in page, check that it shows this code, and approve. Strata keeps checking until you do."
+            return "Open the sign-in page and approve. The code is copied when the page opens, so paste it if the page asks. Strata keeps checking and comes back here once you approve."
         }
         return "Sign in with your OpenCode Console account, or paste a service-account API key from the Console. Sign-ins and keys are stored in the Keychain."
     }
@@ -161,15 +162,20 @@ struct OpenCodeConnectionEditor: View {
             copied = true
         }
         SettingsRow(systemImage: "safari", title: "Open sign-in page", showsChevron: true,
-                    detail: device.verificationURL.host().map { "\($0)\(device.verificationURL.path())" }) { open(device.verificationURL) }
+                    detail: device.verificationURL.host().map { "\($0)\(device.verificationURL.path())" }) { openSignInPage(device) }
         SettingsRow(systemImage: "xmark.circle", title: "Cancel sign-in") { signIn?.cancel() }
     }
 
-    private func open(_ url: URL) {
+    /// The page may lose the code on its way through a login, and once it covers the app the code is out of sight: copy
+    /// it first, so it can be pasted.
+    private func openSignInPage(_ device: OpenCodeDeviceCode) {
+        Pasteboard.copy(device.userCode)
+        copied = true
+        let url = device.verificationURL
         #if os(macOS)
         NSWorkspace.shared.open(url) // the default browser, where the person is likely signed in already
         #else
-        openURL(url)
+        if !browser.open(url) { openURL(url) } // a sheet over the app; closed for them once approved
         #endif
     }
 
@@ -193,6 +199,7 @@ struct OpenCodeConnectionEditor: View {
     private func runSignIn() async {
         let auth = connections.openCode
         defer {
+            browser.close()
             device = nil
             signIn = nil
         }

@@ -81,6 +81,7 @@
 		3485B54373467B7A448B09FF /* LicensesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CACB3A31C956B07A370EE1A7 /* LicensesView.swift */; };
 		34E022A9049E6A1924ECD5C0 /* ProcessSegmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D35FCBD9685D8FFD316494C /* ProcessSegmentTests.swift */; };
 		34E3D6B8C09C545C2601B33A /* InFlightLoads.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAAF1AA8F6545AAD623C9514 /* InFlightLoads.swift */; };
+		35E4881EEEA73C26BE8268F9 /* DeviceSignInBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB867615677A2553544DD0E5 /* DeviceSignInBrowser.swift */; };
 		360D03BBE0802F9B04E60206 /* Compactor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DE91374F2E8D63D589AFF75 /* Compactor.swift */; };
 		36CAB15311724CF0DFD17154 /* Connection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BF0AF47017DCCFA223A305F /* Connection.swift */; };
 		36CD6399DE6BF968ECAD65EE /* OpenCodeAuthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F7EDA3AB6D39C31110D19B /* OpenCodeAuthTests.swift */; };
@@ -105,6 +106,7 @@
 		4677C7BBC549D586B0F14DC8 /* MacDebug.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B5BBAA2FDE1CDE917B886E5 /* MacDebug.swift */; };
 		48B9B78BDA7A335D72BF0561 /* SystemPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 182FD0E6C234BFA230BFB671 /* SystemPromptTests.swift */; };
 		48CD0DC0DB21A5D440C25C14 /* HiddenWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2591276CC7B49180E08D4971 /* HiddenWebView.swift */; };
+		4930FC7B3BBDE1332DF4BA62 /* DeviceSignInBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB867615677A2553544DD0E5 /* DeviceSignInBrowser.swift */; };
 		49392EBD4E5AA4123334F697 /* SyntaxText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 748782FF3501ED3A1104EC28 /* SyntaxText.swift */; };
 		4AADD90ECAEBF7CEEE42D08D /* AnthropicMessagesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83B0FA64BE88210A53AC5E2F /* AnthropicMessagesTests.swift */; };
 		4C9B7173DF25A5C3FE22C716 /* ChatGPTConnectionEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C3A96FF631B68EC1F795430 /* ChatGPTConnectionEditor.swift */; };
@@ -549,6 +551,7 @@
 		D885671F11503105E839A70B /* PyRuntime */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PyRuntime; path = Strata/Resources/PyRuntime; sourceTree = SOURCE_ROOT; };
 		D9A60A138EBA6EF67BAF0B4A /* wikipedia_summary.plugin.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = wikipedia_summary.plugin.js; sourceTree = "<group>"; };
 		D9B7287789884909C961D282 /* engines.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = engines.json; sourceTree = "<group>"; };
+		DB867615677A2553544DD0E5 /* DeviceSignInBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceSignInBrowser.swift; sourceTree = "<group>"; };
 		DBA39B2742E57D52847046B7 /* WebToolErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebToolErrorTests.swift; sourceTree = "<group>"; };
 		DC100AF1342B3A78258268B0 /* SpeechDictationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechDictationEngine.swift; sourceTree = "<group>"; };
 		DE43918539189B11FD7FA06F /* ResumeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResumeTests.swift; sourceTree = "<group>"; };
@@ -776,6 +779,7 @@
 			isa = PBXGroup;
 			children = (
 				F3B3C31A75AA40EF96990745 /* AnthropicMessages.swift */,
+				DB867615677A2553544DD0E5 /* DeviceSignInBrowser.swift */,
 				C705531541C3BEE401187040 /* OpenCodeAPI.swift */,
 				9EE4A2625AB1A49A66B055A5 /* OpenCodeAuth.swift */,
 				44688E3D4F649C6E97C14AD2 /* OpenCodeClient.swift */,
@@ -1316,6 +1320,7 @@
 				2AC44622896ADF6BC5797AF5 /* Deadline.swift in Sources */,
 				00C58783F673F970B0FC789B /* DebugBundle.swift in Sources */,
 				ACC1F1202CF5DEBC51C2D4AD /* DebugHooks.swift in Sources */,
+				4930FC7B3BBDE1332DF4BA62 /* DeviceSignInBrowser.swift in Sources */,
 				AE532840C7D6BD97D8B4B81B /* DiagnosticCounters.swift in Sources */,
 				E06ED07CAB6A5410E5F10C09 /* DiagnosticsReport.swift in Sources */,
 				253BBB118B749ED407AA6BFE /* DiagnosticsViews.swift in Sources */,
@@ -1454,6 +1459,7 @@
 				00AE7A24139DCFB2AE703247 /* Deadline.swift in Sources */,
 				5D87B925992AC9EBB7A96C02 /* DebugBundle.swift in Sources */,
 				92235960AECEB8788FB2BC7B /* DebugHooks.swift in Sources */,
+				35E4881EEEA73C26BE8268F9 /* DeviceSignInBrowser.swift in Sources */,
 				CEDFC1919CC1221DD2B11C71 /* DiagnosticCounters.swift in Sources */,
 				F1694D1268114C3C0C6FB1F1 /* DiagnosticsReport.swift in Sources */,
 				8E4114C7DB7889C57C713CA1 /* DiagnosticsViews.swift in Sources */,
