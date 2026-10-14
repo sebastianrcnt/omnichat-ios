@@ -50,7 +50,7 @@ struct ModelInfo: Codable, Identifiable, Hashable, Sendable {
     }
 
     /// The reasoning effort levels this model offers, lowest first (none when it takes no `reasoning_effort`).
-    var effortLevels: [Effort] { supportsEffort ? Effort.allCases : [] }
+    func effortLevels(_ style: EffortStyle) -> [Effort] { supportsEffort ? Effort.levels(style) : [] }
 
     /// "Images · Effort · Web tools": what the model can do, for a row subtitle.
     var capabilitiesSummary: String? {
@@ -132,6 +132,7 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
 
     var isStrata: Bool { id == Connection.strataID }
     var isChatGPT: Bool { kind == .chatGPT }
+    var effortStyle: EffortStyle { isChatGPT ? .modelDecides : .tokenCaps }
 
     /// Defaults for newly discovered models on this connection. ChatGPT models read images, reason and call tools.
     func defaultModel(id modelID: String, fetchedContextLength: Int?, fetchedImages: Bool? = nil) -> ModelInfo {

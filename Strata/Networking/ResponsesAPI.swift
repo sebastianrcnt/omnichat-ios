@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // The Responses API as the ChatGPT plan route takes it (developers.openai.com/siwc/token-sharing-open-source,
 // "Preview limitations"): `store: false`, `stream: true`, the whole history in `input` on every request, system text in
@@ -199,6 +200,8 @@ extension APIContent {
 /// Turns Responses stream events into `ChatDelta`s. Stateful: function calls are numbered in the order they appear
 /// (their output index), and reasoning summary parts are separated by a blank line.
 struct ResponsesEventDecoder: Sendable {
+    /// Event types only, never their content: `log stream --level debug --predicate 'category == "responses"'`.
+    static let log = Logger(subsystem: "cc.coolservices.strata", category: "responses")
     private var callIndex: [Int: Int] = [:]   // output_index → tool call index
     private var callsWithArguments: Set<Int> = []
     private var announcedCalls: Set<Int> = []
@@ -252,6 +255,7 @@ struct ResponsesEventDecoder: Sendable {
         guard let data = payload.data(using: .utf8), let event = try? JSONDecoder().decode(Event.self, from: data) else {
             return ChatDelta()
         }
+        Self.log.debug("event \(event.type ?? "?", privacy: .public)")
         var delta = ChatDelta()
         switch event.type {
         case "response.output_text.delta":

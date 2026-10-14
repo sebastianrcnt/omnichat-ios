@@ -10,7 +10,13 @@ struct ResponsesClient: ChatStreaming {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let body = try ResponsesRequest(request, reasoning: endpoint.model.supportsEffort).encoded()
+                    let translated = ResponsesRequest(request, reasoning: endpoint.model.supportsEffort)
+                    ResponsesEventDecoder.log.debug("""
+                        request model=\(translated.model, privacy: .public) \
+                        effort=\(translated.reasoning?.effort ?? "-", privacy: .public) \
+                        summary=\(translated.reasoning?.summary ?? "-", privacy: .public)
+                        """)
+                    let body = try translated.encoded()
                     var token = try await tokens.accessToken(connectionID: endpoint.connectionID)
                     var retried = false
                     while true {

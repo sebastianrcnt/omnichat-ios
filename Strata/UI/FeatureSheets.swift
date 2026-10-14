@@ -98,7 +98,8 @@ struct ModelPickerSheet: View {
             }
             GroupedSection {
                 if selectedModel?.supportsEffort == true {
-                    SettingsRow(title: "Effort", value: currentEffort.title, showsChevron: true) {
+                    SettingsRow(title: "Effort", value: currentEffort.resolved(in: selectedModel?.effortLevels(effortStyle) ?? []).title,
+                            showsChevron: true) {
                         withAnimation(DS.Motion.snappy) { page = .effort }
                     }
                 }
@@ -112,12 +113,18 @@ struct ModelPickerSheet: View {
         }
     }
 
+    private var effortStyle: EffortStyle { connections.connection(selectedConnectionID)?.effortStyle ?? .tokenCaps }
+
     private var effortPage: some View {
-        SheetScaffold(title: "Effort", leading: .back({ withAnimation(DS.Motion.snappy) { page = .root } })) {
-            GroupedSection(footer: "Higher effort lets the model think longer. It costs more time and tokens. Limits are the engine's thinking-token caps.") {
-                ForEach(selectedModel?.effortLevels ?? []) { e in
+        let style = effortStyle
+        let levels = selectedModel?.effortLevels(style) ?? []
+        return SheetScaffold(title: "Effort", leading: .back({ withAnimation(DS.Motion.snappy) { page = .root } })) {
+            GroupedSection(footer: style == .tokenCaps
+                           ? "Higher effort lets the model think longer. It costs more time and tokens. Limits are the engine's thinking-token caps."
+                           : "Higher effort lets the model think longer. It costs more time and plan usage. The model decides how long to think; there is no token cap.") {
+                ForEach(levels) { e in
                     SettingsRow(title: LocalizedStringKey(e.isRecommended ? String(localized: "\(e.title) (recommended)") : e.title),
-                                subtitle: e.hint, isChecked: e == currentEffort) {
+                                subtitle: e.hint(style), isChecked: e == currentEffort.resolved(in: levels)) {
                         currentEffort = e
                         onSelectEffort(e)
                     }
@@ -144,13 +151,14 @@ struct ModelPickerSheet: View {
 struct EffortMenuItems: View {
     let levels: [Effort]
     let selected: Effort
+    var style: EffortStyle = .tokenCaps
     let onSelect: (Effort) -> Void
 
     var body: some View {
         ForEach(levels) { e in
             Toggle(isOn: Binding(get: { e == selected }, set: { _ in onSelect(e) })) {
                 Text(e.title)
-                Text(e.isRecommended ? String(localized: "Recommended · \(e.hint)") : e.hint)
+                Text(e.isRecommended ? String(localized: "Recommended · \(e.hint(style))") : e.hint(style))
             }
         }
     }

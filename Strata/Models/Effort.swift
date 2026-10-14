@@ -32,12 +32,36 @@ enum Effort: String, CaseIterable, Codable, Sendable, Identifiable {
         }
     }
 
-    var hint: String {
-        if let cap = thinkingTokenCap {
-            return String(localized: "Thinks up to \(cap.formatted()) tokens")
+    /// The levels a connection offers. OpenAI's reasoning models stop at `xhigh` (Max would send the same).
+    static func levels(_ style: EffortStyle) -> [Effort] {
+        style == .tokenCaps ? allCases : [.low, .medium, .high, .xhigh]
+    }
+
+    /// This level as one of `levels`: Max picked on another connection reads as the top level that is offered.
+    func resolved(in levels: [Effort]) -> Effort {
+        levels.contains(self) || self != .max ? self : levels.last ?? self
+    }
+
+    func hint(_ style: EffortStyle) -> String {
+        switch style {
+        case .tokenCaps:
+            if let cap = thinkingTokenCap { return String(localized: "Thinks up to \(cap.formatted()) tokens") }
+            return String(localized: "No thinking limit")
+        case .modelDecides:
+            switch self {
+            case .low: return String(localized: "Brief reasoning, faster answers")
+            case .medium: return String(localized: "Balanced")
+            case .high: return String(localized: "Reasons longer on hard problems")
+            case .xhigh, .max: return String(localized: "Reasons as long as it takes")
+            }
         }
-        return String(localized: "No thinking limit")
     }
 
     var isRecommended: Bool { self == .medium }
+}
+
+/// How effort works on a connection: the Strata engine caps thinking tokens per level; OpenAI's models get the level
+/// itself and decide how long to think.
+enum EffortStyle: Sendable {
+    case tokenCaps, modelDecides
 }

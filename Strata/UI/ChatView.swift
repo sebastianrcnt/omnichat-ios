@@ -571,13 +571,14 @@ struct ChatView: View {
 
     /// The gauge: tap for the chat settings, touch and hold for the effort levels.
     private var settingsButton: some View {
-        let levels = selectedModel?.effortLevels ?? []
-        let effort = selection.effort
+        let style = connections.connection(selection.connectionID)?.effortStyle ?? .tokenCaps
+        let levels = selectedModel?.effortLevels(style) ?? []
+        let effort = selection.effort.resolved(in: levels)
         return ModelSettingsButton(
             effortFraction: levels.isEmpty ? nil : EffortScale.fraction(of: effort, in: levels),
             valueDescription: levels.isEmpty ? (selectedModelTitle ?? String(localized: "None")) : effort.title,
             action: { composerFocused = false; showChatSettings = true }) {
-            EffortMenuItems(levels: levels, selected: effort, onSelect: apply(effort:))
+            EffortMenuItems(levels: levels, selected: effort, style: style, onSelect: apply(effort:))
         }
         #if os(macOS)
         .popover(isPresented: $showChatSettings, arrowEdge: .top) { chatSettings }

@@ -35,8 +35,14 @@ struct ChatSettingsTests {
         #expect(EffortScale.fraction(of: .high, in: []) == 0)
         // A level the model does not offer reads as the default's position.
         #expect(EffortScale.fraction(of: .max, in: [.low, .medium, .high]) == EffortScale.fraction(index: 1, count: 3))
-        #expect(ModelInfo(id: "m", supportsEffort: false).effortLevels.isEmpty)
-        #expect(ModelInfo(id: "m", supportsEffort: true).effortLevels == Effort.allCases)
+        #expect(ModelInfo(id: "m", supportsEffort: false).effortLevels(.tokenCaps).isEmpty)
+        #expect(ModelInfo(id: "m", supportsEffort: true).effortLevels(.tokenCaps) == Effort.allCases)
+        // OpenAI's models top out at xhigh: Max would send the same, so it isn't offered, and a chat set to Max reads as Extra.
+        let openAI = ModelInfo(id: "m", supportsEffort: true).effortLevels(.modelDecides)
+        #expect(openAI == [.low, .medium, .high, .xhigh])
+        #expect(Effort.max.resolved(in: openAI) == .xhigh && Effort.high.resolved(in: openAI) == .high)
+        #expect(Effort.medium.hint(.tokenCaps).contains("4,096") || Effort.medium.hint(.tokenCaps).contains("4096"))
+        #expect(!Effort.medium.hint(.modelDecides).contains("tokens"))
     }
 
     // MARK: Hidden models
