@@ -166,11 +166,12 @@ struct OpenCodeRoutingTests {
                                  {"id":"claude-haiku-5-5"},{"id":"new-model"},{"id":"kimi-k3"}]}
         """.utf8))
         let merged = OpenCodeModelsAPI.merge(ids: ids, metadata: meta, gateway: .go)
-        #expect(merged.supported.map(\.id) == ["kimi-k3", "gpt-6-luna", "new-model"])
-        #expect(merged.supported[2].info.api == .chatCompletions && merged.supported[2].name == nil) // unknown: guessed
-        #expect(merged.unsupported == ["gemini-4-argon-contributor", "claude-haiku-5-5"])
+        #expect(merged.supported.map(\.id) == ["kimi-k3", "gpt-6-luna", "claude-haiku-5-5", "new-model"])
+        #expect(merged.supported[3].info.api == .chatCompletions && merged.supported[3].name == nil) // unknown: guessed
+        #expect(merged.unsupported == ["gemini-4-argon-contributor"])
         // Without the gateway's list, the catalog's own ids.
-        #expect(OpenCodeModelsAPI.merge(ids: nil, metadata: meta, gateway: .go).supported.map(\.id) == ["glm-5.3", "gpt-6-luna", "kimi-k3"])
+        #expect(OpenCodeModelsAPI.merge(ids: nil, metadata: meta, gateway: .go).supported.map(\.id)
+                == ["claude-haiku-5-5", "glm-5.3", "gpt-6-luna", "kimi-k3"])
         #expect(throws: APIError.self) { try OpenCodeModelsAPI.parseIDs(Data(#"{"models":[]}"#.utf8)) }
     }
 

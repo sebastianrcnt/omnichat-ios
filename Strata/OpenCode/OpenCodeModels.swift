@@ -63,7 +63,7 @@ enum OpenCodeModelAPI: String, Codable, Sendable {
     }
 
     /// Whether Strata can talk this API.
-    var isSupported: Bool { self == .chatCompletions || self == .responses }
+    var isSupported: Bool { self != .gemini }
 
     /// From models.dev's `provider.npm` of the model (the provider's own npm, `@ai-sdk/openai-compatible`, when absent).
     init?(npm: String) {

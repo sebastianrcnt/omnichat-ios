@@ -1,8 +1,8 @@
 import Foundation
 
 /// Streams a turn from an OpenCode gateway with the connection's token, in the API family of the model: Chat
-/// Completions (open models) or the Responses API (GPT, Grok, Muse Spark). A 401 before the stream opens refreshes the
-/// session and retries once.
+/// Completions (open models), the Responses API (GPT, Grok, Muse Spark) or the Messages API (Claude, Qwen, MiniMax on
+/// Go). A 401 before the stream opens refreshes the session and retries once.
 struct OpenCodeClient: ChatStreaming {
     var session: URLSession = .shared
     var tokens: any OpenCodeTokenProviding = OpenCodeAuth.shared
@@ -80,7 +80,10 @@ struct OpenCodeClient: ChatStreaming {
         switch endpoint.openCodeAPI {
         case .responses:
             return try ResponsesRequest(request, reasoning: request.reasoningEffort != nil, namespacedTools: false).encoded()
-        case .chatCompletions, .messages, .gemini:
+        case .messages:
+            return try MessagesRequest(request, effort: request.reasoningEffort,
+                                       maxOutputTokens: endpoint.model.maxOutputTokens).encoded()
+        case .chatCompletions, .gemini:
             guard endpoint.model.openCode?.interleavedReasoning == true else { return try request.encoded() }
             let encoder = JSONEncoder()
             encoder.outputFormatting = ChatRequest.encoder.outputFormatting
@@ -96,6 +99,11 @@ struct OpenCodeClient: ChatStreaming {
         req.timeoutInterval = 300
         for (k, v) in endpoint.headers { req.setValue(v, forHTTPHeaderField: k) }
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if endpoint.openCodeAPI == .messages {
+            // The Anthropic-style key header too: the older /zen paths read the key from it for this API.
+            req.setValue(token, forHTTPHeaderField: "x-api-key")
+            req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        }
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         return req
@@ -109,7 +117,9 @@ struct OpenCodeClient: ChatStreaming {
         case .responses:
             try await ResponsesClient.consume(bytes, into: continuation,
                                               incomplete: String(localized: "The OpenCode response ended before it was complete. Try again."))
-        case .chatCompletions, .messages, .gemini:
+        case .messages:
+            try await MessagesEventDecoder.consume(bytes, into: continuation)
+        case .chatCompletions, .gemini:
             // An interleaved-reasoning model gets this answer's reasoning back with its tool results: it rides on the
             // assistant message as a reasoning item, like the Responses API's.
             var reasoning = ""

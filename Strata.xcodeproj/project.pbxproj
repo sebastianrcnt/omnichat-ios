@@ -105,6 +105,7 @@
 		48B9B78BDA7A335D72BF0561 /* SystemPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 182FD0E6C234BFA230BFB671 /* SystemPromptTests.swift */; };
 		48CD0DC0DB21A5D440C25C14 /* HiddenWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2591276CC7B49180E08D4971 /* HiddenWebView.swift */; };
 		49392EBD4E5AA4123334F697 /* SyntaxText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 748782FF3501ED3A1104EC28 /* SyntaxText.swift */; };
+		4AADD90ECAEBF7CEEE42D08D /* AnthropicMessagesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83B0FA64BE88210A53AC5E2F /* AnthropicMessagesTests.swift */; };
 		4C9B7173DF25A5C3FE22C716 /* ChatGPTConnectionEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C3A96FF631B68EC1F795430 /* ChatGPTConnectionEditor.swift */; };
 		4DA691107E55E33B13DE2C90 /* ChatLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5AC0A7BCD327ACF820153EA /* ChatLifecycle.swift */; };
 		4DDC4C522993E3F8AF715D6A /* ChatGPTModelsAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED7180F1E8B24CD9E6D90907 /* ChatGPTModelsAPI.swift */; };
@@ -133,6 +134,7 @@
 		5A9F3049B5A68B7F3C3D46B0 /* Pretendard-Medium.otf in Resources */ = {isa = PBXBuildFile; fileRef = 4AD9287753DFCCE312939C73 /* Pretendard-Medium.otf */; };
 		5AE42DB81E21478AFC110729 /* PythonViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10BAC6EFC108A1D8E6E5B69 /* PythonViews.swift */; };
 		5B54319231F66AB260EA8828 /* PyodideServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A6AC1D6A0D425D2934E4B1D /* PyodideServer.swift */; };
+		5B5C584E1C372334201F7D16 /* AnthropicMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3B3C31A75AA40EF96990745 /* AnthropicMessages.swift */; };
 		5B97326687D39CF393E05AF1 /* ImageProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E08F0D934A25CA44E443328 /* ImageProcessor.swift */; };
 		5D87B925992AC9EBB7A96C02 /* DebugBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF02DB6A733BBE52D18499D5 /* DebugBundle.swift */; };
 		5DE1FB9CA2AD5FB98F1B6C83 /* MarkdownBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = C48316140F6C91D3CBA80AB7 /* MarkdownBlock.swift */; };
@@ -266,6 +268,7 @@
 		BB79CEFFE2A44E7C161CCAFC /* Pretendard-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 2FCFE1A61E07F2EE5636D7C1 /* Pretendard-OFL.txt */; };
 		BB82A2C3219C172BB1E0139F /* Dictation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 998841C6FE4AED2FF59DC7EC /* Dictation.swift */; };
 		BC36304699DC88B95BE4A5CC /* ToolsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3478FEB4D8CC14325F39C573 /* ToolsTests.swift */; };
+		BC3E7562FB1131E860B66C84 /* AnthropicMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3B3C31A75AA40EF96990745 /* AnthropicMessages.swift */; };
 		BC7B7C7ECB5097C2F8F602B9 /* FetchBatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF9BE4A130E3ECAC8CF744BD /* FetchBatchTests.swift */; };
 		BD539C20F5BAFA7F4A652B82 /* AnswerNow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 866C5798DDE8F5ECD3DD4550 /* AnswerNow.swift */; };
 		BE08AB7DE04F0AA49A4F084A /* ResumeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE43918539189B11FD7FA06F /* ResumeTests.swift */; };
@@ -468,6 +471,7 @@
 		81709F6490BA7E350860A9CA /* Strata.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Strata.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		81C2248B079061A57AC26B63 /* InAppBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InAppBrowser.swift; sourceTree = "<group>"; };
 		82C404FA2628001A9F85F7EC /* TranslationCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationCore.swift; sourceTree = "<group>"; };
+		83B0FA64BE88210A53AC5E2F /* AnthropicMessagesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnthropicMessagesTests.swift; sourceTree = "<group>"; };
 		8466A7CDF21ACE56C1F711D2 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		85518AFBF34570F272695809 /* ChatGPTConnectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatGPTConnectionTests.swift; sourceTree = "<group>"; };
 		866C5798DDE8F5ECD3DD4550 /* AnswerNow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnswerNow.swift; sourceTree = "<group>"; };
@@ -558,6 +562,7 @@
 		EF7C6BC6FDEC7FE07A3326B9 /* OpenCodeConnectionEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeConnectionEditor.swift; sourceTree = "<group>"; };
 		EFEB12E3B760901977A8D37F /* LenientEmphasis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LenientEmphasis.swift; sourceTree = "<group>"; };
 		F10BAC6EFC108A1D8E6E5B69 /* PythonViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonViews.swift; sourceTree = "<group>"; };
+		F3B3C31A75AA40EF96990745 /* AnthropicMessages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnthropicMessages.swift; sourceTree = "<group>"; };
 		F42DD6DE488FF594429FF03E /* MessageTreeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageTreeTests.swift; sourceTree = "<group>"; };
 		F5AC0A7BCD327ACF820153EA /* ChatLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatLifecycle.swift; sourceTree = "<group>"; };
 		F9DD5CE5A930F470033D1540 /* PluginCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginCore.swift; sourceTree = "<group>"; };
@@ -630,6 +635,7 @@
 			children = (
 				FD0861E7AEE55DE07A31CCB5 /* ActivityFeedTests.swift */,
 				1FF715F8D0C347D8CE8A9708 /* AnswerNowTests.swift */,
+				83B0FA64BE88210A53AC5E2F /* AnthropicMessagesTests.swift */,
 				EADB3352B26461738C5DAF17 /* AutoRenameTests.swift */,
 				E74E7C1ABCB884139F97BED1 /* ChatControllerTests.swift */,
 				6A37BDCD5FD7C74B102B9E7E /* ChatGPTAuthTests.swift */,
@@ -760,6 +766,7 @@
 		3C726D4BBE4A13D0C66DB592 /* OpenCode */ = {
 			isa = PBXGroup;
 			children = (
+				F3B3C31A75AA40EF96990745 /* AnthropicMessages.swift */,
 				C705531541C3BEE401187040 /* OpenCodeAPI.swift */,
 				9EE4A2625AB1A49A66B055A5 /* OpenCodeAuth.swift */,
 				44688E3D4F649C6E97C14AD2 /* OpenCodeClient.swift */,
@@ -1201,6 +1208,7 @@
 			files = (
 				38E4C517C4C35C50887C9E75 /* ActivityFeedTests.swift in Sources */,
 				F9E67CB187B95EFC007056D8 /* AnswerNowTests.swift in Sources */,
+				4AADD90ECAEBF7CEEE42D08D /* AnthropicMessagesTests.swift in Sources */,
 				1738810C75BCDF68FDBD652F /* AutoRenameTests.swift in Sources */,
 				65AF7F6213082A75DC48632D /* ChatControllerTests.swift in Sources */,
 				C60DA53419477699364FC35F /* ChatGPTAuthTests.swift in Sources */,
@@ -1259,6 +1267,7 @@
 				72FE92DBA6A1B359131ACDC9 /* ActivityFeed.swift in Sources */,
 				D9F4810ADBF6EA07BA5081CF /* ActivityFeedViews.swift in Sources */,
 				BD539C20F5BAFA7F4A652B82 /* AnswerNow.swift in Sources */,
+				BC3E7562FB1131E860B66C84 /* AnthropicMessages.swift in Sources */,
 				0CC2BD255DF2D13E88ABF0EC /* AppSettings.swift in Sources */,
 				681EC0F7CE54C42B6E47E4F2 /* AutoRename.swift in Sources */,
 				306B4942F897E48C44CB3636 /* BlockScanner.swift in Sources */,
@@ -1395,6 +1404,7 @@
 				8E83512A160D17E0F3503545 /* ActivityFeed.swift in Sources */,
 				6AC5D9F90D0C11180CA93F0A /* ActivityFeedViews.swift in Sources */,
 				043585472841B741897E87BE /* AnswerNow.swift in Sources */,
+				5B5C584E1C372334201F7D16 /* AnthropicMessages.swift in Sources */,
 				8A077D9658E0C5C76D7D3362 /* AppSettings.swift in Sources */,
 				AE1ED350F7ECBF560084FE6A /* AutoRename.swift in Sources */,
 				9B38B887E39C8804970CEF90 /* BlockScanner.swift in Sources */,
