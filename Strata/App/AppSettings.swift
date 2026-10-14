@@ -85,6 +85,7 @@ final class AppSettings {
     nonisolated static let enabledPluginsKey = "enabledPlugins"
     nonisolated static let userPreferencesKey = "userPreferences"
     nonisolated static let browserEnabledKey = "browserTools"
+    nonisolated static let locationEnabledKey = "locationTool"
 
     private let defaults: UserDefaults
 
@@ -121,6 +122,8 @@ final class AppSettings {
     var pythonTimeLimit: Int { didSet { defaults.set(pythonTimeLimit, forKey: PythonSettings.timeLimitKey) } }
     /// Offer the browser tools (`browser_open`, `browser_eval`) and skills (on by default).
     var browserEnabled: Bool { didSet { defaults.set(browserEnabled, forKey: Self.browserEnabledKey) } }
+    /// Offer `current_location` with the browser tools (on by default; the system asks for permission on first use).
+    var locationEnabled: Bool { didSet { defaults.set(locationEnabled, forKey: Self.locationEnabledKey) } }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -145,6 +148,7 @@ final class AppSettings {
         let limit = defaults.integer(forKey: PythonSettings.timeLimitKey)
         pythonTimeLimit = PythonSettings.timeLimitOptions.contains(limit) ? limit : PythonSettings.defaultTimeLimit
         browserEnabled = defaults.object(forKey: Self.browserEnabledKey) == nil ? true : defaults.bool(forKey: Self.browserEnabledKey)
+        locationEnabled = defaults.object(forKey: Self.locationEnabledKey) == nil ? true : defaults.bool(forKey: Self.locationEnabledKey)
         // `bool` and `integer` also read launch-argument strings ("NO", "0"), which `as? Bool` would not.
         useSystemTextSize = defaults.object(forKey: "useSystemTextSize") == nil ? true : defaults.bool(forKey: "useSystemTextSize")
         textSizeStep = defaults.object(forKey: "textSizeStep") == nil

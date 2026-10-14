@@ -20,6 +20,8 @@ struct ToolOutput: Sendable, Equatable {
     var figures: [ToolImage] = []
     /// The image a `view_image` call attaches: it goes to the model in a user message right after the tool results.
     var viewedImage: ToolImage?
+    /// The places a `show_places` call put on the map (for the chat's map card; the model reads `text`).
+    var places: PlaceCollection?
 }
 
 /// A tool result that finished before the results ahead of it in the round, held (and checkpointed) until it can be
@@ -32,6 +34,7 @@ struct RawToolResult: Codable, Sendable, Equatable {
     var engine: String?
     var figures: [ToolImage]?
     var viewedImage: ToolImage?
+    var places: PlaceCollection?
 
     init(callID: String, output: ToolOutput) {
         self.callID = callID
@@ -41,10 +44,12 @@ struct RawToolResult: Codable, Sendable, Equatable {
         engine = output.engine
         figures = output.figures.isEmpty ? nil : output.figures
         viewedImage = output.viewedImage
+        places = output.places
     }
 
     var output: ToolOutput {
-        ToolOutput(text: text, isError: isError, sources: sources, engine: engine, figures: figures ?? [], viewedImage: viewedImage)
+        ToolOutput(text: text, isError: isError, sources: sources, engine: engine, figures: figures ?? [], viewedImage: viewedImage,
+                   places: places)
     }
 }
 
@@ -73,6 +78,8 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
     /// Figures a `run_python` call saved, and the image a `view_image` call attached (sent again with every request).
     var figures: [ToolImage]?
     var viewedImage: ToolImage?
+    /// The places a `show_places` call put on the map (display only).
+    var places: PlaceCollection?
 
     init(id: String, name: String, arguments: String, result: String, isError: Bool, sourceIDs: [Int] = []) {
         self.id = id
@@ -96,6 +103,7 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
         thinPage = try c.decodeIfPresent(Bool.self, forKey: .thinPage)
         figures = try c.decodeIfPresent([ToolImage].self, forKey: .figures)
         viewedImage = try c.decodeIfPresent(ToolImage.self, forKey: .viewedImage)
+        places = try c.decodeIfPresent(PlaceCollection.self, forKey: .places)
     }
 
     /// Human-readable argument (the query or URL; for a plugin, the page it opens).
@@ -111,6 +119,8 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
         case "browser_open": return (obj["url"] as? String) ?? arguments
         case "browser_eval": return (obj["js"] as? String) ?? arguments
         case "load_skill": return (obj["name"] as? String) ?? arguments
+        case "show_places": return (obj["title"] as? String) ?? ""
+        case "current_location": return ""
         default: return arguments
         }
     }
@@ -130,7 +140,7 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
     var toolCall: ToolCall { ToolCall(id: id, name: name, arguments: arguments) }
 
     /// The result as the next requests send it again (with the image a `view_image` call attached).
-    var output: ToolOutput { ToolOutput(text: result, isError: isError, figures: figures ?? [], viewedImage: viewedImage) }
+    var output: ToolOutput { ToolOutput(text: result, isError: isError, figures: figures ?? [], viewedImage: viewedImage, places: places) }
 
     /// The record without its result text: all a process row needs, so segments never hold fetched page bodies.
     /// A Python run and a browser script keep their output (the card shows it; it is capped like a page slice).
@@ -140,6 +150,7 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
                                  isError: isError, sourceIDs: sourceIDs)
         out.figures = figures
         out.viewedImage = viewedImage
+        out.places = places
         if name == ToolNames.webSearch {
             out.engine = searchEngine
         } else if name == ToolNames.webFetch, !isError {
@@ -206,10 +217,12 @@ enum ToolNames {
     static let browserOpen = "browser_open"
     static let browserEval = "browser_eval"
     static let loadSkill = "load_skill"
+    static let showPlaces = "show_places"
+    static let currentLocation = "current_location"
 
     /// Tools shown in the feed as a card of their own (not a search card or a row of "Read pages").
     static func hasOwnCard(_ name: String) -> Bool {
-        [runPython, viewImage, browserOpen, browserEval, loadSkill].contains(name)
+        [runPython, viewImage, browserOpen, browserEval, loadSkill, showPlaces, currentLocation].contains(name)
     }
 
     /// Tools that read a page (and count as one in the summaries).

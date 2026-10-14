@@ -418,6 +418,10 @@ struct ToolRouter: ToolExecuting {
                 return ToolOutput(text: "Error: missing required argument \"name\".", isError: true)
             }
             return LoadSkillTool().run(name: skill)
+        case ToolNames.showPlaces:
+            return await ShowPlacesTool().run(arguments: arguments)
+        case ToolNames.currentLocation:
+            return await CurrentLocationTool().run()
         default:
             return ToolOutput(text: "Error: unknown tool \"\(name)\".", isError: true)
         }

@@ -101,6 +101,8 @@ struct ActivityFeedView: View {
                         BrowserFeedCard(card: card, collapsed: collapsed, onToggle: toggle, onDetails: onDetails)
                     case .note:
                         ToolNoteFeedCard(card: card, onDetails: onDetails)
+                    case .places:
+                        PlacesFeedCard(card: card, onDetails: onDetails)
                     case .search, .pages:
                         FeedCardView(card: card, collapsed: collapsed, showAll: showingAll.contains(card.id), staggerRows: isStreaming,
                                      onToggle: toggle,
@@ -210,7 +212,7 @@ struct FeedCardView: View {
                 : (card.extras.count == 1 ? String(localized: "Read 1 page") : String(localized: "Read \(card.extras.count) pages"))
         case .python: String(localized: "Ran Python")
         case .image(let id): String(localized: "Viewed \(id)")
-        case .browser, .script, .note: ""
+        case .browser, .script, .note, .places: ""
         }
     }
 
@@ -220,7 +222,7 @@ struct FeedCardView: View {
         case .pages: String(localized: "Pages read")
         case .python: String(localized: "Ran Python")
         case .image(let id): String(localized: "Viewed \(id)")
-        case .browser, .script, .note: ""
+        case .browser, .script, .note, .places: ""
         }
     }
 
@@ -260,7 +262,7 @@ struct FeedCardView: View {
         switch card.kind {
         case .pages:
             return card.failedCount > 0 ? String(localized: "\(card.failedCount) failed") : ""
-        case .python, .image, .browser, .script, .note:
+        case .python, .image, .browser, .script, .note, .places:
             return ""
         case .search:
             let count = card.results.count == 1 ? String(localized: "1 result") : String(localized: "\(card.results.count) results")

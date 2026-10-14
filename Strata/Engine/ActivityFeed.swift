@@ -83,6 +83,8 @@ struct FeedCall: Equatable, Sendable {
     var output = ""
     var figures: [ToolImage] = []
     var viewedImage: ToolImage?
+    /// What a `show_places` call put on the map.
+    var places: PlaceCollection?
 
     init(id: String, isSearch: Bool, argument: String, status: Status, sourceIDs: [Int] = [], engine: String? = nil, thin: Bool = false) {
         self.id = id
@@ -106,6 +108,7 @@ struct FeedCall: Equatable, Sendable {
             output = record.result
             figures = record.figures ?? []
             viewedImage = record.viewedImage
+            places = record.places
         }
     }
 
@@ -229,6 +232,8 @@ struct FeedCard: Identifiable, Equatable, Sendable {
         case script(code: String)
         /// A one-line card for a call with nothing to unfold (`load_skill`, ...): the tool and its argument.
         case note(tool: String, argument: String)
+        /// One `show_places` call: the map and the place cards.
+        case places
     }
 
     var id: String
@@ -246,6 +251,8 @@ struct FeedCard: Identifiable, Equatable, Sendable {
     var pythonFailure: PythonFailure?
     /// Why a `.browser` card's page could not be opened.
     var pageFailure: FetchFailure?
+    /// A `.places` card's places.
+    var places: PlaceCollection?
 
     var rows: [FeedRow] { results + extras }
     var hasLoadingRow: Bool { rows.contains { if case .loading? = $0.read { return true } else { return false } } }
@@ -277,10 +284,12 @@ enum ActivityFeed {
                 case ToolNames.browserOpen: .browser(url: call.argument)
                 case ToolNames.browserEval: .script(code: call.argument)
                 case ToolNames.viewImage: .image(id: call.argument)
+                case ToolNames.showPlaces: .places
                 default: .note(tool: tool, argument: call.argument)
                 }
                 var card = FeedCard(id: call.id, kind: kind, isRunning: call.status == .running, isError: call.status == .failed)
                 card.output = call.output
+                card.places = call.places
                 card.figures = tool == ToolNames.runPython ? call.figures : (call.viewedImage.map { [$0] } ?? [])
                 if call.status == .failed {
                     if tool == ToolNames.browserOpen { card.pageFailure = call.failure ?? .failed }

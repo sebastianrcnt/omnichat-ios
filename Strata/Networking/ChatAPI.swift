@@ -139,7 +139,15 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
                 var description: String
                 /// Allowed values; left out of the JSON when unset.
                 var choices: [String]?
-                enum CodingKeys: String, CodingKey { case type, description, choices = "enum" }
+                /// The objects an array holds; left out when unset.
+                var items: Items?
+                enum CodingKeys: String, CodingKey { case type, description, choices = "enum", items }
+            }
+            /// An array's item schema: an object with these properties.
+            struct Items: Encodable, Sendable, Equatable {
+                var type = "object"
+                var properties: [String: Property]
+                var required: [String]
             }
             var type = "object"
             var properties: [String: Property]
@@ -208,18 +216,43 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
         parameters: .init(properties: ["name": .init(description: "The skill name, exactly as listed.")],
                           required: ["name"])))
 
+    static let showPlaces = ToolDefinition(function: .init(
+        name: "show_places",
+        description: "Show places to the user on a map card in the chat: numbered pins, a card per place with your note and a review quote, and Naver Map directions (walk, transit, car, bike). Use it whenever you recommend specific places. Places without lat/lng are looked up on the map by name and address.",
+        parameters: .init(properties: [
+            "title": .init(description: "Optional. A short title for the map, like \"Quiet cafes in Seongsu\"."),
+            "places": .init(type: "array", description: "The places, best first (at most 20).", items: .init(properties: [
+                "name": .init(description: "The place's name as listed."),
+                "category": .init(description: "Optional. Kind of place, like 카페 or 육류,고기요리."),
+                "rating": .init(type: "number", description: "Optional. Star rating (out of 5)."),
+                "reviewCount": .init(type: "integer", description: "Optional. Number of reviews."),
+                "address": .init(description: "Optional. Street address or area."),
+                "lat": .init(type: "number", description: "Optional. Latitude."),
+                "lng": .init(type: "number", description: "Optional. Longitude."),
+                "placeId": .init(description: "Optional. The Naver Place id."),
+                "note": .init(description: "Optional. One sentence on why it fits the request, in the user's language."),
+                "quote": .init(description: "Optional. A short quote from a real review that backs the note."),
+            ], required: ["name"])),
+        ], required: ["places"])))
+
+    static let currentLocation = ToolDefinition(function: .init(
+        name: "current_location",
+        description: "Get the user's approximate location (rounded coordinates and the area's name) from the device, to find places near them. The first call asks the user for permission; if they decline, ask them where they are instead.",
+        parameters: .init(properties: [:], required: [])))
+
     /// The web tools, always sent to a model with tools.
     static let standard: [ToolDefinition] = [webSearch, webFetch, runPlugin]
 
     /// The browser tools (Settings > Browser).
-    static let browser: [ToolDefinition] = [browserOpen, browserEval, loadSkill]
+    static let browser: [ToolDefinition] = [browserOpen, browserEval, loadSkill, showPlaces]
 
     /// The tools of a request: fixed for a given setting and model, so the cached prefix never changes within a chat
     /// unless the setting or the model does. `view_image` needs a model that reads images.
-    static func available(python: Bool, images: Bool, browser: Bool = false) -> [ToolDefinition] {
+    /// `current_location` comes with the browser tools when Settings > Browser > Location is on.
+    static func available(python: Bool, images: Bool, browser: Bool = false, location: Bool = false) -> [ToolDefinition] {
         var out = standard
         if python { out += images ? [runPython, viewImage] : [runPython] }
-        if browser { out += Self.browser }
+        if browser { out += Self.browser + (location ? [currentLocation] : []) }
         return out
     }
 }
