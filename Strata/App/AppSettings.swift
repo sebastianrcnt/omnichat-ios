@@ -83,6 +83,7 @@ final class AppSettings {
         Set(UserDefaults.standard.stringArray(forKey: enabledPluginsKey) ?? [])
     }
     nonisolated static let enabledPluginsKey = "enabledPlugins"
+    nonisolated static let userPreferencesKey = "userPreferences"
 
     private let defaults: UserDefaults
 
@@ -108,6 +109,9 @@ final class AppSettings {
     var lastEffortRaw: String { didSet { defaults.set(lastEffortRaw, forKey: "lastEffort") } }
     /// The language dictation listens for (`DictationLanguage.current` reads the same key).
     var dictationLanguage: String { didSet { defaults.set(dictationLanguage, forKey: DictationLanguage.defaultsKey) } }
+    /// How the assistant should behave and respond (personality, tone, a name). Sent after the app prompt; a chat
+    /// keeps the preferences it started with (`Conversation.frozenPreferences`).
+    var userPreferences: String { didSet { defaults.set(userPreferences, forKey: Self.userPreferencesKey) } }
     /// Site plugins the model may run (all off until turned on).
     var enabledPlugins: Set<String> { didSet { defaults.set(enabledPlugins.sorted(), forKey: Self.enabledPluginsKey) } }
     /// Offer `run_python` (on by default). `PythonSettings.isEnabled` reads the same key.
@@ -131,6 +135,7 @@ final class AppSettings {
         generateTitles = defaults.object(forKey: "generateTitles") == nil ? true : defaults.bool(forKey: "generateTitles")
         developerMode = defaults.bool(forKey: "developerMode")
         lastEffortRaw = defaults.string(forKey: "lastEffort") ?? Effort.default.rawValue
+        userPreferences = defaults.string(forKey: Self.userPreferencesKey) ?? ""
         enabledPlugins = Set(defaults.stringArray(forKey: Self.enabledPluginsKey) ?? [])
         dictationLanguage = defaults.string(forKey: DictationLanguage.defaultsKey) ?? DictationLanguage.defaultID()
         pythonEnabled = defaults.object(forKey: PythonSettings.enabledKey) == nil ? true : defaults.bool(forKey: PythonSettings.enabledKey)

@@ -93,6 +93,7 @@
 		45CACCD11F64860A42537A04 /* RateLimiter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC5FEFAD7E7BF8EC9CB97FDD /* RateLimiter.swift */; };
 		45D19EC2918C1A7614C375DE /* Platform.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF7F53A781D1513C22B3EB69 /* Platform.swift */; };
 		4677C7BBC549D586B0F14DC8 /* MacDebug.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B5BBAA2FDE1CDE917B886E5 /* MacDebug.swift */; };
+		48B9B78BDA7A335D72BF0561 /* SystemPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 182FD0E6C234BFA230BFB671 /* SystemPromptTests.swift */; };
 		48CD0DC0DB21A5D440C25C14 /* HiddenWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2591276CC7B49180E08D4971 /* HiddenWebView.swift */; };
 		49392EBD4E5AA4123334F697 /* SyntaxText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 748782FF3501ED3A1104EC28 /* SyntaxText.swift */; };
 		4DA691107E55E33B13DE2C90 /* ChatLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5AC0A7BCD327ACF820153EA /* ChatLifecycle.swift */; };
@@ -345,6 +346,7 @@
 		13E34A0018D655A063F410DE /* StrataMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrataMacApp.swift; sourceTree = "<group>"; };
 		15B124318CAF255390485525 /* EncodingAndKeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EncodingAndKeyTests.swift; sourceTree = "<group>"; };
 		17C8B76F60CF255F7FCBAEDB /* ContextSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextSheet.swift; sourceTree = "<group>"; };
+		182FD0E6C234BFA230BFB671 /* SystemPromptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemPromptTests.swift; sourceTree = "<group>"; };
 		1B13CAD466BE4E5D1157F58C /* TextSizeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextSizeTests.swift; sourceTree = "<group>"; };
 		1B5BBAA2FDE1CDE917B886E5 /* MacDebug.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacDebug.swift; sourceTree = "<group>"; };
 		1B6F4AF3C683785E704E15A0 /* ActivityFeedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityFeedViews.swift; sourceTree = "<group>"; };
@@ -611,6 +613,7 @@
 				6B27DE42F1884B7DB8E59F70 /* StreamingPerfTests.swift */,
 				2A2D7C1E0284AFFF48149B8A /* StreamPacingTests.swift */,
 				26570D51DE24CF846438D804 /* SyntaxHighlightTests.swift */,
+				182FD0E6C234BFA230BFB671 /* SystemPromptTests.swift */,
 				1B13CAD466BE4E5D1157F58C /* TextSizeTests.swift */,
 				51F73404257AB826A0402DBF /* ThoughtSentenceTests.swift */,
 				A56AE75878AC38E54E367EF0 /* TimelineMotionTests.swift */,
@@ -1149,6 +1152,7 @@
 				A9CC45A9AA351A2C398F1EEA /* StreamingMarkdownTests.swift in Sources */,
 				91D1D4AD2ED4052F6BA9AC0C /* StreamingPerfTests.swift in Sources */,
 				1EA9B96960F5F2EC3798DB4B /* SyntaxHighlightTests.swift in Sources */,
+				48B9B78BDA7A335D72BF0561 /* SystemPromptTests.swift in Sources */,
 				87B52776AE9655C0E7D9ADAD /* TextSizeTests.swift in Sources */,
 				B54DFC47E6C1773419F772E2 /* ThoughtSentenceTests.swift in Sources */,
 				D352223CD1AF1E566EA69C0F /* TimelineMotionTests.swift in Sources */,

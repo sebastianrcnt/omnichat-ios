@@ -84,9 +84,49 @@ enum SourceFormatter {
     }
 }
 
-enum DefaultPrompts {
-    /// Based on Open WebUI's default RAG template: inline `[N]` citations only for sources that carry an id.
-    static let citation = """
+/// The app's half of the system message: how replies render, how to cite and when to use tools. Personality, tone
+/// and names are the user's (`preferences`). Fixed text, so the cached prefix holds across chats.
+enum AppPrompt {
+    static let base = """
+    You are an AI assistant in Strata, a chat app.
+
+    - Replies are rendered as Markdown. Math is not rendered: write formulas in plain text or Unicode, not LaTeX.
+    - Respond in the same language as the user's message unless asked otherwise.
+    - If you do not know the answer, say so. If the request is ambiguous, ask for clarification.
+    """
+
+    static let tools = """
+    Tool results contain sources, each wrapped like <source id="1" title="..." url="...">content</source>.
+
+    - Cite sources inline with the source id in square brackets, for example [1] or [1][2], directly after the statement they support.
+    - Only cite a source that has an explicit id attribute, and only ids that appear in the tool results. Never invent ids or citations.
+    - Do not output the <source> XML tags or their attributes. Do not add a separate list of sources.
+    - If the sources are missing, unreadable or do not answer the question, say so, then answer from your own knowledge and make clear that it is not from the sources.
+    """
+
+    static let python = "- For anything beyond simple arithmetic, calculate with run_python instead of in your head."
+
+    /// The app prompt for a model with (or without) tools, and with `run_python` offered or not.
+    static func text(tools: Bool, python: Bool) -> String {
+        guard tools else { return base }
+        return base + "\n\n" + Self.tools + (python ? "\n" + Self.python : "")
+    }
+
+    /// The user's preferences as a system-prompt section, or "" when they are blank. Followed in every reply, so
+    /// they are given as instructions rather than background.
+    static func preferences(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        return """
+        The user has set these instructions for how you behave and respond. Follow them in every reply; they take precedence over the defaults above.
+        <userPreferences>
+        \(trimmed)
+        </userPreferences>
+        """
+    }
+
+    /// The system prompt connections carried before the app prompt existed, to tell it apart from one the user wrote.
+    static let legacyCitation = """
     You are a helpful assistant. You can use the web_search and web_fetch tools when current or external information would help.
 
     Tool results contain sources, each wrapped like <source id="1" title="..." url="...">content</source>.

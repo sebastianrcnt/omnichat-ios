@@ -22,11 +22,28 @@ final class ConnectionStore {
         if let data = defaults.data(forKey: storageKey),
            let decoded = try? JSONDecoder().decode([Connection].self, from: data) {
             connections = decoded
+            migrateSystemPrompts(data)
         }
         if !connections.contains(where: { $0.isStrata }) {
             connections.insert(.strataPreset(), at: 0)
             save()
         }
+    }
+
+    /// Connections once had their own system prompt. The first one a user wrote becomes their preferences (unless
+    /// they already have some); the stock prompt is dropped, since the app prompt now covers it. Saving afterwards
+    /// writes the connections without the field, so this runs once.
+    private func migrateSystemPrompts(_ data: Data) {
+        struct Legacy: Decodable { var systemPrompt: String? }
+        guard let legacy = try? JSONDecoder().decode([Legacy].self, from: data),
+              legacy.contains(where: { $0.systemPrompt != nil }) else { return }
+        let stock = AppPrompt.legacyCitation.trimmingCharacters(in: .whitespacesAndNewlines)
+        let written = legacy.lazy.compactMap { $0.systemPrompt?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty && $0 != stock }
+        if let written, (defaults.string(forKey: AppSettings.userPreferencesKey) ?? "").isEmpty {
+            defaults.set(written, forKey: AppSettings.userPreferencesKey)
+        }
+        save()
     }
 
     private func save() {
@@ -82,7 +99,7 @@ final class ConnectionStore {
         for h in conn.parsedHeaders { headers[h.name] = h.value }
         return Endpoint(connectionID: conn.id, connectionName: conn.name, baseURL: base,
                         apiKey: keys.key(for: conn.id), headers: headers, model: model,
-                        systemPrompt: conn.systemPrompt, supportsResumable: conn.supportsResumable)
+                        supportsResumable: conn.supportsResumable)
     }
 
     /// Every model across all connections, in connection order.

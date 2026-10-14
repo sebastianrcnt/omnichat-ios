@@ -28,6 +28,17 @@ struct SettingsView: View {
                         }
                     }
 
+                    GroupedSection(header: "Personalization", footer: "How the assistant should behave and respond: personality, tone, a name, how long answers should be. Sent with every message. A chat keeps the preferences it started with; changes apply to new chats.") {
+                        TextField("", text: $settings.userPreferences,
+                                  prompt: Text("For example: Be concise and casual. Skip the pleasantries."), axis: .vertical)
+                            .lineLimit(3...12)
+                            .font(DS.Typography.ui)
+                            .foregroundStyle(theme.textPrimary)
+                            .unbezeledField()
+                            .padding(.horizontal, DS.Spacing.lg)
+                            .padding(.vertical, DS.Spacing.md)
+                    }
+
                     #if os(iOS)
                     TextSizeSection() // a Mac has no Dynamic Type: text there keeps the size it is designed at
                     #endif
@@ -245,15 +256,6 @@ struct ConnectionEditor: View {
                     }
                     if let keyError {
                         Text(keyError).font(DS.Typography.uiCaption).foregroundStyle(theme.destructive)
-                    }
-
-                    GroupedSection(header: "System prompt", footer: "Sent as the first message. Leave empty to send none. The default asks for [N] citations and tells the model not to invent ids.") {
-                        SettingsFieldRow(title: "Prompt", prompt: "None", text: binding(\.systemPrompt, fallback: ""), multiline: true)
-                        SettingsRow(systemImage: "arrow.counterclockwise", title: "Reset to default") {
-                            var c = connection
-                            c.systemPrompt = DefaultPrompts.citation
-                            connections.upsert(c)
-                        }
                     }
 
                     GroupedSection(header: "Models", footer: fetchStatus.map { LocalizedStringKey($0) }) {

@@ -75,8 +75,6 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
     /// One header per line, `Name: value`.
     var customHeaders: String
     var models: [ModelInfo]
-    /// Sent as the first (system) message. Empty disables it.
-    var systemPrompt: String
     var supportsResumable: Bool
     /// User-set display names, keyed by model id. Display-only: requests always send the real id. Kept apart from
     /// `models` so a name survives `/models` refreshes, even when a model briefly drops out of the list.
@@ -86,13 +84,12 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
     var hiddenModelIDs: Set<String> = []
 
     init(id: UUID = UUID(), name: String, baseURL: String, customHeaders: String = "", models: [ModelInfo] = [],
-         systemPrompt: String = DefaultPrompts.citation, supportsResumable: Bool? = nil) {
+         supportsResumable: Bool? = nil) {
         self.id = id
         self.name = name
         self.baseURL = baseURL
         self.customHeaders = customHeaders
         self.models = models
-        self.systemPrompt = systemPrompt
         self.supportsResumable = supportsResumable ?? (id == Self.strataID)
     }
 
@@ -104,7 +101,6 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
         customHeaders = try c.decodeIfPresent(String.self, forKey: .customHeaders) ?? ""
         models = try c.decodeIfPresent([ModelInfo].self, forKey: .models) ?? []
         supportsResumable = try c.decodeIfPresent(Bool.self, forKey: .supportsResumable) ?? (id == Self.strataID)
-        systemPrompt = try c.decodeIfPresent(String.self, forKey: .systemPrompt) ?? DefaultPrompts.citation
         modelAliases = try c.decodeIfPresent([String: String].self, forKey: .modelAliases) ?? [:]
         hiddenModelIDs = try c.decodeIfPresent(Set<String>.self, forKey: .hiddenModelIDs) ?? []
     }
@@ -184,6 +180,5 @@ struct Endpoint: Sendable {
     var apiKey: String?
     var headers: [String: String]
     var model: ModelInfo
-    var systemPrompt: String = ""
     var supportsResumable: Bool = false
 }

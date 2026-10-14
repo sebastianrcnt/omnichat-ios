@@ -472,9 +472,15 @@ final class ChatController {
     // MARK: Compaction
 
     /// The messages to send for `path`: the conversation's latest compaction on it, then what follows its anchor.
-    private func apiHistory(path: [Message], conversation: Conversation, endpoint: Endpoint) -> [APIMessage] {
+    /// `freeze` is false for display-only estimates, which must not pin the chat's preferences before it sends.
+    private func apiHistory(path: [Message], conversation: Conversation, endpoint: Endpoint, freeze: Bool = true) -> [APIMessage] {
         let plugins = endpoint.model.supportsTools ? PluginRegistry.bundled.promptSection(enabled: AppSettings.currentEnabledPlugins) : ""
-        let system = ConversationDate.systemPrompt(base: endpoint.systemPrompt, day: conversation.systemDay, plugins: plugins)
+        let tools = endpoint.model.supportsTools
+        let base = [AppPrompt.text(tools: tools, python: tools && settings.pythonEnabled),
+                    AppPrompt.preferences(freeze ? conversation.frozenPreferences(current: settings.userPreferences)
+                                                  : conversation.preferencesSnapshot ?? settings.userPreferences)]
+            .filter { !$0.isEmpty }.joined(separator: "\n\n")
+        let system = ConversationDate.systemPrompt(base: base, day: conversation.systemDay, plugins: plugins)
         if let compacted = conversation.compactedHistory(path: path) {
             return MessageAssembler.apiMessages(from: compacted.rest, systemPrompt: system, replacing: compacted.replacement,
                                                 readsImages: endpoint.model.supportsImages)
@@ -580,7 +586,7 @@ final class ChatController {
     func contextSplit(conversation: Conversation, total: Int) -> [Int]? {
         guard let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID)
         else { return nil }
-        let messages = apiHistory(path: conversation.activePath, conversation: conversation, endpoint: endpoint)
+        let messages = apiHistory(path: conversation.activePath, conversation: conversation, endpoint: endpoint, freeze: false)
         return ContextEstimator.split(messages: messages, tools: endpoint.model.supportsTools ? requestTools(endpoint) : nil,
                                       total: total)
     }

@@ -56,6 +56,16 @@ final class Conversation {
         return createdDay
     }
 
+    /// The user's preferences as they were at this conversation's first request: editing them later starts with
+    /// the next chat, so a conversation's system message (and cached prefix) never changes under it.
+    var preferencesSnapshot: String?
+
+    func frozenPreferences(current: String) -> String {
+        if let preferencesSnapshot { return preferencesSnapshot }
+        preferencesSnapshot = current
+        return current
+    }
+
     var effort: Effort {
         get { Effort(rawValue: effortRaw) ?? .default }
         set { effortRaw = newValue.rawValue }

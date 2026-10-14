@@ -17,6 +17,10 @@ enum SharedModels {
         #else
         let connections = ConnectionStore()
         #endif
+        // Loading may have moved an old connection system prompt into the preferences after `settings` read them.
+        if settings.userPreferences.isEmpty, let moved = UserDefaults.standard.string(forKey: AppSettings.userPreferencesKey) {
+            settings.userPreferences = moved
+        }
         #if DEBUG
         DebugHooks.applyLaunchConfiguration(connections: connections, settings: settings)
         #endif
