@@ -103,6 +103,7 @@
 		48B9B78BDA7A335D72BF0561 /* SystemPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 182FD0E6C234BFA230BFB671 /* SystemPromptTests.swift */; };
 		48CD0DC0DB21A5D440C25C14 /* HiddenWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2591276CC7B49180E08D4971 /* HiddenWebView.swift */; };
 		49392EBD4E5AA4123334F697 /* SyntaxText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 748782FF3501ED3A1104EC28 /* SyntaxText.swift */; };
+		49A97BCCEC9D0A6B581E3C0E /* Skills in Resources */ = {isa = PBXBuildFile; fileRef = 53B0DA9BC609410BB67796D5 /* Skills */; };
 		4C9B7173DF25A5C3FE22C716 /* ChatGPTConnectionEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C3A96FF631B68EC1F795430 /* ChatGPTConnectionEditor.swift */; };
 		4DA691107E55E33B13DE2C90 /* ChatLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5AC0A7BCD327ACF820153EA /* ChatLifecycle.swift */; };
 		4DDC4C522993E3F8AF715D6A /* ChatGPTModelsAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED7180F1E8B24CD9E6D90907 /* ChatGPTModelsAPI.swift */; };
@@ -170,8 +171,10 @@
 		796035B400885F19288917B2 /* ThoughtSentence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1311BB3FAFBD1EC5F5DAA45E /* ThoughtSentence.swift */; };
 		7A4AB033521DA71E829776C9 /* MarkdownBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = C48316140F6C91D3CBA80AB7 /* MarkdownBlock.swift */; };
 		7C20B111F0222EDCAC2ECC50 /* ChatController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C03FBF59DC6F9A1BD1C0A47 /* ChatController.swift */; };
+		7E1056D92B99471BE1919978 /* Skills.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8D8B674FF40A93C900B658F /* Skills.swift */; };
 		7E1E618885FEFCC120A25FD8 /* ChatStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = B63857674820F2E11039ED28 /* ChatStream.swift */; };
 		7E3BD333FC1B029DA0180EED /* StrataApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78839B98DAD55E4352AEA1E3 /* StrataApp.swift */; };
+		7EFE8A77DC3399772C0FAD67 /* Skills.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8D8B674FF40A93C900B658F /* Skills.swift */; };
 		80D17984AA12BED9D8A03287 /* ContextGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEBD4BA8EA9CBAB919310F52 /* ContextGrid.swift */; };
 		80FB68A6CB6FB981F24CE359 /* Composer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89E7EBEA258EC160E400C807 /* Composer.swift */; };
 		8194BFBA8667BE3B34853248 /* RequestRing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A73ADE2586D58C97EEF31AB /* RequestRing.swift */; };
@@ -260,6 +263,7 @@
 		BB82A2C3219C172BB1E0139F /* Dictation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 998841C6FE4AED2FF59DC7EC /* Dictation.swift */; };
 		BC36304699DC88B95BE4A5CC /* ToolsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3478FEB4D8CC14325F39C573 /* ToolsTests.swift */; };
 		BC7B7C7ECB5097C2F8F602B9 /* FetchBatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF9BE4A130E3ECAC8CF744BD /* FetchBatchTests.swift */; };
+		BD22ACFE94EF8A5CC117C075 /* SkillTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70031DD36F2FA5F8EF66FA84 /* SkillTests.swift */; };
 		BD539C20F5BAFA7F4A652B82 /* AnswerNow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 866C5798DDE8F5ECD3DD4550 /* AnswerNow.swift */; };
 		BE08AB7DE04F0AA49A4F084A /* ResumeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE43918539189B11FD7FA06F /* ResumeTests.swift */; };
 		BE289B6161EF4045B43C403A /* ChatGPTSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A0341634730B2E75D9309C /* ChatGPTSignIn.swift */; };
@@ -312,6 +316,7 @@
 		E21176D1E11779E4B7DE28AA /* ChatGPTConnectionEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C3A96FF631B68EC1F795430 /* ChatGPTConnectionEditor.swift */; };
 		E2C16160D762E348D9135F77 /* Sources.swift in Sources */ = {isa = PBXBuildFile; fileRef = 603FD8755196D4C36A00346F /* Sources.swift */; };
 		E2FA2382C013258DA12BFE81 /* Pretendard-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 2FCFE1A61E07F2EE5636D7C1 /* Pretendard-OFL.txt */; };
+		E4B3A8D2F830437CC4E85F8F /* Skills in Resources */ = {isa = PBXBuildFile; fileRef = 53B0DA9BC609410BB67796D5 /* Skills */; };
 		E82C60B48DA4604823167DE5 /* SearchEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 435074B411A9B8C1F389A1EE /* SearchEngine.swift */; };
 		E98BA67F30A24E4C32C47880 /* ModelSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CE7DDF672A184EEA699E6B6 /* ModelSelection.swift */; };
 		E9E6C555F1703416B013C83C /* ContextGridViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7FE7CF4DF4B965D2A9B7043 /* ContextGridViews.swift */; };
@@ -423,6 +428,7 @@
 		51F73404257AB826A0402DBF /* ThoughtSentenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThoughtSentenceTests.swift; sourceTree = "<group>"; };
 		5280BB687C005E6ECA5D7CA6 /* PythonRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonRuntime.swift; sourceTree = "<group>"; };
 		52A0341634730B2E75D9309C /* ChatGPTSignIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatGPTSignIn.swift; sourceTree = "<group>"; };
+		53B0DA9BC609410BB67796D5 /* Skills */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Skills; path = Strata/Resources/Skills; sourceTree = SOURCE_ROOT; };
 		577C99863BBA69F6E419DF04 /* naver-results.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "naver-results.html"; sourceTree = "<group>"; };
 		57C860BFAC93144D535EE9CD /* CompactionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactionTests.swift; sourceTree = "<group>"; };
 		5E59111DFEC2815CA7A165FF /* ChatSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSettingsTests.swift; sourceTree = "<group>"; };
@@ -445,6 +451,7 @@
 		6BAFA2451AF0DF556526593D /* wikipedia_summary.plugin.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = wikipedia_summary.plugin.json; sourceTree = "<group>"; };
 		6E08F0D934A25CA44E443328 /* ImageProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageProcessor.swift; sourceTree = "<group>"; };
 		6EFA02B98F9B308CB4726D0F /* Readability.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = Readability.js; sourceTree = "<group>"; };
+		70031DD36F2FA5F8EF66FA84 /* SkillTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillTests.swift; sourceTree = "<group>"; };
 		709A6CFD36DC0094D78DD1DC /* ChatGPTAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatGPTAuth.swift; sourceTree = "<group>"; };
 		748782FF3501ED3A1104EC28 /* SyntaxText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntaxText.swift; sourceTree = "<group>"; };
 		76761264A6C5D8DC725D7622 /* ProcessSegments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessSegments.swift; sourceTree = "<group>"; };
@@ -549,6 +556,7 @@
 		F10BAC6EFC108A1D8E6E5B69 /* PythonViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonViews.swift; sourceTree = "<group>"; };
 		F42DD6DE488FF594429FF03E /* MessageTreeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageTreeTests.swift; sourceTree = "<group>"; };
 		F5AC0A7BCD327ACF820153EA /* ChatLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatLifecycle.swift; sourceTree = "<group>"; };
+		F8D8B674FF40A93C900B658F /* Skills.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Skills.swift; sourceTree = "<group>"; };
 		F9DD5CE5A930F470033D1540 /* PluginCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginCore.swift; sourceTree = "<group>"; };
 		FB5939AEB1A666782A72840E /* TurnRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnRunnerTests.swift; sourceTree = "<group>"; };
 		FB5D32B8964A505B794CA379 /* ToolProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolProgress.swift; sourceTree = "<group>"; };
@@ -651,6 +659,7 @@
 				342661A12FE2062C81D8B547 /* QuoteCitationTests.swift */,
 				BB947F8AC9122712C0BF2C33 /* ResponsesAPITests.swift */,
 				DE43918539189B11FD7FA06F /* ResumeTests.swift */,
+				70031DD36F2FA5F8EF66FA84 /* SkillTests.swift */,
 				886C8F6D9B0406EB7F52AB97 /* SSEAndStreamTests.swift */,
 				23D74F0D9535BDC2282EFC76 /* StreamingMarkdownTests.swift */,
 				6B27DE42F1884B7DB8E59F70 /* StreamingPerfTests.swift */,
@@ -897,6 +906,7 @@
 				6946DA516AFD242CE9D85CF0 /* InfoPlist.xcstrings */,
 				9DF5CC77FC1395D564A9F6FF /* Localizable.xcstrings */,
 				D885671F11503105E839A70B /* PyRuntime */,
+				53B0DA9BC609410BB67796D5 /* Skills */,
 				B1DF6CF450DD9EFDBBC4DFD2 /* Fonts */,
 				90586FFEDA5C2DE4C141593D /* Highlight */,
 				4AC753904E570346129666E3 /* Plugins */,
@@ -916,6 +926,7 @@
 				F9DD5CE5A930F470033D1540 /* PluginCore.swift */,
 				B141DC5A18167B93E51A1676 /* PluginRunner.swift */,
 				435074B411A9B8C1F389A1EE /* SearchEngine.swift */,
+				F8D8B674FF40A93C900B658F /* Skills.swift */,
 				9F060271B290FC6006ED6EB6 /* URLGuard.swift */,
 				9EDDB9156BDFEC4520B3C1E0 /* WebTools.swift */,
 				9615B53146C4A5C894C4D40D /* WebViewPool.swift */,
@@ -1139,6 +1150,7 @@
 				FF59AE2CB85C5E6106DFFAB7 /* PretendardVariable.ttf in Resources */,
 				CEB021C07023729D842B6B6C /* PyRuntime in Resources */,
 				F95FE1C377AE2B715B1832EE /* Readability.js in Resources */,
+				E4B3A8D2F830437CC4E85F8F /* Skills in Resources */,
 				7589CFE5900E2ED316232342 /* engines.json in Resources */,
 				3E304E8994888C5840B3E92D /* highlight.js in Resources */,
 				3B0544ABBAE735FA3B50F914 /* wikipedia_summary.plugin.js in Resources */,
@@ -1162,6 +1174,7 @@
 				22E3E3354F0088679BD7AF90 /* PretendardVariable.ttf in Resources */,
 				0BD47474831A4DF86A71B58F /* PyRuntime in Resources */,
 				25B098E8B2FFA9E841AFD196 /* Readability.js in Resources */,
+				49A97BCCEC9D0A6B581E3C0E /* Skills in Resources */,
 				2347F1AD8687AF9774EF1204 /* engines.json in Resources */,
 				181EFDC2EA74CEDD105F8870 /* highlight.js in Resources */,
 				ACA454DF837E63C459F8B464 /* wikipedia_summary.plugin.js in Resources */,
@@ -1212,6 +1225,7 @@
 				3FD32AE69C1794195A9FA452 /* ResponsesAPITests.swift in Sources */,
 				BE08AB7DE04F0AA49A4F084A /* ResumeTests.swift in Sources */,
 				A27748A1CA53762E03335950 /* SSEAndStreamTests.swift in Sources */,
+				BD22ACFE94EF8A5CC117C075 /* SkillTests.swift in Sources */,
 				599BD0A34E25235EB6688000 /* StreamPacingTests.swift in Sources */,
 				A9CC45A9AA351A2C398F1EEA /* StreamingMarkdownTests.swift in Sources */,
 				91D1D4AD2ED4052F6BA9AC0C /* StreamingPerfTests.swift in Sources */,
@@ -1331,6 +1345,7 @@
 				B45E91F4CD5780E5524E2953 /* SharedModels.swift in Sources */,
 				74D5CBABE658F86593159318 /* Sheets.swift in Sources */,
 				8AA12F2FC342306FD733CA44 /* SidebarView.swift in Sources */,
+				7EFE8A77DC3399772C0FAD67 /* Skills.swift in Sources */,
 				E2C16160D762E348D9135F77 /* Sources.swift in Sources */,
 				B5E00EF92E6BFE455C360185 /* SpeechDictationEngine.swift in Sources */,
 				1EE97DE225FDE6F15C0A6C34 /* StrataApp.swift in Sources */,
@@ -1464,6 +1479,7 @@
 				3194CAEF920EE2DDDF3AED69 /* SharedModels.swift in Sources */,
 				8F4B6A0EE834D711F19380A5 /* Sheets.swift in Sources */,
 				73869712AF97DF5C005FCBE5 /* SidebarView.swift in Sources */,
+				7E1056D92B99471BE1919978 /* Skills.swift in Sources */,
 				A63A4385A9E867437FCC6F0A /* Sources.swift in Sources */,
 				6A8EA3B11265FB4A1A10A9F5 /* SpeechDictationEngine.swift in Sources */,
 				7E3BD333FC1B029DA0180EED /* StrataApp.swift in Sources */,

@@ -74,6 +74,8 @@ final class ChatController {
     @ObservationIgnored var onCheckpointWrite: ((Int) -> Void)?
     /// Recent request bodies for the diagnostics panel.
     @ObservationIgnored var requestRing: RequestRing = .shared
+    /// The skills listed in a new chat's system prompt.
+    @ObservationIgnored var skills: SkillStore = .shared
     @ObservationIgnored private var cancelTasks: [UUID: Task<Void, Never>] = [:]
     private let background = ReplyBackgroundExecution()
 
@@ -481,7 +483,11 @@ final class ChatController {
     private func apiHistory(path: [Message], conversation: Conversation, endpoint: Endpoint, freeze: Bool = true) -> [APIMessage] {
         let plugins = endpoint.model.supportsTools ? PluginRegistry.bundled.promptSection(enabled: AppSettings.currentEnabledPlugins) : ""
         let tools = endpoint.model.supportsTools
+        // A chat keeps the skill list it first had with the browser on, like its preferences.
+        let skillIndex = !(tools && settings.browserEnabled) ? ""
+            : freeze ? conversation.frozenSkillIndex(current: skills.index) : conversation.skillIndexSnapshot ?? skills.index
         let base = [AppPrompt.text(tools: tools, python: tools && settings.pythonEnabled),
+                    skillIndex,
                     AppPrompt.preferences(freeze ? conversation.frozenPreferences(current: settings.userPreferences)
                                                   : conversation.preferencesSnapshot ?? settings.userPreferences)]
             .filter { !$0.isEmpty }.joined(separator: "\n\n")

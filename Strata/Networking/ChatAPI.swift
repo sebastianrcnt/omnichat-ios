@@ -201,11 +201,18 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
         parameters: .init(properties: ["js": .init(description: "The JavaScript function body, ending with a return statement.")],
                           required: ["js"])))
 
+    /// Which skills exist is never part of this definition: the system prompt lists them.
+    static let loadSkill = ToolDefinition(function: .init(
+        name: "load_skill",
+        description: "Load a skill: instructions for a specific task, such as which pages to open and which scripts to run. Only skills listed in the system prompt exist. Load the skill before starting a task it covers, then follow it.",
+        parameters: .init(properties: ["name": .init(description: "The skill name, exactly as listed.")],
+                          required: ["name"])))
+
     /// The web tools, always sent to a model with tools.
     static let standard: [ToolDefinition] = [webSearch, webFetch, runPlugin]
 
     /// The browser tools (Settings > Browser).
-    static let browser: [ToolDefinition] = [browserOpen, browserEval]
+    static let browser: [ToolDefinition] = [browserOpen, browserEval, loadSkill]
 
     /// The tools of a request: fixed for a given setting and model, so the cached prefix never changes within a chat
     /// unless the setting or the model does. `view_image` needs a model that reads images.

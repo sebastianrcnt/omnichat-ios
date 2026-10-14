@@ -227,6 +227,8 @@ struct FeedCard: Identifiable, Equatable, Sendable {
         case browser(url: String)
         /// One `browser_eval` call: the script it ran.
         case script(code: String)
+        /// A one-line card for a call with nothing to unfold (`load_skill`, ...): the tool and its argument.
+        case note(tool: String, argument: String)
     }
 
     var id: String
@@ -274,7 +276,8 @@ enum ActivityFeed {
                 case ToolNames.runPython: .python(code: call.argument)
                 case ToolNames.browserOpen: .browser(url: call.argument)
                 case ToolNames.browserEval: .script(code: call.argument)
-                default: .image(id: call.argument)
+                case ToolNames.viewImage: .image(id: call.argument)
+                default: .note(tool: tool, argument: call.argument)
                 }
                 var card = FeedCard(id: call.id, kind: kind, isRunning: call.status == .running, isError: call.status == .failed)
                 card.output = call.output

@@ -29,7 +29,12 @@ targets:
           - "**/*.md"
           - Resources/PyRuntime
           - Resources/PyRuntime/**
+          - Resources/Skills
+          - Resources/Skills/**
       - path: Strata/Resources/PyRuntime
+        type: folder
+        buildPhase: resources
+      - path: Strata/Resources/Skills
         type: folder
         buildPhase: resources
     dependencies:
@@ -79,7 +84,12 @@ targets:
           - Resources/Info.plist
           - Resources/PyRuntime
           - Resources/PyRuntime/**
+          - Resources/Skills
+          - Resources/Skills/**
       - path: Strata/Resources/PyRuntime
+        type: folder
+        buildPhase: resources
+      - path: Strata/Resources/Skills
         type: folder
         buildPhase: resources
     dependencies:

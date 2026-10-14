@@ -153,3 +153,66 @@ struct BrowserScriptDetail: View {
         .padding()
     }
 }
+
+// MARK: - One-line cards
+
+/// The icon and line of a call shown as a single line (`load_skill` and the like), in the feed and the Timeline.
+enum ToolNote {
+    static func covers(_ tool: String) -> Bool { tool == ToolNames.loadSkill }
+
+    static func icon(_ tool: String) -> String {
+        switch tool {
+        case ToolNames.loadSkill: "book.closed"
+        default: "wrench.and.screwdriver"
+        }
+    }
+
+    static func title(tool: String, argument: String, running: Bool) -> String {
+        switch tool {
+        case ToolNames.loadSkill:
+            running ? String(localized: "Loading skill \(argument)…") : String(localized: "Loaded skill \(argument)")
+        default:
+            running ? String(localized: "Running \(tool)…") : String(localized: "Ran \(tool)")
+        }
+    }
+}
+
+/// "Loaded skill naver-places" in the feed.
+struct ToolNoteFeedCard: View {
+    @Environment(\.theme) private var theme
+    let card: FeedCard
+    var onDetails: () -> Void
+
+    var body: some View {
+        if case .note(let tool, let argument) = card.kind {
+            HStack(spacing: DS.Spacing.sm) {
+                Image(systemName: ToolNote.icon(tool))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(theme.textSecondary)
+                    .frame(width: 18)
+                Text(ToolNote.title(tool: tool, argument: argument, running: card.isRunning))
+                    .font(DS.Typography.feedEmphasis)
+                    .foregroundStyle(theme.textPrimary)
+                    .lineLimit(1)
+                Spacer(minLength: DS.Spacing.sm)
+                if card.isRunning {
+                    ProgressView().controlSize(.mini)
+                } else if card.isError {
+                    Text("Failed").font(DS.Typography.feedMeta).foregroundStyle(theme.textTertiary)
+                }
+            }
+            .padding(.vertical, 11)
+            .padding(.horizontal, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(theme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous).strokeBorder(theme.separator, lineWidth: 1)
+            }
+            .accessibilityElement(children: .combine)
+            .contextMenu {
+                Button("Show Timeline", systemImage: "list.bullet.below.rectangle", action: onDetails)
+            }
+        }
+    }
+}

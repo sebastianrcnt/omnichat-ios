@@ -66,6 +66,16 @@ final class Conversation {
         return current
     }
 
+    /// The skill list (`SkillIndex`) as it was at this conversation's first request with the browser tools on: a skill
+    /// saved later is listed from the next chat on, so the system message never changes under this one.
+    var skillIndexSnapshot: String?
+
+    func frozenSkillIndex(current: String) -> String {
+        if let skillIndexSnapshot { return skillIndexSnapshot }
+        skillIndexSnapshot = current
+        return current
+    }
+
     var effort: Effort {
         get { Effort(rawValue: effortRaw) ?? .default }
         set { effortRaw = newValue.rawValue }

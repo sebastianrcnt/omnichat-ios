@@ -55,20 +55,25 @@ enum BrowserSettle {
       }
       var lastResource = 0;
       try { performance.getEntriesByType("resource").forEach(function(r) { lastResource = Math.max(lastResource, r.responseEnd); }); } catch (e) {}
-      return JSON.stringify({ href: String(location.href), ready: document.readyState,
+      return JSON.stringify({ href: String(location.href), ready: document.readyState, stale: !!w.__strataStale,
                               domQuiet: Date.now() - w.__strataSettle.last, netQuiet: performance.now() - lastResource,
                               text: document.body ? document.body.innerText.length : 0 });
     })()
     """
 
+    /// Marks the page showing before a navigation, so the probe can tell it from the page being opened.
+    static let markStale = "window.__strataStale = true; \"\""
+
     struct Probe: Decodable, Equatable, Sendable {
         var href: String
         var ready: String
+        /// The page from before the navigation is still showing.
+        var stale: Bool?
         var domQuiet: Double
         var netQuiet: Double
         var text: Int
 
-        var committed: Bool { !href.isEmpty && !href.lowercased().hasPrefix("about:") }
+        var committed: Bool { !href.isEmpty && !href.lowercased().hasPrefix("about:") && stale != true }
 
         var isSettled: Bool {
             committed && ready != "loading" && text > 0 && domQuiet >= BrowserSettle.domQuiet && netQuiet >= BrowserSettle.networkQuiet
@@ -288,6 +293,7 @@ struct BrowserOpenTool {
                      progress: @escaping @MainActor (Double) -> Void = { _ in }) async throws -> FetchedPage {
         let state = LoadState()
         progress(0)
+        if page.currentURL != nil { _ = try? await page.evaluate(BrowserSettle.markStale, timeout: timeouts.probe) }
         page.onProgress = { progress(FetchProgress.loading($0)) }
         defer { page.onProgress = nil }
         Task { @MainActor in

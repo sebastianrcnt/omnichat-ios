@@ -281,6 +281,7 @@ struct AssistantMessage: View {
             case ToolNames.viewImage: String(localized: "Looking at the image")
             case ToolNames.browserOpen: String(localized: "Browsing")
             case ToolNames.browserEval: String(localized: "Running a script")
+            case ToolNames.loadSkill: String(localized: "Reading a skill")
             default: String(localized: "Reading")
             }
         case .compacting: String(localized: "Summarizing conversation…")
