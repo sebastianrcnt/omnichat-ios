@@ -18,6 +18,8 @@ struct ModelInfo: Codable, Identifiable, Hashable, Sendable {
     var isManual: Bool
     /// The name the server gives the model (ChatGPT's `display_name`), shown when the user set no alias.
     var fetchedDisplayName: String?
+    /// An OpenCode model's API family and effort levels; nil on other connections.
+    var openCode: OpenCodeModelInfo?
 
     init(id: String,
          fetchedContextLength: Int? = nil,
@@ -47,10 +49,16 @@ struct ModelInfo: Codable, Identifiable, Hashable, Sendable {
         supportsTools = try c.decodeIfPresent(Bool.self, forKey: .supportsTools) ?? true
         isManual = try c.decodeIfPresent(Bool.self, forKey: .isManual) ?? false
         fetchedDisplayName = try c.decodeIfPresent(String.self, forKey: .fetchedDisplayName)
+        openCode = try c.decodeIfPresent(OpenCodeModelInfo.self, forKey: .openCode)
     }
 
-    /// The reasoning effort levels this model offers, lowest first (none when it takes no `reasoning_effort`).
-    func effortLevels(_ style: EffortStyle) -> [Effort] { supportsEffort ? Effort.levels(style) : [] }
+    /// The reasoning effort levels this model offers, lowest first (none when it takes no `reasoning_effort`). An
+    /// OpenCode model offers the levels its catalog lists.
+    func effortLevels(_ style: EffortStyle) -> [Effort] {
+        guard supportsEffort else { return [] }
+        if let listed = openCode?.efforts, !listed.isEmpty { return listed }
+        return Effort.levels(style)
+    }
 
     /// "Images · Effort · Web tools": what the model can do, for a row subtitle.
     var capabilitiesSummary: String? {
@@ -67,8 +75,8 @@ struct ModelInfo: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
-/// An OpenAI-compatible endpoint, or a ChatGPT account. The API key (or the ChatGPT sign-in) lives in the Keychain,
-/// keyed by `id`.
+/// An OpenAI-compatible endpoint, a ChatGPT account, or an OpenCode account. The API key (or the sign-in) lives in the
+/// Keychain, keyed by `id`.
 struct Connection: Codable, Identifiable, Hashable, Sendable {
     static let strataID = UUID(uuidString: "5712A7A0-0000-4000-8000-000000000001")!
     static let strataBaseURL = "https://llm-api.coolservices.cc/v1"
@@ -79,6 +87,9 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
         case openAICompatible
         /// The user's ChatGPT plan through Sign in with ChatGPT: the Responses API at `api.openai.com`, with OAuth tokens.
         case chatGPT
+        /// The user's OpenCode Console account (Go subscription or pay as you go), through the device-code sign-in or a
+        /// service-account key: each model's own API family at the gateway of `openCodeGateway`.
+        case openCode
     }
 
     var id: UUID
@@ -96,6 +107,8 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
     /// Models the user hid from the composer's model menu ("Show in picker" off). Display-only, kept apart from
     /// `models` like the aliases so it survives `/models` refreshes.
     var hiddenModelIDs: Set<String> = []
+    /// The gateway of an OpenCode connection (nil on other kinds).
+    var openCodeGateway: OpenCodeGateway?
 
     init(id: UUID = UUID(), kind: Kind = .openAICompatible, name: String, baseURL: String, customHeaders: String = "",
          models: [ModelInfo] = [], supportsResumable: Bool? = nil) {
@@ -119,6 +132,7 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
         supportsResumable = try c.decodeIfPresent(Bool.self, forKey: .supportsResumable) ?? (id == Self.strataID)
         modelAliases = try c.decodeIfPresent([String: String].self, forKey: .modelAliases) ?? [:]
         hiddenModelIDs = try c.decodeIfPresent(Set<String>.self, forKey: .hiddenModelIDs) ?? []
+        openCodeGateway = try c.decodeIfPresent(OpenCodeGateway.self, forKey: .openCodeGateway)
     }
 
     static func strataPreset() -> Connection {
@@ -130,9 +144,17 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
         Connection(kind: .chatGPT, name: name, baseURL: ChatGPTOAuth.resource, supportsResumable: false)
     }
 
+    /// A new OpenCode account connection. Its base URL follows the gateway and is never shown.
+    static func openCode(name: String = "OpenCode", gateway: OpenCodeGateway = .go) -> Connection {
+        var c = Connection(kind: .openCode, name: name, baseURL: gateway.baseURL.absoluteString, supportsResumable: false)
+        c.openCodeGateway = gateway
+        return c
+    }
+
     var isStrata: Bool { id == Connection.strataID }
     var isChatGPT: Bool { kind == .chatGPT }
-    var effortStyle: EffortStyle { isChatGPT ? .modelDecides : .tokenCaps }
+    var isOpenCode: Bool { kind == .openCode }
+    var effortStyle: EffortStyle { isChatGPT || isOpenCode ? .modelDecides : .tokenCaps }
 
     /// Defaults for newly discovered models on this connection. ChatGPT models read images, reason and call tools.
     func defaultModel(id modelID: String, fetchedContextLength: Int?, fetchedImages: Bool? = nil) -> ModelInfo {
@@ -206,11 +228,26 @@ struct Endpoint: Sendable {
     var headers: [String: String]
     var model: ModelInfo
     var supportsResumable: Bool = false
-    /// Chat Completions, or the Responses API for a ChatGPT account (whose token comes from `ChatGPTAuth`, not `apiKey`).
+    /// Chat Completions, or the Responses API for a ChatGPT account (whose token comes from `ChatGPTAuth`, not `apiKey`),
+    /// or the model's API for an OpenCode account (token from `OpenCodeAuth`).
     var kind: Connection.Kind = .openAICompatible
 
     /// The URL requests are sent to, for the diagnostics ring.
     var requestURL: URL {
-        baseURL.appendingPathComponent(kind == .chatGPT ? "responses" : "chat/completions")
+        switch kind {
+        case .chatGPT: baseURL.appendingPathComponent("responses")
+        case .openCode: baseURL.appendingPathComponent(openCodeAPI.path(model: model.id))
+        case .openAICompatible: baseURL.appendingPathComponent("chat/completions")
+        }
+    }
+
+    /// The gateway of an OpenCode endpoint, from its base URL.
+    var openCodeGateway: OpenCodeGateway {
+        baseURL.path.contains("/go/") ? .go : .console
+    }
+
+    /// The API an OpenCode model is served by: as fetched, else guessed from its id.
+    var openCodeAPI: OpenCodeModelAPI {
+        model.openCode?.api ?? .guess(model: model.id, gateway: openCodeGateway)
     }
 }

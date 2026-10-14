@@ -24,12 +24,15 @@ struct ResponsesRequest: Encodable, Sendable {
     var model: String
     var instructions: String?
     var input: [InputItem]
-    var tools: [NamespaceTool]?
+    var tools: [Tool]?
     var toolChoice: String?
     var reasoning: Reasoning?
     var include: [String]?
     var store = false
     var stream = true
+    /// Not encoded: whether `tools` and the calls in `input` use the `strata` namespace.
+    var namespacedTools = true
+    static let flatToolsKey = CodingUserInfoKey(rawValue: "strata.responses.flatTools")!
 
     struct Reasoning: Encodable, Sendable, Equatable {
         var effort: String?
@@ -91,7 +94,10 @@ struct ResponsesRequest: Encodable, Sendable {
                 try c.encode("function_call", forKey: .type)
                 try c.encode(callID, forKey: .callID)
                 try c.encode(name, forKey: .name)
-                try c.encode(ResponsesRequest.toolNamespace, forKey: .namespace)
+                // Tools sent flat were never in the namespace.
+                if encoder.userInfo[ResponsesRequest.flatToolsKey] as? Bool != true {
+                    try c.encode(ResponsesRequest.toolNamespace, forKey: .namespace)
+                }
                 try c.encode(arguments, forKey: .arguments)
             case .functionCallOutput(let callID, let output):
                 try c.encode("function_call_output", forKey: .type)
@@ -117,6 +123,19 @@ struct ResponsesRequest: Encodable, Sendable {
         var tools: [Function]
     }
 
+    /// A `tools` entry: the namespace (ChatGPT), or a flat function tool (the standard Responses API).
+    enum Tool: Encodable, Sendable, Equatable {
+        case namespace(NamespaceTool)
+        case function(NamespaceTool.Function)
+
+        func encode(to encoder: Encoder) throws {
+            switch self {
+            case .namespace(let tool): try tool.encode(to: encoder)
+            case .function(let tool): try tool.encode(to: encoder)
+            }
+        }
+    }
+
     /// Effort names the Responses API takes. Strata's top level ("Max") has no equal and asks for the highest.
     static func effort(_ value: String) -> String {
         switch value {
@@ -127,8 +146,9 @@ struct ResponsesRequest: Encodable, Sendable {
 
     /// Translates a Chat Completions request. The first system message becomes `instructions`, unchanged, so the
     /// prefix the server caches starts with the same bytes on every request of a chat; a later one becomes a developer
-    /// message. `reasoning` and the encrypted-reasoning `include` go only to a model that takes effort.
-    init(_ request: ChatRequest, reasoning supportsReasoning: Bool) {
+    /// message. `reasoning` and the encrypted-reasoning `include` go only to a model that takes effort. Tools go in the
+    /// `strata` namespace (the ChatGPT route), or flat for the standard Responses API (`namespacedTools: false`).
+    init(_ request: ChatRequest, reasoning supportsReasoning: Bool, namespacedTools: Bool = true) {
         model = request.model
         var messages = request.messages[...]
         if let first = messages.first, first.role == "system", case .text(let text) = first.content {
@@ -137,11 +157,13 @@ struct ResponsesRequest: Encodable, Sendable {
         }
         input = Self.items(Array(messages))
         if let defs = request.tools, !defs.isEmpty {
-            tools = [NamespaceTool(tools: defs.map {
-                .init(name: $0.function.name, description: $0.function.description, parameters: $0.function.parameters)
-            })]
+            let functions = defs.map {
+                NamespaceTool.Function(name: $0.function.name, description: $0.function.description, parameters: $0.function.parameters)
+            }
+            tools = namespacedTools ? [.namespace(NamespaceTool(tools: functions))] : functions.map(Tool.function)
             toolChoice = request.toolChoice
         }
+        self.namespacedTools = namespacedTools
         if supportsReasoning {
             reasoning = Reasoning(effort: request.reasoningEffort.map(Self.effort))
             include = ["reasoning.encrypted_content"]
@@ -182,7 +204,13 @@ struct ResponsesRequest: Encodable, Sendable {
         return out
     }
 
-    func encoded() throws -> Data { try ChatRequest.encoder.encode(self) }
+    func encoded() throws -> Data {
+        if namespacedTools { return try ChatRequest.encoder.encode(self) }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = ChatRequest.encoder.outputFormatting
+        encoder.userInfo[Self.flatToolsKey] = true
+        return try encoder.encode(self)
+    }
 }
 
 extension APIContent {

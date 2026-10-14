@@ -37,9 +37,12 @@ enum Effort: String, CaseIterable, Codable, Sendable, Identifiable {
         style == .tokenCaps ? allCases : [.low, .medium, .high, .xhigh]
     }
 
-    /// This level as one of `levels`: Max picked on another connection reads as the top level that is offered.
+    /// This level as one of `levels`: a level that isn't offered (Max picked on another connection, or a model with
+    /// fewer levels) reads as the highest offered level below it, else the lowest offered.
     func resolved(in levels: [Effort]) -> Effort {
-        levels.contains(self) || self != .max ? self : levels.last ?? self
+        guard !levels.isEmpty, !levels.contains(self) else { return self }
+        let rank = Effort.allCases.firstIndex(of: self) ?? 0
+        return levels.last { (Effort.allCases.firstIndex(of: $0) ?? 0) < rank } ?? levels[0]
     }
 
     func hint(_ style: EffortStyle) -> String {

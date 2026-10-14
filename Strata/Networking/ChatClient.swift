@@ -33,12 +33,18 @@ struct ChatClient: ChatStreaming {
     var session: URLSession = .shared
     /// Tokens for ChatGPT connections, whose requests go to the Responses API instead.
     var chatGPTTokens: any ChatGPTTokenProviding = ChatGPTAuth.shared
+    /// Tokens for OpenCode connections, whose requests go to the API family of each model.
+    var openCodeTokens: any OpenCodeTokenProviding = OpenCodeAuth.shared
 
-    /// Chat Completions, or for a ChatGPT connection the Responses API. Routing here means every request that goes
-    /// through the app's streamer (turns, compaction, titles) reaches the right API.
+    /// Chat Completions, or for a ChatGPT connection the Responses API, or for an OpenCode connection the model's API.
+    /// Routing here means every request that goes through the app's streamer (turns, compaction, titles) reaches the
+    /// right API.
     func stream(_ request: ChatRequest, endpoint: Endpoint) -> AsyncThrowingStream<ChatDelta, Error> {
         if endpoint.kind == .chatGPT {
             return ResponsesClient(session: session, tokens: chatGPTTokens).stream(request, endpoint: endpoint)
+        }
+        if endpoint.kind == .openCode {
+            return OpenCodeClient(session: session, tokens: openCodeTokens).stream(request, endpoint: endpoint)
         }
         return AsyncThrowingStream { continuation in
             let task = Task {
@@ -54,29 +60,7 @@ struct ChatClient: ChatStreaming {
                         for try await b in bytes { errorData.append(b); if errorData.count > 4096 { break } }
                         throw APIError.http(status: http.statusCode, message: HTTP.errorMessage(from: errorData))
                     }
-                    var parser = SSEParser()
-                    var line = Data()
-                    func handle(_ events: [SSEEvent]) throws -> Bool {
-                        for event in events {
-                            let delta = try ChatChunkDecoder.decode(event.data)
-                            if delta.isDone { return true }
-                            if !delta.isEmpty { continuation.yield(delta) }
-                        }
-                        return false
-                    }
-                    var done = false
-                    for try await byte in bytes {
-                        line.append(byte)
-                        if byte == 0x0A {
-                            done = try handle(parser.feed(line))
-                            line.removeAll(keepingCapacity: true)
-                            if done { break }
-                        }
-                    }
-                    if !done {
-                        if !line.isEmpty { _ = try handle(parser.feed(line)) }
-                        _ = try handle(parser.finish())
-                    }
+                    try await Self.consume(bytes) { continuation.yield($0) }
                     continuation.finish()
                 } catch is CancellationError {
                     continuation.finish()
@@ -88,6 +72,30 @@ struct ChatClient: ChatStreaming {
             }
             continuation.onTermination = { _ in task.cancel() }
         }
+    }
+
+    /// Reads a Chat Completions event stream through `[DONE]` (or its end), handing on each non-empty delta.
+    static func consume(_ bytes: URLSession.AsyncBytes, yield: (ChatDelta) -> Void) async throws {
+        var parser = SSEParser()
+        var line = Data()
+        func handle(_ events: [SSEEvent]) throws -> Bool {
+            for event in events {
+                let delta = try ChatChunkDecoder.decode(event.data)
+                if delta.isDone { return true }
+                if !delta.isEmpty { yield(delta) }
+            }
+            return false
+        }
+        for try await byte in bytes {
+            line.append(byte)
+            if byte == 0x0A {
+                let done = try handle(parser.feed(line))
+                line.removeAll(keepingCapacity: true)
+                if done { return }
+            }
+        }
+        if !line.isEmpty { _ = try handle(parser.feed(line)) }
+        _ = try handle(parser.finish())
     }
 }
 

@@ -61,8 +61,11 @@ struct APIMessage: Sendable, Equatable, Encodable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case role, content, toolCalls = "tool_calls", toolCallID = "tool_call_id"
+        case role, content, toolCalls = "tool_calls", toolCallID = "tool_call_id", reasoningContent = "reasoning_content"
     }
+    /// Set in an encoder's `userInfo` for models that want their reasoning back with the turn's tool results
+    /// (`reasoning_content` on the assistant message, as DeepSeek and Kimi thinking modes take it).
+    static let echoReasoningKey = CodingUserInfoKey(rawValue: "strata.echoReasoning")!
     private enum CallKeys: String, CodingKey { case id, type, function }
     private enum FunctionKeys: String, CodingKey { case name, arguments }
 
@@ -85,6 +88,9 @@ struct APIMessage: Sendable, Equatable, Encodable {
             }
         }
         if let toolCallID { try c.encode(toolCallID, forKey: .toolCallID) }
+        if encoder.userInfo[Self.echoReasoningKey] as? Bool == true, role == "assistant", !reasoningItems.isEmpty {
+            try c.encode(reasoningItems.flatMap(\.summary).joined(separator: "\n\n"), forKey: .reasoningContent)
+        }
     }
 }
 
@@ -250,6 +256,8 @@ enum APIError: Error, LocalizedError, Equatable {
     case missingAPIKey(connection: String)
     /// A ChatGPT connection that is signed out, or whose session ended.
     case chatGPTSignInRequired(connection: String)
+    /// An OpenCode connection that is signed out, whose session ended, or whose API key was refused.
+    case openCodeSignInRequired(connection: String)
     case http(status: Int, message: String)
     case server(String)
     case transport(String)
@@ -257,7 +265,7 @@ enum APIError: Error, LocalizedError, Equatable {
     /// Errors fixed in Settings; the chat shows an "Open Settings" button for these.
     var needsSettings: Bool {
         switch self {
-        case .missingModel, .missingAPIKey, .invalidBaseURL, .chatGPTSignInRequired: true
+        case .missingModel, .missingAPIKey, .invalidBaseURL, .chatGPTSignInRequired, .openCodeSignInRequired: true
         default: false
         }
     }
@@ -268,6 +276,7 @@ enum APIError: Error, LocalizedError, Equatable {
         case .missingModel: String(localized: "No model available. Add an API key in Settings so models can be fetched, then pick one.")
         case .missingAPIKey(let name): String(localized: "Add an API key for \(name) in Settings.")
         case .chatGPTSignInRequired(let name): String(localized: "Sign in with ChatGPT for \(name) in Settings.")
+        case .openCodeSignInRequired(let name): String(localized: "Sign in with OpenCode, or enter a valid API key, for \(name) in Settings.")
         case .http(let status, let message):
             message.isEmpty ? String(localized: "The server returned HTTP \(status).")
                             : String(localized: "HTTP \(status): \(message)")
