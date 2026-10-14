@@ -126,7 +126,7 @@ struct TurnRunner: Sendable {
                     try onEvent(.compactionStarted)
                     let base = makeRequest(pending == nil ? messages : Array(messages.dropLast()), capped: capped)
                     let log = requestLog
-                    let url = endpoint.baseURL.appendingPathComponent("chat/completions").absoluteString
+                    let url = endpoint.requestURL.absoluteString
                     let outcome = try await Compactor(streamer: streamer).compact(
                         endpoint: endpoint, base: base, meter: meter, window: compaction.window,
                         extra: pending.map { [$0] } ?? []) { request in
@@ -160,7 +160,7 @@ struct TurnRunner: Sendable {
                 try onEvent(.checkpoint(checkpoint))
                 let logID = UUID()
                 if firstSend, let log = requestLog, let body = checkpoint.requestData {
-                    log(.sent(id: logID, url: endpoint.baseURL.appendingPathComponent("chat/completions").absoluteString, body: body))
+                    log(.sent(id: logID, url: endpoint.requestURL.absoluteString, body: body))
                 }
                 defer {
                     if firstSend, let log = requestLog {
@@ -268,7 +268,7 @@ struct TurnRunner: Sendable {
             try Task.checkCancellation()
             let before = messages.count
             MessageAssembler.appendToolRound(to: &messages, assistantContent: acc.content, calls: calls, results: outputs,
-                                             readsImages: readsImages)
+                                             readsImages: readsImages, reasoningItems: acc.reasoningItems)
             // The reported usage already counts the assistant message that made the calls; the results are new.
             for m in messages[before...] where !(usageCounted && m.role == "assistant") { meter.append(m) }
             steps.append(ToolStep(assistantContent: acc.content, calls: records))

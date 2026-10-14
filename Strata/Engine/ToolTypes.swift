@@ -260,10 +260,13 @@ enum MessageAssembler {
     /// attached follow in one `user` message after the last tool message (a tool message carries text only), so the
     /// order stays assistant → tool… → user, valid for OpenAI-style APIs and Qwen chat templates. It is rebuilt the
     /// same way from the saved records for every later request, so its bytes never change.
+    /// `reasoningItems` (Responses API) ride on the assistant message, for the next request of the same turn.
     static func appendToolRound(to messages: inout [APIMessage], assistantContent: String,
                                 calls: [ToolCall], results: [ToolOutput], readsImages: Bool = true,
-                                images: ToolImageStore = .shared) {
-        messages.append(.assistant(assistantContent, toolCalls: calls))
+                                reasoningItems: [ReasoningItem] = [], images: ToolImageStore = .shared) {
+        var assistant = APIMessage.assistant(assistantContent, toolCalls: calls)
+        assistant.reasoningItems = reasoningItems
+        messages.append(assistant)
         for (call, result) in zip(calls, results) {
             messages.append(.tool(callID: call.id, content: result.text))
         }

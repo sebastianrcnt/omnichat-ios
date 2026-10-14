@@ -119,7 +119,7 @@ enum AutoRename {
     static func generate(prompt: String, endpoint: Endpoint, streamer: any ChatStreaming,
                          timeout: Duration = AutoRename.timeout,
                          log: (@MainActor @Sendable (RequestLogEvent) -> Void)? = nil) async -> String? {
-        let url = endpoint.baseURL.appendingPathComponent("chat/completions").absoluteString
+        let url = endpoint.requestURL.absoluteString
         for thinking in [Thinking.off, .unchanged] {
             if Task.isCancelled { return nil }
             let request = request(model: endpoint.model.id, prompt: prompt, thinking: thinking,

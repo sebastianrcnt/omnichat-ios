@@ -31,9 +31,16 @@ enum HTTP {
 
 struct ChatClient: ChatStreaming {
     var session: URLSession = .shared
+    /// Tokens for ChatGPT connections, whose requests go to the Responses API instead.
+    var chatGPTTokens: any ChatGPTTokenProviding = ChatGPTAuth.shared
 
+    /// Chat Completions, or for a ChatGPT connection the Responses API. Routing here means every request that goes
+    /// through the app's streamer (turns, compaction, titles) reaches the right API.
     func stream(_ request: ChatRequest, endpoint: Endpoint) -> AsyncThrowingStream<ChatDelta, Error> {
-        AsyncThrowingStream { continuation in
+        if endpoint.kind == .chatGPT {
+            return ResponsesClient(session: session, tokens: chatGPTTokens).stream(request, endpoint: endpoint)
+        }
+        return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     let body = try request.encoded()

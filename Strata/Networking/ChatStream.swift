@@ -18,9 +18,12 @@ struct ChatDelta: Equatable, Sendable {
     var isDone = false
     var requestID: String?
     var sequence: Int?
+    /// Reasoning items to send back with this turn's tool results (Responses API only).
+    var reasoningItems: [ReasoningItem] = []
 
     var isEmpty: Bool {
         (content ?? "").isEmpty && (reasoning ?? "").isEmpty && toolCalls.isEmpty && usage == nil && finishReason == nil
+            && reasoningItems.isEmpty
     }
 }
 
@@ -89,6 +92,8 @@ struct StreamAccumulator: Codable, Sendable {
     private(set) var usage: Usage?
     private(set) var finishReason: String?
     private var calls: [Int: ToolCall] = [:]
+    /// Optional so checkpoints saved before it existed still decode.
+    private var reasoningItemList: [ReasoningItem]?
 
     init() {}
 
@@ -97,6 +102,7 @@ struct StreamAccumulator: Codable, Sendable {
         if let r = delta.reasoning { reasoning += r }
         if let u = delta.usage { usage = u }
         if let f = delta.finishReason { finishReason = f }
+        if !delta.reasoningItems.isEmpty { reasoningItemList = (reasoningItemList ?? []) + delta.reasoningItems }
         for tc in delta.toolCalls {
             var call = calls[tc.index] ?? ToolCall(id: "", name: "", arguments: "")
             if let id = tc.id, !id.isEmpty { call.id = id }
@@ -105,6 +111,9 @@ struct StreamAccumulator: Codable, Sendable {
             calls[tc.index] = call
         }
     }
+
+    /// The response's reasoning items, in order (Responses API only).
+    var reasoningItems: [ReasoningItem] { reasoningItemList ?? [] }
 
     /// Completed tool calls in index order. Calls missing an id get a synthetic one.
     var toolCalls: [ToolCall] {

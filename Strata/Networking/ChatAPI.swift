@@ -46,6 +46,9 @@ struct APIMessage: Sendable, Equatable, Encodable {
     var content: APIContent
     var toolCalls: [ToolCall] = []
     var toolCallID: String?
+    /// The reasoning that led to `toolCalls`, for the Responses API within the same turn. Never encoded: Chat
+    /// Completions has no such field, and later turns are rebuilt without it.
+    var reasoningItems: [ReasoningItem] = []
 
     static func system(_ text: String) -> APIMessage { .init(role: "system", content: .text(text)) }
     static func user(_ text: String) -> APIMessage { .init(role: "user", content: .text(text)) }
@@ -245,6 +248,8 @@ enum APIError: Error, LocalizedError, Equatable {
     case invalidBaseURL
     case missingModel
     case missingAPIKey(connection: String)
+    /// A ChatGPT connection that is signed out, or whose session ended.
+    case chatGPTSignInRequired(connection: String)
     case http(status: Int, message: String)
     case server(String)
     case transport(String)
@@ -252,7 +257,7 @@ enum APIError: Error, LocalizedError, Equatable {
     /// Errors fixed in Settings; the chat shows an "Open Settings" button for these.
     var needsSettings: Bool {
         switch self {
-        case .missingModel, .missingAPIKey, .invalidBaseURL: true
+        case .missingModel, .missingAPIKey, .invalidBaseURL, .chatGPTSignInRequired: true
         default: false
         }
     }
@@ -262,6 +267,7 @@ enum APIError: Error, LocalizedError, Equatable {
         case .invalidBaseURL: String(localized: "The base URL is not valid.")
         case .missingModel: String(localized: "No model available. Add an API key in Settings so models can be fetched, then pick one.")
         case .missingAPIKey(let name): String(localized: "Add an API key for \(name) in Settings.")
+        case .chatGPTSignInRequired(let name): String(localized: "Sign in with ChatGPT for \(name) in Settings.")
         case .http(let status, let message):
             message.isEmpty ? String(localized: "The server returned HTTP \(status).")
                             : String(localized: "HTTP \(status): \(message)")

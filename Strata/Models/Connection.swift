@@ -16,6 +16,8 @@ struct ModelInfo: Codable, Identifiable, Hashable, Sendable {
     var supportsTools: Bool
     /// Entered by hand rather than discovered from `/models`.
     var isManual: Bool
+    /// The name the server gives the model (ChatGPT's `display_name`), shown when the user set no alias.
+    var fetchedDisplayName: String?
 
     init(id: String,
          fetchedContextLength: Int? = nil,
@@ -44,6 +46,7 @@ struct ModelInfo: Codable, Identifiable, Hashable, Sendable {
         supportsEffort = try c.decodeIfPresent(Bool.self, forKey: .supportsEffort) ?? false
         supportsTools = try c.decodeIfPresent(Bool.self, forKey: .supportsTools) ?? true
         isManual = try c.decodeIfPresent(Bool.self, forKey: .isManual) ?? false
+        fetchedDisplayName = try c.decodeIfPresent(String.self, forKey: .fetchedDisplayName)
     }
 
     /// The reasoning effort levels this model offers, lowest first (none when it takes no `reasoning_effort`).
@@ -64,12 +67,23 @@ struct ModelInfo: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
-/// An OpenAI-compatible endpoint. The API key lives in the Keychain, keyed by `id`.
+/// An OpenAI-compatible endpoint, or a ChatGPT account. The API key (or the ChatGPT sign-in) lives in the Keychain,
+/// keyed by `id`.
 struct Connection: Codable, Identifiable, Hashable, Sendable {
     static let strataID = UUID(uuidString: "5712A7A0-0000-4000-8000-000000000001")!
     static let strataBaseURL = "https://llm-api.coolservices.cc/v1"
 
+    /// What the connection talks to, which decides the API the requests use.
+    enum Kind: String, Codable, Sendable {
+        /// Chat Completions at `baseURL`, with an optional API key.
+        case openAICompatible
+        /// The user's ChatGPT plan through Sign in with ChatGPT: the Responses API at `api.openai.com`, with OAuth tokens.
+        case chatGPT
+    }
+
     var id: UUID
+    /// Saved connections from before the field existed are OpenAI-compatible.
+    var kind: Kind = .openAICompatible
     var name: String
     var baseURL: String
     /// One header per line, `Name: value`.
@@ -83,9 +97,10 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
     /// `models` like the aliases so it survives `/models` refreshes.
     var hiddenModelIDs: Set<String> = []
 
-    init(id: UUID = UUID(), name: String, baseURL: String, customHeaders: String = "", models: [ModelInfo] = [],
-         supportsResumable: Bool? = nil) {
+    init(id: UUID = UUID(), kind: Kind = .openAICompatible, name: String, baseURL: String, customHeaders: String = "",
+         models: [ModelInfo] = [], supportsResumable: Bool? = nil) {
         self.id = id
+        self.kind = kind
         self.name = name
         self.baseURL = baseURL
         self.customHeaders = customHeaders
@@ -96,6 +111,7 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
+        kind = try c.decodeIfPresent(Kind.self, forKey: .kind) ?? .openAICompatible
         name = try c.decode(String.self, forKey: .name)
         baseURL = try c.decode(String.self, forKey: .baseURL)
         customHeaders = try c.decodeIfPresent(String.self, forKey: .customHeaders) ?? ""
@@ -109,22 +125,30 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
         Connection(id: strataID, name: "Strata", baseURL: strataBaseURL)
     }
 
-    var isStrata: Bool { id == Connection.strataID }
+    /// A new ChatGPT account connection. Its base URL is fixed and never shown; requests go to the Responses API.
+    static func chatGPT(name: String = "ChatGPT") -> Connection {
+        Connection(kind: .chatGPT, name: name, baseURL: ChatGPTOAuth.resource, supportsResumable: false)
+    }
 
-    /// Defaults for newly discovered models on this connection.
+    var isStrata: Bool { id == Connection.strataID }
+    var isChatGPT: Bool { kind == .chatGPT }
+
+    /// Defaults for newly discovered models on this connection. ChatGPT models read images, reason and call tools.
     func defaultModel(id modelID: String, fetchedContextLength: Int?, fetchedImages: Bool? = nil) -> ModelInfo {
         ModelInfo(id: modelID,
                   fetchedContextLength: fetchedContextLength,
-                  supportsImages: fetchedImages ?? isStrata, // the Strata engine reads images
-                  supportsEffort: isStrata,
+                  supportsImages: fetchedImages ?? (isStrata || isChatGPT), // the Strata engine reads images
+                  supportsEffort: isStrata || isChatGPT,
                   supportsTools: true)
     }
 
     /// The user's name for a model, or nil when it has none.
     func alias(forModel modelID: String) -> String? { modelAliases[modelID] }
 
-    /// What the UI shows for a model: its alias when set, else its id.
-    func displayName(forModel modelID: String) -> String { alias(forModel: modelID) ?? modelID }
+    /// What the UI shows for a model: its alias when set, else the server's name for it, else its id.
+    func displayName(forModel modelID: String) -> String {
+        alias(forModel: modelID) ?? models.first { $0.id == modelID }?.fetchedDisplayName ?? modelID
+    }
 
     /// Sets (or, for nil / blank text, removes) a model's alias. The text is trimmed and capped.
     mutating func setAlias(_ alias: String?, forModel modelID: String) {
@@ -181,4 +205,11 @@ struct Endpoint: Sendable {
     var headers: [String: String]
     var model: ModelInfo
     var supportsResumable: Bool = false
+    /// Chat Completions, or the Responses API for a ChatGPT account (whose token comes from `ChatGPTAuth`, not `apiKey`).
+    var kind: Connection.Kind = .openAICompatible
+
+    /// The URL requests are sent to, for the diagnostics ring.
+    var requestURL: URL {
+        baseURL.appendingPathComponent(kind == .chatGPT ? "responses" : "chat/completions")
+    }
 }
