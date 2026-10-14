@@ -185,6 +185,10 @@ struct ChatView: View {
             #if os(iOS)
             .sheet(isPresented: $showChatSettings) { chatSettings }
             #endif
+            .sheet(item: Binding(get: { SkillApprovals.shared.pending }, set: { _ in })) { request in
+                SkillApprovalSheet(request: request) { SkillApprovals.shared.answer(request.id, approved: $0) }
+                    .environment(\.theme, theme)
+            }
             .sheet(isPresented: $showDetails) {
                 if let conversation {
                     ConversationDetailsSheet(conversation: conversation, contextLength: contextLength)

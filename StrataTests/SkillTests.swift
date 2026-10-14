@@ -174,3 +174,66 @@ struct NaverLiveTests {
         #expect(body(reviews).hasPrefix("[{"))
     }
 }
+
+private final class AskLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _asked: [SkillApprovals.Request] = []
+    var asked: [SkillApprovals.Request] { lock.withLock { _asked } }
+    func add(_ r: SkillApprovals.Request) { lock.withLock { _asked.append(r) } }
+}
+
+struct SaveSkillTests {
+    private func tool(_ store: SkillStore, answer: Bool, log: AskLog) -> SaveSkillTool {
+        SaveSkillTool(store: store) { request in log.add(request); return answer }
+    }
+
+    @Test func nothingIsSavedWithoutApproval() async {
+        let store = SkillStore(builtIn: [], directory: nil)
+        let log = AskLog()
+        let out = await tool(store, answer: false, log: log).run(name: "bus-times", description: "Seoul bus times.", body: "Open the page.")
+        #expect(out.isError && out.text.contains("declined"))
+        #expect(store.all.isEmpty)
+        #expect(log.asked.map(\.skill.body) == ["Open the page."], "the user saw the whole skill")
+    }
+
+    @Test func anApprovedSkillIsSaved() async {
+        let store = SkillStore(builtIn: [], directory: nil)
+        let log = AskLog()
+        let out = await tool(store, answer: true, log: log).run(name: "bus-times", description: "Seoul bus times.", body: "Open the page.")
+        #expect(!out.isError)
+        #expect(store.skill(named: "bus-times")?.body == "Open the page.")
+        #expect(log.asked.first?.replaces == nil)
+        _ = await tool(store, answer: true, log: log).run(name: "bus-times", description: "Newer.", body: "Open it twice.")
+        #expect(log.asked.last?.replaces?.body == "Open the page.", "the sheet says it replaces the saved one")
+        #expect(store.skill(named: "bus-times")?.description == "Newer.")
+    }
+
+    @Test func badSkillsAndBuiltInNamesAreRefusedBeforeAsking() async {
+        let store = SkillStore(builtIn: [skill("naver-places")], directory: nil)
+        let log = AskLog()
+        let builtIn = await tool(store, answer: true, log: log).run(name: "naver-places", description: "Mine.", body: "Mine.")
+        #expect(builtIn.isError && builtIn.text.contains("built-in"))
+        let badName = await tool(store, answer: true, log: log).run(name: "Bus Times", description: "x", body: "y")
+        #expect(badName.isError)
+        #expect(log.asked.isEmpty)
+        #expect(store.skill(named: "naver-places")?.isBuiltIn == true)
+    }
+
+    @MainActor
+    @Test func approvalsWaitForTheAnswerOneAtATime() async {
+        let approvals = SkillApprovals()
+        let first = SkillApprovals.Request(skill: skill("one"), replaces: nil)
+        let second = SkillApprovals.Request(skill: skill("two"), replaces: nil)
+        let a = Task { await approvals.ask(first) }
+        while approvals.pending == nil { await Task.yield() }
+        let b = Task { await approvals.ask(second) }
+        for _ in 0..<20 { await Task.yield() }
+        #expect(approvals.pending?.id == first.id, "the second waits its turn")
+        approvals.answer(first.id, approved: true)
+        #expect(await a.value == true)
+        while approvals.pending?.id != second.id { await Task.yield() }
+        b.cancel()
+        #expect(await b.value == false, "a stopped turn counts as no")
+        #expect(approvals.pending == nil)
+    }
+}

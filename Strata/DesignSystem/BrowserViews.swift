@@ -159,22 +159,26 @@ struct BrowserScriptDetail: View {
 /// The icon and line of a call shown as a single line (`load_skill` and the like), in the feed and the Timeline.
 enum ToolNote {
     static func covers(_ tool: String) -> Bool {
-        [ToolNames.loadSkill, ToolNames.showPlaces, ToolNames.currentLocation].contains(tool)
+        [ToolNames.loadSkill, ToolNames.saveSkill, ToolNames.showPlaces, ToolNames.currentLocation].contains(tool)
     }
 
     static func icon(_ tool: String) -> String {
         switch tool {
         case ToolNames.loadSkill: "book.closed"
+        case ToolNames.saveSkill: "square.and.arrow.down"
         case ToolNames.showPlaces: "map"
         case ToolNames.currentLocation: "location"
         default: "wrench.and.screwdriver"
         }
     }
 
-    static func title(tool: String, argument: String, running: Bool) -> String {
+    static func title(tool: String, argument: String, running: Bool, failed: Bool = false) -> String {
         switch tool {
         case ToolNames.loadSkill:
             running ? String(localized: "Loading skill \(argument)…") : String(localized: "Loaded skill \(argument)")
+        case ToolNames.saveSkill:
+            running ? String(localized: "Asking to save skill \(argument)…")
+                : failed ? String(localized: "Didn't save skill \(argument)") : String(localized: "Saved skill \(argument)")
         case ToolNames.showPlaces:
             running ? String(localized: "Finding places on the map…") : String(localized: "Showed places on a map")
         case ToolNames.currentLocation:
@@ -198,14 +202,14 @@ struct ToolNoteFeedCard: View {
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(theme.textSecondary)
                     .frame(width: 18)
-                Text(ToolNote.title(tool: tool, argument: argument, running: card.isRunning))
+                Text(ToolNote.title(tool: tool, argument: argument, running: card.isRunning, failed: card.isError))
                     .font(DS.Typography.feedEmphasis)
                     .foregroundStyle(theme.textPrimary)
                     .lineLimit(1)
                 Spacer(minLength: DS.Spacing.sm)
                 if card.isRunning {
                     ProgressView().controlSize(.mini)
-                } else if card.isError {
+                } else if card.isError && tool != ToolNames.saveSkill {
                     Text("Failed").font(DS.Typography.feedMeta).foregroundStyle(theme.textTertiary)
                 }
             }

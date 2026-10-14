@@ -87,7 +87,7 @@ final class SkillStore: @unchecked Sendable {
     private var loaded = false
 
     init(builtIn: [Skill] = SkillStore.bundled(), directory: URL? = SkillStore.defaultDirectory) {
-        self.builtIn = builtIn.sorted { $0.name < $1.name }
+        self.builtIn = builtIn.map { var s = $0; s.isBuiltIn = true; return s }.sorted { $0.name < $1.name }
         self.directory = directory
     }
 
@@ -194,5 +194,67 @@ struct LoadSkillTool {
             return ToolOutput(text: "Error: there is no skill named \"\(trimmed)\". " + list, isError: true)
         }
         return ToolOutput(text: "Skill: \(skill.name)\n\n" + skill.body)
+    }
+}
+
+/// The skills waiting for the user's answer: `save_skill` asks here, the chat shows `pending` as a sheet.
+@MainActor
+@Observable
+final class SkillApprovals {
+    static let shared = SkillApprovals()
+
+    struct Request: Identifiable {
+        let id = UUID()
+        let skill: Skill
+        /// The saved skill of the same name it would replace.
+        let replaces: Skill?
+    }
+
+    private var queue: [(request: Request, answer: CheckedContinuation<Bool, Never>)] = []
+
+    /// The request shown now; the others wait their turn.
+    var pending: Request? { queue.first?.request }
+
+    /// Waits for the user's answer. A cancelled turn counts as "no".
+    func ask(_ request: Request) async -> Bool {
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { cont in
+                if Task.isCancelled { cont.resume(returning: false); return }
+                queue.append((request, cont))
+            }
+        } onCancel: {
+            Task { @MainActor in self.answer(request.id, approved: false) }
+        }
+    }
+
+    func answer(_ id: UUID, approved: Bool) {
+        guard let i = queue.firstIndex(where: { $0.request.id == id }) else { return }
+        queue.remove(at: i).answer.resume(returning: approved)
+    }
+}
+
+/// `save_skill(name, description, body)`: saves a skill only after the user approved it as shown in full. Pages the
+/// model read may hold instructions meant for it, so a skill is never saved without that answer.
+struct SaveSkillTool {
+    var store: SkillStore = .shared
+    var approve: @Sendable (SkillApprovals.Request) async -> Bool = { await SkillApprovals.shared.ask($0) }
+
+    func run(name: String, description: String, body: String) async -> ToolOutput {
+        let skill = Skill(name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+                          description: description.trimmingCharacters(in: .whitespacesAndNewlines),
+                          body: body.trimmingCharacters(in: .whitespacesAndNewlines))
+        do {
+            try skill.validate()
+            if store.skill(named: skill.name)?.isBuiltIn == true { throw Skill.Problem.builtInName(skill.name) }
+        } catch {
+            return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true)
+        }
+        let existing = store.skill(named: skill.name)
+        guard await approve(SkillApprovals.Request(skill: skill, replaces: existing)) else {
+            return ToolOutput(text: "Error: the user declined to save the skill. Do not try again unless they ask.", isError: true)
+        }
+        do { try store.save(skill) }
+        catch { return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true) }
+        return ToolOutput(text: "Saved skill \(skill.name). New chats list it; load_skill loads it in this chat too.")
     }
 }

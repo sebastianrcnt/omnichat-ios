@@ -316,10 +316,10 @@ struct ActivityRow: View {
         case .note(let tool, let argument):
             HStack(spacing: DS.Spacing.sm) {
                 icon(ToolNote.icon(tool))
-                Text(ToolNote.title(tool: tool, argument: argument, running: entry.isRunning))
+                Text(ToolNote.title(tool: tool, argument: argument, running: entry.isRunning, failed: entry.isError))
                     .font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary).lineLimit(1)
                 if entry.isRunning { ProgressView().controlSize(.mini) }
-                else if entry.isError { Text("failed").font(DS.Typography.uiCaption).foregroundStyle(theme.warning) }
+                else if entry.isError && tool != ToolNames.saveSkill { Text("failed").font(DS.Typography.uiCaption).foregroundStyle(theme.warning) }
                 Spacer(minLength: 0)
             }
         }

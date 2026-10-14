@@ -282,6 +282,7 @@ struct AssistantMessage: View {
             case ToolNames.browserOpen: String(localized: "Browsing")
             case ToolNames.browserEval: String(localized: "Running a script")
             case ToolNames.loadSkill: String(localized: "Reading a skill")
+            case ToolNames.saveSkill: String(localized: "Waiting for your answer")
             case ToolNames.showPlaces: String(localized: "Mapping places")
             case ToolNames.currentLocation: String(localized: "Finding your location")
             default: String(localized: "Reading")

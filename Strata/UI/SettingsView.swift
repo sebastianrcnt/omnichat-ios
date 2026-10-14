@@ -430,12 +430,16 @@ struct BrowserSettingsSection: View {
 
     var body: some View {
         @Bindable var settings = settings
-        GroupedSection(header: "Browser", footer: "The model can open pages in a hidden browser on this device with browser_open and run JavaScript in them with browser_eval. The browser keeps no cookies or logins and can't reach your local network.") {
+        GroupedSection(header: "Browser", footer: "The model can open pages in a hidden browser on this device with browser_open and run JavaScript in them with browser_eval. The browser keeps no cookies or logins and can't reach your local network. Skills teach the model tasks like finding places on Naver; it saves new ones only when you approve.") {
             SettingsToggleRow(title: "Browser", subtitle: "Let the model browse sites and read data from them.", isOn: $settings.browserEnabled)
             if settings.browserEnabled {
                 SettingsToggleRow(title: "Location", subtitle: "Let the model ask for your approximate location to find places near you.",
                                   isOn: $settings.locationEnabled)
             }
+            NavigationLink { SkillsSettingsView() } label: {
+                SettingsRow(systemImage: "book.closed", title: "Skills", showsChevron: true)
+            }
+            .buttonStyle(.plain)
         }
         .onChange(of: settings.browserEnabled) { _, on in if !on { BrowserSessions.shared.closeAll() } }
     }
