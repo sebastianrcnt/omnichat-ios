@@ -108,6 +108,8 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
         case "run_plugin": return PluginCall.pageURL(in: arguments) ?? (obj["name"] as? String) ?? arguments
         case "run_python": return (obj["code"] as? String) ?? arguments
         case "view_image": return (obj["id"] as? String) ?? arguments
+        case "browser_open": return (obj["url"] as? String) ?? arguments
+        case "browser_eval": return (obj["js"] as? String) ?? arguments
         default: return arguments
         }
     }
@@ -130,9 +132,10 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
     var output: ToolOutput { ToolOutput(text: result, isError: isError, figures: figures ?? [], viewedImage: viewedImage) }
 
     /// The record without its result text: all a process row needs, so segments never hold fetched page bodies.
-    /// A Python run keeps its output (the card shows it; it is capped like a page slice).
+    /// A Python run and a browser script keep their output (the card shows it; it is capped like a page slice).
     var displayOnly: ToolCallRecord {
-        var out = ToolCallRecord(id: id, name: name, arguments: arguments, result: name == ToolNames.runPython ? result : "",
+        let keepsResult = name == ToolNames.runPython || name == ToolNames.browserEval
+        var out = ToolCallRecord(id: id, name: name, arguments: arguments, result: keepsResult ? result : "",
                                  isError: isError, sourceIDs: sourceIDs)
         out.figures = figures
         out.viewedImage = viewedImage
@@ -199,9 +202,16 @@ enum ToolNames {
     static let runPlugin = "run_plugin"
     static let runPython = "run_python"
     static let viewImage = "view_image"
+    static let browserOpen = "browser_open"
+    static let browserEval = "browser_eval"
+
+    /// Tools shown in the feed as a card of their own (not a search card or a row of "Read pages").
+    static func hasOwnCard(_ name: String) -> Bool {
+        [runPython, viewImage, browserOpen, browserEval].contains(name)
+    }
 
     /// Tools that read a page (and count as one in the summaries).
-    static func readsPage(_ name: String) -> Bool { name == webFetch || name == runPlugin }
+    static func readsPage(_ name: String) -> Bool { name == webFetch || name == runPlugin || name == browserOpen }
 }
 
 /// Plain-value message used to build API history without touching SwiftData.

@@ -189,14 +189,31 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
         parameters: .init(properties: ["id": .init(description: "The image id, for example figure-1.")],
                           required: ["id"])))
 
+    static let browserOpen = ToolDefinition(function: .init(
+        name: "browser_open",
+        description: "Open a web page in a hidden mobile browser on the user's device and return its visible text, final URL and title once it has rendered. Unlike web_fetch it keeps the page open, so browser_eval can then run JavaScript in it. Use it for sites that build their content with scripts, and as a skill instructs. The browser has no logins or cookies of the user's.",
+        parameters: .init(properties: ["url": .init(description: "The absolute http(s) URL to open.")],
+                          required: ["url"])))
+
+    static let browserEval = ToolDefinition(function: .init(
+        name: "browser_eval",
+        description: "Run JavaScript in the page browser_open opened last in this chat, and return the result. The code is the body of an async function: use await if needed and return the value to send back (a string as is, anything else as JSON). Keep results small: return only the fields you need. The code runs in the page only and can change it (click, scroll, navigate).",
+        parameters: .init(properties: ["js": .init(description: "The JavaScript function body, ending with a return statement.")],
+                          required: ["js"])))
+
     /// The web tools, always sent to a model with tools.
     static let standard: [ToolDefinition] = [webSearch, webFetch, runPlugin]
 
+    /// The browser tools (Settings > Browser).
+    static let browser: [ToolDefinition] = [browserOpen, browserEval]
+
     /// The tools of a request: fixed for a given setting and model, so the cached prefix never changes within a chat
     /// unless the setting or the model does. `view_image` needs a model that reads images.
-    static func available(python: Bool, images: Bool) -> [ToolDefinition] {
-        guard python else { return standard }
-        return standard + (images ? [runPython, viewImage] : [runPython])
+    static func available(python: Bool, images: Bool, browser: Bool = false) -> [ToolDefinition] {
+        var out = standard
+        if python { out += images ? [runPython, viewImage] : [runPython] }
+        if browser { out += Self.browser }
+        return out
     }
 }
 

@@ -372,6 +372,7 @@ final class ChatController {
         runner.toolsDisabled = assistant.answeredEarly
         runner.continueOnEmptyAnswer = settings.continueOnEmptyAnswer
         runner.python = settings.pythonEnabled
+        runner.browser = settings.browserEnabled
         let ring = requestRing
         let conversationID = conversation.id
         runner.requestLog = { event in
@@ -495,7 +496,7 @@ final class ChatController {
 
     /// The tools a turn sends (see `ToolDefinition.available`).
     private func requestTools(_ endpoint: Endpoint) -> [ToolDefinition] {
-        ToolDefinition.available(python: settings.pythonEnabled, images: endpoint.model.supportsImages)
+        ToolDefinition.available(python: settings.pythonEnabled, images: endpoint.model.supportsImages, browser: settings.browserEnabled)
     }
 
     /// The window, the room for an answer and the context size before this turn's own message.
