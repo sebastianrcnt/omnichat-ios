@@ -15,7 +15,7 @@ struct SettingsView: View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                    GroupedSection(header: "Connections", footer: "Any OpenAI-compatible endpoint, or your ChatGPT plan. API keys and sign-ins are stored in the Keychain.") {
+                    GroupedSection(header: "Connections", footer: "Any OpenAI-compatible endpoint, your ChatGPT plan, or your OpenCode account. API keys and sign-ins are stored in the Keychain.") {
                         ForEach(connections.connections) { c in
                             SettingsRow(title: LocalizedStringKey(c.name), subtitle: subtitle(for: c),
                                         value: c.models.isEmpty ? nil : String(localized: "\(c.models.count) models"),
@@ -28,6 +28,11 @@ struct SettingsView: View {
                         }
                         SettingsRow(systemImage: "person.badge.plus", title: "Add ChatGPT account") {
                             let new = Connection.chatGPT(name: String(localized: "ChatGPT"))
+                            connections.upsert(new)
+                            path.append(new.id)
+                        }
+                        SettingsRow(systemImage: "person.badge.plus", title: "Add OpenCode account") {
+                            let new = Connection.openCode(name: String(localized: "OpenCode"))
                             connections.upsert(new)
                             path.append(new.id)
                         }
@@ -170,6 +175,8 @@ struct SettingsView: View {
             .navigationDestination(for: UUID.self) { id in
                 if connections.connection(id)?.isChatGPT == true {
                     ChatGPTConnectionEditor(connectionID: id, path: $path)
+                } else if connections.connection(id)?.isOpenCode == true {
+                    OpenCodeConnectionEditor(connectionID: id, path: $path)
                 } else {
                     ConnectionEditor(connectionID: id, path: $path)
                 }
@@ -191,8 +198,12 @@ struct SettingsView: View {
         #endif
     }
 
-    /// The base URL, or for a ChatGPT account the signed-in email.
+    /// The base URL, or for a ChatGPT account the signed-in email, or for an OpenCode account its plan.
     private func subtitle(for c: Connection) -> String {
+        if c.isOpenCode {
+            guard connections.isOpenCodeSignedIn(c.id) else { return String(localized: "OpenCode · Signed out") }
+            return "OpenCode · \((c.openCodeGateway ?? .go).title)"
+        }
         guard c.isChatGPT else { return c.baseURL }
         guard connections.isChatGPTSignedIn(c.id) else { return String(localized: "ChatGPT · Signed out") }
         return connections.chatGPTRegistration(c.id)?.email.map { "ChatGPT · \($0)" } ?? String(localized: "ChatGPT")

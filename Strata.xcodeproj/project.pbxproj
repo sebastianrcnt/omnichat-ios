@@ -66,6 +66,7 @@
 		2AC44622896ADF6BC5797AF5 /* Deadline.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE527E55D828F3A210D89AF0 /* Deadline.swift */; };
 		2ADC532CDA8DDFAAB77D40FB /* MessageTree.swift in Sources */ = {isa = PBXBuildFile; fileRef = 887031854AAB1463B8C6B465 /* MessageTree.swift */; };
 		2CC9D935A7027D3F0DD6246F /* PluginCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9DD5CE5A930F470033D1540 /* PluginCore.swift */; };
+		2D896F0E478F9E246EB56D77 /* OpenCodeConnectionEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF7C6BC6FDEC7FE07A3326B9 /* OpenCodeConnectionEditor.swift */; };
 		2F8624A7B00FA6C3A8613E99 /* StreamingMarkdownViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66B56A8CE4450D02BB8C0419 /* StreamingMarkdownViews.swift */; };
 		3006DBD25FA6EDFB749628CA /* RateLimiter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC5FEFAD7E7BF8EC9CB97FDD /* RateLimiter.swift */; };
 		306B4942F897E48C44CB3636 /* BlockScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A89BAED1B31429F736228424 /* BlockScanner.swift */; };
@@ -208,6 +209,7 @@
 		92F9857CD377FEA245047D25 /* wikipedia_summary.plugin.json in Resources */ = {isa = PBXBuildFile; fileRef = 6BAFA2451AF0DF556526593D /* wikipedia_summary.plugin.json */; };
 		93A4FFBDCE66B926A0F492BD /* MacComposerField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4844AE0B1B003F0118BD56B6 /* MacComposerField.swift */; };
 		93B3C71AE5DAFCDB0DB4B313 /* QuoteCitations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C6D63D153811320ED2060AC /* QuoteCitations.swift */; };
+		9432AC73FF8269FBFCEA0F48 /* OpenCodeConnectionEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF7C6BC6FDEC7FE07A3326B9 /* OpenCodeConnectionEditor.swift */; };
 		943D11F629DCD81865469393 /* Activity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0303DF43A59DAF489DA9A7A1 /* Activity.swift */; };
 		94911130B4B465CA37F90B1B /* Effort.swift in Sources */ = {isa = PBXBuildFile; fileRef = 648F250AFB2520ECD6FBA4E7 /* Effort.swift */; };
 		96356C4B9DC084D4279FBEEA /* IncrementalBlockParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = B72613A56D557C2C034E2812 /* IncrementalBlockParser.swift */; };
@@ -553,6 +555,7 @@
 		ED524999CBCA5CB9BAD91F93 /* Extractor.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = Extractor.js; sourceTree = "<group>"; };
 		ED7180F1E8B24CD9E6D90907 /* ChatGPTModelsAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatGPTModelsAPI.swift; sourceTree = "<group>"; };
 		EF5B920549D60E7E1258E825 /* ChatAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatAPI.swift; sourceTree = "<group>"; };
+		EF7C6BC6FDEC7FE07A3326B9 /* OpenCodeConnectionEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeConnectionEditor.swift; sourceTree = "<group>"; };
 		EFEB12E3B760901977A8D37F /* LenientEmphasis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LenientEmphasis.swift; sourceTree = "<group>"; };
 		F10BAC6EFC108A1D8E6E5B69 /* PythonViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonViews.swift; sourceTree = "<group>"; };
 		F42DD6DE488FF594429FF03E /* MessageTreeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageTreeTests.swift; sourceTree = "<group>"; };
@@ -733,6 +736,7 @@
 				81C2248B079061A57AC26B63 /* InAppBrowser.swift */,
 				FFC8B1300DC3FB01ECF19A2F /* Keyboard.swift */,
 				CACB3A31C956B07A370EE1A7 /* LicensesView.swift */,
+				EF7C6BC6FDEC7FE07A3326B9 /* OpenCodeConnectionEditor.swift */,
 				646AF29BDCBE1A29EF30D4FB /* RootView.swift */,
 				3679B0A33CF9361A48693580 /* SettingsView.swift */,
 				A9C1904FD956FD1BE23B5A04 /* SidebarView.swift */,
@@ -1325,6 +1329,7 @@
 				F7310D1B298972665A1382F4 /* OpenCodeAPI.swift in Sources */,
 				C5AF16E68829E77985F5860E /* OpenCodeAuth.swift in Sources */,
 				6206F913AFE21A8BDF60EF5E /* OpenCodeClient.swift in Sources */,
+				2D896F0E478F9E246EB56D77 /* OpenCodeConnectionEditor.swift in Sources */,
 				55C00B540341F9BABA2C88DE /* OpenCodeModels.swift in Sources */,
 				9C1C73FFF8779F2488DAA12B /* OptimisticCloser.swift in Sources */,
 				822D6D2E73A828816726A0E3 /* Platform.swift in Sources */,
@@ -1460,6 +1465,7 @@
 				C2CCBF63F3B371C804446F20 /* OpenCodeAPI.swift in Sources */,
 				9C8E55F89B44D5685FED84B7 /* OpenCodeAuth.swift in Sources */,
 				A124CFBDA7C6FBF89E36372A /* OpenCodeClient.swift in Sources */,
+				9432AC73FF8269FBFCEA0F48 /* OpenCodeConnectionEditor.swift in Sources */,
 				30D142136F21C71477241808 /* OpenCodeModels.swift in Sources */,
 				882C1245396B3E8B1248B22D /* OptimisticCloser.swift in Sources */,
 				45D19EC2918C1A7614C375DE /* Platform.swift in Sources */,
