@@ -9,6 +9,7 @@ struct OpenCodeConnectionEditor: View {
     @Environment(\.theme) private var theme
     @Environment(\.connectionStore) private var connections
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
     let connectionID: UUID
     @Binding var path: [UUID]
 
@@ -115,7 +116,11 @@ struct OpenCodeConnectionEditor: View {
             .background(theme.background.ignoresSafeArea())
             .navigationTitle(connection.name)
             .inlineNavigationTitle()
-            .onAppear(perform: reload)
+            .onAppear {
+                reload()
+                fetchIfEmpty()
+            }
+            .onChange(of: scenePhase) { _, phase in if phase == .active { fetchIfEmpty() } }
             .onDisappear { signIn?.cancel() }
             .sheet(item: Binding(get: { editingModel.map { ModelRef(id: $0) } }, set: { editingModel = $0?.id })) { ref in
                 ModelEditor(connectionID: connectionID, modelID: ref.id)
@@ -274,6 +279,13 @@ struct OpenCodeConnectionEditor: View {
         connections.upsert(c)
         fetchStatus = nil
         if signedIn { Task { await fetch() } }
+    }
+
+    /// A signed-in account with no models fetches them: the fetch right after sign-in can fail while the browser has
+    /// the app in the background.
+    private func fetchIfEmpty() {
+        guard signedIn, signIn == nil, !fetching, connection?.models.isEmpty == true else { return }
+        Task { await fetch() }
     }
 
     private func fetch() async {

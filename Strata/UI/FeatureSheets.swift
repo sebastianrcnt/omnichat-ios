@@ -68,6 +68,7 @@ struct ModelPickerSheet: View {
         .presentationDragIndicator(.visible)
         #endif
         .modelRenameAlert($renaming)
+        .task { await connections.fetchMissingAccountModels() }
     }
 
     private var groups: [ModelPickerCatalog.Group] {
@@ -77,12 +78,14 @@ struct ModelPickerSheet: View {
 
     private var root: some View {
         let groups = groups
+        // Connections with nothing to pick yet (signed out, or models not fetched): listed so they don't just vanish.
+        let unset = connections.connections.filter { c in !groups.contains { $0.connectionID == c.id } }
         return SheetScaffold(title: "Select model") {
             if groups.isEmpty {
                 GroupedSection(footer: "Add a connection in Settings, then fetch its models or add one by hand.") {
                     SettingsRow(title: "No models yet")
                 }
-            } else if groups.count == 1, let only = groups.first {
+            } else if groups.count == 1, unset.isEmpty, let only = groups.first {
                 modelList(only)
             } else {
                 let recent = ModelPickerCatalog.recent(groups: groups, recentKeys: settings.recentModels,
@@ -103,6 +106,10 @@ struct ModelPickerSheet: View {
                             query = ""
                             withAnimation(DS.Motion.snappy) { page = .provider(group.connectionID) }
                         }
+                    }
+                    ForEach(unset) { c in
+                        SettingsRow(title: "", value: String(localized: "Set up"), showsChevron: true, verbatimTitle: c.name,
+                                    action: onOpenSettings)
                     }
                 }
             }

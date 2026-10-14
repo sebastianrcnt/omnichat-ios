@@ -2,6 +2,23 @@ import Testing
 import Foundation
 @testable import Strata
 
+@MainActor
+struct UnconfiguredConnectionTests {
+    @Test func anAddedButUnsetServerIsDropped() throws {
+        let store = ConnectionStore(defaults: UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!, keys: InMemoryKeyStore())
+        let blank = Connection(name: "New connection", baseURL: "https://")
+        let keyed = Connection(name: "Keyed", baseURL: "https://")
+        let real = Connection(name: "Real", baseURL: "https://x/v1")
+        let account = Connection.openCode(name: "OpenCode")
+        for c in [blank, keyed, real, account] { store.upsert(c) }
+        try store.setAPIKey("k", for: keyed.id)
+        store.removeUnconfigured()
+        let ids = Set(store.connections.map(\.id))
+        #expect(!ids.contains(blank.id))
+        #expect(ids.isSuperset(of: [keyed.id, real.id, account.id, Connection.strataID]))
+    }
+}
+
 struct ModelPickerTests {
     private func conns() -> [Connection] {
         let a = Connection(name: "A", baseURL: "http://a/v1", models: [

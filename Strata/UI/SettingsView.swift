@@ -15,13 +15,13 @@ struct SettingsView: View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                    GroupedSection(header: "Connections", footer: "Any OpenAI-compatible endpoint, your ChatGPT plan, or your OpenCode account. API keys and sign-ins are stored in the Keychain.") {
+                    GroupedSection(header: "Connections", footer: "A server with an OpenAI-compatible API, your ChatGPT plan, or your OpenCode account. API keys and sign-ins are stored in the Keychain.") {
                         ForEach(connections.connections) { c in
                             SettingsRow(title: LocalizedStringKey(c.name), subtitle: subtitle(for: c),
                                         value: c.models.isEmpty ? nil : String(localized: "\(c.models.count) models"),
                                         showsChevron: true) { path.append(c.id) }
                         }
-                        SettingsRow(systemImage: "plus", title: "Add connection") {
+                        SettingsRow(systemImage: "plus", title: "Add OpenAI-compatible server") {
                             let new = Connection(name: String(localized: "New connection"), baseURL: "https://")
                             connections.upsert(new)
                             path.append(new.id)
@@ -37,6 +37,8 @@ struct SettingsView: View {
                             path.append(new.id)
                         }
                     }
+                    .onAppear { connections.removeUnconfigured() }
+                    .onChange(of: path) { _, now in if now.isEmpty { connections.removeUnconfigured() } }
 
                     GroupedSection(header: "Personalization", footer: "How the assistant should behave and respond: personality, tone, a name, how long answers should be. Sent with every message. A chat keeps the preferences it started with; changes apply to new chats.") {
                         TextField("", text: $settings.userPreferences,
@@ -204,7 +206,7 @@ struct SettingsView: View {
             guard connections.isOpenCodeSignedIn(c.id) else { return String(localized: "OpenCode · Signed out") }
             return "OpenCode · \((c.openCodeGateway ?? .go).title)"
         }
-        guard c.isChatGPT else { return c.baseURL }
+        guard c.isChatGPT else { return String(localized: "OpenAI-compatible · \(c.baseURL)") }
         guard connections.isChatGPTSignedIn(c.id) else { return String(localized: "ChatGPT · Signed out") }
         return connections.chatGPTRegistration(c.id)?.email.map { "ChatGPT · \($0)" } ?? String(localized: "ChatGPT")
     }

@@ -74,6 +74,17 @@ final class ConnectionStore {
         save()
     }
 
+    /// Drops OpenAI-compatible connections that were added but never set up (no address, key or models), so a tap on
+    /// "Add" that was backed out of doesn't leave a "New connection" in the list.
+    func removeUnconfigured() {
+        let empty = connections.filter { c in
+            guard c.id != Connection.strataID, c.kind == .openAICompatible, c.models.isEmpty, keys.key(for: c.id) == nil else { return false }
+            let url = c.baseURL.trimmingCharacters(in: .whitespaces).lowercased()
+            return url.isEmpty || url == "https://" || url == "http://"
+        }
+        for c in empty { delete(c.id) }
+    }
+
     /// What the UI shows for a model: the user's alias, else the id. Nil only when there is no model id.
     func displayName(connectionID: UUID?, modelID: String?) -> String? {
         guard let modelID else { return nil }
@@ -142,6 +153,15 @@ final class ConnectionStore {
     /// Every model across all connections, in connection order.
     var allModels: [(connection: Connection, model: ModelInfo)] {
         connections.flatMap { c in c.models.map { (c, $0) } }
+    }
+
+    /// Signed-in ChatGPT and OpenCode accounts that have no models yet fetch them (errors are left to the editor, which
+    /// shows them). The fetch right after a sign-in can fail while the browser has the app in the background.
+    func fetchMissingAccountModels() async {
+        let pending = connections.filter { c in
+            c.models.isEmpty && ((c.isChatGPT && isChatGPTSignedIn(c.id)) || (c.isOpenCode && isOpenCodeSignedIn(c.id)))
+        }
+        for c in pending { _ = try? await refreshModels(for: c.id) }
     }
 
     /// Fetches `/models` and merges the result, keeping user-set flags for known ids.
