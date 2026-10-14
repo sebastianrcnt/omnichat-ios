@@ -115,9 +115,11 @@ final class ChatController {
         renderStates = renderStates.filter { keep.contains($0.key) || $0.key == activeMessageID }
     }
 
-    /// The Strata gateway always needs a key; other connections may be keyless (local servers).
+    /// The Strata gateway always needs a key, and a ChatGPT connection a sign-in; other connections may be keyless
+    /// (local servers).
     static func needsKey(_ endpoint: Endpoint, connections: ConnectionStore) -> Bool {
-        (endpoint.apiKey ?? "").isEmpty && connections.connection(endpoint.connectionID)?.isStrata == true
+        if endpoint.kind == .chatGPT { return !connections.isChatGPTSignedIn(endpoint.connectionID) }
+        return (endpoint.apiKey ?? "").isEmpty && connections.connection(endpoint.connectionID)?.isStrata == true
     }
 
     func isStreaming(_ conversation: Conversation) -> Bool {
@@ -352,7 +354,9 @@ final class ChatController {
             return
         }
         if Self.needsKey(endpoint, connections: connections) {
-            finish(assistant, conversation: conversation, context: context, error: APIError.missingAPIKey(connection: endpoint.connectionName))
+            finish(assistant, conversation: conversation, context: context,
+                   error: endpoint.kind == .chatGPT ? APIError.chatGPTSignInRequired(connection: endpoint.connectionName)
+                                                    : APIError.missingAPIKey(connection: endpoint.connectionName))
             return
         }
         activeMessage = assistant
@@ -554,7 +558,7 @@ final class ChatController {
         let streamer = streamer
         let ring = requestRing
         let conversationID = conversation.id
-        let url = endpoint.baseURL.appendingPathComponent("chat/completions").absoluteString
+        let url = endpoint.requestURL.absoluteString
         let meter = ContextMeter.estimate(messages)
         let usable = conversation.lastUsage.flatMap { conversation.lastUsageMessageID == leaf.id ? $0 : nil }
         task = Task { @MainActor [weak self] in

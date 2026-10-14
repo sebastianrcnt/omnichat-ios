@@ -10,11 +10,15 @@ final class ConnectionStore {
     let keys: any KeyStoring
     private let storageKey = "connections.v1"
     private let session: URLSession
+    /// Sign-in and tokens of ChatGPT connections.
+    let chatGPT: ChatGPTAuth
 
-    init(defaults: UserDefaults = .standard, keys: any KeyStoring = KeychainKeyStore(), session: URLSession = .shared) {
+    init(defaults: UserDefaults = .standard, keys: any KeyStoring = KeychainKeyStore(), session: URLSession = .shared,
+         chatGPT: ChatGPTAuth = .shared) {
         self.defaults = defaults
         self.keys = keys
         self.session = session
+        self.chatGPT = chatGPT
         load()
     }
 
@@ -62,6 +66,7 @@ final class ConnectionStore {
         guard id != Connection.strataID else { return }
         connections.removeAll { $0.id == id }
         try? keys.setKey(nil, for: id)
+        chatGPT.store.removeAll(id)
         save()
     }
 
@@ -92,15 +97,30 @@ final class ConnectionStore {
     func setAPIKey(_ key: String?, for id: UUID) throws { try keys.setKey(key, for: id) }
 
     func endpoint(connectionID: UUID?, modelID: String?) -> Endpoint? {
-        guard let conn = connection(connectionID), let modelID,
-              let base = conn.normalizedBaseURL else { return nil }
+        guard let conn = connection(connectionID), let modelID else { return nil }
         let model = conn.models.first { $0.id == modelID } ?? conn.defaultModel(id: modelID, fetchedContextLength: nil)
+        if conn.isChatGPT {
+            // The token comes from `ChatGPTAuth` per request (it refreshes); custom headers and resuming don't apply.
+            return Endpoint(connectionID: conn.id, connectionName: conn.name, baseURL: URL(string: ChatGPTOAuth.resource)!,
+                            apiKey: nil, headers: [:], model: model, supportsResumable: false, kind: .chatGPT)
+        }
+        guard let base = conn.normalizedBaseURL else { return nil }
         var headers: [String: String] = [:]
         for h in conn.parsedHeaders { headers[h.name] = h.value }
         return Endpoint(connectionID: conn.id, connectionName: conn.name, baseURL: base,
                         apiKey: keys.key(for: conn.id), headers: headers, model: model,
                         supportsResumable: conn.supportsResumable)
     }
+
+    // MARK: ChatGPT
+
+    func isChatGPTSignedIn(_ id: UUID) -> Bool { chatGPT.store.hasTokens(id) }
+
+    /// The account a ChatGPT connection is registered to (kept after sign-out).
+    func chatGPTRegistration(_ id: UUID) -> ChatGPTRegistration? { chatGPT.store.registration(id) }
+
+    /// Whether the signed-in account granted plan usage (nil when signed out).
+    func chatGPTAllowsPlanUsage(_ id: UUID) -> Bool? { chatGPT.store.tokens(id)?.allowsPlanUsage }
 
     /// Every model across all connections, in connection order.
     var allModels: [(connection: Connection, model: ModelInfo)] {
@@ -110,6 +130,7 @@ final class ConnectionStore {
     /// Fetches `/models` and merges the result, keeping user-set flags for known ids.
     @discardableResult
     func refreshModels(for id: UUID) async throws -> Int {
+        if connection(id)?.isChatGPT == true { return try await refreshChatGPTModels(for: id) }
         guard let conn = connection(id), let base = conn.normalizedBaseURL else { throw APIError.invalidBaseURL }
         var headers: [String: String] = [:]
         for h in conn.parsedHeaders { headers[h.name] = h.value }
@@ -131,6 +152,23 @@ final class ConnectionStore {
         }
         merged.append(contentsOf: manual)
         updated.models = merged
+        upsert(updated)
+        return entries.count
+    }
+
+    /// The signed-in account's catalog (`GET /v1/models`, `visibility: "list"` entries, in the server's order),
+    /// merged like `/models` of other connections: user-set flags stay, models that dropped out go.
+    private func refreshChatGPTModels(for id: UUID) async throws -> Int {
+        let entries = try await ChatGPTModelsAPI.fetch(connectionID: id, auth: chatGPT, session: session)
+        guard var updated = connection(id) else { return 0 }
+        updated.models = entries.map { entry in
+            var model = updated.models.first { $0.id == entry.slug }
+                ?? updated.defaultModel(id: entry.slug, fetchedContextLength: entry.contextLength, fetchedImages: entry.supportsImages)
+            model.fetchedDisplayName = entry.displayName
+            model.fetchedContextLength = entry.contextLength ?? model.fetchedContextLength
+            if !model.supportsImagesUserSet, let images = entry.supportsImages { model.supportsImages = images }
+            return model
+        }
         upsert(updated)
         return entries.count
     }
