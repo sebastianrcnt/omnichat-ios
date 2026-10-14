@@ -12,13 +12,16 @@ final class ConnectionStore {
     private let session: URLSession
     /// Sign-in and tokens of ChatGPT connections.
     let chatGPT: ChatGPTAuth
+    /// Sign-in, tokens and API keys of OpenCode connections.
+    let openCode: OpenCodeAuth
 
     init(defaults: UserDefaults = .standard, keys: any KeyStoring = KeychainKeyStore(), session: URLSession = .shared,
-         chatGPT: ChatGPTAuth = .shared) {
+         chatGPT: ChatGPTAuth = .shared, openCode: OpenCodeAuth = .shared) {
         self.defaults = defaults
         self.keys = keys
         self.session = session
         self.chatGPT = chatGPT
+        self.openCode = openCode
         load()
     }
 
@@ -67,6 +70,7 @@ final class ConnectionStore {
         connections.removeAll { $0.id == id }
         try? keys.setKey(nil, for: id)
         chatGPT.store.removeAll(id)
+        openCode.store.removeAll(id)
         save()
     }
 
@@ -96,9 +100,18 @@ final class ConnectionStore {
 
     func setAPIKey(_ key: String?, for id: UUID) throws { try keys.setKey(key, for: id) }
 
-    func endpoint(connectionID: UUID?, modelID: String?) -> Endpoint? {
+    /// - Parameter sessionID: the conversation the requests belong to; OpenCode routes and caches by it.
+    func endpoint(connectionID: UUID?, modelID: String?, sessionID: String? = nil) -> Endpoint? {
         guard let conn = connection(connectionID), let modelID else { return nil }
         let model = conn.models.first { $0.id == modelID } ?? conn.defaultModel(id: modelID, fetchedContextLength: nil)
+        if conn.isOpenCode {
+            // The token comes from `OpenCodeAuth` per request. Go asks for a named client and a stable session id.
+            let gateway = conn.openCodeGateway ?? .go
+            let headers = ["User-Agent": OpenCodeAPI.userAgent, "x-opencode-client": OpenCodeAPI.clientName,
+                           "x-opencode-session": sessionID ?? conn.id.uuidString]
+            return Endpoint(connectionID: conn.id, connectionName: conn.name, baseURL: gateway.baseURL,
+                            apiKey: nil, headers: headers, model: model, supportsResumable: false, kind: .openCode)
+        }
         if conn.isChatGPT {
             // The token comes from `ChatGPTAuth` per request (it refreshes); custom headers and resuming don't apply.
             return Endpoint(connectionID: conn.id, connectionName: conn.name, baseURL: URL(string: ChatGPTOAuth.resource)!,
@@ -122,6 +135,10 @@ final class ConnectionStore {
     /// Whether the signed-in account granted plan usage (nil when signed out).
     func chatGPTAllowsPlanUsage(_ id: UUID) -> Bool? { chatGPT.store.tokens(id)?.allowsPlanUsage }
 
+    // MARK: OpenCode
+
+    func isOpenCodeSignedIn(_ id: UUID) -> Bool { openCode.store.hasCredential(id) }
+
     /// Every model across all connections, in connection order.
     var allModels: [(connection: Connection, model: ModelInfo)] {
         connections.flatMap { c in c.models.map { (c, $0) } }
@@ -131,6 +148,7 @@ final class ConnectionStore {
     @discardableResult
     func refreshModels(for id: UUID) async throws -> Int {
         if connection(id)?.isChatGPT == true { return try await refreshChatGPTModels(for: id) }
+        if connection(id)?.isOpenCode == true { return try await refreshOpenCodeModels(for: id).count }
         guard let conn = connection(id), let base = conn.normalizedBaseURL else { throw APIError.invalidBaseURL }
         var headers: [String: String] = [:]
         for h in conn.parsedHeaders { headers[h.name] = h.value }
@@ -171,5 +189,27 @@ final class ConnectionStore {
         }
         upsert(updated)
         return entries.count
+    }
+
+    /// The gateway's models with their catalog metadata, merged like ChatGPT's: user-set flags stay, models that dropped
+    /// out go. Models of an API Strata can't talk yet are left out and counted.
+    @discardableResult
+    func refreshOpenCodeModels(for id: UUID) async throws -> (count: Int, unsupported: Int) {
+        guard let gateway = connection(id)?.openCodeGateway else { return (0, 0) }
+        let fetched = try await OpenCodeModelsAPI.fetch(connectionID: id, gateway: gateway, auth: openCode, session: session)
+        guard var updated = connection(id), updated.openCodeGateway == gateway else { return (0, 0) }
+        updated.models = fetched.supported.map { entry in
+            var model = updated.models.first { $0.id == entry.id }
+                ?? ModelInfo(id: entry.id, supportsImages: entry.supportsImages ?? false,
+                             supportsEffort: !entry.info.efforts.isEmpty, supportsTools: entry.supportsTools ?? true)
+            model.fetchedDisplayName = entry.name
+            model.fetchedContextLength = entry.contextLength ?? model.fetchedContextLength
+            model.maxOutputTokens = entry.maxOutputTokens ?? model.maxOutputTokens
+            if !model.supportsImagesUserSet, let images = entry.supportsImages { model.supportsImages = images }
+            model.openCode = entry.info
+            return model
+        }
+        upsert(updated)
+        return (fetched.supported.count, fetched.unsupported.count)
     }
 }

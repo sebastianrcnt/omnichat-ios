@@ -115,11 +115,21 @@ final class ChatController {
         renderStates = renderStates.filter { keep.contains($0.key) || $0.key == activeMessageID }
     }
 
-    /// The Strata gateway always needs a key, and a ChatGPT connection a sign-in; other connections may be keyless
-    /// (local servers).
+    /// The Strata gateway always needs a key, and a ChatGPT or OpenCode connection a sign-in (or, for OpenCode, a key);
+    /// other connections may be keyless (local servers).
     static func needsKey(_ endpoint: Endpoint, connections: ConnectionStore) -> Bool {
         if endpoint.kind == .chatGPT { return !connections.isChatGPTSignedIn(endpoint.connectionID) }
+        if endpoint.kind == .openCode { return !connections.isOpenCodeSignedIn(endpoint.connectionID) }
         return (endpoint.apiKey ?? "").isEmpty && connections.connection(endpoint.connectionID)?.isStrata == true
+    }
+
+    /// What the chat says when `needsKey`.
+    static func credentialError(_ endpoint: Endpoint) -> APIError {
+        switch endpoint.kind {
+        case .chatGPT: .chatGPTSignInRequired(connection: endpoint.connectionName)
+        case .openCode: .openCodeSignInRequired(connection: endpoint.connectionName)
+        case .openAICompatible: .missingAPIKey(connection: endpoint.connectionName)
+        }
     }
 
     func isStreaming(_ conversation: Conversation) -> Bool {
@@ -182,7 +192,8 @@ final class ChatController {
     /// whether or not automatic titles are on in Settings.
     func autoRename(conversation: Conversation, context: ModelContext, force: Bool) {
         guard !titlingConversationIDs.contains(conversation.id),
-              let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID),
+              let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID,
+                                                  sessionID: conversation.id.uuidString),
               !Self.needsKey(endpoint, connections: connections),
               let prompt = AutoRename.prompt(lines: conversation.namingLines) else { return }
         let streamer = streamer
@@ -285,7 +296,8 @@ final class ChatController {
         let messages = Self.pendingMessages(context: context)
         for message in messages where message.cancelPending {
             if let conversation = message.conversation,
-               let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID) {
+               let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID,
+                                                   sessionID: conversation.id.uuidString) {
                 cancelOnServer(message, endpoint: endpoint, context: context)
             }
         }
@@ -349,14 +361,14 @@ final class ChatController {
         liveSources = conversation.sources
 
         let path = conversation.path(to: assistant.parentID).filter { $0.id != assistant.id }
-        guard let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID) else {
+        guard let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID,
+                                                  sessionID: conversation.id.uuidString) else {
             finish(assistant, conversation: conversation, context: context, error: APIError.missingModel)
             return
         }
         if Self.needsKey(endpoint, connections: connections) {
             finish(assistant, conversation: conversation, context: context,
-                   error: endpoint.kind == .chatGPT ? APIError.chatGPTSignInRequired(connection: endpoint.connectionName)
-                                                    : APIError.missingAPIKey(connection: endpoint.connectionName))
+                   error: Self.credentialError(endpoint))
             return
         }
         activeMessage = assistant
@@ -543,7 +555,8 @@ final class ChatController {
         conversation.ensureTree()
         let path = conversation.activePath
         guard let leaf = path.last,
-              let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID),
+              let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID,
+                                                  sessionID: conversation.id.uuidString),
               !Self.needsKey(endpoint, connections: connections) else { return }
         let messages = apiHistory(path: path, conversation: conversation, endpoint: endpoint)
         let window = contextWindow(for: endpoint)
@@ -588,7 +601,8 @@ final class ChatController {
     /// The Context sheet's split of `total` tokens by category, estimated from what the next request would send (the
     /// same history and tools as a turn). Display only: nothing is sent or stored. Nil when the chat has no endpoint.
     func contextSplit(conversation: Conversation, total: Int) -> [Int]? {
-        guard let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID)
+        guard let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID,
+                                                  sessionID: conversation.id.uuidString)
         else { return nil }
         let messages = apiHistory(path: conversation.activePath, conversation: conversation, endpoint: endpoint, freeze: false)
         return ContextEstimator.split(messages: messages, tools: endpoint.model.supportsTools ? requestTools(endpoint) : nil,
