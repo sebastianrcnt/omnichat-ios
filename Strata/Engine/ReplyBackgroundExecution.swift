@@ -119,7 +119,8 @@ final class ReplyBackgroundExecution {
         #if DEBUG
         if DebugHooks.value("StrataNoNotifications") != nil { return } // keeps the permission prompt out of screenshots
         #endif
-        guard enabled, AppLifecycle.isActive else { return }
+        // Unit tests send through the controller in a host app: no permission sheet there.
+        guard enabled, AppLifecycle.isActive, ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
         Task { @MainActor in
             let center = UNUserNotificationCenter.current()
             guard await center.notificationSettings().authorizationStatus == .notDetermined else { return }
