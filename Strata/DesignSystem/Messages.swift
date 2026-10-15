@@ -410,9 +410,12 @@ struct AssistantMessage: View {
         let thoughts = thoughtLines(parts)
         let items = items(parts)
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            ForEach(items) { item in
-                itemView(item, feeds: feeds, notes: notes, thoughts: thoughts)
-                    .transition(transition(item))
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                    itemView(item, feeds: feeds, notes: notes, thoughts: thoughts)
+                        .padding(.top, MessageLayout.gap(above: item, after: index > 0 ? items[index - 1] : nil))
+                        .transition(transition(item))
+                }
             }
             .animation(reduceMotion ? nil : DS.Motion.enter, value: items)
             if content.stopped && !content.cutForEarlyAnswer {

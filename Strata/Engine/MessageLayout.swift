@@ -33,6 +33,18 @@ enum MessageLayout {
         }
     }
 
+    /// Space above `item`. A round's thought, note and feed sit close together; after a feed the next round (or the
+    /// answer) starts a wider gap, so rounds read as steps. The live line takes the gap the finished line will have, so
+    /// it doesn't move when it finishes.
+    static func gap(above item: Item, after previous: Item?) -> Double {
+        guard let previous else { return 0 }
+        switch previous {
+        case .feed: return 24
+        case .thought, .reasoning, .working: return item == .text ? 16 : 12
+        case .note, .text: return 12
+        }
+    }
+
     /// The work before the answer, in stream order.
     enum Part: Equatable {
         /// Calls of consecutive rounds, shown as one feed.
@@ -68,18 +80,28 @@ enum MessageLayout {
         return out
     }
 
-    /// The last line of some reasoning, as plain text for a one-line label: markdown marks (headings, list bullets,
-    /// emphasis, code ticks) removed. Nil when there is nothing to show.
+    /// The last sentence of some reasoning, as plain text: the sentence the live line ended on, so a round's line
+    /// keeps its words when it finishes. Falls back to the last line with words in it. Nil when there is nothing to show.
     static func lastLine(of text: String) -> String? {
+        if let sentence = ThoughtSentences.latest(in: text) {
+            let line = plain(sentence.text)
+            if line.contains(where: { $0.isLetter || $0.isNumber }) { return line }
+        }
         for raw in text.split(whereSeparator: \.isNewline).reversed() {
-            var line = raw.trimmingCharacters(in: .whitespaces)
-            while let first = line.first, "#>".contains(first) { line.removeFirst(); line = line.trimmingCharacters(in: .whitespaces) }
-            for bullet in ["- ", "* ", "+ "] where line.hasPrefix(bullet) { line.removeFirst(2) }
-            for mark in ["**", "__", "`"] { line = line.replacingOccurrences(of: mark, with: "") }
-            line = line.trimmingCharacters(in: .whitespaces)
+            let line = plain(String(raw))
             if line.contains(where: { $0.isLetter || $0.isNumber }) { return line }
         }
         return nil
+    }
+
+    /// A thought as the line shows it, live or finished: markdown marks (headings, list bullets, emphasis, code ticks)
+    /// removed, so both draw the same characters at the same width.
+    static func plain(_ text: String) -> String {
+        var line = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        while let first = line.first, "#>".contains(first) { line.removeFirst(); line = line.trimmingCharacters(in: .whitespaces) }
+        for bullet in ["- ", "* ", "+ "] where line.hasPrefix(bullet) { line.removeFirst(2) }
+        for mark in ["**", "__", "`"] { line = line.replacingOccurrences(of: mark, with: "") }
+        return line.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Everything the model wrote to the person in this message: the notes between rounds, then the answer.

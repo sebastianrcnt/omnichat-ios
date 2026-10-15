@@ -774,7 +774,8 @@ struct ReasoningLinePreview: View {
     var color: Color?
     /// Shown until the first sentence arrives (otherwise the slot stays blank).
     var placeholder: String?
-    /// Lines the sentence may wrap to; the slot keeps that height so the row doesn't jump.
+    /// Lines the sentence may wrap to. The slot is as tall as the sentence: the live line is the last thing in a
+    /// message, so its height moves nothing above it, and a finished line (sized the same way) keeps that height.
     var lines = 1
     /// Show finished English sentences in Korean (`ThoughtTranslator`).
     var translate = false
@@ -796,13 +797,15 @@ struct ReasoningLinePreview: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            Text(verbatim: String(repeating: " \n", count: max(0, lines - 1)) + " ").font(font).lineLimit(lines).hidden() // reserves the lines
+            Text(" ").font(font).lineLimit(1).hidden() // reserves one line
             if let shown {
-                Text(InlineMarkdownText.attributed(displayed(shown), isOpen: true))
+                // Plain, as the finished line shows it (`MessageLayout.plain`), so the words keep their width.
+                Text(verbatim: MessageLayout.plain(displayed(shown)))
                     .font(font)
                     .foregroundStyle(color ?? theme.textTertiary)
                     .lineLimit(lines)
                     .truncationMode(.tail)
+                    .fixedSize(horizontal: false, vertical: true)
                     .id(shown.start)
                     .transition(.opacity)
             } else if let placeholder {
@@ -834,8 +837,10 @@ struct ReasoningLinePreview: View {
         return sentence.text
     }
 
-    private func noteFinished(_ text: String) {
-        guard translate, finished.last != text else { return }
+    private func noteFinished(_ sentence: String) {
+        // Plain, so a finished round's line (`MessageLayout.lastLine`) finds the same translation.
+        let text = MessageLayout.plain(sentence)
+        guard translate, !text.isEmpty, finished.last != text else { return }
         finished.append(text)
         if finished.count > 4 { finished.removeFirst(finished.count - 4) }
         ThoughtTranslator.shared.request(text)

@@ -181,6 +181,15 @@ struct MessageLayoutControllerTests {
 }
 
 struct MessagePartsTests {
+    @Test func roundsAreSeparatedWiderThanTheirParts() {
+        #expect(MessageLayout.gap(above: .reasoning(0), after: nil) == 0)
+        #expect(MessageLayout.gap(above: .note(1), after: .reasoning(0)) == 12)
+        #expect(MessageLayout.gap(above: .feed(0), after: .note(1)) == 12)
+        #expect(MessageLayout.gap(above: .reasoning(3), after: .feed(0)) == 24)
+        #expect(MessageLayout.gap(above: .working, after: .feed(0)) == MessageLayout.gap(above: .reasoning(3), after: .feed(0)))
+        #expect(MessageLayout.gap(above: .text, after: .reasoning(3)) == 16)
+    }
+
     @Test func aThoughtLineIsItsLastLineWithoutMarkdown() {
         #expect(MessageLayout.lastLine(of: "**Planning**\n\nFirst I search.\nThen I read `the page`.\n\n") == "Then I read the page.")
         #expect(MessageLayout.lastLine(of: "## Checking sources\n- ") == "Checking sources")

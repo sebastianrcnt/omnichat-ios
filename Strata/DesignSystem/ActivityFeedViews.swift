@@ -24,24 +24,31 @@ struct ThoughtLine: View {
 
     var body: some View {
         Button(action: action) {
+            // Live and done share one geometry (the mark's slot, the text's width, the chevron's room), so when the
+            // live line becomes a round's line its words stay where they were.
             HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.sm) {
+                ZStack {
+                    Text(verbatim: "✦").font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
+                        .opacity(isWorking ? 0 : 1)
+                    if isWorking { PulsingDot() }
+                }
+                .frame(width: 12)
                 if isWorking {
-                    PulsingDot()
-                        .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
                     // A new preview per state: after a tool, the slot starts from the placeholder, not the old thought.
                     ReasoningLinePreview(model: reasoning, font: DS.Typography.thought, color: theme.textSecondary,
                                          placeholder: placeholder, lines: settings.thinkingLines,
                                          translate: settings.translateThinking)
                         .id(reasoning == nil ? "placeholder" : "reasoning")
+                        .fixedSize(horizontal: false, vertical: true)
                 } else {
-                    Text(verbatim: "✦").font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
                     Text(doneTitle).font(DS.Typography.thought).foregroundStyle(theme.textSecondary)
                         .lineLimit(settings.thinkingLines).truncationMode(.tail)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: DS.IconSize.sm - 3, weight: .semibold)).foregroundStyle(theme.textTertiary)
                 }
+                Image(systemName: "chevron.right")
+                    .font(.system(size: DS.IconSize.sm - 3, weight: .semibold)).foregroundStyle(theme.textTertiary)
+                    .opacity(isWorking ? 0 : 1)
             }
             .frame(minHeight: 24)
             .contentShape(Rectangle())
