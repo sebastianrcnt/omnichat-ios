@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 // The feed and Timeline views of `run_python` and `view_image`: the code (folded when long), what it printed, and the
 // figures it saved; a figure opens full size on a tap.
@@ -124,44 +127,93 @@ struct UnplacedFigures: View {
     }
 }
 
-/// One figure, full size: fits the sheet, and zooms on a Mac/iPad-style pinch or a double tap.
+/// One figure, full size: fits the sheet and zooms with a pinch. Save (to Photos on the phone, a file on a Mac) and Share
+/// sit in the header.
 struct ToolImageViewer: View {
     @Environment(\.theme) private var theme
+    @Environment(\.dismiss) private var dismiss
     let image: ToolImage
+    var store: ToolImageStore = .shared
     @State private var loaded: PlatformImage?
-    @State private var zoomed = false
+    @State private var saved = false
+    @State private var saveError: String?
+
+    private var fileURL: URL { store.root.appendingPathComponent(image.file) }
 
     var body: some View {
-        SheetScaffold(title: LocalizedStringKey(image.id)) {
-            Group {
-                if let loaded {
-                    let picture = Image(platformImage: loaded).resizable().interpolation(.high)
-                    let size = pixelSize(loaded)
-                    if zoomed {
-                        ScrollView([.horizontal, .vertical]) {
-                            picture.frame(width: size.width, height: size.height)
+        VStack(spacing: 0) {
+            ZStack {
+                Text(verbatim: image.id).font(DS.Typography.title).foregroundStyle(theme.textPrimary)
+                HStack(spacing: DS.Spacing.sm) {
+                    GlassIconButton(systemName: "xmark", label: "Close") { dismiss() }
+                    Spacer()
+                    if loaded != nil {
+                        GlassIconButton(systemName: saved ? "checkmark" : "square.and.arrow.down",
+                                        label: saved ? "Saved" : "Save") { Task { await save() } }
+                        ShareLink(item: fileURL) {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: DS.IconSize.headerIcon, weight: .medium))
+                                .frame(width: DS.IconSize.controlDiameter, height: DS.IconSize.controlDiameter)
+                                .glassEffect(.regular.interactive(), in: Circle())
                         }
-                    } else {
-                        picture.scaledToFit().frame(maxWidth: .infinity)
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(Text("Share"))
                     }
-                } else {
-                    ProgressView().frame(maxWidth: .infinity, minHeight: 200)
                 }
             }
-            .background(Color.white, in: RoundedRectangle(cornerRadius: DS.Radius.sm))
-            .onTapGesture(count: 2) { zoomed.toggle() }
-            if let loaded {
-                let size = pixelSize(loaded)
-                Text(verbatim: "\(Int(size.width)) × \(Int(size.height))")
-                    .font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
+            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.top, DS.Spacing.lg)
+            .padding(.bottom, DS.Spacing.md)
+
+            Group {
+                if let loaded {
+                    ZoomableImage(image: loaded)
+                } else {
+                    ProgressView()
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Group {
+                if let saveError {
+                    Text(saveError).foregroundStyle(theme.destructive)
+                } else if let loaded {
+                    let size = pixelSize(loaded)
+                    Text(verbatim: "\(Int(size.width)) × \(Int(size.height))").foregroundStyle(theme.textTertiary)
+                }
+            }
+            .font(DS.Typography.uiCaption)
+            .padding(.vertical, DS.Spacing.sm)
         }
+        .background(theme.background.ignoresSafeArea())
+        .presentationBackground(theme.background)
         .presentationDetents([.large])
-        .task(id: image.file) { loaded = await ToolImageCache.image(for: image) }
+        #if os(macOS)
+        .frame(minWidth: 520, idealWidth: 760, minHeight: 440, idealHeight: 620)
+        .background { Button("Close") { dismiss() }.keyboardShortcut(.cancelAction).opacity(0).accessibilityHidden(true) }
+        #endif
+        .task(id: image.file) { loaded = await ToolImageCache.image(for: image, store: store) }
     }
 
-    /// The recorded size, else the decoded image's: a figure placed in an answer is opened by id, before its size is known
-    /// (zooming to a 0×0 frame made it vanish).
+    private func save() async {
+        saveError = nil
+        do {
+            #if canImport(UIKit)
+            try await PhotoLibrarySaver.save(fileURL: fileURL)
+            #else
+            let panel = NSSavePanel()
+            panel.nameFieldStringValue = image.id + "." + (fileURL.pathExtension.isEmpty ? "png" : fileURL.pathExtension)
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+            if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
+            try FileManager.default.copyItem(at: fileURL, to: url)
+            #endif
+            saved = true
+        } catch {
+            saveError = error.localizedDescription
+        }
+    }
+
+    /// The recorded size, else the decoded image's: a figure placed in an answer is opened by id, before its size is known.
     private func pixelSize(_ loaded: PlatformImage) -> CGSize {
         if image.width > 0 && image.height > 0 { return CGSize(width: image.width, height: image.height) }
         #if canImport(UIKit)

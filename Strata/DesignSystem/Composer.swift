@@ -201,6 +201,8 @@ struct ComposerBar<Accessory: View>: View {
     @State private var dictation = DictationController(engine: SpeechDictationEngine())
     /// Dictation started with the keyboard up: it comes back afterwards.
     @State private var refocusAfterDictation = false
+    /// When the bar last changed shape. Controls move then, so a touch meant for another one can land on the microphone.
+    @State private var reshapedAt = Date.distantPast
 
     /// Two rows (text, then controls) rather than the one-line pill.
     static func isExpanded(focused: Bool, text: String, hasAttachments: Bool, isEditing: Bool) -> Bool {
@@ -219,7 +221,9 @@ struct ComposerBar<Accessory: View>: View {
 
     var body: some View {
         let expanded = expanded
-        GlassEffectContainer(spacing: DS.Spacing.md) {
+        // Spacing under the gap between controls: neighboring glass buttons stay separate shapes. Merged, the effort
+        // gauge and the microphone were one interactive glass, and pressing the gauge could start dictation.
+        GlassEffectContainer(spacing: DS.Spacing.xs) {
             VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                 if let onCancelEdit {
                     HStack(spacing: DS.Spacing.sm) {
@@ -299,6 +303,7 @@ struct ComposerBar<Accessory: View>: View {
         .padding(.bottom, DS.Spacing.xs)
         .animation(DS.Motion.spring, value: expanded)
         .animation(DS.Motion.snappy, value: dictation.phase)
+        .onChange(of: expanded) { reshapedAt = .now }
         .onChange(of: scenePhase) { _, phase in
             // Going to the background stops the microphone; what was heard so far is kept.
             if phase == .background, dictation.isActive { insert(dictation.stopKeepingText()) }
@@ -404,6 +409,7 @@ struct ComposerBar<Accessory: View>: View {
     }
 
     private func startDictation(expanded: Bool) {
+        guard Date.now.timeIntervalSince(reshapedAt) > 0.6 else { return }
         refocusAfterDictation = expanded && focused
         focused = false
         dictation.start(expanded: expanded)

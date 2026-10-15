@@ -189,6 +189,7 @@
 		83FEBC389F72320E4C3EF6C9 /* URLGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F060271B290FC6006ED6EB6 /* URLGuard.swift */; };
 		84B678354AAF04E0576A6A71 /* DictationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A067BCA15C54BCD4EA4897E6 /* DictationController.swift */; };
 		8558909ED2246B974759897E /* SyntaxHighlighter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D35D3DE95E22BA2A824C1C6 /* SyntaxHighlighter.swift */; };
+		85E14A9155990CB360D78B23 /* ZoomableImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0CB73D9E008A6C0380E94DD /* ZoomableImage.swift */; };
 		86F6474AFDA8AEDB536796EC /* MessageLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2787E35474BAA48D4652C8AE /* MessageLayout.swift */; };
 		87B52776AE9655C0E7D9ADAD /* TextSizeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B13CAD466BE4E5D1157F58C /* TextSizeTests.swift */; };
 		882C1245396B3E8B1248B22D /* OptimisticCloser.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC6552AF2BEE1F09D11AB234 /* OptimisticCloser.swift */; };
@@ -244,6 +245,7 @@
 		AB23EA270DBCD78084F9D04A /* ResponsesAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 003339B041816ADFE18E63EA /* ResponsesAPI.swift */; };
 		AB4AF8223D57CF7C9199BC92 /* ChatGPTOAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDCADCD21B35ACD8FD77D776 /* ChatGPTOAuth.swift */; };
 		ABE061F344AB5156B62B28D2 /* ChatGPTOAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDCADCD21B35ACD8FD77D776 /* ChatGPTOAuth.swift */; };
+		AC2FCFC433C73615F1F82704 /* ZoomableImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0CB73D9E008A6C0380E94DD /* ZoomableImage.swift */; };
 		AC5B9BB1ECC121E76601798C /* PythonIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A8F2001AC39567BD8A1D60D /* PythonIntegrationTests.swift */; };
 		ACA454DF837E63C459F8B464 /* wikipedia_summary.plugin.js in Resources */ = {isa = PBXBuildFile; fileRef = D9A60A138EBA6EF67BAF0B4A /* wikipedia_summary.plugin.js */; };
 		ACC1F1202CF5DEBC51C2D4AD /* DebugHooks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62C6E50D199A95EB9EB282FD /* DebugHooks.swift */; };
@@ -505,6 +507,7 @@
 		9EE4A2625AB1A49A66B055A5 /* OpenCodeAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeAuth.swift; sourceTree = "<group>"; };
 		9F060271B290FC6006ED6EB6 /* URLGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLGuard.swift; sourceTree = "<group>"; };
 		A067BCA15C54BCD4EA4897E6 /* DictationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationController.swift; sourceTree = "<group>"; };
+		A0CB73D9E008A6C0380E94DD /* ZoomableImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomableImage.swift; sourceTree = "<group>"; };
 		A56AE75878AC38E54E367EF0 /* TimelineMotionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineMotionTests.swift; sourceTree = "<group>"; };
 		A5BF573BD32EBB71EEDC79EF /* TurnRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnRunner.swift; sourceTree = "<group>"; };
 		A7FE7CF4DF4B965D2A9B7043 /* ContextGridViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextGridViews.swift; sourceTree = "<group>"; };
@@ -1009,6 +1012,7 @@
 				748782FF3501ED3A1104EC28 /* SyntaxText.swift */,
 				036EC236AF2525AF94B49388 /* TitlingText.swift */,
 				76F833CD45E5B92CAEB723F3 /* Tokens.swift */,
+				A0CB73D9E008A6C0380E94DD /* ZoomableImage.swift */,
 			);
 			path = DesignSystem;
 			sourceTree = "<group>";
@@ -1411,6 +1415,7 @@
 				1A03DCDC9B1DD1E82D321AD3 /* URLGuard.swift in Sources */,
 				3D89D1AEBCA37EAC63D8D103 /* WebTools.swift in Sources */,
 				26665DB9BD22C0797880B575 /* WebViewPool.swift in Sources */,
+				85E14A9155990CB360D78B23 /* ZoomableImage.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1550,6 +1555,7 @@
 				83FEBC389F72320E4C3EF6C9 /* URLGuard.swift in Sources */,
 				F867EB5CAFCD440328CC269F /* WebTools.swift in Sources */,
 				9A487B56B73188F2E14A0DD8 /* WebViewPool.swift in Sources */,
+				AC2FCFC433C73615F1F82704 /* ZoomableImage.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1618,6 +1624,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Strata;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Strata uses the camera to attach photos to your messages.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Strata uses the microphone when you dictate a message.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Strata saves figures you choose to your photo library.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Strata reads photos you choose to attach to your messages.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Strata turns your dictation into text on this device.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -1672,6 +1679,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Strata;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Strata uses the camera to attach photos to your messages.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Strata uses the microphone when you dictate a message.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Strata saves figures you choose to your photo library.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Strata reads photos you choose to attach to your messages.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Strata turns your dictation into text on this device.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

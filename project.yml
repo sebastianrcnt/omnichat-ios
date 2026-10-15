@@ -47,6 +47,7 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_NSCameraUsageDescription: Strata uses the camera to attach photos to your messages.
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: Strata reads photos you choose to attach to your messages.
+        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: Strata saves figures you choose to your photo library.
         INFOPLIST_KEY_NSMicrophoneUsageDescription: Strata uses the microphone when you dictate a message.
         INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: Strata turns your dictation into text on this device.
         INFOPLIST_KEY_UIUserInterfaceStyle: Automatic
