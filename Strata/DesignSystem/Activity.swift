@@ -341,11 +341,13 @@ struct FlowLayout: Layout {
 
 enum TimelineItem: Identifiable, Equatable {
     case thinking(id: String, text: String)
+    /// What the model wrote to the person before a round's calls.
+    case note(id: String, text: String)
     case activity(ActivityEntry)
 
     var id: String {
         switch self {
-        case .thinking(let id, _): id
+        case .thinking(let id, _), .note(let id, _): id
         case .activity(let e): e.id
         }
     }
@@ -358,8 +360,10 @@ enum TimelineItem: Identifiable, Equatable {
         func emitChunks(upTo limit: Int) {
             while p < min(limit, chunks.count) { items.append(.thinking(id: "t\(p)", text: chunks[p])); p += 1 }
         }
-        for step in steps {
+        for (i, step) in steps.enumerated() {
             emitChunks(upTo: step.reasoningParagraphs)
+            let note = step.assistantContent.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !note.isEmpty { items.append(.note(id: "n\(i)", text: note)) }
             for call in step.calls { items.append(.activity(ActivityEntry(call: call, sources: sources))) }
         }
         emitChunks(upTo: chunks.count)
@@ -371,11 +375,12 @@ enum TimelineItem: Identifiable, Equatable {
 /// Consecutive thinking paragraphs form one block; tool calls are their own cards.
 enum TimelineGroup: Identifiable, Equatable {
     case thinking(id: String, chunks: [ReasoningChunkModel.Chunk])
+    case note(id: String, text: String)
     case activity(ActivityEntry)
 
     var id: String {
         switch self {
-        case .thinking(let id, _): id
+        case .thinking(let id, _), .note(let id, _): id
         case .activity(let e): e.id
         }
     }
@@ -388,6 +393,8 @@ enum TimelineGroup: Identifiable, Equatable {
                 let chunk = ReasoningChunkModel.Chunk(id: Int(id.dropFirst()) ?? 0, text: text)
                 if case .thinking(let gid, let chunks)? = out.last { out[out.count - 1] = .thinking(id: gid, chunks: chunks + [chunk]) }
                 else { out.append(.thinking(id: id, chunks: [chunk])) }
+            case .note(let id, let text):
+                out.append(.note(id: id, text: text))
             case .activity(let entry):
                 out.append(.activity(entry))
             }
@@ -473,6 +480,8 @@ struct TimelineSheet: View {
                             switch group {
                             case .thinking(_, let chunks):
                                 ThinkingBlock(chunks: chunks, live: index == groups.count - 1 && tailInLast ? reasoning : nil) { follow(proxy) }
+                            case .note(_, let text):
+                                NoteText(text: text)
                             case .activity(let entry):
                                 ActivityCard(entry: entry)
                             }

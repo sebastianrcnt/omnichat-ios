@@ -30,7 +30,7 @@ struct MessageLayoutTests {
         let segments = manyRounds(8)
         #expect(segments.count == 24)
         let items = MessageLayout.items(hasThought: true, hasActivity: true, isStreaming: false, hasAnswer: true)
-        #expect(items == [.thought, .feed, .text])
+        #expect(items == [.thought, .feed(0), .text])
     }
 
     @Test func summaryCountsAndTitle() {
@@ -61,12 +61,12 @@ struct MessageLayoutTests {
 
     @Test func aRunningTurnAlwaysShowsTheThoughtLine() {
         #expect(MessageLayout.items(hasThought: false, hasActivity: false, isStreaming: true, hasAnswer: false) == [.thought])
-        #expect(MessageLayout.items(hasThought: true, hasActivity: true, isStreaming: true, hasAnswer: false) == [.thought, .feed])
-        #expect(MessageLayout.items(hasThought: true, hasActivity: true, isStreaming: true, hasAnswer: true) == [.thought, .feed, .text])
+        #expect(MessageLayout.items(hasThought: true, hasActivity: true, isStreaming: true, hasAnswer: false) == [.thought, .feed(0)])
+        #expect(MessageLayout.items(hasThought: true, hasActivity: true, isStreaming: true, hasAnswer: true) == [.thought, .feed(0), .text])
         // A finished answer without reasoning or tools is just the text.
         #expect(MessageLayout.items(hasThought: false, hasActivity: false, isStreaming: false, hasAnswer: true) == [.text])
         // A stopped turn with steps but no answer keeps its thought line and cards.
-        #expect(MessageLayout.items(hasThought: true, hasActivity: true, isStreaming: false, hasAnswer: false) == [.thought, .feed])
+        #expect(MessageLayout.items(hasThought: true, hasActivity: true, isStreaming: false, hasAnswer: false) == [.thought, .feed(0)])
     }
 
     @Test func theTextBeingWrittenKeepsItsIdentityWhenTheAnswerIsFinal() {
@@ -148,14 +148,17 @@ struct MessageLayoutControllerTests {
         let running = FeedCall.ordered(finished: assistant.segments.flatMap(\.calls), requested: controller.roundRequested,
                                        roundFinished: controller.roundRecords)
         #expect(running.map(\.status) == [.running], "the running search has its card")
-        #expect(MessageLayout.items(hasThought: false, hasActivity: !running.isEmpty, isStreaming: true, hasAnswer: false) == [.thought, .feed])
+        // The preamble stays on screen, as a note above the running round's feed.
+        let liveParts = MessageLayout.parts(segments: assistant.segments, hasLiveCalls: !controller.roundRequested.isEmpty)
+        #expect(MessageLayout.items(hasThought: false, parts: liveParts, isStreaming: true, hasAnswer: false) == [.thought, .note(0), .feed(0)])
 
         gate.release()
         await controller.waitUntilIdle()
         let liveCalls = FeedCall.ordered(finished: assistant.segments.flatMap(\.calls), requested: [], roundFinished: [])
-        let liveFinal = MessageLayout.items(hasThought: false, hasActivity: !liveCalls.isEmpty, isStreaming: false,
-                                            hasAnswer: render.markdown.hasContent)
-        #expect(liveFinal == [.feed, .text])
+        let liveFinal = MessageLayout.items(hasThought: false, parts: MessageLayout.parts(segments: assistant.segments, hasLiveCalls: false),
+                                            isStreaming: false, hasAnswer: render.markdown.hasContent)
+        #expect(liveFinal == [.note(0), .feed(0), .text])
+        #expect(MessageLayout.fullText(segments: assistant.segments, answer: assistant.text) == "Let me search.\n\nThe answer.")
         #expect(assistant.text == "The answer.")
         #expect(assistant.segments.filter { $0.kind == .text }.map(\.text) == ["Let me search."])
 
@@ -167,10 +170,45 @@ struct MessageLayoutControllerTests {
         let reloadedRender = controller.renderState(for: reloaded)
         let reloadedCalls = FeedCall.ordered(finished: reloaded.segments.flatMap(\.calls), requested: [], roundFinished: [])
         #expect(reloadedCalls == liveCalls)
-        let reloadedLayout = MessageLayout.items(hasThought: false, hasActivity: !reloadedCalls.isEmpty, isStreaming: false,
-                                                 hasAnswer: reloadedRender.markdown.hasContent)
+        let reloadedLayout = MessageLayout.items(hasThought: false, parts: MessageLayout.parts(segments: reloaded.segments, hasLiveCalls: false),
+                                                 isStreaming: false, hasAnswer: reloadedRender.markdown.hasContent)
         #expect(reloadedLayout == liveFinal)
         #expect(ProcessSummary(segments: reloaded.segments) == ProcessSummary(segments: assistant.segments))
         #expect(ProcessSummary(segments: reloaded.segments).searches == 1)
+    }
+}
+
+struct MessagePartsTests {
+    private func search(_ id: String) -> ToolCallRecord {
+        ToolCallRecord(id: id, name: "web_search", arguments: "{\"query\":\"q\"}", result: "", isError: false)
+    }
+
+    @Test func notesSplitTheFeedInStreamOrder() {
+        let segments: [ProcessSegment] = [
+            .init(index: 0, kind: .thinking, text: "hmm"),
+            .init(index: 1, kind: .toolRound, calls: [search("a")]),
+            .init(index: 2, kind: .toolRound, calls: [search("b")]),
+            .init(index: 3, kind: .text, text: "Found it. Checking one more thing."),
+            .init(index: 4, kind: .toolRound, calls: [search("c")]),
+        ]
+        let parts = MessageLayout.parts(segments: segments, hasLiveCalls: false)
+        #expect(parts == [.calls([search("a"), search("b")]), .note(segment: 3, text: "Found it. Checking one more thing."),
+                          .calls([search("c")])])
+        #expect(MessageLayout.items(hasThought: true, parts: parts, isStreaming: false, hasAnswer: true)
+                == [.thought, .feed(0), .note(3), .feed(1), .text])
+    }
+
+    @Test func liveCallsAfterANoteStartANewFeed() {
+        let note: [ProcessSegment] = [.init(index: 0, kind: .text, text: "Let me look.")]
+        #expect(MessageLayout.parts(segments: note, hasLiveCalls: true) == [.note(segment: 0, text: "Let me look."), .calls([])])
+        #expect(MessageLayout.parts(segments: [], hasLiveCalls: true) == [.calls([])])
+        let round: [ProcessSegment] = [.init(index: 0, kind: .toolRound, calls: [search("a")])]
+        #expect(MessageLayout.parts(segments: round, hasLiveCalls: true) == [.calls([search("a")])])
+    }
+
+    @Test func timelineShowsTheNoteBeforeItsCalls() {
+        let step = ToolStep(assistantContent: " Let me check. ", calls: [search("a")], reasoningParagraphs: 1)
+        let items = TimelineItem.build(chunks: ["p0", "p1"], steps: [step], pending: [], sources: [:])
+        #expect(items.map(\.id) == ["t0", "n0", "a", "t1"])
     }
 }

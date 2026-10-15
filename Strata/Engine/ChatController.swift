@@ -744,7 +744,8 @@ final class TurnTracker {
         emitThinking()
         let preamble = roundContent.trimmingCharacters(in: .whitespacesAndNewlines)
         if !preamble.isEmpty { append(.init(index: 0, kind: .text, text: preamble)) }
-        // The round's text now lives in its segment; clearing the model keeps it from showing twice.
+        // The round's text now lives in its segment, shown as a note above this round's calls; clearing the model
+        // keeps it from showing twice.
         render.markdown.reset()
         // Force a paragraph boundary so the timeline can place this step after the reasoning so far.
         render.reasoning.beginSection()

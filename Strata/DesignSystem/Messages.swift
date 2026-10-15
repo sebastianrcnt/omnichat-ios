@@ -150,6 +150,19 @@ extension MarkdownUI.Theme {
     }
 }
 
+/// Text the model wrote to the person between tool rounds, set like the answer.
+struct NoteText: View {
+    @State private var model: StreamingMarkdownModel
+
+    init(text: String) {
+        _model = State(initialValue: StreamingMarkdownModel(text: text, smoothing: false))
+    }
+
+    var body: some View {
+        MarkdownDocumentView(model: model)
+    }
+}
+
 /// Copy and regenerate under an answer.
 struct MessageActionBar: View {
     @Environment(\.theme) private var theme
@@ -257,18 +270,34 @@ struct AssistantMessage: View {
                                     hasRoundText: render.markdown.hasContent)
     }
 
-    /// The turn's calls, finished rounds first, then the running round in request order.
-    private var feedCalls: [FeedCall] {
-        FeedCall.ordered(finished: content.segments.flatMap(\.calls), requested: content.roundRequested,
-                         roundFinished: content.roundFinished)
+    /// The work before the answer in stream order: feeds of calls, and what the model wrote between them.
+    private var parts: [MessageLayout.Part] {
+        MessageLayout.parts(segments: content.segments,
+                            hasLiveCalls: !content.roundRequested.isEmpty || !content.roundFinished.isEmpty)
+    }
+
+    /// Each feed's calls; the last feed ends with the running round in request order.
+    private func feeds(_ parts: [MessageLayout.Part]) -> [[FeedCall]] {
+        let groups = parts.compactMap { part -> [ToolCallRecord]? in if case .calls(let c) = part { c } else { nil } }
+        return groups.enumerated().map { i, records in
+            i == groups.count - 1
+                ? FeedCall.ordered(finished: records, requested: content.roundRequested, roundFinished: content.roundFinished)
+                : FeedCall.ordered(finished: records, requested: [], roundFinished: [])
+        }
+    }
+
+    private func notes(_ parts: [MessageLayout.Part]) -> [Int: String] {
+        var out: [Int: String] = [:]
+        for case .note(let segment, let text) in parts { out[segment] = text }
+        return out
     }
 
     private var hasThought: Bool {
         content.thinkingSeconds != nil || content.segments.contains { $0.kind == .thinking }
     }
 
-    private func items(hasActivity: Bool) -> [MessageLayout.Item] {
-        MessageLayout.items(hasThought: hasThought, hasActivity: hasActivity, isStreaming: content.isStreaming,
+    private func items(_ parts: [MessageLayout.Part]) -> [MessageLayout.Item] {
+        MessageLayout.items(hasThought: hasThought, parts: parts, isStreaming: content.isStreaming,
                             hasAnswer: render.markdown.hasContent)
     }
 
@@ -288,23 +317,37 @@ struct AssistantMessage: View {
 
     /// Visited pages plus cited results, for the "Sources" list.
     private var usedSources: [SourceInfo] {
-        SourceUsage.ids(calls: content.calls, text: render.markdown.text, known: Set(citations.sources.keys))
+        let text = MessageLayout.fullText(segments: content.segments, answer: render.markdown.text)
+        return SourceUsage.ids(calls: content.calls, text: text, known: Set(citations.sources.keys))
             .compactMap { citations.sources[$0] }
     }
 
     @ViewBuilder
-    private func itemView(_ item: MessageLayout.Item, calls: [FeedCall]) -> some View {
+    private func itemView(_ item: MessageLayout.Item, feeds: [[FeedCall]], notes: [Int: String]) -> some View {
         switch item {
         case .thought:
             let working = content.isStreaming && !answerStarted
             ThoughtLine(isWorking: working, seconds: content.thinkingSeconds,
                         reasoning: working ? render.reasoning : nil, placeholder: phaseLabel,
                         action: onOpenReasoning, onDetails: onOpenTimeline)
-        case .feed:
-            ActivityFeedView(cards: ActivityFeed.cards(calls: calls, sources: citations.sources),
-                             isStreaming: content.isStreaming, answerStarted: answerStarted, onDetails: onOpenTimeline)
+        case .feed(let n):
+            // A feed with a note after it is done: it folds like a feed does once the answer starts.
+            let isLast = n == feeds.count - 1
+            ActivityFeedView(cards: ActivityFeed.cards(calls: feeds.indices.contains(n) ? feeds[n] : [], sources: citations.sources),
+                             isStreaming: content.isStreaming, answerStarted: isLast ? answerStarted : true, onDetails: onOpenTimeline)
+        case .note(let segment):
+            if let text = notes[segment] { NoteText(text: text) }
         case .text:
             answerText
+        }
+    }
+
+    /// The live text becomes a note in place when the model calls a tool after it, so neither animates.
+    private func transition(_ item: MessageLayout.Item) -> AnyTransition {
+        switch item {
+        case .note: .asymmetric(insertion: .identity, removal: .enter(reduceMotion: reduceMotion))
+        case .text: .asymmetric(insertion: .enter(reduceMotion: reduceMotion), removal: .identity)
+        default: .enter(reduceMotion: reduceMotion)
         }
     }
 
@@ -338,12 +381,14 @@ struct AssistantMessage: View {
     }
 
     var body: some View {
-        let calls = feedCalls
-        let items = items(hasActivity: !calls.isEmpty)
+        let parts = parts
+        let feeds = feeds(parts)
+        let notes = notes(parts)
+        let items = items(parts)
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
             ForEach(items) { item in
-                itemView(item, calls: calls)
-                    .transition(.enter(reduceMotion: reduceMotion))
+                itemView(item, feeds: feeds, notes: notes)
+                    .transition(transition(item))
             }
             .animation(reduceMotion ? nil : DS.Motion.enter, value: items)
             if content.stopped && !content.cutForEarlyAnswer {
@@ -370,7 +415,7 @@ struct AssistantMessage: View {
                 let used = usedSources
                 if !used.isEmpty { SourcesRow(count: used.count) { onOpenSources(used) } }
             }
-            if !content.isStreaming && (render.markdown.hasContent || content.errorText != nil) {
+            if !content.isStreaming && (render.markdown.hasContent || !notes.isEmpty || content.errorText != nil) {
                 MessageActionBar(onCopy: onCopy, onCopyRaw: onCopyRaw, onRegenerate: content.canRegenerate ? onRegenerate : nil,
                                  translation: content.translation,
                                  onTranslate: content.translation.hasTranslation ? onToggleTranslation : onTranslate,

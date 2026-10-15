@@ -134,7 +134,8 @@ struct ChatView: View {
         let known = Set(byID.keys)
         var ids: [Int] = []
         for message in conversation.activePath where message.role == .assistant {
-            for id in SourceUsage.ids(calls: message.segments.flatMap(\.calls), text: message.text, known: known)
+            for id in SourceUsage.ids(calls: message.segments.flatMap(\.calls),
+                                          text: MessageLayout.fullText(segments: message.segments, answer: message.text), known: known)
             where !ids.contains(id) { ids.append(id) }
         }
         return ids.compactMap { byID[$0] }
@@ -455,12 +456,12 @@ struct ChatView: View {
                 onOpenTimeline: { timeline = TimelineRequest(message: message, showsTools: true) },
                 onOpenReasoning: { timeline = TimelineRequest(message: message, showsTools: true) },
                 onOpenSources: { sourcesItem = SourceListItem(sources: $0, all: conversationUsedSources) },
-                onCopy: { Pasteboard.copy(MarkdownPlain.text(from: shownText)) },
+                onCopy: { Pasteboard.copy(MarkdownPlain.text(from: MessageLayout.fullText(segments: segments, answer: shownText))) },
                 onRegenerate: {
                     if let c = conversation { controller.regenerate(conversation: c, context: context); pinLatestQuestion() }
                 },
                 onOpenSettings: onOpenSettings,
-                onCopyRaw: { Pasteboard.copy(shownText) },
+                onCopyRaw: { Pasteboard.copy(MessageLayout.fullText(segments: segments, answer: shownText)) },
                 onTranslate: { controller.translation.translate(message, context: context, isStreaming: active) },
                 onToggleTranslation: { controller.translation.toggle(message, context: context) },
                 branch: branch,
