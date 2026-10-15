@@ -1,4 +1,5 @@
 import SwiftUI
+import Translation
 
 struct SettingsView: View {
     @Environment(\.theme) private var theme
@@ -70,6 +71,8 @@ struct SettingsView: View {
                                           subtitle: "Reveal text at a steady pace instead of in bursts.",
                                           isOn: $settings.smoothStreaming)
                     }
+
+                    ThinkingSettingsSection()
 
                     GroupedSection(header: "Web tools", footer: "Auto searches Naver for Korean queries and Bing otherwise. If the engine fails or finds nothing, the next one is tried. web_fetch returns up to the fetch length per call; longer pages continue in further calls.") {
                         HStack {
@@ -509,5 +512,62 @@ struct PythonSettingsSection: View {
         PythonRuntime.shared.dispose() // a running interpreter may hold loaded packages; the next one fetches again
         PyodidePackageCache(directory: Pyodide.packagesRoot).clear()
         Task { await measure() }
+    }
+}
+
+/// How thought lines look: how many lines they take, and whether English thinking shows in Korean.
+private struct ThinkingSettingsSection: View {
+    @Environment(\.appSettings) private var settings
+    @Environment(\.theme) private var theme
+    @State private var status: LanguageAvailability.Status?
+    @State private var download: TranslationSession.Configuration?
+
+    var body: some View {
+        @Bindable var settings = settings
+        GroupedSection(header: "Thinking", footer: footer) {
+            HStack {
+                Text("Lines").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
+                Spacer()
+                Picker("Lines", selection: $settings.thinkingLines) {
+                    ForEach(AppSettings.thinkingLineOptions, id: \.self) { Text("\($0)").tag($0) }
+                }
+                .labelsHidden()
+                .tint(theme.textSecondary)
+            }
+            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.vertical, DS.Spacing.sm)
+            SettingsToggleRow(title: "Translate English thinking",
+                              subtitle: "Show the model's English thinking in Korean, translated on this device.",
+                              isOn: $settings.translateThinking)
+            if settings.translateThinking, status == .supported {
+                Button {
+                    var next = ThoughtTranslator.downloadConfiguration
+                    if download == next { next.invalidate() }
+                    download = next
+                } label: {
+                    Text("Download English–Korean").font(DS.Typography.ui).foregroundStyle(theme.accent)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, DS.Spacing.lg)
+                .padding(.vertical, DS.Spacing.sm)
+            }
+        }
+        .task(id: settings.translateThinking) { status = await ThoughtTranslator.systemStatus() }
+        .translationTask(download) { session in
+            await SessionTranslator(session).prepare()
+            ThoughtTranslator.shared.recheck()
+            status = await ThoughtTranslator.systemStatus()
+        }
+    }
+
+    private var footer: LocalizedStringKey {
+        guard settings.translateThinking else { return "How many lines a thought may take while the model works and after." }
+        switch status {
+        case .installed: return "Finished sentences are translated as the model thinks. Thinking in other languages shows as written."
+        case .supported: return "Download the English–Korean language to translate thinking. Until then it shows as written."
+        case .unsupported: return "This device can't translate English to Korean."
+        default: return "Checking the translation languages…"
+        }
     }
 }

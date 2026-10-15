@@ -174,9 +174,24 @@ struct OptimisticCloserTests {
         ("2 * 3 = 6", "2 * 3 = 6"),
         ("`a **b` ok", "`a **b` ok"),
         ("Escaped \\*star", "Escaped \\*star"),
+        ("This is **", "This is "),
+        ("**bold*", "**bold**"),
+        ("Done **bold**", "Done **bold**"),
     ])
     func closesUnmatchedSyntax(input: String, expected: String) {
         #expect(OptimisticCloser.closeInline(input) == expected)
+    }
+
+    /// While streaming, no prefix of a line with bold shows a literal asterisk (bold before a colon in Korean used to
+    /// trail "****" to the end of the line).
+    @Test func noPrefixShowsStrayAsterisks() {
+        for sample in ["- **항목**: 설명입니다", "결과는 **아주 좋음**입니다.", "Here is **bold text** and more.", "1. **One** two"] {
+            let chars = Array(sample)
+            for n in 1...chars.count {
+                let shown = String(InlineMarkdownText.attributed(String(chars[..<n]), isOpen: true).characters)
+                #expect(!shown.contains("*"), "\(String(chars[..<n])) -> \(shown)")
+            }
+        }
     }
 
     @Test func closesOpenFence() {

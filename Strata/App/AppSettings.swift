@@ -111,6 +111,12 @@ final class AppSettings {
     var lastEffortRaw: String { didSet { defaults.set(lastEffortRaw, forKey: "lastEffort") } }
     /// Models picked in "Select model", newest first (`RecentModels`).
     var recentModels: [String] { didSet { defaults.set(recentModels, forKey: "recentModels") } }
+    /// How many lines a thought line may take (1...4, default 2).
+    var thinkingLines: Int { didSet { defaults.set(thinkingLines, forKey: "thinkingLines") } }
+    /// Translate English thinking into Korean on the device (`ThoughtTranslator`). Off by default.
+    var translateThinking: Bool { didSet { defaults.set(translateThinking, forKey: "translateThinking") } }
+    static let thinkingLineOptions = [1, 2, 3, 4]
+    static let defaultThinkingLines = 2
     /// The language dictation listens for (`DictationLanguage.current` reads the same key).
     var dictationLanguage: String { didSet { defaults.set(dictationLanguage, forKey: DictationLanguage.defaultsKey) } }
     /// How the assistant should behave and respond (personality, tone, a name). Sent after the app prompt; a chat
@@ -147,6 +153,9 @@ final class AppSettings {
         userPreferences = defaults.string(forKey: Self.userPreferencesKey) ?? ""
         enabledPlugins = Set(defaults.stringArray(forKey: Self.enabledPluginsKey) ?? [])
         dictationLanguage = defaults.string(forKey: DictationLanguage.defaultsKey) ?? DictationLanguage.defaultID()
+        let lines = defaults.integer(forKey: "thinkingLines")
+        thinkingLines = Self.thinkingLineOptions.contains(lines) ? lines : Self.defaultThinkingLines
+        translateThinking = defaults.bool(forKey: "translateThinking")
         pythonEnabled = defaults.object(forKey: PythonSettings.enabledKey) == nil ? true : defaults.bool(forKey: PythonSettings.enabledKey)
         let limit = defaults.integer(forKey: PythonSettings.timeLimitKey)
         pythonTimeLimit = PythonSettings.timeLimitOptions.contains(limit) ? limit : PythonSettings.defaultTimeLimit

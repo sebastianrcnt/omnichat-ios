@@ -11,6 +11,11 @@ enum OptimisticCloser {
             text = String(text[..<open])
             if text.hasSuffix(" ") { text.removeLast() }
         }
+        // A trailing `*` run is held back: an opener whose text hasn't arrived, or half a closer. A complete closer
+        // comes back from the closers appended below.
+        var stars = 0
+        while text.hasSuffix("*") { text.removeLast(); stars += 1 }
+        if stars > 0, text.hasSuffix("\\") { text += "*"; stars -= 1 } // an escaped asterisk stays
         let chars = Array(text)
         var stack: [String] = []       // "**", "*"
         var codeTicks = 0               // length of the open code span, 0 if none

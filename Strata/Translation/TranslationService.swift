@@ -11,6 +11,9 @@ final class SessionTranslator: TextTranslating, @unchecked Sendable {
 
     init(_ session: TranslationSession) { self.session = session }
 
+    /// Downloads the language pair if needed (the system asks first).
+    func prepare() async { try? await session.prepareTranslation() }
+
     func translate(_ texts: [String]) async throws -> [String] {
         let requests = texts.enumerated().map { TranslationSession.Request(sourceText: $1, clientIdentifier: String($0)) }
         let responses = try await withTaskCancellationHandler {

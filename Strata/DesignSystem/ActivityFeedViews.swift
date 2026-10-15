@@ -10,6 +10,7 @@ import SwiftUI
 /// Done: "✦ Thought for 31s ›". Tapping it opens the full reasoning.
 struct ThoughtLine: View {
     @Environment(\.theme) private var theme
+    @Environment(\.appSettings) private var settings
     let isWorking: Bool
     /// The last line of the finished thinking (done only).
     var line: String?
@@ -23,20 +24,23 @@ struct ThoughtLine: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: DS.Spacing.sm) {
+            HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.sm) {
                 if isWorking {
                     PulsingDot()
+                        .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
                     // A new preview per state: after a tool, the slot starts from the placeholder, not the old thought.
                     ReasoningLinePreview(model: reasoning, font: DS.Typography.thought, color: theme.textSecondary,
-                                         placeholder: placeholder)
+                                         placeholder: placeholder, lines: settings.thinkingLines,
+                                         translate: settings.translateThinking)
                         .id(reasoning == nil ? "placeholder" : "reasoning")
                 } else {
                     Text(verbatim: "✦").font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
                     Text(doneTitle).font(DS.Typography.thought).foregroundStyle(theme.textSecondary)
-                        .lineLimit(1).truncationMode(.tail)
+                        .lineLimit(settings.thinkingLines).truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
                     Image(systemName: "chevron.right")
                         .font(.system(size: DS.IconSize.sm - 3, weight: .semibold)).foregroundStyle(theme.textTertiary)
-                    Spacer(minLength: 0)
                 }
             }
             .frame(minHeight: 24)
@@ -47,10 +51,13 @@ struct ThoughtLine: View {
             if let onDetails { Button("Show Timeline", systemImage: "list.bullet.below.rectangle", action: onDetails) }
         }
         .accessibilityHint(Text("Shows the full reasoning"))
+        .task(id: settings.translateThinking ? line : nil) {
+            if settings.translateThinking, let line { ThoughtTranslator.shared.request(line) }
+        }
     }
 
     private var doneTitle: String {
-        if let line { return line }
+        if let line { return settings.translateThinking ? ThoughtTranslator.shared.result(for: line) ?? line : line }
         guard let seconds else { return String(localized: "Thoughts") }
         return String(localized: "Thought for \(ProcessSummary.duration(seconds))")
     }

@@ -534,8 +534,9 @@ struct InlineMarkdownText: View {
                                        chipColor: Color = .secondary, chipBackground: Color = .gray.opacity(0.2)) -> AttributedString {
         var text = TildeEscaper.escape(source)
         text = CitationParser.transform(text, sources: sources, holdBack: isOpen)
-        text = CJKEmphasisFixer.fix(text)
-        let closed = LenientEmphasis.normalize(isOpen ? OptimisticCloser.closeInline(text) : text)
+        // Closers first: the CJK fix adds hair spaces around `**`, which would make a closer look like an opener.
+        if isOpen { text = OptimisticCloser.closeInline(text) }
+        let closed = LenientEmphasis.normalize(CJKEmphasisFixer.fix(text))
         let options = AttributedString.MarkdownParsingOptions(allowsExtendedAttributes: false,
                                                               interpretedSyntax: .inlineOnly,
                                                               failurePolicy: .returnPartiallyParsedIfPossible)
@@ -773,7 +774,15 @@ struct ReasoningLinePreview: View {
     var color: Color?
     /// Shown until the first sentence arrives (otherwise the slot stays blank).
     var placeholder: String?
+    /// Lines the sentence may wrap to; the slot keeps that height so the row doesn't jump.
+    var lines = 1
+    /// Show finished English sentences in Korean (`ThoughtTranslator`).
+    var translate = false
     @State private var gate = ThoughtPreviewGate()
+    /// Finished sentences sent for translation, oldest first.
+    @State private var finished: [String] = []
+    /// The latest sentence as last received, so the full sentence is known when the next one begins.
+    @State private var lastLatest: ThoughtSentence?
     @State private var shown: ThoughtSentence?
     @State private var deadline: Double?
 
@@ -786,13 +795,13 @@ struct ReasoningLinePreview: View {
     private static var now: Double { ProcessInfo.processInfo.systemUptime }
 
     var body: some View {
-        ZStack(alignment: .leading) {
-            Text(" ").font(font).lineLimit(1).hidden() // reserves one line
+        ZStack(alignment: .topLeading) {
+            Text(verbatim: String(repeating: " \n", count: max(0, lines - 1)) + " ").font(font).lineLimit(lines).hidden() // reserves the lines
             if let shown {
-                Text(InlineMarkdownText.attributed(shown.text, isOpen: true))
+                Text(InlineMarkdownText.attributed(displayed(shown), isOpen: true))
                     .font(font)
                     .foregroundStyle(color ?? theme.textTertiary)
-                    .lineLimit(1)
+                    .lineLimit(lines)
                     .truncationMode(.tail)
                     .id(shown.start)
                     .transition(.opacity)
@@ -815,7 +824,27 @@ struct ReasoningLinePreview: View {
         }
     }
 
+    /// With translation on: the newest finished sentence that has its translation; until then the sentence itself.
+    /// Thinking that isn't English shows as it streams.
+    private func displayed(_ sentence: ThoughtSentence) -> String {
+        guard translate, ThoughtTranslator.detect(sentence.text) == ThoughtTranslator.source else { return sentence.text }
+        for text in finished.reversed() {
+            if let result = ThoughtTranslator.shared.result(for: text) { return result }
+        }
+        return sentence.text
+    }
+
+    private func noteFinished(_ text: String) {
+        guard translate, finished.last != text else { return }
+        finished.append(text)
+        if finished.count > 4 { finished.removeFirst(finished.count - 4) }
+        ThoughtTranslator.shared.request(text)
+    }
+
     private func apply(_ latest: ThoughtSentence?) {
+        if let previous = lastLatest, previous.start != latest?.start { noteFinished(previous.text) }
+        lastLatest = latest
+        if let latest, ThoughtCompletion.isFinished(latest.text) { noteFinished(latest.text) }
         gate.update(latest: latest, now: Self.now)
         deadline = gate.nextSwitchAt
         guard let next = gate.displayed, next != shown else { return }

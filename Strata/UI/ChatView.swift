@@ -24,6 +24,7 @@ struct ChatView: View {
     @State private var pinnedID: UUID?
     /// Set by the jump button: the view then sticks to the end while the answer grows, until the user scrolls or sends.
     @State private var followsBottom = false
+    @State private var jumpRetry: Task<Void, Never>?
     /// Heights for the room under the pinned question; read only by `PinReserve`, so scrolling and streaming never
     /// re-evaluate this view.
     @State private var pin = PinLayout()
@@ -369,7 +370,7 @@ struct ChatView: View {
                     .onScrollVisibilityChange(threshold: 0.01) { atBottom = $0 } // true scroll position: is the end of the chat on screen?
                     .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(PinLayout.space)).minY } action: {
                         pin.contentEnd = $0
-                        if followsBottom { position.scrollTo(id: "bottom", anchor: .bottom) }
+                        if followsBottom { scrollToEnd() }
                     }
                 if pinnedID != nil { PinReserve(pin: pin) }
             }
@@ -392,7 +393,7 @@ struct ChatView: View {
             pin.visibleBottom = v.visibleBottom
         }
         .onScrollPhaseChange { old, new in
-            if new == .interacting { followsBottom = false } // a drag hands the position back to the user
+            if new == .interacting { followsBottom = false; jumpRetry?.cancel() } // a drag hands the position back to the user
             // The user scrolled: once the room under the answer is out of view it can go without moving anything.
             guard pinnedID != nil, new == .idle, old == .interacting || old == .decelerating else { return }
             if pin.reserveOutOfView { pinnedID = nil }
@@ -527,14 +528,37 @@ struct ChatView: View {
             if !atBottom && conversation != nil {
                 GlassIconButton(systemName: "arrow.down", label: "Jump to bottom", diameter: DS.IconSize.compactControlDiameter,
                                 iconSize: DS.IconSize.composerIcon) {
-                    followsBottom = true
-                    withAnimation(DS.Motion.spring) { position.scrollTo(id: "bottom", anchor: .bottom) }
+                    jumpToBottom()
                 }
                 .padding(.bottom, Self.floatingGap)
                 .transition(.scale.combined(with: .opacity))
             }
         }
         .animation(DS.Motion.snappy, value: atBottom)
+    }
+
+    /// Scrolls to the end and keeps it there while the answer grows. Rows above the end are laid out lazily from
+    /// estimated heights, so one scroll can stop short: it tries again until the end is on screen.
+    private func jumpToBottom() {
+        // The end isn't on screen, so neither is the room under a pinned question: dropping it moves nothing.
+        pinnedID = nil
+        followsBottom = true
+        withAnimation(DS.Motion.spring) { scrollToEnd() }
+        jumpRetry?.cancel()
+        jumpRetry = Task { @MainActor in
+            for _ in 0..<6 {
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled, followsBottom, !atBottom else { return }
+                scrollToEnd()
+            }
+        }
+    }
+
+    /// The end of the chat. The same scroll asked twice is the same `ScrollPosition` value, which SwiftUI may ignore,
+    /// so it alternates between the end marker and the bottom edge (the same place without a pinned question).
+    private func scrollToEnd() {
+        pin.endByEdge.toggle()
+        if pin.endByEdge && pinnedID == nil { position.scrollTo(edge: .bottom) } else { position.scrollTo(id: "bottom", anchor: .bottom) }
     }
 
     /// Holds the question being answered at the top: room is reserved under it, then one animated scroll puts it there.
@@ -861,6 +885,8 @@ final class PinLayout {
     /// The visible height (between the header and the composer).
     var viewport: CGFloat = 0
     @ObservationIgnored var visibleBottom: CGFloat = 0
+    /// Alternates the end scroll's target, so asking again is a new value and never a no-op (`ChatView.scrollToEnd`).
+    @ObservationIgnored var endByEdge = false
 
     /// Room under the transcript so the pinned question can sit at the top of the screen.
     var reserve: CGFloat { Self.reserve(viewport: viewport, pinnedTop: pinnedTop, contentEnd: contentEnd) }
