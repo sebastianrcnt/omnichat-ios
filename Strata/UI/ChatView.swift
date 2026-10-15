@@ -53,6 +53,7 @@ struct ChatView: View {
     @State private var showRename = false
     #if DEBUG
     @State private var debugSelection: String?
+    @State private var debugArtifact: ArtifactRef?
     #endif
     @State private var renameText = ""
     @State private var confirmDelete = false
@@ -246,6 +247,7 @@ struct ChatView: View {
             .sheet(isPresented: Binding(get: { debugSelection != nil }, set: { if !$0 { debugSelection = nil } })) {
                 SelectableTextSheet(text: debugSelection ?? "")
             }
+            .fullScreenCoverOrSheet(item: $debugArtifact) { ArtifactViewer(ref: $0) }
             #endif
             .alert("Couldn't make a title",
                    isPresented: Binding(get: { controller.titleFailedConversationID != nil },
@@ -783,7 +785,7 @@ struct ChatView: View {
             }
             return
         }
-        guard let sheet = DebugHooks.openSheet, sheet.hasPrefix("timeline") || ["usage", "context", "rename", "selecttext", "regentitle", "details", "compaction", "summarize", "translate"].contains(sheet) else { return }
+        guard let sheet = DebugHooks.openSheet, sheet.hasPrefix("timeline") || ["usage", "context", "rename", "selecttext", "regentitle", "artifact", "details", "compaction", "summarize", "translate"].contains(sheet) else { return }
         if sheet == "translate" { // translates the first answer once it is in
             if controller.activeMessageID == nil, !branchDebugDone, let m = conversation?.leafMessage, m.role == .assistant {
                 branchDebugDone = true
@@ -815,6 +817,13 @@ struct ChatView: View {
                 try? await Task.sleep(for: .seconds(3)) // past the automatic title
                 guard !controller.isTitling(c.id) else { return }
                 controller.autoRename(conversation: c, context: context, force: true)
+            }
+            return
+        }
+        if sheet == "artifact" { // the chat's newest artifact, once the answer is in
+            if controller.activeMessageID == nil, debugArtifact == nil, let c = conversation,
+               let a = ArtifactStore.shared.artifacts(conversationID: c.id).max(by: { $0.updated < $1.updated }) {
+                debugArtifact = ArtifactRef(conversationID: c.id, id: a.id, title: a.title, version: a.version)
             }
             return
         }
@@ -1067,3 +1076,8 @@ private struct SendFlyIn: ViewModifier {
             }
     }
 }
+
+#if DEBUG
+/// `-StrataOpenSheet artifact` presents one by its ref.
+extension ArtifactRef: Identifiable {}
+#endif
