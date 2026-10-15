@@ -185,7 +185,12 @@ struct MessageActionBar: View {
     var branch: BranchPosition?
     var branchEnabled = true
     var onSwitchBranch: (Int) -> Void = { _ in }
+    /// The answer as plain text, for "Select Text" (part of it copied). Made only when asked for.
+    var textForSelection: (() -> String)?
     @State private var copied = false
+    @State private var selection: SelectionText?
+
+    struct SelectionText: Identifiable { let id = UUID(); let text: String }
 
     private func flash() {
         copied = true
@@ -199,6 +204,9 @@ struct MessageActionBar: View {
                 Button("Copy", systemImage: "doc.on.doc") { onCopy(); flash() }
                 if let onCopyRaw {
                     Button("Copy raw Markdown", systemImage: "chevron.left.forwardslash.chevron.right") { onCopyRaw(); flash() }
+                }
+                if let textForSelection {
+                    Button("Select Text", systemImage: "selection.pin.in.out") { selection = SelectionText(text: textForSelection()) }
                 }
             } label: {
                 Image(systemName: copied ? "checkmark" : "square.on.square")
@@ -229,6 +237,7 @@ struct MessageActionBar: View {
             Spacer()
         }
         .padding(.leading, -DS.Spacing.sm - 2) // the first glyph lines up with the answer, its touch target reaches past
+        .sheet(item: $selection) { SelectableTextSheet(text: $0.text) }
         .font(.system(size: DS.IconSize.md))
         .foregroundStyle(theme.textSecondary)
         .buttonStyle(.plain)
@@ -236,20 +245,64 @@ struct MessageActionBar: View {
 }
 
 /// A sent message's text, selectable: the bubble's long press is its menu, so part of a long prompt is copied here.
+/// SwiftUI's own selectable text copies only the whole text on iPhone; a UIKit text view selects a range by dragging.
 struct SelectableTextSheet: View {
+    @Environment(\.theme) private var theme
+    @Environment(\.dismiss) private var dismiss
     let text: String
 
     var body: some View {
-        SheetScaffold(title: "Select Text") {
-            Text(verbatim: text)
-                .font(DS.Typography.ui)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(DS.Spacing.lg)
+        VStack(spacing: 0) {
+            HStack {
+                Text("Select Text").font(DS.Typography.uiEmphasis).foregroundStyle(theme.textPrimary)
+                Spacer()
+                Button("Done") { dismiss() }.fontWeight(.semibold)
+            }
+            .padding(DS.Spacing.lg)
+            RangeSelectableText(text: text, color: theme.textPrimary)
         }
         .presentationDetents([.medium, .large])
+        .presentationBackground(theme.background)
     }
 }
+
+#if canImport(UIKit)
+private struct RangeSelectableText: UIViewRepresentable {
+    let text: String
+    let color: Color
+
+    func makeUIView(context: Context) -> UITextView {
+        let view = UITextView()
+        view.isEditable = false
+        view.isSelectable = true
+        view.backgroundColor = .clear
+        view.textContainerInset = UIEdgeInsets(top: 0, left: 16, bottom: 24, right: 16)
+        view.adjustsFontForContentSizeCategory = true
+        return view
+    }
+
+    func updateUIView(_ view: UITextView, context: Context) {
+        let style = NSMutableParagraphStyle()
+        style.lineSpacing = 6
+        view.attributedText = NSAttributedString(string: text, attributes: [
+            .font: UIFontMetrics(forTextStyle: .body).scaledFont(for: UIFont(name: DS.Typography.regularFontName, size: 17) ?? .systemFont(ofSize: 17)),
+            .foregroundColor: UIColor(color),
+            .paragraphStyle: style,
+        ])
+    }
+}
+#else
+private struct RangeSelectableText: View {
+    let text: String
+    let color: Color
+    var body: some View {
+        ScrollView {
+            Text(verbatim: text).textSelection(.enabled).foregroundStyle(color)
+                .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, DS.Spacing.lg)
+        }
+    }
+}
+#endif
 
 /// View state for an assistant message, independent of SwiftData so it can be previewed.
 /// Streamed text and reasoning live in `MessageRenderState`.
@@ -288,6 +341,9 @@ struct AssistantMessage: View {
     var onRegenerate: () -> Void = {}
     var onOpenSettings: () -> Void = {}
     var onCopyRaw: (() -> Void)?
+    /// The answer as plain text for "Select Text", made only when asked for.
+    var textForSelection: (() -> String)?
+    @State private var selectionText: MessageActionBar.SelectionText?
     /// Translates the answer, or flips between the translation and the original.
     var onTranslate: () -> Void = {}
     var onToggleTranslation: () -> Void = {}
@@ -433,7 +489,9 @@ struct AssistantMessage: View {
         }
         .animation(reduceMotion ? nil : DS.Motion.ease, value: showingTranslation)
         .animation(reduceMotion ? nil : DS.Motion.ease, value: tr.isTranslating)
-        .modifier(TranslationMenu(translation: tr, onTranslate: onTranslate, onToggle: onToggleTranslation, onCopy: onCopy))
+        .modifier(TranslationMenu(translation: tr, onTranslate: onTranslate, onToggle: onToggleTranslation, onCopy: onCopy,
+                                  onSelect: textForSelection.map { make in { selectionText = .init(text: make()) } }))
+        .sheet(item: $selectionText) { SelectableTextSheet(text: $0.text) }
     }
 
     var body: some View {
@@ -481,7 +539,8 @@ struct AssistantMessage: View {
                 MessageActionBar(onCopy: onCopy, onCopyRaw: onCopyRaw, onRegenerate: content.canRegenerate ? onRegenerate : nil,
                                  translation: content.translation,
                                  onTranslate: content.translation.hasTranslation ? onToggleTranslation : onTranslate,
-                                 branch: branch, branchEnabled: branchEnabled, onSwitchBranch: onSwitchBranch)
+                                 branch: branch, branchEnabled: branchEnabled, onSwitchBranch: onSwitchBranch,
+                                 textForSelection: textForSelection)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -495,6 +554,7 @@ private struct TranslationMenu: ViewModifier {
     let onTranslate: () -> Void
     let onToggle: () -> Void
     let onCopy: () -> Void
+    var onSelect: (() -> Void)?
 
     func body(content: Content) -> some View {
         if translation.offered {
@@ -505,6 +565,7 @@ private struct TranslationMenu: ViewModifier {
                     Button("Translate", systemImage: "translate", action: onTranslate).disabled(translation.isTranslating)
                 }
                 Button("Copy", systemImage: "doc.on.doc", action: onCopy)
+                if let onSelect { Button("Select Text", systemImage: "selection.pin.in.out", action: onSelect) }
             }
         } else {
             content

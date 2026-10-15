@@ -51,6 +51,9 @@ struct ChatView: View {
     @State private var citationItem: SourceListItem?
     @State private var sourcesItem: SourceListItem?
     @State private var showRename = false
+    #if DEBUG
+    @State private var debugSelection: String?
+    #endif
     @State private var renameText = ""
     @State private var confirmDelete = false
     #if os(macOS)
@@ -240,14 +243,20 @@ struct ChatView: View {
             .fullScreenCoverOrSheet(isPresented: $debugViewer) {
                 CodeViewer(content: .init(language: "swift", code: (1...60).map { "let step\($0) = configure(glassEffect: .regular, id: \($0)) // long line to scroll" }.joined(separator: "\n"))).inAppLinks()
             }
+            .sheet(isPresented: Binding(get: { debugSelection != nil }, set: { if !$0 { debugSelection = nil } })) {
+                SelectableTextSheet(text: debugSelection ?? "")
+            }
             #endif
-            .alert("Rename chat", isPresented: $showRename) {
-                TextField("Title", text: $renameText)
-                Button("Cancel", role: .cancel) {}
-                Button("Save") {
-                    let t = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !t.isEmpty { conversation?.setUserTitle(t); try? context.save() }
-                }
+            .alert("Couldn't make a title",
+                   isPresented: Binding(get: { controller.titleFailedConversationID != nil },
+                                        set: { if !$0 { controller.titleFailedConversationID = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("The model didn't answer. Check its connection and try again.")
+            }
+            .renameChat(isPresented: $showRename, text: $renameText) { title in
+                conversation?.setUserTitle(title)
+                try? context.save()
             }
             .confirmationDialog("Delete this chat?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Delete", role: .destructive) {
@@ -503,6 +512,7 @@ struct ChatView: View {
                 },
                 onOpenSettings: onOpenSettings,
                 onCopyRaw: { Pasteboard.copy(MessageLayout.fullText(segments: segments, answer: shownText)) },
+                textForSelection: { MarkdownPlain.text(from: MessageLayout.fullText(segments: segments, answer: shownText)) },
                 onTranslate: { controller.translation.translate(message, context: context, isStreaming: active) },
                 onToggleTranslation: { controller.translation.toggle(message, context: context) },
                 branch: branch,
@@ -773,7 +783,7 @@ struct ChatView: View {
             }
             return
         }
-        guard let sheet = DebugHooks.openSheet, sheet.hasPrefix("timeline") || ["usage", "context", "rename", "details", "compaction", "summarize", "translate"].contains(sheet) else { return }
+        guard let sheet = DebugHooks.openSheet, sheet.hasPrefix("timeline") || ["usage", "context", "rename", "selecttext", "regentitle", "details", "compaction", "summarize", "translate"].contains(sheet) else { return }
         if sheet == "translate" { // translates the first answer once it is in
             if controller.activeMessageID == nil, !branchDebugDone, let m = conversation?.leafMessage, m.role == .assistant {
                 branchDebugDone = true
@@ -796,6 +806,21 @@ struct ChatView: View {
             if controller.activeMessageID == nil, let c = conversation, c.messages.contains(where: { $0.role == .assistant }) {
                 renameText = "score가 NULL인 행은 어떻게 처리되는지 SQL 집계 함수 동작 정리"
                 showRename = true
+            }
+            return
+        }
+        if sheet == "regentitle" { // "Regenerate title" once the first answer is named
+            if controller.activeMessageID == nil, !branchDebugDone, let c = conversation, c.leafMessage?.role == .assistant {
+                branchDebugDone = true
+                try? await Task.sleep(for: .seconds(3)) // past the automatic title
+                guard !controller.isTitling(c.id) else { return }
+                controller.autoRename(conversation: c, context: context, force: true)
+            }
+            return
+        }
+        if sheet == "selecttext" {
+            if controller.activeMessageID == nil, debugSelection == nil, let m = conversation?.leafMessage, m.role == .assistant {
+                debugSelection = MarkdownPlain.text(from: m.text)
             }
             return
         }

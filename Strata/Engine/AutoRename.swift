@@ -72,14 +72,19 @@ enum AutoRename {
     }
 
     /// The user message for the naming request: the first user message and the start of the answer, clipped.
-    /// Nil when there is nothing to name yet (no user message).
-    static func prompt(lines: [Line]) -> String? {
+    /// Nil when there is nothing to name yet (no user message). `replacing` is the title shown now, when the person asked
+    /// for a new one: without it the same request gets the same title back and the button seems to do nothing.
+    static func prompt(lines: [Line], replacing current: String? = nil) -> String? {
         let exchange = firstExchange(lines)
         guard !exchange.isEmpty else { return nil }
         let convo = exchange.map { line -> String in
             line.role == .user ? "User: " + clip(line.text, userClip) : "Assistant: " + clip(line.text, assistantClip)
         }
-        return "The conversation:\n\n" + convo.joined(separator: "\n\n") + "\n\nTitle:"
+        var text = "The conversation:\n\n" + convo.joined(separator: "\n\n")
+        if let current, !current.isEmpty {
+            text += "\n\nThe current title is \"\(clip(current, maxNameLength))\". Write a different, better one."
+        }
+        return text + "\n\nTitle:"
     }
 
     /// How a request tries to keep thinking from eating the budget.

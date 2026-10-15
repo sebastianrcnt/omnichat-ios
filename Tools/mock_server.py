@@ -397,7 +397,12 @@ class Handler(BaseHTTPRequestHandler):
         prompt_tokens = 400 + 900 * rounds
         many = "many" in user_text.lower() and not plain  # 7 tool rounds with a preamble each, then the answer
         last_tool_round = 6 if many else 1
-        if user_text.startswith("Context checkpoint"):
+        if user_text.startswith("The conversation:"):
+            # A naming request; "Regenerate title" names the current title and asks for another.
+            self.stream_content("A fresh title" if "The current title is" in user_text else "SQL NULL in aggregates")
+            usage = {"prompt_tokens": 120, "completion_tokens": 6}
+            finished = True
+        elif user_text.startswith("Context checkpoint"):
             # Handoff notes (compaction): a short, well-formed set, ending in a list, not a heading.
             self.stream_reasoning("Writing the handoff notes.\n\n")
             self.stream_content("## Goal\nThe user is researching Liquid Glass in SwiftUI and wants practical guidance.\n\n"

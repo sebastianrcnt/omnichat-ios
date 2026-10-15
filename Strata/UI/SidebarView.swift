@@ -92,14 +92,10 @@ struct SidebarView: View {
                 deleting = nil
             }
         }
-        .alert("Rename chat", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
-            TextField("Title", text: $renameText)
-            Button("Cancel", role: .cancel) { renaming = nil }
-            Button("Save") {
-                let t = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
-                if let c = renaming, !t.isEmpty { c.setUserTitle(t); try? context.save() }
-                renaming = nil
-            }
+        .renameChat(isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } }), text: $renameText) { title in
+            renaming?.setUserTitle(title)
+            try? context.save()
+            renaming = nil
         }
     }
 
@@ -217,5 +213,79 @@ enum ConversationGroups {
         if days < 30 { return String(localized: "Previous 30 Days") }
         if calendar.isDate(date, equalTo: now, toGranularity: .year) { return date.formatted(.dateTime.month(.wide)) }
         return date.formatted(.dateTime.month(.wide).year())
+    }
+}
+
+/// "Rename chat". On iPhone a small sheet of our own: the system alert's text field came out shifted past the alert's
+/// edge with the app's font and line height applied. A Mac keeps the alert.
+private struct RenameChat: ViewModifier {
+    @Binding var isPresented: Bool
+    @Binding var text: String
+    let onSave: (String) -> Void
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content.sheet(isPresented: $isPresented) {
+            RenameChatSheet(text: $text) { title in
+                onSave(title) // first: the sidebar's binding forgets which chat when the sheet closes
+                isPresented = false
+            }
+        }
+        #else
+        content.alert("Rename chat", isPresented: $isPresented) {
+            TextField("Title", text: $text)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") { save() }
+        }
+        #endif
+    }
+
+    private func save() {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !t.isEmpty { onSave(t) }
+    }
+}
+
+#if os(iOS)
+private struct RenameChatSheet: View {
+    @Environment(\.theme) private var theme
+    @Environment(\.dismiss) private var dismiss
+    @Binding var text: String
+    let onSave: (String) -> Void
+    @FocusState private var focused: Bool
+
+    private var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        VStack(spacing: DS.Spacing.lg) {
+            HStack {
+                Button("Cancel") { dismiss() }
+                Spacer()
+                Text("Rename chat").font(DS.Typography.uiEmphasis).foregroundStyle(theme.textPrimary)
+                Spacer()
+                Button("Save") { onSave(trimmed) }.disabled(trimmed.isEmpty).fontWeight(.semibold)
+            }
+            TextField("Title", text: $text)
+                .font(DS.Typography.ui)
+                .foregroundStyle(theme.textPrimary)
+                .focused($focused)
+                .submitLabel(.done)
+                .onSubmit { if !trimmed.isEmpty { onSave(trimmed) } }
+                .padding(.horizontal, DS.Spacing.lg)
+                .frame(height: DS.IconSize.controlDiameter)
+                .background(theme.surfaceRaised, in: Capsule())
+            Spacer(minLength: 0)
+        }
+        .padding(DS.Spacing.lg)
+        .presentationDetents([.height(150)])
+        .presentationBackground(theme.background)
+        .onAppear { focused = true }
+    }
+}
+#endif
+
+extension View {
+    func renameChat(isPresented: Binding<Bool>, text: Binding<String>, onSave: @escaping (String) -> Void) -> some View {
+        modifier(RenameChat(isPresented: isPresented, text: text, onSave: onSave))
     }
 }

@@ -186,6 +186,8 @@ final class ChatController {
 
     /// Conversations whose title request is running. Transient: a relaunch mid-request just leaves the placeholder.
     private(set) var titlingConversationIDs: Set<UUID> = []
+    /// Set when "Regenerate title" got no title (no key, an error, an empty reply); the chat shows an alert.
+    var titleFailedConversationID: UUID?
 
     func isTitling(_ conversationID: UUID?) -> Bool {
         conversationID.map { titlingConversationIDs.contains($0) } ?? false
@@ -195,11 +197,15 @@ final class ChatController {
     /// `force` ("Regenerate title") overwrites even a user-set title and marks the new title as not user-set; it runs
     /// whether or not automatic titles are on in Settings.
     func autoRename(conversation: Conversation, context: ModelContext, force: Bool) {
-        guard !titlingConversationIDs.contains(conversation.id),
-              let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID,
+        guard !titlingConversationIDs.contains(conversation.id) else { return }
+        guard let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID,
                                                   sessionID: conversation.id.uuidString),
               !Self.needsKey(endpoint, connections: connections),
-              let prompt = AutoRename.prompt(lines: conversation.namingLines) else { return }
+              let prompt = AutoRename.prompt(lines: conversation.namingLines,
+                                             replacing: force ? conversation.displayTitle : nil) else {
+            if force { titleFailedConversationID = conversation.id }
+            return
+        }
         let streamer = streamer
         let ring = requestRing
         let conversationID = conversation.id
@@ -215,7 +221,8 @@ final class ChatController {
                 }
             }
             guard let name else {
-                // A failed automatic title is tried again after a later answer.
+                // "Regenerate title" says it failed; a failed automatic title is tried again after a later answer.
+                if force { self?.titleFailedConversationID = conversationID }
                 if !force, conversation.modelContext != nil, !conversation.isDeleted { conversation.autoRenameDone = false }
                 return
             }
