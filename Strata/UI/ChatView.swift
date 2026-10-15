@@ -241,13 +241,7 @@ struct ChatView: View {
                 SourcesSheet(title: "Sources", sources: item.sources, all: item.all)
             }
             #if DEBUG
-            .fullScreenCoverOrSheet(isPresented: $debugViewer) {
-                CodeViewer(content: .init(language: "swift", code: (1...60).map { "let step\($0) = configure(glassEffect: .regular, id: \($0)) // long line to scroll" }.joined(separator: "\n"))).inAppLinks()
-            }
-            .sheet(isPresented: Binding(get: { debugSelection != nil }, set: { if !$0 { debugSelection = nil } })) {
-                SelectableTextSheet(text: debugSelection ?? "")
-            }
-            .fullScreenCoverOrSheet(item: $debugArtifact) { ArtifactViewer(ref: $0) }
+            .modifier(DebugSheets(viewer: $debugViewer, selection: $debugSelection, artifact: $debugArtifact))
             #endif
             .alert("Couldn't make a title",
                    isPresented: Binding(get: { controller.titleFailedConversationID != nil },
@@ -1080,4 +1074,23 @@ private struct SendFlyIn: ViewModifier {
 #if DEBUG
 /// `-StrataOpenSheet artifact` presents one by its ref.
 extension ArtifactRef: Identifiable {}
+
+/// The sheets `-StrataOpenSheet` opens for screenshots, kept apart from the chat's own modifier chain (a long chain
+/// makes the type checker give up).
+private struct DebugSheets: ViewModifier {
+    @Binding var viewer: Bool
+    @Binding var selection: String?
+    @Binding var artifact: ArtifactRef?
+
+    func body(content: Content) -> some View {
+        content
+            .fullScreenCoverOrSheet(isPresented: $viewer) {
+                CodeViewer(content: .init(language: "swift", code: (1...60).map { "let step\($0) = configure(glassEffect: .regular, id: \($0)) // long line to scroll" }.joined(separator: "\n"))).inAppLinks()
+            }
+            .sheet(isPresented: Binding(get: { selection != nil }, set: { if !$0 { selection = nil } })) {
+                SelectableTextSheet(text: selection ?? "")
+            }
+            .fullScreenCoverOrSheet(item: $artifact) { ArtifactViewer(ref: $0) }
+    }
+}
 #endif
