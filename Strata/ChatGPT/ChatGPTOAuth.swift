@@ -204,7 +204,8 @@ struct ChatGPTTokenResponse: Decodable, Sendable {
         guard let scopes else { throw ChatGPTAuthError.invalidTokenResponse }
         guard let accessToken, !accessToken.isEmpty, tokenType?.lowercased() == "bearer",
               let expiresIn, expiresIn > 0 else { throw ChatGPTAuthError.invalidTokenResponse }
-        let refresh = refreshToken
+        // A refresh that doesn't rotate the refresh token leaves the old one valid: keep it.
+        let refresh = (refreshToken ?? "").isEmpty ? previous?.refreshToken : refreshToken
         if scopes.contains("offline_access") && (refresh ?? "").isEmpty { throw ChatGPTAuthError.invalidTokenResponse }
         return ChatGPTTokens(accessToken: accessToken, refreshToken: refresh, idToken: idToken ?? previous?.idToken,
                              expiresAt: now.addingTimeInterval(expiresIn), scopes: scopes, savedAt: now,

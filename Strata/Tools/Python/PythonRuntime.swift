@@ -247,11 +247,21 @@ final class PythonWebHost: NSObject, WKNavigationDelegate {
         cont?.resume(throwing: CancellationError())
     }
 
+    /// How long the page may take to load before the run gives up (it would otherwise hold the run lock for good).
+    static let loadLimit: Duration = .seconds(60)
+
     func load() async throws {
         if isLoaded { return }
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
             loadContinuation = cont
             webView.load(URLRequest(url: Pyodide.pageURL))
+            Task { [weak self] in
+                try? await Task.sleep(for: Self.loadLimit)
+                guard let self, let cont = self.loadContinuation else { return }
+                self.loadContinuation = nil
+                self.webView.stopLoading()
+                cont.resume(throwing: WebToolError.timeout)
+            }
         }
         isLoaded = true
     }
@@ -364,7 +374,9 @@ final class PythonRuntime {
     private var host: PythonWebHost?
     private(set) var ledger = PythonSessionLedger()
     private var running = false
-    private var waiters: [CheckedContinuation<Void, Never>] = []
+    private var waiters: [(id: UUID, continuation: CheckedContinuation<Bool, Never>)] = []
+    /// Bumped as each run ends, so a reset scheduled by a cancelled run can't hit the run after it.
+    private var runGeneration = 0
     private var idleTimer: Task<Void, Never>?
     /// Test seam: the server the web view loads from.
     var makeServer: () -> PyodideServer? = { PyodideServer.live() }
@@ -398,9 +410,10 @@ final class PythonRuntime {
     /// Runs `code` in the conversation's interpreter.
     func run(code: String, conversationID: UUID, limits: PythonLimits = .current, outputLimit: Int = AppSettings.currentFetchLength,
              canView: Bool) async -> ToolOutput {
-        await acquire()
+        guard await acquire() else { return ToolOutput(text: "Error: cancelled.", isError: true) }
         defer { release() }
         if Task.isCancelled { return ToolOutput(text: "Error: cancelled.", isError: true) }
+        let generation = runGeneration
         if ledger.claim(conversationID, now: .now) { disposeHost() }
         let hadSession = hadSession(conversationID)
 
@@ -414,7 +427,10 @@ final class PythonRuntime {
             let json = try await withTaskCancellationHandler {
                 try await Deadline.run(backstop, timeoutError: WebToolError.timeout) { try await host.run(code: code, limits: limits) }
             } onCancel: {
-                Task { @MainActor in host.resetWorker() }
+                Task { @MainActor [weak self] in
+                    guard let self, self.runGeneration == generation else { return } // this run already ended
+                    host.resetWorker()
+                }
             }
             if let reply = try? JSONDecoder().decode(PythonReply.self, from: Data(json.utf8)) {
                 fresh = reply.fresh ?? true
@@ -520,12 +536,24 @@ final class PythonRuntime {
 
     // MARK: One run at a time
 
-    private func acquire() async {
-        if !running { running = true; return }
-        await withCheckedContinuation { waiters.append($0) }
+    /// Waits for the lock. False when the waiting task was cancelled (a stopped turn doesn't wait out the run ahead).
+    private func acquire() async -> Bool {
+        if !running { running = true; return true }
+        let id = UUID()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                if Task.isCancelled { continuation.resume(returning: false) } else { waiters.append((id, continuation)) }
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                guard let self, let i = self.waiters.firstIndex(where: { $0.id == id }) else { return }
+                self.waiters.remove(at: i).continuation.resume(returning: false)
+            }
+        }
     }
 
     private func release() {
-        if waiters.isEmpty { running = false } else { waiters.removeFirst().resume() }
+        runGeneration += 1
+        if waiters.isEmpty { running = false } else { waiters.removeFirst().continuation.resume(returning: true) }
     }
 }

@@ -111,6 +111,8 @@ final class AppSettings {
     var lastEffortRaw: String { didSet { defaults.set(lastEffortRaw, forKey: "lastEffort") } }
     /// Models picked in "Select model", newest first (`RecentModels`).
     var recentModels: [String] { didSet { defaults.set(recentModels, forKey: "recentModels") } }
+    /// A notification when a reply finishes while the app is in the background (`ReplyBackgroundExecution` reads the key).
+    var notifyReplies: Bool { didSet { defaults.set(notifyReplies, forKey: "notifyReplies") } }
     /// How many lines a thought line may take (1...4, default 2).
     var thinkingLines: Int { didSet { defaults.set(thinkingLines, forKey: "thinkingLines") } }
     /// Translate English thinking into Korean on the device (`ThoughtTranslator`). Off by default.
@@ -156,6 +158,7 @@ final class AppSettings {
         let lines = defaults.integer(forKey: "thinkingLines")
         thinkingLines = Self.thinkingLineOptions.contains(lines) ? lines : Self.defaultThinkingLines
         translateThinking = defaults.bool(forKey: "translateThinking")
+        notifyReplies = defaults.object(forKey: "notifyReplies") as? Bool ?? true
         pythonEnabled = defaults.object(forKey: PythonSettings.enabledKey) == nil ? true : defaults.bool(forKey: PythonSettings.enabledKey)
         let limit = defaults.integer(forKey: PythonSettings.timeLimitKey)
         pythonTimeLimit = PythonSettings.timeLimitOptions.contains(limit) ? limit : PythonSettings.defaultTimeLimit

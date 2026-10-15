@@ -294,8 +294,8 @@ struct TranslationPlan: Equatable {
     // MARK: Line shapes
 
     static func fenceMarker(_ line: String) -> (char: Character, length: Int)? {
-        let indent = line.prefix { $0 == " " }.count
-        guard indent <= 3 else { return nil }
+        // Any indent: a fence inside a nested list item sits 4 or more spaces in, and is still code to keep as is.
+        let indent = line.prefix { $0 == " " || $0 == "\t" }.count
         let rest = line.dropFirst(indent)
         guard let c = rest.first, c == "`" || c == "~" else { return nil }
         let run = rest.prefix { $0 == c }.count
@@ -375,12 +375,14 @@ enum TranslationFailure: LocalizedError, Equatable {
     case countMismatch
     case unavailable
     case unsupportedPair
+    case downloadNotStarted
 
     var errorDescription: String? {
         switch self {
         case .countMismatch: String(localized: "The translation came back incomplete.")
         case .unavailable: String(localized: "Translation isn't available on this device.")
         case .unsupportedPair: String(localized: "This language can't be translated to your language.")
+        case .downloadNotStarted: String(localized: "The language download didn't finish. Try again.")
         }
     }
 }

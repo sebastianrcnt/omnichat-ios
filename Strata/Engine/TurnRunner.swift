@@ -84,6 +84,9 @@ struct TurnRunner: Sendable {
              sources: SourceStore? = nil,
              checkpoint restored: TurnCheckpoint? = nil,
              onEvent: @MainActor (TurnEvent) throws -> Void) async throws -> TurnOutcome {
+        if let saved = restored?.endpointFingerprint, saved != TurnCheckpoint.fingerprint(endpoint) {
+            throw APIError.server(String(localized: "This reply was started with a different server or model, so it can't be resumed. Try again to send it with the current one."))
+        }
         var checkpoint = restored ?? TurnCheckpoint()
         var messages = try restored?.messages ?? initial // the history stays in memory: nothing is encoded and decoded back
         var steps: [ToolStep] = checkpoint.steps
@@ -158,7 +161,11 @@ struct TurnRunner: Sendable {
                     }
                     checkpoint.idempotencyKey = UUID().uuidString.lowercased()
                 }
-                if checkpoint.requestData == nil { checkpoint.requestData = try request.encoded() }
+                if checkpoint.requestData == nil {
+                    checkpoint.requestData = try request.encoded()
+                    checkpoint.reasoningByMessage = TurnCheckpoint.reasoning(of: messages)
+                    checkpoint.endpointFingerprint = TurnCheckpoint.fingerprint(endpoint)
+                }
                 let firstSend = !checkpoint.submissionStarted
                 checkpoint.submissionStarted = true
                 try onEvent(.checkpoint(checkpoint))
@@ -225,7 +232,7 @@ struct TurnRunner: Sendable {
             for record in records { try onEvent(.toolFinished(record)) }
             var finished: [Int: ToolOutput] = [:]
             let flushed = Set(records.map(\.id))
-            let stashed = Dictionary(uniqueKeysWithValues: (checkpoint.pendingResults ?? []).map { ($0.callID, $0) })
+            let stashed = Dictionary((checkpoint.pendingResults ?? []).map { ($0.callID, $0) }, uniquingKeysWith: { first, _ in first })
             var toRun: [Int] = []
             for (i, call) in calls.enumerated() where !flushed.contains(call.id) {
                 if let raw = stashed[call.id] { finished[i] = raw.output } else { toRun.append(i) }
@@ -264,7 +271,8 @@ struct TurnRunner: Sendable {
 
             try Task.checkCancellation()
             try appendReady() // results restored from a checkpoint
-            try await ToolRound.execute(calls, indices: toRun, tools: tools, limit: maxConcurrentTools) { index, out in
+            let offered = OfferedTools(base: tools, names: Set(toolList.map(\.function.name)))
+            try await ToolRound.execute(calls, indices: toRun, tools: offered, limit: maxConcurrentTools) { index, out in
                 finished[index] = out
                 checkpoint.pendingResults = (checkpoint.pendingResults ?? []) + [RawToolResult(callID: calls[index].id, output: out)]
                 try appendReady()
@@ -285,5 +293,20 @@ struct TurnRunner: Sendable {
             checkpoint.priorReasoning = priorReasoning
             try onEvent(.checkpoint(checkpoint))
         }
+    }
+}
+
+/// Runs only the tools the request offered. A model can name a tool that is off (Python, the browser or location
+/// turned off in Settings) anyway; the setting has to hold at execution, not only in the tool list.
+struct OfferedTools: ToolExecuting {
+    let base: any ToolExecuting
+    let names: Set<String>
+    var usesWebKit: Bool { base.usesWebKit }
+
+    func execute(name: String, arguments: String) async -> ToolOutput {
+        guard names.contains(name) else {
+            return ToolOutput(text: "Error: the tool \(name) is not available in this chat.", isError: true)
+        }
+        return await base.execute(name: name, arguments: arguments)
     }
 }

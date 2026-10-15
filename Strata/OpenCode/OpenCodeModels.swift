@@ -207,8 +207,8 @@ enum OpenCodeModelsAPI {
     }
 
     private static func positive(_ value: Any?) -> Int? {
-        if let n = value as? Int, n > 0 { return n }
-        if let d = value as? Double, d > 0 { return Int(d) }
+        if let n = value as? Int, n > 0 { return min(n, ContextLimits.maxTokens) }
+        if let d = value as? Double, d > 0 { return Int(exactly: d.rounded(.down)).map { min($0, ContextLimits.maxTokens) } }
         return nil
     }
 }

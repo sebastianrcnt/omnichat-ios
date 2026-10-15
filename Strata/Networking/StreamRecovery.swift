@@ -12,6 +12,15 @@ extension ResumableChatStreaming {
     func requestID(forIdempotencyKey key: String, endpoint: Endpoint) async throws -> String? { nil }
 }
 
+/// The server couldn't be reached for the whole recovery window. The reply is still on the server: its checkpoint is
+/// kept, and the next time the app comes to the front it reconnects again.
+struct StreamOutage: LocalizedError, Equatable {
+    var minutes: Int
+    var errorDescription: String? {
+        String(localized: "Could not reconnect to the server for \(minutes) minutes. Strata tries again when you come back to the app.")
+    }
+}
+
 enum StreamRecoveryPolicy {
     /// How long a reply keeps trying to reconnect without receiving anything.
     nonisolated(unsafe) static var maxOutage: TimeInterval = 600
@@ -87,8 +96,14 @@ final class RecoverySignals: @unchecked Sendable {
         try Task.checkCancellation()
     }
 
+    /// The timer for `id` fired. If it fired before the waiter registered (a delayed scheduler), the waiter finds the
+    /// mark and returns at once instead of waiting for an unrelated signal.
     private func resume(_ id: UUID) {
-        let cont = lock.withLock { waiters.removeValue(forKey: id) }
+        let cont = lock.withLock { () -> CheckedContinuation<Void, Never>? in
+            if let w = waiters.removeValue(forKey: id) { return w }
+            cancelledEarly.insert(id)
+            return nil
+        }
         cont?.resume()
     }
 }
@@ -145,6 +160,10 @@ extension ChatClient: ResumableChatStreaming {
                             if !(200..<300).contains(http.statusCode) {
                                 var data = Data()
                                 for try await byte in bytes { data.append(byte); if data.count >= 4096 { break } }
+                                if requestID != nil, http.statusCode == 404 || http.statusCode == 410 {
+                                    // The gateway let the stream go (kept too long while the app was away).
+                                    throw APIError.server(String(localized: "The server no longer has this reply. Try again to get a new one."))
+                                }
                                 throw APIError.http(status: http.statusCode, message: HTTP.errorMessage(from: data))
                             }
                             if requestID == nil {
@@ -157,12 +176,8 @@ extension ChatClient: ResumableChatStreaming {
                             }
                             var parser = SSEParser(includeIDOnlyEvents: true)
                             var line = Data()
-                            for try await byte in bytes {
-                                try Task.checkCancellation()
-                                line.append(byte)
-                                if byte != 10 { continue }
-                                let events = parser.feed(line)
-                                line.removeAll(keepingCapacity: true)
+                            /// True once `[DONE]` arrived.
+                            func handle(_ events: [SSEEvent]) throws -> Bool {
                                 for event in events {
                                     guard let id = event.id, let seq = Int(id), seq > 0 else {
                                         throw APIError.server(String(localized: "Missing resumable event sequence."))
@@ -175,9 +190,21 @@ extension ChatClient: ResumableChatStreaming {
                                     attempt = 0
                                     failingSince = nil
                                     continuation.yield(delta)
-                                    if delta.isDone { continuation.finish(); return }
+                                    if delta.isDone { return true }
                                 }
+                                return false
                             }
+                            for try await byte in bytes {
+                                try Task.checkCancellation()
+                                line.append(byte)
+                                if byte != 10 { continue }
+                                let events = parser.feed(line)
+                                line.removeAll(keepingCapacity: true)
+                                if try handle(events) { continuation.finish(); return }
+                            }
+                            // The last event may end without its blank line: flush it before calling EOF a drop.
+                            if !line.isEmpty, try handle(parser.feed(line)) { continuation.finish(); return }
+                            if try handle(parser.finish()) { continuation.finish(); return }
                             // EOF without [DONE] is a dropped stream, never a completed reply.
                             throw URLError(.networkConnectionLost)
                         } catch {
@@ -192,7 +219,7 @@ extension ChatClient: ResumableChatStreaming {
                             let since = failingSince ?? Date()
                             failingSince = since
                             if Date().timeIntervalSince(since) > StreamRecoveryPolicy.maxOutage {
-                                throw APIError.transport(String(localized: "Could not reconnect to the server for \(Int(StreamRecoveryPolicy.maxOutage / 60)) minutes."))
+                                throw StreamOutage(minutes: Int(StreamRecoveryPolicy.maxOutage / 60))
                             }
                             DiagnosticCounters.shared.recoveryWaitStarted()
                             defer { DiagnosticCounters.shared.recoveryWaitEnded() }

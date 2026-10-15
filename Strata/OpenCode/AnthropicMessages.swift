@@ -232,6 +232,10 @@ struct MessagesEventDecoder: Sendable {
             var name: String?
             var data: String?
             var input: AnyJSON?
+            /// Some gateways put the start of a text or thinking block (or all of it) here rather than in deltas.
+            var text: String?
+            var thinking: String?
+            var signature: String?
         }
         struct Delta: Decodable {
             var type: String?
@@ -289,16 +293,24 @@ struct MessagesEventDecoder: Sendable {
         switch event.type {
         case "message_start":
             let usage = event.message?.usage
-            inputTokens = (usage?.inputTokens ?? 0) + (usage?.cacheRead ?? 0) + (usage?.cacheCreation ?? 0)
+            inputTokens = ContextLimits.add(usage?.inputTokens ?? 0, usage?.cacheRead ?? 0, usage?.cacheCreation ?? 0)
             cachedTokens = usage?.cacheRead
         case "content_block_start":
             guard let index = event.index, let block = event.contentBlock else { break }
             switch block.type {
             case "text":
                 blocks[index] = Open(kind: .text)
+                if let t = block.text, !t.isEmpty { delta.content = t }
             case "thinking":
-                blocks[index] = Open(kind: .thinking)
+                var open = Open(kind: .thinking)
                 if reasoningWritten { delta.reasoning = "\n\n" }
+                if let t = block.thinking, !t.isEmpty {
+                    open.thinking = t
+                    reasoningWritten = true
+                    delta.reasoning = (delta.reasoning ?? "") + t
+                }
+                open.signature = block.signature ?? ""
+                blocks[index] = open
             case "redacted_thinking":
                 blocks[index] = Open(kind: .redacted, redacted: block.data ?? "")
             case "tool_use":

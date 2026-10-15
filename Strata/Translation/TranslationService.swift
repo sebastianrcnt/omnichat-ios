@@ -73,7 +73,11 @@ final class TranslationService {
     private struct Waiting {
         var text: String
         var continuation: CheckedContinuation<String, Error>
+        var token = UUID()
     }
+
+    /// How long a translation waits for the chat's `.translationTask` (the download prompt) before giving up.
+    static let downloadWait: Duration = .seconds(180)
 
     // MARK: What the row shows
 
@@ -122,7 +126,8 @@ final class TranslationService {
             defer { self.translating.remove(id); self.tasks[id] = nil }
             do {
                 let result = try await self.produce(text: text, target: target)
-                guard !Task.isCancelled, message.text == text else { return }
+                // The message may have been deleted while this ran.
+                guard !Task.isCancelled, message.modelContext != nil, !message.isDeleted, message.text == text else { return }
                 message.translatedText = result
                 message.translationTarget = target
                 message.showingTranslation = true
@@ -157,14 +162,31 @@ final class TranslationService {
         case .installed:
             return try await TranslationRunner.translate(text, with: installedTranslator(source, target))
         case .needsDownload:
-            return try await withCheckedThrowingContinuation { continuation in
-                waiting?.continuation.resume(throwing: CancellationError())
-                waiting = Waiting(text: text, continuation: continuation)
-                var next = Self.configuration(source: source, target: target)
-                if configuration == next { next.invalidate() }
-                configuration = next
+            // The continuation is resumed by `fulfill`, or given up on when the translation is cancelled or the
+            // chat never runs its `.translationTask` (it left the screen first): otherwise the spinner would stay.
+            let token = UUID()
+            return try await withTaskCancellationHandler {
+                try await withCheckedThrowingContinuation { continuation in
+                    waiting?.continuation.resume(throwing: CancellationError())
+                    waiting = Waiting(text: text, continuation: continuation, token: token)
+                    var next = Self.configuration(source: source, target: target)
+                    if configuration == next { next.invalidate() }
+                    configuration = next
+                    Task { [weak self] in
+                        try? await Task.sleep(for: Self.downloadWait)
+                        self?.abandonWaiting(token, error: TranslationFailure.downloadNotStarted)
+                    }
+                }
+            } onCancel: {
+                Task { @MainActor [weak self] in self?.abandonWaiting(token, error: CancellationError()) }
             }
         }
+    }
+
+    private func abandonWaiting(_ token: UUID, error: Error) {
+        guard let waiting, waiting.token == token else { return }
+        self.waiting = nil
+        waiting.continuation.resume(throwing: error)
     }
 
     /// Runs inside `.translationTask`, where the session may show the download prompt.

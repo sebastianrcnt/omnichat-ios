@@ -282,25 +282,29 @@ struct PyodideServer: Sendable {
     }
 }
 
-/// The real network side of the proxy: an ephemeral session (no cookies kept) whose redirects stay on http(s).
+/// The real network side of the proxy: an ephemeral session (no cookies kept). Like the other web tools it reaches
+/// public hosts only, redirects included, so a page that talks the model into `pyfetch("http://192.168.0.1/…")` gets
+/// nothing; the body is cut off past the download limit instead of being buffered whole.
 enum PyNetwork {
-    private final class RedirectGuard: NSObject, URLSessionTaskDelegate {
-        func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
-                        newRequest request: URLRequest) async -> URLRequest? {
-            guard let url = request.url, PyodideAllowlist.allows(url) else { return nil }
-            return request
-        }
-    }
+    static let maxBytes = 200 * 1024 * 1024
 
-    private static let session: URLSession = {
+    private static let configuration: URLSessionConfiguration = {
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 60
         config.timeoutIntervalForResource = 300
-        return URLSession(configuration: config, delegate: RedirectGuard(), delegateQueue: nil)
+        return config
     }()
 
+    static func allowed(_ url: URL) async -> Bool {
+        guard PyodideAllowlist.allows(url) else { return false }
+        return (try? await URLGuard.validate(url)) != nil
+    }
+
     static let fetch: PyNetworkFetch = { request in
-        let (data, response) = try await session.data(for: request)
+        guard let url = request.url else { throw URLError(.badURL) }
+        try await URLGuard.validate(url)
+        let (data, response) = try await LimitedDownload.data(for: request, configuration: configuration, limit: maxBytes,
+                                                              allowRedirect: { await allowed($0) })
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         return (data, http)
     }

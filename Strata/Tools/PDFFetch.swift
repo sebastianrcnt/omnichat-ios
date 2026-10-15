@@ -29,22 +29,22 @@ enum PDFFetch {
 
     static func isPDF(_ data: Data) -> Bool { data.prefix(1024).range(of: Data("%PDF-".utf8)) != nil }
 
-    /// Downloads `url` and returns its text. Redirects are checked like the first URL (public http(s) hosts only).
+    /// Downloads `url` and returns its text. The URL and every redirect are checked like a fetch (public http(s) hosts only).
     static func load(_ url: URL, timeout: Duration, resolver: any HostResolving = SystemHostResolver()) async throws -> FetchedPage {
+        try await URLGuard.validate(url, resolver: resolver)
         var request = URLRequest(url: url, timeoutInterval: timeout.seconds)
         request.httpShouldHandleCookies = false
         request.setValue("application/pdf,*/*;q=0.5", forHTTPHeaderField: "Accept")
         request.setValue(HiddenWebView.userAgent, forHTTPHeaderField: "User-Agent")
-        let session = URLSession(configuration: .ephemeral, delegate: RedirectGuard(resolver: resolver), delegateQueue: nil)
-        defer { session.finishTasksAndInvalidate() }
-        let (bytes, response) = try await session.bytes(for: request)
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) { throw Failure.http(http.statusCode) }
-        if response.expectedContentLength > maxBytes { throw Failure.tooLarge }
-        var data = Data()
-        for try await byte in bytes {
-            data.append(byte)
-            if data.count > maxBytes { throw Failure.tooLarge }
+        let data: Data, response: URLResponse
+        do {
+            (data, response) = try await LimitedDownload.data(for: request, limit: maxBytes) { next in
+                (try? await URLGuard.validate(next, resolver: resolver)) != nil
+            }
+        } catch LimitedDownload.Failure.tooLarge {
+            throw Failure.tooLarge
         }
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) { throw Failure.http(http.statusCode) }
         guard isPDF(data) else { throw Failure.notPDF }
         let finalURL = response.url ?? url
         return try await Task.detached(priority: .userInitiated) { try text(of: data, url: finalURL) }.value
@@ -63,16 +63,5 @@ enum PDFFetch {
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let title = own.isEmpty ? url.lastPathComponent : own
         return FetchedPage(title: title, url: url.absoluteString, text: parts.joined(separator: "\n\n"))
-    }
-
-    private final class RedirectGuard: NSObject, URLSessionTaskDelegate {
-        let resolver: any HostResolving
-        init(resolver: any HostResolving) { self.resolver = resolver }
-
-        func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
-                        newRequest request: URLRequest) async -> URLRequest? {
-            guard let url = request.url, (try? await URLGuard.validate(url, resolver: resolver)) != nil else { return nil }
-            return request
-        }
     }
 }

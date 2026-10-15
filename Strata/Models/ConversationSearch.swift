@@ -22,4 +22,10 @@ enum ConversationSearch {
         guard !q.isEmpty else { return conversations }
         return conversations.filter { $0.title.localizedStandardContains(q) || contentMatches.contains($0.id) }
     }
+
+    /// The chat is listed for its messages, not its title: the list says so, or the match would look random.
+    static func matchedOnlyInMessages(_ conversation: Conversation, query: String, contentMatches: Set<UUID>) -> Bool {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !q.isEmpty && contentMatches.contains(conversation.id) && !conversation.displayTitle.localizedStandardContains(q)
+    }
 }

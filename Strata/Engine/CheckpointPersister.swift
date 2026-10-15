@@ -83,14 +83,17 @@ final class CheckpointPersister {
         guard !closed, dirty, let checkpoint = latest else { return }
         trailing?.cancel()
         trailing = nil
-        dirty = false
         var staticData: Data?
         let key = checkpoint.staticKey
         if key != lastKey {
-            staticData = try? encodeStatic(checkpoint)
-            if staticData != nil { lastKey = key; staticEncodeCount += 1 }
+            // A new round's request that can't be encoded must not be paired with the previous round's body: write
+            // nothing (and stay dirty) rather than a dynamic half that would replay against the wrong request.
+            guard let encoded = try? encodeStatic(checkpoint) else { return }
+            staticData = encoded
         }
         guard let dynamicData = try? JSONEncoder().encode(checkpoint.dynamicPart) else { return }
+        dirty = false
+        if staticData != nil { lastKey = key; staticEncodeCount += 1 }
         lastStreamDone = checkpoint.streamDone
         lastRecords = checkpoint.records.count
         lastPending = checkpoint.pendingResults?.count ?? 0

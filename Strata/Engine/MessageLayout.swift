@@ -33,16 +33,11 @@ enum MessageLayout {
         }
     }
 
-    /// Space above `item`. A round's thought, note and feed sit close together; after a feed the next round (or the
-    /// answer) starts a wider gap, so rounds read as steps. The live line takes the gap the finished line will have, so
-    /// it doesn't move when it finishes.
+    /// Space above `item`: one even gap between every part of the work and the answer, so a thought line sits as far
+    /// from the card above it as from the one below. The live line takes the same gap, so it doesn't move when it
+    /// finishes.
     static func gap(above item: Item, after previous: Item?) -> Double {
-        guard let previous else { return 0 }
-        switch previous {
-        case .feed: return 24
-        case .thought, .reasoning, .working: return item == .text ? 16 : 12
-        case .note, .text: return 12
-        }
+        previous == nil ? 0 : 16
     }
 
     /// The work before the answer, in stream order.

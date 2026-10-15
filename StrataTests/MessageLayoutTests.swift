@@ -181,13 +181,22 @@ struct MessageLayoutControllerTests {
 }
 
 struct MessagePartsTests {
-    @Test func roundsAreSeparatedWiderThanTheirParts() {
+    @Test func newWordsOfAThoughtFadeIn() {
+        let now = Date()
+        let spans = [StreamingMarkdownModel.FreshSpan(length: 3, born: now.addingTimeInterval(-1), duration: 0.15),
+                     StreamingMarkdownModel.FreshSpan(length: 4, born: now, duration: 0.15)]
+        let out = ReasoningLinePreview.fading("Hello world", spans: spans, now: now, color: .gray)
+        #expect(String(out.characters) == "Hello world")
+        let faded = out.runs.filter { $0.foregroundColor != nil }.map { String(out[$0.range].characters) }
+        #expect(faded == ["orld"], "only the newest, still fading span is faint")
+    }
+
+    @Test func everyPartIsTheSameGapApart() {
         #expect(MessageLayout.gap(above: .reasoning(0), after: nil) == 0)
-        #expect(MessageLayout.gap(above: .note(1), after: .reasoning(0)) == 12)
-        #expect(MessageLayout.gap(above: .feed(0), after: .note(1)) == 12)
-        #expect(MessageLayout.gap(above: .reasoning(3), after: .feed(0)) == 24)
-        #expect(MessageLayout.gap(above: .working, after: .feed(0)) == MessageLayout.gap(above: .reasoning(3), after: .feed(0)))
-        #expect(MessageLayout.gap(above: .text, after: .reasoning(3)) == 16)
+        let gaps = [MessageLayout.gap(above: .note(1), after: .reasoning(0)), MessageLayout.gap(above: .feed(0), after: .note(1)),
+                    MessageLayout.gap(above: .reasoning(3), after: .feed(0)), MessageLayout.gap(above: .working, after: .feed(0)),
+                    MessageLayout.gap(above: .text, after: .reasoning(3))]
+        #expect(Set(gaps).count == 1)
     }
 
     @Test func aThoughtLineIsItsLastLineWithoutMarkdown() {
@@ -241,5 +250,15 @@ struct MessagePartsTests {
         let step = ToolStep(assistantContent: " Let me check. ", calls: [search("a")], reasoningParagraphs: 1)
         let items = TimelineItem.build(chunks: ["p0", "p1"], steps: [step], pending: [], sources: [:])
         #expect(items.map(\.id) == ["t0", "n0", "a", "t1"])
+    }
+}
+
+struct ReplyNotificationTests {
+    @Test func theBodyIsTheStartOfTheAnswerAsPlainText() {
+        let body = ChatController.notificationBody("## Result\n\n**Yes**, it works.\n\n- one\n- two", limit: 20)
+        #expect(!body.contains("**") && !body.contains("##"))
+        #expect(body.hasPrefix("Result Yes, it works"))
+        #expect(body.hasSuffix("…"))
+        #expect(ChatController.notificationBody("Short.") == "Short.")
     }
 }

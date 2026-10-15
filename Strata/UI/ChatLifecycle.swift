@@ -28,6 +28,12 @@ private struct ChatLifecycle: ViewModifier {
                     selectRecoveredConversation()
                 }
             }
+            .onChange(of: ReplyNotificationRouter.shared?.pending, initial: true) { _, id in
+                guard let id, let router = ReplyNotificationRouter.shared else { return }
+                router.pending = nil
+                let descriptor = FetchDescriptor<Conversation>(predicate: #Predicate { $0.id == id })
+                if let conversation = try? context.fetch(descriptor).first { selected = conversation }
+            }
             .onChange(of: selected?.id) { _, _ in
                 controller.forgetRenderStates(except: Set((selected?.messages ?? []).map(\.id)))
                 // The chat left behind loses its Python interpreter, unless its reply is still running.

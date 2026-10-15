@@ -149,8 +149,12 @@ final class DictationController {
         case .listening:
             phase = .finishing
             let session = self.session
-            await engine.finish()
-            await Self.wait(for: session, timeout: finishTimeout)
+            let current = generation
+            // The timeout covers the engine's own finishing too: a recognizer that never settles can't hold the
+            // composer in "finishing" for good.
+            await finish(within: finishTimeout, session: session)
+            // Cancelled meanwhile and a new dictation started: its words and session are not this confirm's.
+            guard current == generation else { return "" }
         case .stopped:
             break
         case .finishing: // a second tap; the first one inserts the words
@@ -240,6 +244,7 @@ final class DictationController {
                 phase = .stopped
                 endedAt = now()
                 levels = Array(repeating: 0, count: Self.barCount)
+                engine.cancel() // the recognizer is done: stop the microphone too (the transcript stays here)
             }
         } catch {
             guard current == generation else { return }
@@ -295,16 +300,22 @@ final class DictationController {
         }
     }
 
-    private static func wait(for session: Task<Void, Never>?, timeout: Duration) async {
-        guard let session else { return }
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { await session.value }
-            group.addTask {
-                // Waiting on `value` cannot be cancelled, so a timeout ends the session itself.
-                if (try? await Task.sleep(for: timeout)) != nil { session.cancel() }
+    private final class Once { var done = false }
+
+    /// `engine.finish()` and the session's last results, or `timeout`, whichever comes first.
+    private func finish(within timeout: Duration, session: Task<Void, Never>?) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let once = Once()
+            Task { @MainActor in
+                await self.engine.finish()
+                await session?.value
+                if !once.done { once.done = true; continuation.resume() }
             }
-            await group.next()
-            group.cancelAll()
+            Task { @MainActor in
+                try? await Task.sleep(for: timeout)
+                session?.cancel()
+                if !once.done { once.done = true; continuation.resume() }
+            }
         }
     }
 }

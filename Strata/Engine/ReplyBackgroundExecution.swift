@@ -77,9 +77,13 @@ final class ReplyBackgroundExecution {
         }
     }
 
-    func end(success: Bool) {
+    /// - Parameters:
+    ///   - title, subtitle: what the system's task list shows for the finished task ("Reply ready" / "Reply stopped" and
+    ///     the chat's title), instead of the "Preparing reply" it started with.
+    func end(success: Bool, title: String? = nil, subtitle: String? = nil) {
         active = false
         if let continued {
+            if let title { continued.updateTitle(title, subtitle: subtitle ?? "") }
             if success { continued.progress.completedUnitCount = continued.progress.totalUnitCount }
             continued.setTaskCompleted(success: success)
         }
@@ -98,54 +102,78 @@ final class ReplyBackgroundExecution {
     func begin() {}
     var stateDescription: String { "not needed on macOS" }
     func advance(by count: Int = 1) {}
-    func end(success: Bool) {}
+    func end(success: Bool, title: String? = nil, subtitle: String? = nil) {}
     #endif
 
-    private static var notificationObserver: NSObjectProtocol?
-    private static var deliveringNotification = false
-    private static let notificationPendingKey = "strata.replyNotificationPending"
+    /// Off in Settings > Notifications.
+    static var enabled: Bool { UserDefaults.standard.object(forKey: "notifyReplies") as? Bool ?? true }
+    private static let router = ReplyNotificationRouter()
 
     static func prepareNotifications() {
-        guard notificationObserver == nil else { return }
-        notificationObserver = NotificationCenter.default.addObserver(forName: AppLifecycle.didBecomeActive,
-                                                                      object: nil, queue: .main) { _ in
-            Task { @MainActor in deliverPendingNotification() }
-        }
+        UNUserNotificationCenter.current().delegate = router
     }
 
-    static func notifyCompletion() {
-        guard !AppLifecycle.isActive else { return }
-        UserDefaults.standard.set(true, forKey: notificationPendingKey)
-        deliverPendingNotification()
-    }
-
-    private static func deliverPendingNotification() {
+    /// Asks for permission while the app is in front, at the first send: a reply that finishes in the background can't
+    /// show the permission sheet, so asking then would lose that first notification.
+    static func requestPermissionIfNeeded() {
         #if DEBUG
         if DebugHooks.value("StrataNoNotifications") != nil { return } // keeps the permission prompt out of screenshots
         #endif
-        guard UserDefaults.standard.bool(forKey: notificationPendingKey), !deliveringNotification else { return }
-        deliveringNotification = true
+        guard enabled, AppLifecycle.isActive else { return }
         Task { @MainActor in
-            defer { deliveringNotification = false }
             let center = UNUserNotificationCenter.current()
-            let settings = await center.notificationSettings()
-            if settings.authorizationStatus == .notDetermined {
-                // iOS cannot show a permission sheet while suspended/backgrounded.
-                // First background completion queues the lazy request for the next active scene.
-                guard AppLifecycle.isActive else { return }
-                guard (try? await center.requestAuthorization(options: [.alert, .sound])) == true else {
-                    UserDefaults.standard.set(false, forKey: notificationPendingKey)
-                    return
-                }
-            }
-            let content = UNMutableNotificationContent()
-            content.title = String(localized: "Reply ready")
-            content.body = String(localized: "Your Strata reply is ready.")
-            content.sound = .default
-            do {
-                try await center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
-                UserDefaults.standard.set(false, forKey: notificationPendingKey)
-            } catch { /* retry the queued notification at the next active scene */ }
+            guard await center.notificationSettings().authorizationStatus == .notDetermined else { return }
+            _ = try? await center.requestAuthorization(options: [.alert, .sound])
         }
+    }
+
+    /// Tells the person their reply is ready: the chat's title, then the start of the answer. Tapping it opens the chat.
+    static func notifyCompletion(title: String, body: String, conversationID: UUID) {
+        #if DEBUG
+        if DebugHooks.value("StrataNoNotifications") != nil { return }
+        #endif
+        guard enabled, !AppLifecycle.isActive else { return }
+        Task { @MainActor in
+            let center = UNUserNotificationCenter.current()
+            let status = await center.notificationSettings().authorizationStatus
+            #if os(iOS)
+            guard status == .authorized || status == .provisional || status == .ephemeral else { return }
+            #else
+            guard status == .authorized || status == .provisional else { return }
+            #endif
+            let content = UNMutableNotificationContent()
+            content.title = title.isEmpty ? String(localized: "Reply ready") : title
+            content.body = body.isEmpty ? String(localized: "Your Strata reply is ready.") : body
+            content.sound = .default
+            content.threadIdentifier = conversationID.uuidString
+            content.userInfo = [ReplyNotificationRouter.conversationKey: conversationID.uuidString]
+            try? await center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+        }
+    }
+}
+
+/// Opens the chat a tapped notification is about. The tap can arrive before the window is up (a cold launch), so the
+/// chat waits in `pending` until `ChatLifecycle` takes it.
+@MainActor
+@Observable
+final class ReplyNotificationRouter: NSObject, @preconcurrency UNUserNotificationCenterDelegate {
+    nonisolated static let conversationKey = "conversation"
+    static var shared: ReplyNotificationRouter?
+    var pending: UUID?
+
+    override init() {
+        super.init()
+        Self.shared = self
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        guard let raw = response.notification.request.content.userInfo[Self.conversationKey] as? String,
+              let id = UUID(uuidString: raw) else { return }
+        pending = id
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        [] // the person is already looking at the app
     }
 }

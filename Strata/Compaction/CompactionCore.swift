@@ -93,8 +93,11 @@ enum Compaction {
     /// The size at which a conversation is compacted: 90% of the window, and low enough that a full-size answer still fits.
     static func limit(window: Int, maxOutput: Int?) -> Int {
         guard window > 0 else { return 0 }
+        let window = min(window, ContextLimits.maxTokens)
         var limit = window * 9 / 10
-        if let maxOutput, maxOutput > 0 { limit = min(limit, window - maxOutput) }
+        // A model whose output limit is most of its window (or more) would otherwise get a limit of 0, which means
+        // never compact: keep at least half the window for the conversation.
+        if let maxOutput, maxOutput > 0 { limit = min(limit, max(window - maxOutput, window / 2)) }
         return max(limit, 0)
     }
 
@@ -136,7 +139,8 @@ enum Compaction {
         default: break
         }
         let notes = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let last = notes.split(separator: "\n", omittingEmptySubsequences: false).last, last.hasPrefix("#") {
+        if let last = notes.split(separator: "\n", omittingEmptySubsequences: false).last,
+           last.range(of: #"^#{1,6}\s"#, options: .regularExpression) != nil {
             return "it ends with a heading"
         }
         return nil
@@ -277,4 +281,20 @@ struct ContextMeter: Equatable, Sendable {
 
     mutating func append(_ message: APIMessage) { sinceChars += Compaction.messageChars(message) }
     mutating func append(chars: Int) { sinceChars += chars }
+}
+
+/// Bounds for token counts that come from servers, catalogs and Settings: none of them may crash arithmetic.
+enum ContextLimits {
+    /// Far above any real context window (100M tokens), small enough that sums and percentages never overflow.
+    static let maxTokens = 100_000_000
+
+    /// Adds counters a server reported, saturating instead of trapping on overflow; negatives count as 0.
+    static func add(_ values: Int...) -> Int {
+        var total = 0
+        for v in values {
+            let (sum, overflow) = total.addingReportingOverflow(max(0, v))
+            total = overflow ? Int.max : sum
+        }
+        return total
+    }
 }

@@ -386,7 +386,7 @@ struct ToolRouter: ToolExecuting {
             guard let url = args["url"] as? String else {
                 return ToolOutput(text: "Error: missing required argument \"url\".", isError: true)
             }
-            let offset = (args["offset"] as? Int) ?? (args["offset"] as? Double).map(Int.init) ?? Int((args["offset"] as? String) ?? "") ?? 0
+            let offset = (args["offset"] as? Int) ?? (args["offset"] as? Double).flatMap { Int(exactly: $0.rounded(.down)) } ?? Int((args["offset"] as? String) ?? "") ?? 0
             return await WebFetchTool().run(urlString: url, offset: offset)
         case ToolNames.runPlugin:
             guard let plugin = args["name"] as? String else {

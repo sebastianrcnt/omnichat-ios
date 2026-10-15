@@ -22,6 +22,16 @@ struct TurnCheckpoint: Codable, Sendable {
     /// Set on the one follow-up round sent after an empty answer (see `TurnRunner.continueOnEmptyAnswer`): that round
     /// runs with `tool_choice: "none"`, and no further retry follows. Optional so older checkpoints still decode.
     var emptyAnswerRetry: Bool?
+    /// The Responses API reasoning items of the history's assistant messages, by message index. The request body is
+    /// Chat Completions JSON, which has no place for them, so without these a resumed turn would lose them.
+    var reasoningByMessage: [Int: [ReasoningItem]]?
+    /// Where the request was sent (base URL and model). A resume goes only there: if the chat's connection or model
+    /// changed meanwhile, its history and request id must not be sent to a different server.
+    var endpointFingerprint: String?
+
+    static func fingerprint(_ endpoint: Endpoint) -> String {
+        endpoint.baseURL.absoluteString + "|" + endpoint.model.id
+    }
 
     init(messages: [APIMessage]) throws {
         messagesData = try ChatRequest.encoder.encode(messages)
@@ -37,12 +47,21 @@ struct TurnCheckpoint: Codable, Sendable {
 
     var messages: [APIMessage] {
         get throws {
+            var out: [APIMessage]
             if messagesData.isEmpty, let body = requestData {
                 struct Envelope: Decodable { var messages: [APIMessage] }
-                return try JSONDecoder().decode(Envelope.self, from: body).messages
+                out = try JSONDecoder().decode(Envelope.self, from: body).messages
+            } else {
+                out = try JSONDecoder().decode([APIMessage].self, from: messagesData)
             }
-            return try JSONDecoder().decode([APIMessage].self, from: messagesData)
+            for (index, items) in reasoningByMessage ?? [:] where out.indices.contains(index) { out[index].reasoningItems = items }
+            return out
         }
+    }
+
+    static func reasoning(of messages: [APIMessage]) -> [Int: [ReasoningItem]]? {
+        let pairs = messages.enumerated().filter { !$0.element.reasoningItems.isEmpty }.map { ($0.offset, $0.element.reasoningItems) }
+        return pairs.isEmpty ? nil : Dictionary(uniqueKeysWithValues: pairs)
     }
 
     /// Returns false for replayed/duplicate events; includes id-only comments in the cursor.
@@ -133,6 +152,8 @@ private struct PersistedStatic: Codable {
     var round: Int
     var submissionStarted: Bool
     var emptyAnswerRetry: Bool?
+    var reasoningByMessage: [Int: [ReasoningItem]]?
+    var endpointFingerprint: String?
 }
 
 private enum StaticFormat {
@@ -169,7 +190,9 @@ extension TurnCheckpoint {
         guard let body = checkpoint.requestData else { return try JSONEncoder().encode(checkpoint) }
         let header = try JSONEncoder().encode(PersistedStatic(idempotencyKey: checkpoint.idempotencyKey, round: checkpoint.round,
                                                               submissionStarted: checkpoint.submissionStarted,
-                                                              emptyAnswerRetry: checkpoint.emptyAnswerRetry))
+                                                              emptyAnswerRetry: checkpoint.emptyAnswerRetry,
+                                                              reasoningByMessage: checkpoint.reasoningByMessage,
+                                                              endpointFingerprint: checkpoint.endpointFingerprint))
         var out = StaticFormat.magic
         out.reserveCapacity(out.count + header.count + 1 + body.count)
         out.append(header)
@@ -194,6 +217,8 @@ extension TurnCheckpoint {
             checkpoint.round = persisted.round
             checkpoint.submissionStarted = persisted.submissionStarted
             checkpoint.emptyAnswerRetry = persisted.emptyAnswerRetry
+            checkpoint.reasoningByMessage = persisted.reasoningByMessage
+            checkpoint.endpointFingerprint = persisted.endpointFingerprint
         } else {
             checkpoint = try JSONDecoder().decode(TurnCheckpoint.self, from: staticData)
         }

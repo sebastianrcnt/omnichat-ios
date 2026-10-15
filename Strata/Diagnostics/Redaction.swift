@@ -13,8 +13,11 @@ enum DebugRedaction {
     private static let imageURL = try! NSRegularExpression(
         pattern: #"data:image(?:\\?/)[A-Za-z0-9.+-]+;base64,((?:[A-Za-z0-9+=]|\\?/)+)"#)
     private static let secretField = try! NSRegularExpression(
-        pattern: #"("(?:authorization|proxy-authorization|x-api-key|api[_-]?key|apikey|access[_-]?token|secret|password)"\s*:\s*")(?:[^"\\]|\\.)*(")"#,
+        pattern: #"("[^"]*(?:authorization|api[_-]?key|apikey|token|secret|password|cookie|verifier)[^"]*"\s*:\s*")(?:[^"\\]|\\.)*(")"#,
         options: [.caseInsensitive])
+    /// Form-encoded and query secrets (OAuth token requests): `refresh_token=…&client_secret=…`.
+    private static let formSecret = try! NSRegularExpression(
+        pattern: #"(?i)\b((?:[a-z_]*token|client_secret|code_verifier|code|password|api_?key|key)=)[^&\s"]+"#)
     private static let bearer = try! NSRegularExpression(pattern: #"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{8,}"#)
     private static let skKey = try! NSRegularExpression(pattern: #"\bsk-[A-Za-z0-9_-]{16,}"#)
 
@@ -22,6 +25,7 @@ enum DebugRedaction {
         var out = text
         if options.stripImages { out = stripImages(out) }
         out = replace(secretField, in: out) { _, groups in groups[1] + "<redacted>" + groups[2] }
+        out = replace(formSecret, in: out) { _, groups in groups[1] + "<redacted>" }
         out = replace(bearer, in: out) { _, _ in "Bearer <redacted>" }
         out = replace(skKey, in: out) { _, _ in "sk-<redacted>" }
         return out

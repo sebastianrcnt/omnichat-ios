@@ -86,6 +86,8 @@ actor ChatGPTAuth: ChatGPTTokenProviding {
     private let http: any ChatGPTHTTP
     private let now: @Sendable () -> Date
     private var refreshes: [UUID: Task<ChatGPTTokens, Error>] = [:]
+    /// Bumped by each sign-out, so a refresh already in flight can't write a live session back afterwards.
+    private var signOuts: [UUID: Int] = [:]
     private var jwks: Data?
 
     init(store: ChatGPTCredentialStore = .keychain, http: any ChatGPTHTTP = URLSessionChatGPTHTTP(),
@@ -121,9 +123,11 @@ actor ChatGPTAuth: ChatGPTTokenProviding {
     private func performRefresh(_ id: UUID) async throws -> ChatGPTTokens {
         guard let tokens = store.tokens(id), let refreshToken = tokens.refreshToken,
               let registration = store.registration(id) else { throw ChatGPTAuthError.signInRequired }
+        let generation = signOuts[id, default: 0]
         let (data, status) = try await postForm(ChatGPTOAuth.tokenEndpoint,
                                                 ChatGPTOAuth.refreshRequestBody(clientID: registration.clientID,
                                                                                 refreshToken: refreshToken))
+        guard signOuts[id, default: 0] == generation else { throw ChatGPTAuthError.signInRequired } // signed out meanwhile
         guard (200..<300).contains(status) else {
             let code = Self.oauthErrorCode(data)
             if let code, ChatGPTAuthError.unusableRefreshCodes.contains(code) {
@@ -131,10 +135,8 @@ actor ChatGPTAuth: ChatGPTTokenProviding {
                 try? store.setTokens(nil, id)
                 throw ChatGPTAuthError.sessionExpired
             }
-            if status == 400 || status == 401, code == nil {
-                try? store.setTokens(nil, id)
-                throw ChatGPTAuthError.sessionExpired
-            }
+            // A 400/401 without an OAuth error code may be a captive portal or a proxy, not the server ending the
+            // session: keep the tokens and let the next request try again.
             throw APIError.http(status: status, message: code ?? HTTP.errorMessage(from: data))
         }
         let response: ChatGPTTokenResponse
@@ -203,6 +205,8 @@ actor ChatGPTAuth: ChatGPTTokenProviding {
     /// The registration stays. Returns false when the revocation was not confirmed.
     @discardableResult
     func signOut(connectionID id: UUID) async -> Bool {
+        signOuts[id, default: 0] += 1
+        refreshes[id]?.cancel()
         defer { try? store.setTokens(nil, id) }
         guard let tokens = store.tokens(id), let refreshToken = tokens.refreshToken,
               let registration = store.registration(id) else { return true }

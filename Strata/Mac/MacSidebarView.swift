@@ -33,12 +33,14 @@ struct MacSidebarView: View {
             if !pinned.isEmpty {
                 Section("Pinned") { ForEach(pinned) { row($0) } }
             }
-            Section("Recent") {
-                ForEach(recent) { row($0) }
-                if recent.isEmpty && pinned.isEmpty {
+            if recent.isEmpty && pinned.isEmpty {
+                Section("Recent") {
                     Text(query.isEmpty ? "No chats yet" : "No matches")
                         .font(DS.Typography.uiSmall).foregroundStyle(theme.textTertiary)
                 }
+            }
+            ForEach(ConversationGroups.group(recent)) { group in
+                Section(LocalizedStringKey(group.title)) { ForEach(group.items) { row($0) } }
             }
         }
         .listStyle(.sidebar)
@@ -73,8 +75,13 @@ struct MacSidebarView: View {
 
     private func row(_ conversation: Conversation) -> some View {
         Label {
-            TitlingText(conversation.displayTitle, isTitling: controller.isTitling(conversation.id))
-                .font(DS.Typography.uiSmall).lineLimit(1)
+            VStack(alignment: .leading, spacing: 0) {
+                TitlingText(conversation.displayTitle, isTitling: controller.isTitling(conversation.id))
+                    .font(DS.Typography.uiSmall).lineLimit(1)
+                if ConversationSearch.matchedOnlyInMessages(conversation, query: query, contentMatches: contentMatches) {
+                    Text("Found in messages").font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
+                }
+            }
         } icon: {
             Image(systemName: conversation.isPinned ? "pin" : "bubble.left")
         }
@@ -85,7 +92,7 @@ struct MacSidebarView: View {
                 try? context.save()
             }
             Button("Rename", systemImage: "pencil") {
-                renameText = conversation.title
+                renameText = conversation.displayTitle
                 renaming = conversation
             }
             Button("Regenerate title", systemImage: "wand.and.stars") {
@@ -99,10 +106,7 @@ struct MacSidebarView: View {
 
     private func delete(_ conversation: Conversation) {
         if selected?.id == conversation.id { selected = nil }
-        Diagnostics.forget(conversation.id)
-        PythonRuntime.shared.conversationDeleted(conversation.id)
-        context.delete(conversation)
-        try? context.save()
+        ConversationDeletion.delete(conversation, context: context, controller: controller)
     }
 }
 #endif

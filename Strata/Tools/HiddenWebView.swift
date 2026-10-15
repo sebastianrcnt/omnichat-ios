@@ -57,6 +57,48 @@ enum BrowserData {
     static let store = WKWebsiteDataStore(forIdentifier: identifier)
 }
 
+/// Blocks requests to local-network and loopback address literals from inside pages: subframes, `fetch` and XHR from
+/// `browser_eval` or a page's own scripts, which `decidePolicyFor` (main-frame navigations) never sees. Host names are
+/// still checked by `URLGuard` on navigation. Content blockers have no alternation, so each range is its own rule.
+@MainActor
+enum LocalNetworkRules {
+    private static var list: WKContentRuleList?
+    private static var compiling: Task<WKContentRuleList?, Never>?
+
+    static let patterns = [
+        #"^[a-z]+://localhost[:/]"#, #"^[a-z]+://[^/]*\.localhost[:/]"#, #"^[a-z]+://[^/]*\.local[:/]"#,
+        #"^[a-z]+://127\."#, #"^[a-z]+://10\."#, #"^[a-z]+://0\."#, #"^[a-z]+://192\.168\."#, #"^[a-z]+://169\.254\."#,
+        #"^[a-z]+://172\.1[6-9]\."#, #"^[a-z]+://172\.2[0-9]\."#, #"^[a-z]+://172\.3[01]\."#,
+        #"^[a-z]+://100\.6[4-9]\."#, #"^[a-z]+://100\.[7-9][0-9]\."#, #"^[a-z]+://100\.1[01][0-9]\."#, #"^[a-z]+://100\.12[0-7]\."#,
+        #"^[a-z]+://\["#,
+    ]
+
+    static var json: String {
+        let rules = patterns.map { pattern -> [String: Any] in
+            ["trigger": ["url-filter": pattern, "url-filter-is-case-sensitive": false], "action": ["type": "block"]]
+        }
+        let data = (try? JSONSerialization.data(withJSONObject: rules)) ?? Data("[]".utf8)
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    /// Adds the rules to `controller`, now or once they are compiled.
+    static func install(in controller: WKUserContentController) {
+        if let list { controller.add(list); return }
+        if compiling == nil {
+            compiling = Task { @MainActor in
+                let compiled = try? await WKContentRuleListStore.default().compileContentRuleList(
+                    forIdentifier: "strata.local-network", encodedContentRuleList: json)
+                list = compiled
+                return compiled
+            }
+        }
+        let task = compiling
+        Task { @MainActor [weak controller] in
+            if let compiled = await task?.value { controller?.add(compiled) }
+        }
+    }
+}
+
 /// The page text extractor, read once from the bundle: Readability, then `Extractor.js` (which defines
 /// `strataExtract`), joined into one user script.
 enum ReadabilitySource {
@@ -95,6 +137,7 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = store ?? SharedWebData.store
         config.defaultWebpagePreferences.allowsContentJavaScript = true
+        if guardNavigations { LocalNetworkRules.install(in: config.userContentController) }
         if injectsReader, let source = ReadabilitySource.script {
             config.userContentController.addUserScript(WKUserScript(source: source, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         }
@@ -214,6 +257,11 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage {
         defer { timer.cancel() }
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+                // A load started while another is pending replaces it; the earlier caller must not wait forever.
+                if let earlier = self.continuation {
+                    self.continuation = nil
+                    earlier.resume(throwing: CancellationError())
+                }
                 self.continuation = cont
                 self.activeNavigation = start()
             }
@@ -271,15 +319,16 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage {
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
         guard let url = navigationAction.request.url else { return .cancel }
         if allowNextNavigation { allowNextNavigation = false; return .allow }
-        guard navigationAction.targetFrame?.isMainFrame ?? true else { return .allow }
+        let isMainFrame = navigationAction.targetFrame?.isMainFrame ?? true
         let scheme = url.scheme?.lowercased() ?? ""
-        if scheme == "about" || scheme == "blob" || scheme == "data" { return .allow }
+        if scheme == "about" || scheme == "blob" || scheme == "data" || scheme == "javascript" { return .allow }
         guard guardNavigations else { return .allow }
         do {
+            // Subframes too: an iframe pointed at a router's admin page is as much a way in as the page itself.
             try await URLGuard.validate(url, resolver: resolver)
             return .allow
         } catch {
-            finish(.failure(error))
+            if isMainFrame { finish(.failure(error)) }
             return .cancel
         }
     }

@@ -116,10 +116,16 @@ struct StreamAccumulator: Codable, Sendable {
     var reasoningItems: [ReasoningItem] { reasoningItemList ?? [] }
 
     /// Completed tool calls in index order. Calls missing an id get a synthetic one.
+    /// The finished calls in order. IDs are made unique: some servers send none, and some local models reuse one
+    /// (two `call_0` in a round), which would pair results with the wrong call and break checkpoints keyed by ID.
     var toolCalls: [ToolCall] {
-        calls.keys.sorted().compactMap { idx in
+        var seen = Set<String>()
+        return calls.keys.sorted().compactMap { idx in
             guard var call = calls[idx], !call.name.isEmpty else { return nil }
             if call.id.isEmpty { call.id = "call_\(idx)" }
+            if seen.contains(call.id) { call.id += "_\(idx)" }
+            while seen.contains(call.id) { call.id += "_" }
+            seen.insert(call.id)
             return call
         }
     }

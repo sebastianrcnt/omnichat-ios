@@ -132,6 +132,8 @@ enum AutoRename {
                 let name = cleanName(reply.text)
                 if !name.isEmpty { return name }
             } catch {
+                // Close the request's entry in the ring, or it would show as pending forever.
+                if let log { await log(.finished(id: id, finishReason: "error", usage: nil)) }
                 if error is CancellationError { return nil }
             }
         }

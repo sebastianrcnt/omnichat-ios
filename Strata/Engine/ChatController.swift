@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import SwiftData
 import Observation
 
@@ -146,6 +147,7 @@ final class ChatController {
         guard !isStreaming else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !images.isEmpty else { return }
+        ReplyBackgroundExecution.requestPermissionIfNeeded()
         conversation.ensureTree()
         let parent = editing.map { conversation.message(id: $0.parentID) } ?? conversation.leafMessage
         let user = Message(role: .user, text: trimmed, sortIndex: nextIndex(conversation))
@@ -212,7 +214,12 @@ final class ChatController {
                 case .finished(let id, let reason, let usage): ring.complete(id, finishReason: reason, usage: usage)
                 }
             }
-            guard let name, conversation.modelContext != nil else { return }
+            guard let name else {
+                // A failed automatic title is tried again after a later answer.
+                if !force, conversation.modelContext != nil, !conversation.isDeleted { conversation.autoRenameDone = false }
+                return
+            }
+            guard conversation.modelContext != nil, !conversation.isDeleted else { return }
             // Renamed by hand while the request ran: the user's title wins.
             if conversation.title != titleAtStart || (!force && conversation.titleIsUserSet) { return }
             conversation.title = name
@@ -269,6 +276,8 @@ final class ChatController {
             // Bounded: after this long the flag stays set and the next foreground retries (restorePending).
             let giveUp = Date().addingTimeInterval(Self.cancelRetryWindow)
             while !Task.isCancelled, Date() < giveUp {
+                // The chat may be deleted while this retries: never write to a deleted message.
+                guard message.modelContext != nil, !message.isDeleted else { break }
                 do {
                     var id = checkpoint.requestID
                     if id == nil, let key = checkpoint.idempotencyKey {
@@ -281,6 +290,7 @@ final class ChatController {
                         try await RecoverySignals.shared.wait(seconds: 0.5)
                         continue
                     }
+                    guard message.modelContext != nil, !message.isDeleted else { break }
                     message.cancelPending = false
                     message.clearResume()
                     try? context.save()
@@ -347,6 +357,8 @@ final class ChatController {
             conversation.attach(assistant, parent: parent ?? conversation.leafMessage)
         } else {
             assistant.conversation = conversation
+            assistant.errorText = nil // a reconnect after an outage clears the outage's message
+            assistant.errorNeedsSettings = false
         }
         try? context.save()
 
@@ -419,7 +431,9 @@ final class ChatController {
                 tracker.complete(finalText: outcome.finalContent)
                 assistant.steps = tracker.completedSteps
                 if let usage = outcome.lastUsage { conversation.apply(usage) }
-                ReplyBackgroundExecution.notifyCompletion()
+                ReplyBackgroundExecution.notifyCompletion(title: Self.notificationTitle(conversation, assistant: assistant),
+                                                          body: Self.notificationBody(assistant.text),
+                                                          conversationID: conversation.id)
                 self.finish(assistant, conversation: conversation, context: context, error: nil, tracker: tracker)
             } catch where error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
                 // Stop in any state (first byte, thinking, writing, tool): keep what is there, mark it Stopped.
@@ -638,6 +652,25 @@ final class ChatController {
         #endif
     }
 
+    /// The chat's title, or (before it has one) the question that was asked.
+    static func notificationTitle(_ conversation: Conversation, assistant: Message) -> String {
+        if !conversation.title.isEmpty { return conversation.title }
+        let question = conversation.activePath.last { $0.role == .user && !$0.isHiddenInTranscript }?.text ?? ""
+        return Conversation.autoTitle(from: question)
+    }
+
+    /// The start of the answer as plain text, about three lines on a lock screen.
+    nonisolated static func notificationBody(_ answer: String, limit: Int = 180) -> String {
+        // Block markers (headings, bullets, quotes, fences) first, then the inline Markdown of what is left.
+        let lines = answer.split(whereSeparator: \.isNewline).map { line in
+            line.trimmingCharacters(in: .whitespaces)
+                .replacingOccurrences(of: #"^(#{1,6}\s+|[-*+]\s+|>\s*|\d+[.)]\s+|```.*$)"#, with: "", options: .regularExpression)
+        }.filter { !$0.isEmpty }
+        let flat = MarkdownPlain.text(from: lines.joined(separator: " "))
+        guard flat.count > limit else { return flat }
+        return String(flat.prefix(limit)).trimmingCharacters(in: .whitespaces) + "…"
+    }
+
     private func finish(_ message: Message, conversation: Conversation, context: ModelContext,
                         error: Error?, tracker: TurnTracker? = nil) {
         persister?.close()
@@ -646,9 +679,19 @@ final class ChatController {
             message.errorText = error.localizedDescription
             message.errorNeedsSettings = (error as? APIError)?.needsSettings ?? false
         }
-        if !message.cancelPending { message.clearResume() }
-        // A turn the person stopped ended as they asked: only an error reads "failed" in the system's task list.
-        background.end(success: error == nil)
+        // An outage keeps the checkpoint: the reply is still on the server, and the next foreground reconnects.
+        if !message.cancelPending && !(error is StreamOutage) { message.clearResume() }
+        // A turn the person stopped ended as they asked: only an error reads "failed" in the system's task list, and a
+        // stopped one says so rather than "ready".
+        let stopped = message.stoppedByUser && !message.answeredEarly
+        // VoiceOver hears that the reply ended, instead of having to go and look.
+        if !stopped {
+            let spoken = error.map { (($0 as? LocalizedError)?.errorDescription ?? $0.localizedDescription) } ?? String(localized: "Answer ready")
+            AccessibilityNotification.Announcement(spoken).post()
+        }
+        background.end(success: error == nil,
+                       title: error != nil ? nil : stopped ? String(localized: "Reply stopped") : String(localized: "Reply ready"),
+                       subtitle: Self.notificationTitle(conversation, assistant: message))
         activeMessage = nil
         activeContext = nil
         activeEndpoint = nil

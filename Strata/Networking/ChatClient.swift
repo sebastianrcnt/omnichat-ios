@@ -74,14 +74,21 @@ struct ChatClient: ChatStreaming {
         }
     }
 
-    /// Reads a Chat Completions event stream through `[DONE]` (or its end), handing on each non-empty delta.
-    static func consume(_ bytes: URLSession.AsyncBytes, yield: (ChatDelta) -> Void) async throws {
+    static let cutOffMessage = "The connection closed before the reply finished."
+
+    /// Reads a Chat Completions event stream through `[DONE]`, handing on each non-empty delta. A stream that ends
+    /// without `[DONE]` counts as finished only if a choice said why it stopped (`finish_reason`; some servers never
+    /// send `[DONE]`). Otherwise the connection dropped mid-answer, and a cut-off answer or half-built tool call must
+    /// not be saved as complete.
+    static func consume<Bytes: AsyncSequence>(_ bytes: Bytes, yield: (ChatDelta) -> Void) async throws where Bytes.Element == UInt8 {
         var parser = SSEParser()
         var line = Data()
+        var finished = false
         func handle(_ events: [SSEEvent]) throws -> Bool {
             for event in events {
                 let delta = try ChatChunkDecoder.decode(event.data)
                 if delta.isDone { return true }
+                if delta.finishReason != nil { finished = true }
                 if !delta.isEmpty { yield(delta) }
             }
             return false
@@ -94,8 +101,9 @@ struct ChatClient: ChatStreaming {
                 if done { return }
             }
         }
-        if !line.isEmpty { _ = try handle(parser.feed(line)) }
-        _ = try handle(parser.finish())
+        if !line.isEmpty, try handle(parser.feed(line)) { return }
+        if try handle(parser.finish()) { return }
+        if !finished { throw APIError.transport(cutOffMessage) }
     }
 }
 
@@ -134,7 +142,7 @@ enum ModelsAPI {
             var ctx: Int?
             for k in keys {
                 if let n = item[k] as? Int { ctx = n; break }
-                if let d = item[k] as? Double { ctx = Int(d); break }
+                if let d = item[k] as? Double { ctx = Int(exactly: d.rounded(.down)).flatMap { $0 > 0 && $0 <= ContextLimits.maxTokens ? $0 : nil }; break }
             }
             if ctx == nil, let meta = item["meta"] as? [String: Any], let n = meta["n_ctx_train"] as? Int { ctx = n }
             var maxOut: Int?

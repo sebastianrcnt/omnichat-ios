@@ -14,7 +14,7 @@ struct CompactionMathTests {
     @Test func theLimitLeavesRoomForAFullAnswer() {
         #expect(Compaction.limit(window: 100_000, maxOutput: 20_000) == 80_000) // window - maxOutput is lower
         #expect(Compaction.limit(window: 100_000, maxOutput: 5_000) == 90_000)   // 90% is lower
-        #expect(Compaction.limit(window: 10_000, maxOutput: 50_000) == 0)        // never negative
+        #expect(Compaction.limit(window: 10_000, maxOutput: 50_000) == 5_000)    // half the window, never 0 (never compacting)
     }
 
     @Test func theMeterIsLastUsagePlusACharacterEstimateOfWhatCameAfter() {

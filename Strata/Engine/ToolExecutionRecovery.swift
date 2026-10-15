@@ -51,7 +51,7 @@ enum ToolExecutionRecovery {
         defer { NotificationCenter.default.removeObserver(observer) }
         let output = await tools.execute(name: call.name, arguments: call.arguments)
         try Task.checkCancellation()
-        if output.isError && transitions.wasBackgrounded {
+        if output.isError && transitions.wasBackgrounded && ToolNames.isSafeToRetry(call.name) {
             try await waitForForeground()
             return await tools.execute(name: call.name, arguments: call.arguments)
         }

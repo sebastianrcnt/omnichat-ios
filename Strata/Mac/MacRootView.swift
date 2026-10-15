@@ -7,6 +7,7 @@ struct MacRootView: View {
     @Environment(\.theme) private var theme
     @Environment(\.openSettings) private var openSettings
     @Environment(\.chatController) private var controller
+    @Environment(\.modelContext) private var modelContext
 
     @State private var selected: Conversation?
     @State private var chatKey = ChatViewKey()
@@ -33,7 +34,23 @@ struct MacRootView: View {
         .frame(minWidth: 760, minHeight: 520)
         .onChange(of: selected?.id) { old, new in chatKey.update(old: old, new: new, active: controller.activeConversationID) }
         .chatLifecycle(selected: $selected)
-        .onAppear { WindowActions.shared.install(newChat: newChat, findChats: findChats) }
+        .onAppear {
+            WindowActions.shared.install(newChat: newChat, findChats: findChats)
+            WindowActions.shared.selectChat = selectChat
+        }
+    }
+
+    /// ⌘1…⌘9 and ⌥⌘↑/↓: the chat at that place in the list (pinned first, then newest).
+    private func selectChat(_ move: WindowActions.ChatMove) {
+        let all = (try? modelContext.fetch(FetchDescriptor<Conversation>(sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]))) ?? []
+        let ordered = all.filter(\.isPinned) + all.filter { !$0.isPinned }
+        guard !ordered.isEmpty else { return }
+        let current = selected.flatMap { s in ordered.firstIndex { $0.id == s.id } }
+        switch move {
+        case .index(let n): if ordered.indices.contains(n) { selected = ordered[n] }
+        case .next: selected = ordered[min((current ?? -1) + 1, ordered.count - 1)]
+        case .previous: selected = ordered[max((current ?? ordered.count) - 1, 0)]
+        }
     }
 
     /// Shows the sidebar and puts the cursor in its search field.
@@ -57,6 +74,11 @@ final class WindowActions {
 
     private(set) var newChat: () -> Void = {}
     private(set) var findChats: () -> Void = {}
+    enum ChatMove { case index(Int), next, previous }
+    var selectChat: (ChatMove) -> Void = { _ in }
+    /// Set by the open chat: regenerate its last answer, copy it. Nil when there is none.
+    var regenerate: (() -> Void)?
+    var copyLastAnswer: (() -> Void)?
 
     func install(newChat: @escaping () -> Void, findChats: @escaping () -> Void) {
         self.newChat = newChat

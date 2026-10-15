@@ -26,9 +26,17 @@ final class ConnectionStore {
     }
 
     private func load() {
-        if let data = defaults.data(forKey: storageKey),
-           let decoded = try? JSONDecoder().decode([Connection].self, from: data) {
-            connections = decoded
+        if let data = defaults.data(forKey: storageKey) {
+            if let decoded = try? JSONDecoder().decode([Connection].self, from: data) {
+                connections = decoded
+            } else {
+                // One entry this version can't read must not cost the others: decode them one by one, and keep the
+                // original blob aside so nothing is lost for good when the list is saved again.
+                defaults.set(data, forKey: storageKey + ".unreadable")
+                struct Lenient: Decodable { var value: Connection?
+                    init(from decoder: Decoder) throws { value = try? Connection(from: decoder) } }
+                connections = ((try? JSONDecoder().decode([Lenient].self, from: data)) ?? []).compactMap(\.value)
+            }
             migrateSystemPrompts(data)
         }
         if !connections.contains(where: { $0.isStrata }) {
@@ -175,6 +183,8 @@ final class ConnectionStore {
         let probe = Endpoint(connectionID: id, connectionName: conn.name, baseURL: base, apiKey: keys.key(for: id),
                              headers: headers, model: ModelInfo(id: ""))
         let entries = try await ModelsAPI.fetch(endpoint: probe, session: session)
+        // Merge into the connection as it is now: it may have been deleted or edited while the request ran.
+        guard let conn = connection(id) else { return entries.count }
         var updated = conn
         let manual = conn.models.filter { m in !entries.contains { $0.id == m.id } && m.isManual }
         var merged: [ModelInfo] = entries.map { entry in

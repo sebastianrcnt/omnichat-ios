@@ -18,6 +18,20 @@ struct StrataCommands: Commands {
             Button("Stop Generating") { controller.stop() }
                 .keyboardShortcut(".", modifiers: .command)
                 .disabled(!controller.isStreaming)
+            Button("Regenerate Response") { WindowActions.shared.regenerate?() }
+                .keyboardShortcut("r", modifiers: .command)
+                .disabled(controller.isStreaming)
+            Button("Copy Last Answer") { WindowActions.shared.copyLastAnswer?() }
+                .keyboardShortcut("c", modifiers: [.command, .shift])
+            Divider()
+            Button("Previous Chat") { WindowActions.shared.selectChat(.previous) }
+                .keyboardShortcut(.upArrow, modifiers: [.command, .option])
+            Button("Next Chat") { WindowActions.shared.selectChat(.next) }
+                .keyboardShortcut(.downArrow, modifiers: [.command, .option])
+            ForEach(1...9, id: \.self) { n in
+                Button("Chat \(n)") { WindowActions.shared.selectChat(.index(n - 1)) }
+                    .keyboardShortcut(KeyEquivalent(Character("\(n)")), modifiers: .command)
+            }
         }
     }
 }

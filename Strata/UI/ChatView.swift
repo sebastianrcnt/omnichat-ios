@@ -253,9 +253,7 @@ struct ChatView: View {
                 Button("Delete", role: .destructive) {
                     if let c = conversation {
                         conversation = nil
-                        Diagnostics.forget(c.id)
-                        context.delete(c)
-                        try? context.save()
+                        ConversationDeletion.delete(c, context: context, controller: controller)
                     }
                 }
             }
@@ -289,6 +287,10 @@ struct ChatView: View {
             .task(id: controller.activeMessageID) { await debugTimeline() }
             #endif
             .onChange(of: connections.allModels.count) { _, _ in persistAutoSelection() }
+            #if os(macOS)
+            .onChange(of: conversation?.activePath.last?.id, initial: true) { _, _ in installMenuActions() }
+            .onChange(of: controller.isStreaming) { _, _ in installMenuActions() }
+            #endif
     }
 
     // MARK: Header
@@ -304,6 +306,27 @@ struct ChatView: View {
                         .font(DS.Typography.title)
                         .foregroundStyle(theme.textPrimary)
                         .lineLimit(1)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            // The title renames the chat, as in the menu.
+                            guard let c = conversation else { return }
+                            renameText = c.displayTitle
+                            showRename = true
+                        }
+                    // Which model this chat talks to, without opening the picker; tapping it opens the picker.
+                    if let model = selectedModelTitle {
+                        Button { composerFocused = false; showChatSettings = true } label: {
+                            HStack(spacing: 2) {
+                                Text(verbatim: model).lineLimit(1)
+                                Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
+                            }
+                            .font(DS.Typography.uiCaption)
+                            .foregroundStyle(theme.textSecondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(Text("Model: \(model)"))
+                        .accessibilityHint(Text("Choose a model"))
+                    }
                 }
                 Spacer(minLength: 0)
                 ContextRingButton(fraction: conversation?.lastUsage == nil ? nil : contextFraction) {
@@ -329,7 +352,7 @@ struct ChatView: View {
                 try? context.save()
             }
             Button("Rename", systemImage: "pencil") {
-                renameText = c.title
+                renameText = c.displayTitle
                 showRename = true
             }
             Button("Regenerate title", systemImage: "wand.and.stars") {
@@ -340,7 +363,7 @@ struct ChatView: View {
             Button("Summarize now", systemImage: "text.line.first.and.arrowtriangle.forward") {
                 controller.compactNow(conversation: c, context: context)
             }
-            .disabled(controller.isStreaming || c.activePath.isEmpty)
+            .disabled(controller.isStreaming || c.activePath.isEmpty) // one reply runs at a time, in any chat
             Button("Conversation details", systemImage: "info.circle") { showDetails = true }
             Button("Delete", systemImage: "trash", role: .destructive) { confirmDelete = true }
             Divider()
@@ -595,11 +618,20 @@ struct ChatView: View {
 
     // MARK: Composer
 
+    /// Opens the chat whose reply is running (Send waits for it).
+    private func showBusyChat() {
+        guard let id = controller.activeConversationID else { return }
+        let descriptor = FetchDescriptor<Conversation>(predicate: #Predicate { $0.id == id })
+        if let busy = try? context.fetch(descriptor).first { conversation = busy }
+    }
+
     private var composer: some View {
         ComposerHost(
             draft: draft,
             isStreaming: isStreamingHere,
             isBusy: controller.isStreaming,
+            busyElsewhere: controller.isStreaming && !isStreamingHere,
+            onShowBusy: showBusyChat,
             plusDimmed: !(selectedModel?.supportsImages ?? false),
             onAttach: attach,
             onSend: send,
@@ -683,7 +715,25 @@ struct ChatView: View {
         #endif
     }
 
+    #if os(macOS)
+    /// The Chat menu's Regenerate and Copy Last Answer act on this chat.
+    private func installMenuActions() {
+        guard let c = conversation, let last = c.activePath.last, last.role == .assistant else {
+            WindowActions.shared.regenerate = nil
+            WindowActions.shared.copyLastAnswer = nil
+            return
+        }
+        WindowActions.shared.regenerate = { [controller, context] in
+            guard !controller.isStreaming else { return }
+            controller.regenerate(conversation: c, context: context)
+        }
+        WindowActions.shared.copyLastAnswer = { Pasteboard.copy(MarkdownPlain.text(from: last.text)) }
+    }
+    #endif
+
     private func send() {
+        // Nothing is cleared or created unless the controller will take it: another chat's reply may still be running.
+        guard !controller.isStreaming, draft.canSend else { return }
         let sel = selection
         let target: Conversation
         if let existing = conversation {
@@ -873,6 +923,8 @@ private struct ComposerHost<Accessory: View>: View {
     @Bindable var draft: ComposerDraft
     let isStreaming: Bool
     let isBusy: Bool
+    let busyElsewhere: Bool
+    let onShowBusy: () -> Void
     let plusDimmed: Bool
     let onAttach: () -> Void
     let onSend: () -> Void
@@ -898,6 +950,8 @@ private struct ComposerHost<Accessory: View>: View {
             onRemoveAttachment: { id in draft.attachments.removeAll { $0.id == id } },
             onCancelEdit: onCancelEdit,
             onPasteImages: onPasteImages,
+            notice: busyElsewhere && draft.canSend ? "Another chat is still answering" : nil,
+            onNotice: onShowBusy,
             onSend: onSend,
             onStop: onStop,
             accessory: accessory,

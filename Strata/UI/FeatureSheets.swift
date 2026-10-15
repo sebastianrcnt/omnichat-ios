@@ -108,8 +108,10 @@ struct ModelPickerSheet: View {
                         }
                     }
                     ForEach(unset) { c in
-                        SettingsRow(title: "", value: String(localized: "Set up"), showsChevron: true, verbatimTitle: c.name,
-                                    action: onOpenSettings)
+                        SettingsRow(title: "", value: String(localized: "Set up"), showsChevron: true, verbatimTitle: c.name) {
+                            SettingsRoute.shared.connection = c.id // Settings opens on this connection, not its top
+                            onOpenSettings()
+                        }
                     }
                 }
             }
@@ -181,7 +183,7 @@ struct ModelPickerSheet: View {
 
     @ViewBuilder private var settingsSections: some View {
         GroupedSection {
-            if selectedModel?.supportsEffort == true {
+            if !(selectedModel?.effortLevels(effortStyle) ?? []).isEmpty { // the same test as the composer's gauge
                 SettingsRow(title: "Effort", value: currentEffort.resolved(in: selectedModel?.effortLevels(effortStyle) ?? []).title,
                             showsChevron: true) {
                     withAnimation(DS.Motion.snappy) { page = .effort }
@@ -316,7 +318,7 @@ struct AttachSheet: View {
                 VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                     HStack(alignment: .top, spacing: DS.Spacing.sm) {
                         Image(systemName: "exclamationmark.circle").foregroundStyle(theme.warning)
-                        Text("This model can't read images. Turn on \"Supports images\" for it in Settings > Connections.")
+                        Text("This model can't read images. If it can, turn image support on.")
                             .font(DS.Typography.uiSmall).foregroundStyle(theme.textPrimary)
                     }
                     Button("Turn on image support", action: onEnableImages).buttonStyle(.glass)
@@ -347,6 +349,7 @@ struct AttachSheet: View {
                 .frame(height: DS.IconSize.cameraTile)
             }
             .opacity(supportsImages ? 1 : 0.45)
+            .animation(DS.Motion.snappy, value: supportsImages) // turning support on brings the tiles up in place
             GroupedSection {
                 SettingsRow(systemImage: "photo.on.rectangle", title: "Add photo", showsChevron: true) { showLibrary = true }
                     .disabled(!supportsImages)
@@ -356,7 +359,7 @@ struct AttachSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        .photosPicker(isPresented: $showLibrary, selection: $libraryItems, maxSelectionCount: 4, matching: .images)
+        .photosPicker(isPresented: $showLibrary, selection: $libraryItems, maxSelectionCount: 10, matching: .images)
         .onChange(of: libraryItems) { _, items in
             guard !items.isEmpty else { return }
             Task { await load(items) }

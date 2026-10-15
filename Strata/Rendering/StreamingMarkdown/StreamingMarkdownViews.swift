@@ -556,9 +556,17 @@ struct InlineMarkdownText: View {
     }
 
     private func make() -> AttributedString {
+        // A closed block's text no longer changes, yet its body runs again on every reveal tick of the block still
+        // streaming below it: keep its result instead of running the whole inline pipeline each time.
+        let key = isOpen ? nil : InlineCache.Key(source: source, conversation: citations.conversationID,
+                                                 sources: citations.sources.count, semibold: semiboldStrong,
+                                                 chip: "\(theme.textSecondary)")
+        if let key, let hit = InlineCache.shared.value(for: key) { return hit }
         let result = Self.attributed(source, sources: citations.sources, isOpen: isOpen,
                                      chipColor: theme.textSecondary, chipBackground: theme.surfaceRaised)
-        return semiboldStrong ? Self.withSemiboldStrong(result) : result
+        let out = semiboldStrong ? Self.withSemiboldStrong(result) : result
+        if let key { InlineCache.shared.store(out, for: key) }
+        return out
     }
 
     /// Bold is drawn as Pretendard SemiBold, from the font itself, instead of the heavier Bold that the system picks for
@@ -800,14 +808,20 @@ struct ReasoningLinePreview: View {
             Text(" ").font(font).lineLimit(1).hidden() // reserves one line
             if let shown {
                 // Plain, as the finished line shows it (`MessageLayout.plain`), so the words keep their width.
-                Text(verbatim: MessageLayout.plain(displayed(shown)))
-                    .font(font)
-                    .foregroundStyle(color ?? theme.textTertiary)
-                    .lineLimit(lines)
-                    .truncationMode(.tail)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .id(shown.start)
-                    .transition(.opacity)
+                let text = MessageLayout.plain(displayed(shown))
+                let translated = text != MessageLayout.plain(shown.text)
+                let spans = translated || reduceMotion ? [] : (model?.freshSpans ?? [])
+                // New words fade in as the answer's do; a translation (a whole sentence) rises in instead.
+                TimelineView(.animation(paused: spans.isEmpty)) { context in
+                    Text(Self.fading(text, spans: spans, now: context.date, color: color ?? theme.textTertiary))
+                }
+                .font(font)
+                .foregroundStyle(color ?? theme.textTertiary)
+                .lineLimit(lines)
+                .truncationMode(.tail)
+                .fixedSize(horizontal: false, vertical: true)
+                .id(translated ? "t:" + text : "s\(shown.start)")
+                .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 6)), removal: .opacity))
             } else if let placeholder {
                 Text(placeholder)
                     .font(font)
@@ -817,6 +831,7 @@ struct ReasoningLinePreview: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.3), value: translationIdentity)
         .opacity(Self.opacity(hasThought: shown != nil || placeholder != nil, toolRunning: isDimmed))
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isDimmed)
         .onChange(of: model?.thought, initial: true) { _, latest in apply(latest) }
@@ -825,6 +840,38 @@ struct ReasoningLinePreview: View {
             try? await Task.sleep(for: .seconds(max(0, deadline - Self.now)))
             apply(model?.thought)
         }
+    }
+
+    /// Changes when a translation arrives (or the next one replaces it), which animates the swap.
+    private var translationIdentity: String {
+        guard translate, let shown else { return "" }
+        let text = displayed(shown)
+        return text == shown.text ? "" : text
+    }
+
+    /// `text` with its last characters faint, newest faintest, as `spans` (newest last) were revealed.
+    static func fading(_ text: String, spans: [StreamingMarkdownModel.FreshSpan], now: Date, color: Color) -> AttributedString {
+        let chars = Array(text)
+        var cursor = chars.count
+        var runs: [(range: Range<Int>, alpha: Double)] = []
+        for span in spans.reversed() where cursor > 0 {
+            let alpha = span.alpha(at: now)
+            let lower = max(0, cursor - span.length)
+            if alpha < 1 { runs.append((lower..<cursor, alpha)) }
+            cursor = lower
+        }
+        guard !runs.isEmpty else { return AttributedString(text) }
+        var out = AttributedString(String(chars[0..<(runs.last?.range.lowerBound ?? chars.count)]))
+        var position = runs.last?.range.lowerBound ?? chars.count
+        for run in runs.reversed() {
+            if run.range.lowerBound > position { out += AttributedString(String(chars[position..<run.range.lowerBound])) }
+            var piece = AttributedString(String(chars[run.range]))
+            piece.foregroundColor = color.opacity(run.alpha)
+            out += piece
+            position = run.range.upperBound
+        }
+        if position < chars.count { out += AttributedString(String(chars[position...])) }
+        return out
     }
 
     /// With translation on: the newest finished sentence that has its translation; until then the sentence itself.
@@ -859,4 +906,27 @@ struct ReasoningLinePreview: View {
             shown = next
         }
     }
+}
+
+/// Inline Markdown already turned into attributed text, for blocks that are closed (their text is final).
+@MainActor
+final class InlineCache {
+    static let shared = InlineCache()
+    struct Key: Hashable { var source: String; var conversation: UUID?; var sources: Int; var semibold: Bool; var chip: String }
+    private var values: [Key: AttributedString] = [:]
+    private var order: [Key] = []
+    private let limit = 400
+
+    func value(for key: Key) -> AttributedString? { values[key] }
+
+    func store(_ value: AttributedString, for key: Key) {
+        if values.updateValue(value, forKey: key) == nil { order.append(key) }
+        if order.count > limit {
+            let drop = order.prefix(order.count - limit)
+            for k in drop { values.removeValue(forKey: k) }
+            order.removeFirst(drop.count)
+        }
+    }
+
+    func removeAll() { values.removeAll(); order.removeAll() }
 }

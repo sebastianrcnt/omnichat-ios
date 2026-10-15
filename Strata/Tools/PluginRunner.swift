@@ -70,6 +70,11 @@ enum PluginPipeline {
 
         let settle = plugin.manifest.settle.map { Duration.milliseconds(Int(($0 * 1000).rounded())) } ?? timeouts.settle
         try await Task.sleep(for: settle)
+        // The page may have redirected off the plugin's sites: its script runs only where the plugin says it may.
+        if navigate == nil, let landed = page.currentURL?.host(percentEncoded: false),
+           !PluginManifest.hostAllowed(landed, hosts: plugin.manifest.hosts) {
+            throw PluginError.hostNotAllowed(landed, plugin: plugin.name)
+        }
         progress(FetchProgress.extracting)
         do {
             let json = try await page.callAsync(PluginScript.invocation(plugin, arguments: arguments, maxCharacters: maxCharacters),

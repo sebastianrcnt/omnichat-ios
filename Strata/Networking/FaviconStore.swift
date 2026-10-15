@@ -245,6 +245,8 @@ actor FaviconStore {
                         newRequest request: URLRequest) async -> URLRequest? {
             guard let url = request.url, url.scheme == "https", let host = url.host(percentEncoded: false),
                   !URLGuard.isBlockedHostname(host), FaviconStore.key(for: host) != nil else { return nil }
+            // The name alone isn't enough: `lan.evil.com` can resolve to the user's router.
+            guard (try? await URLGuard.validate(url)) != nil else { return nil }
             return request
         }
     }

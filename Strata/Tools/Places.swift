@@ -1,5 +1,6 @@
 import Foundation
 import CoreLocation
+import os
 import MapKit
 
 // `show_places`: the model's picks on a map card in the chat, and `current_location`: roughly where the user is. Places
@@ -41,7 +42,7 @@ struct PlaceInput: Codable, Sendable, Equatable {
                 let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
                 return t.isEmpty ? nil : t
             }
-            if let n = try? c.decodeIfPresent(Double.self, forKey: key) { return n == n.rounded() ? String(Int(n)) : String(n) }
+            if let n = try? c.decodeIfPresent(Double.self, forKey: key) { return n == n.rounded() ? (Int(exactly: n).map(String.init) ?? String(n)) : String(n) }
             return nil
         }
         func number(_ key: Keys) -> Double? {
@@ -55,7 +56,7 @@ struct PlaceInput: Codable, Sendable, Equatable {
         self.name = name
         category = text(.category)
         rating = number(.rating)
-        reviewCount = number(.reviewCount).map { Int($0) }
+        reviewCount = number(.reviewCount).flatMap { Int(exactly: $0.rounded(.down)) } // a huge or NaN count is dropped
         address = text(.address)
         lat = number(.lat)
         lng = number(.lng)
@@ -341,7 +342,12 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
     static let shared = LocationProvider()
 
     /// The last position found this session (for MapKit lookups near the user).
-    nonisolated(unsafe) static var lastKnown: CLLocationCoordinate2D?
+    /// The last fix, read by `show_places` from any executor while `current_location` writes it: behind a lock.
+    nonisolated static var lastKnown: CLLocationCoordinate2D? {
+        get { lastKnownLock.withLock { $0 } }
+        set { lastKnownLock.withLock { $0 = newValue } }
+    }
+    private nonisolated static let lastKnownLock = OSAllocatedUnfairLock<CLLocationCoordinate2D?>(initialState: nil)
 
     private let manager = CLLocationManager()
     private var authorization: [CheckedContinuation<CLAuthorizationStatus, Never>] = []
@@ -377,6 +383,8 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
         case .restricted: throw Failure.restricted
         default: break
         }
+        // Stopped (or timed out) while the permission prompt was up: don't start a fix nobody waits for.
+        try Task.checkCancellation()
         let location = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<CLLocation, Error>) in
             fixes.append(cont)
             manager.requestLocation()

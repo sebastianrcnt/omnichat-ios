@@ -64,6 +64,14 @@ enum URLGuard {
         return false
     }
 
+    /// True for an IP literal that is not publicly routable; false for a name or a public address.
+    static func isIPLiteralPrivate(_ host: String) -> Bool {
+        let h = host.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+        var v4 = in_addr(), v6 = in6_addr()
+        guard inet_pton(AF_INET, h, &v4) == 1 || inet_pton(AF_INET6, h, &v6) == 1 else { return false }
+        return isBlocked(address: h)
+    }
+
     /// True when the numeric address (v4 or v6 literal) is not publicly routable.
     static func isBlocked(address: String) -> Bool {
         var addr = address
@@ -109,9 +117,13 @@ enum URLGuard {
             return isBlocked(ipv4: Array(b[12..<16]))
         }
         if b[0..<12].allSatisfy({ $0 == 0 }) { return isBlocked(ipv4: Array(b[12..<16])) } // v4-compatible
-        if b[0] == 0x00 && b[1] == 0x64 && b[2] == 0xff && b[3] == 0x9b {             // 64:ff9b::/96 NAT64
-            return isBlocked(ipv4: Array(b[12..<16]))
+        if b[0] == 0x00 && b[1] == 0x64 && b[2] == 0xff && b[3] == 0x9b {
+            if b[4] == 0 && b[5] == 1 { return true }                                 // 64:ff9b:1::/48 local NAT64
+            return isBlocked(ipv4: Array(b[12..<16]))                                 // 64:ff9b::/96 NAT64
         }
+        if b[0] == 0x20 && b[1] == 0x02 { return isBlocked(ipv4: Array(b[2..<6])) }  // 2002::/16 6to4
+        if b[0] == 0x20 && b[1] == 0x01 && b[2] == 0 && b[3] == 0 { return true }     // 2001::/32 Teredo
+        if b[0] == 0xfe && (b[1] & 0xc0) == 0xc0 { return true }                      // fec0::/10 site-local
         return false
     }
 

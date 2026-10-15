@@ -63,6 +63,8 @@ actor OpenCodeAuth: OpenCodeTokenProviding {
     private let http: any ChatGPTHTTP // a plain request sender, shared with the ChatGPT sign-in
     private let now: @Sendable () -> Date
     private let sleep: @Sendable (Duration) async throws -> Void
+    /// Bumped by each sign-out, so a refresh already in flight can't write a live session back afterwards.
+    private var signOuts: [UUID: Int] = [:]
     private var refreshes: [UUID: Task<OpenCodeSession, Error>] = [:]
 
     init(store: OpenCodeCredentialStore = .keychain, http: any ChatGPTHTTP = URLSessionChatGPTHTTP(),
@@ -104,13 +106,17 @@ actor OpenCodeAuth: OpenCodeTokenProviding {
 
     private func performRefresh(_ id: UUID) async throws -> OpenCodeSession {
         guard let session = store.session(id) else { throw OpenCodeAuthError.signInRequired }
+        let generation = signOuts[id, default: 0]
         let (data, status) = try await http.send(OpenCodeAPI.post(OpenCodeAPI.tokenEndpoint,
                                                                   body: OpenCodeAPI.refreshRequestBody(refreshToken: session.refreshToken)))
         Self.log.debug("refresh status=\(status, privacy: .public)")
+        // Signed out while the request ran: don't write the session back.
+        guard signOuts[id, default: 0] == generation, !Task.isCancelled else { throw OpenCodeAuthError.signInRequired }
         guard (200..<300).contains(status) else {
-            // `invalid_grant` (expired, revoked or reused refresh token) or an unexplained 400/401: only a new sign-in
-            // recovers.
-            if OpenCodeAPI.errorCode(data) == "invalid_grant" || status == 400 || status == 401 {
+            // `invalid_grant` (expired, revoked or reused refresh token), or a 400/401 that is the token server's own
+            // JSON error: only a new sign-in recovers. A 400/401 page from a captive portal or proxy keeps the session.
+            let fromServer = OpenCodeAPI.errorCode(data) != nil || (try? JSONSerialization.jsonObject(with: data)) != nil
+            if OpenCodeAPI.errorCode(data) == "invalid_grant" || (status == 400 || status == 401) && fromServer {
                 try? store.setSession(nil, id)
                 throw OpenCodeAuthError.sessionExpired
             }
@@ -179,6 +185,7 @@ actor OpenCodeAuth: OpenCodeTokenProviding {
 
     /// Forgets the sign-in and any key on this device.
     func signOut(connectionID id: UUID) {
+        signOuts[id, default: 0] += 1
         refreshes[id]?.cancel()
         store.removeAll(id)
     }

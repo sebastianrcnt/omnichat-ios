@@ -10,6 +10,7 @@ import SwiftUI
 /// Done: "✦ Thought for 31s ›". Tapping it opens the full reasoning.
 struct ThoughtLine: View {
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.appSettings) private var settings
     let isWorking: Bool
     /// The last line of the finished thinking (done only).
@@ -45,6 +46,8 @@ struct ThoughtLine: View {
                         .lineLimit(settings.thinkingLines).truncationMode(.tail)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
+                        .id(doneTitle) // a translation arriving rises in
+                        .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 6)), removal: .opacity))
                 }
                 Image(systemName: "chevron.right")
                     .font(.system(size: DS.IconSize.sm - 3, weight: .semibold)).foregroundStyle(theme.textTertiary)
@@ -58,6 +61,7 @@ struct ThoughtLine: View {
             if let onDetails { Button("Show Timeline", systemImage: "list.bullet.below.rectangle", action: onDetails) }
         }
         .accessibilityHint(Text("Shows the full reasoning"))
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.3), value: doneTitle)
         .task(id: settings.translateThinking ? line : nil) {
             if settings.translateThinking, let line { ThoughtTranslator.shared.request(line) }
         }

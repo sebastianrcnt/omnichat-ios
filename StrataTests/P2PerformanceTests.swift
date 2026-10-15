@@ -153,7 +153,7 @@ struct StreamRecoveryCapTests {
             for try await _ in client.stream(ChatRequest(model: "m", messages: [.user("hi")]), endpoint: endpoint, checkpoint: checkpoint) {}
         } catch { failure = error }
         let error = try #require(failure)
-        #expect(error is APIError)
+        #expect(error is StreamOutage) // the checkpoint is kept for the next foreground
         #expect(ContinuousClock.now - started < .seconds(10))
     }
 }

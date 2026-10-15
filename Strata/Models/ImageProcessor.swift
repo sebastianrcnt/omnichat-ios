@@ -16,7 +16,8 @@ enum ImageProcessor {
         let size = image.size
         guard size.width > 0, size.height > 0 else { return nil }
         let scale = min(1, maxLongSide / max(size.width, size.height))
-        let target = CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
+        // At least a pixel each way: a 1×10,000 image would otherwise round its short side to 0.
+        let target = CGSize(width: max(1, (size.width * scale).rounded()), height: max(1, (size.height * scale).rounded()))
         #if canImport(UIKit)
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = 1
@@ -41,6 +42,21 @@ enum ImageProcessor {
     }
 
     static func jpegData(from data: Data) -> Data? {
+        // Downsampled by ImageIO first: a small file can hold a 30,000-pixel image whose full decode would take
+        // gigabytes. The thumbnail is already at most `maxLongSide`, so the resize below only re-encodes it.
+        if let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
+           let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+               kCGImageSourceCreateThumbnailFromImageAlways: true,
+               kCGImageSourceCreateThumbnailWithTransform: true,
+               kCGImageSourceShouldCacheImmediately: true,
+               kCGImageSourceThumbnailMaxPixelSize: maxLongSide,
+           ] as CFDictionary) {
+            #if canImport(UIKit)
+            return jpegData(from: UIImage(cgImage: cg))
+            #else
+            return jpegData(from: NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height)))
+            #endif
+        }
         guard let image = PlatformImage(data: data) else { return nil }
         return jpegData(from: image)
     }

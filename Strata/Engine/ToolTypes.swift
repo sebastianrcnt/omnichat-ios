@@ -226,6 +226,12 @@ enum ToolNames {
     static let showPlaces = "show_places"
     static let currentLocation = "current_location"
 
+    /// Tools safe to run a second time when the first run failed because the app went to the background: they only
+    /// read. Python, page scripts, plugins and skill scripts may have done something already (a click, a POST).
+    static func isSafeToRetry(_ name: String) -> Bool {
+        [webSearch, webFetch, browserOpen, loadSkill, currentLocation].contains(name)
+    }
+
     /// Tools shown in the feed as a card of their own (not a search card or a row of "Read pages").
     static func hasOwnCard(_ name: String) -> Bool {
         [runPython, viewImage, browserOpen, browserEval, browserShow, loadSkill, runSkillScript, saveSkill, showPlaces, currentLocation].contains(name)

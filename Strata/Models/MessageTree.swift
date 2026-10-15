@@ -136,16 +136,27 @@ extension Conversation {
     }
 
     /// True when the stored links cannot be used: a conversation from before branching, or one whose leaf is missing
-    /// (messages added without going through `attach`). Its messages are then taken in creation order.
+    /// and whose messages weren't all linked (added without going through `attach`, so several are roots). Its
+    /// messages are then taken in creation order. A linked tree that only lost its leaf (the leaf message was deleted)
+    /// keeps its branches apart and follows `effectiveLeaf` instead: merging them would send both branches to the model.
     private var isLinear: Bool {
-        !treeLinked || leafID == nil && !messages.isEmpty || leafID != nil && !messages.contains { $0.id == leafID }
+        guard treeLinked else { return true }
+        if let leafID, messages.contains(where: { $0.id == leafID }) { return false }
+        guard !messages.isEmpty else { return false }
+        return messages.filter { $0.parentID == nil }.count > 1
+    }
+
+    /// The stored leaf, or when it is gone the newest message.
+    private var effectiveLeaf: UUID? {
+        if let leafID, messages.contains(where: { $0.id == leafID }) { return leafID }
+        return sortedMessages.last?.id
     }
 
     /// The tree of this conversation (linear when the stored links cannot be used).
     var treeIndex: MessageTreeIndex {
-        if !isLinear { return MessageTreeIndex(treeNodes, leaf: leafID) }
+        if !isLinear { return MessageTreeIndex(treeNodes, leaf: effectiveLeaf) }
         let nodes = MessageTreeIndex.linearParents(treeNodes)
-        let parents = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0.parent) })
+        let parents = Dictionary(nodes.map { ($0.id, $0.parent) }, uniquingKeysWith: { first, _ in first })
         let linear = treeNodes.map { n -> TreeNode in var m = n; m.parent = parents[n.id] ?? nil; return m }
         return MessageTreeIndex(linear, leaf: sortedMessages.last?.id)
     }
@@ -157,15 +168,15 @@ extension Conversation {
 
     /// The messages from the root to `id`.
     func path(to id: UUID?) -> [Message] {
-        let byID = Dictionary(uniqueKeysWithValues: messages.map { ($0.id, $0) })
+        let byID = Dictionary(messages.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return treeIndex.path(to: id).compactMap { byID[$0] }
     }
 
     /// What is shown and what is sent: the path from the root to the leaf.
     var activePath: [Message] {
         if isLinear { return sortedMessages }
-        let byID = Dictionary(uniqueKeysWithValues: messages.map { ($0.id, $0) })
-        return MessageTreeIndex(treeNodes, leaf: leafID).activePath.compactMap { byID[$0] }
+        let byID = Dictionary(messages.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return MessageTreeIndex(treeNodes, leaf: effectiveLeaf).activePath.compactMap { byID[$0] }
     }
 
     var leafMessage: Message? { activePath.last }

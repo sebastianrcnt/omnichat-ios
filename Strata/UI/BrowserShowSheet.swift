@@ -8,13 +8,20 @@ struct BrowserShowSheet: View {
     let request: BrowserShowRequests.Request
     let onAnswer: (Bool) -> Void
     @State private var host = ""
+    @State private var secure = false
+    @State private var canGoBack = false
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: DS.Spacing.md) {
                 GlassIconButton(systemName: "xmark", label: "Close") { onAnswer(false) }
+                GlassIconButton(systemName: "chevron.left", label: "Back") { request.page.webView.goBack() }
+                    .disabled(!canGoBack)
+                    .opacity(canGoBack ? 1 : 0.4)
+                GlassIconButton(systemName: "arrow.clockwise", label: "Reload") { request.page.webView.reload() }
                 Spacer(minLength: 0)
-                Label(host.isEmpty ? String(localized: "Browser") : host, systemImage: "lock.fill")
+                // The lock only for a page that is all https; a plain http page says so before the user signs in.
+                Label(host.isEmpty ? String(localized: "Browser") : host, systemImage: secure ? "lock.fill" : "exclamationmark.triangle")
                     .labelStyle(.titleAndIcon)
                     .font(DS.Typography.uiSmall)
                     .foregroundStyle(theme.textSecondary)
@@ -41,11 +48,16 @@ struct BrowserShowSheet: View {
         .task {
             // The address bar's host, kept current as the user moves between pages (a sign-in redirects).
             while !Task.isCancelled {
-                host = request.page.webView.url?.host(percentEncoded: false) ?? ""
+                let view = request.page.webView
+                host = view.url?.host(percentEncoded: false) ?? ""
+                secure = view.url?.scheme?.lowercased() == "https" && view.hasOnlySecureContent
+                canGoBack = view.canGoBack
                 try? await Task.sleep(for: .milliseconds(500))
             }
         }
         .onDisappear { request.page.park() }
+        // A swipe down would tell the model "not done" in the middle of a sign-in: closing is the X, finishing is Done.
+        .interactiveDismissDisabled()
         #if os(macOS)
         .frame(minWidth: 480, idealWidth: 520, minHeight: 640, idealHeight: 760)
         #endif

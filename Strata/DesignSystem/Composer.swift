@@ -186,6 +186,9 @@ struct ComposerBar<Accessory: View>: View {
     var onCancelEdit: (() -> Void)?
     /// Images pasted into the field (Mac).
     var onPasteImages: (([Data]) -> Void)?
+    /// Why Send is off right now (another chat is answering), with a way there.
+    var notice: LocalizedStringKey?
+    var onNotice: (() -> Void)?
     var onSend: () -> Void
     var onStop: () -> Void
     /// Shown in the expanded row, between plus and send.
@@ -229,13 +232,27 @@ struct ComposerBar<Accessory: View>: View {
                 if let onCancelEdit {
                     HStack(spacing: DS.Spacing.sm) {
                         Image(systemName: "pencil").font(.system(size: DS.IconSize.sm, weight: .semibold))
-                        Text("Editing message").font(DS.Typography.uiCaption)
+                        Text("Editing · sends as a new version").font(DS.Typography.uiCaption)
                         Spacer(minLength: 0)
                         Button(action: onCancelEdit) {
                             Image(systemName: "xmark.circle.fill").font(.system(size: DS.IconSize.md))
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(Text("Cancel editing"))
+                    }
+                    .foregroundStyle(theme.textSecondary)
+                    .padding(.horizontal, DS.Spacing.xs)
+                    .transition(.opacity)
+                }
+                if let notice {
+                    HStack(spacing: DS.Spacing.sm) {
+                        ProgressView().controlSize(.mini)
+                        Text(notice).font(DS.Typography.uiCaption)
+                        Spacer(minLength: 0)
+                        if let onNotice {
+                            Button("Show", action: onNotice).font(DS.Typography.uiCaption).buttonStyle(.plain)
+                                .foregroundStyle(theme.accent)
+                        }
                     }
                     .foregroundStyle(theme.textSecondary)
                     .padding(.horizontal, DS.Spacing.xs)

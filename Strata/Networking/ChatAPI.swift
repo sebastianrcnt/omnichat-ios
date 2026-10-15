@@ -296,7 +296,7 @@ struct Usage: Codable, Sendable, Equatable {
     var cachedTokens: Int?
     var reasoningTokens: Int?
 
-    var totalTokens: Int { promptTokens + completionTokens }
+    var totalTokens: Int { ContextLimits.add(promptTokens, completionTokens) }
 
     enum CodingKeys: String, CodingKey {
         case promptTokens = "prompt_tokens"

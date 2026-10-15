@@ -84,8 +84,9 @@ struct Compactor: Sendable {
         }
         if let cut { throw CompactionError.cutOff(cut) }
 
-        var notes = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        if notes.isEmpty { notes = "(no notes available)" }
+        let notes = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        // No notes means nothing to stand in for the history: keep the history rather than drop it.
+        if notes.isEmpty { throw CompactionError.failed(String(localized: "the model wrote no notes")) }
         let replacement = Compaction.replacement(history: history, notes: notes, retained: retained)
         let after = ContextMeter.estimate((system.map { [$0] } ?? []) + replacement + extra).tokens
         return CompactionOutcome(notes: notes, replacement: replacement, tokensBefore: before, tokensAfter: after,

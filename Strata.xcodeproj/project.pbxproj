@@ -147,6 +147,7 @@
 		5B54319231F66AB260EA8828 /* PyodideServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A6AC1D6A0D425D2934E4B1D /* PyodideServer.swift */; };
 		5B5C584E1C372334201F7D16 /* AnthropicMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3B3C31A75AA40EF96990745 /* AnthropicMessages.swift */; };
 		5B97326687D39CF393E05AF1 /* ImageProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E08F0D934A25CA44E443328 /* ImageProcessor.swift */; };
+		5D1F237B143839E8918B244E /* LimitedDownload.swift in Sources */ = {isa = PBXBuildFile; fileRef = B891A8CC4C7C11D14F67A454 /* LimitedDownload.swift */; };
 		5D87B925992AC9EBB7A96C02 /* DebugBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF02DB6A733BBE52D18499D5 /* DebugBundle.swift */; };
 		5DE1FB9CA2AD5FB98F1B6C83 /* MarkdownBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = C48316140F6C91D3CBA80AB7 /* MarkdownBlock.swift */; };
 		5F7E7AB124E6242B940CF6FE /* ResponsesClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6A7759097BB69338E3086E6 /* ResponsesClient.swift */; };
@@ -161,6 +162,7 @@
 		64F52C57140A80A32457348C /* WebToolErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBA39B2742E57D52847046B7 /* WebToolErrorTests.swift */; };
 		658B0AD45FA5E4C321488938 /* article.html in Resources */ = {isa = PBXBuildFile; fileRef = CF397966E028F30C37940F09 /* article.html */; };
 		65AF7F6213082A75DC48632D /* ChatControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E74E7C1ABCB884139F97BED1 /* ChatControllerTests.swift */; };
+		662D7DC5087D14FC2A820317 /* LimitedDownload.swift in Sources */ = {isa = PBXBuildFile; fileRef = B891A8CC4C7C11D14F67A454 /* LimitedDownload.swift */; };
 		66436093684E39372F73BAD0 /* ReplyBackgroundExecution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 790BA0FB2721DF8FDF6F6946 /* ReplyBackgroundExecution.swift */; };
 		6758F027C7489205BE19642E /* MessageLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13423FE5A72BA79F03249F91 /* MessageLayoutTests.swift */; };
 		681EC0F7CE54C42B6E47E4F2 /* AutoRename.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9B43C3393EEFAD90D95BA9B /* AutoRename.swift */; };
@@ -325,6 +327,7 @@
 		CDD264E38D31BB43AF97E628 /* ChatGPTModelsAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED7180F1E8B24CD9E6D90907 /* ChatGPTModelsAPI.swift */; };
 		CE1B4ECA196778728E7EA4C1 /* ContextSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17C8B76F60CF255F7FCBAEDB /* ContextSheet.swift */; };
 		CEB021C07023729D842B6B6C /* PyRuntime in Resources */ = {isa = PBXBuildFile; fileRef = D885671F11503105E839A70B /* PyRuntime */; };
+		CEC962BAD84EB510A021A482 /* ReviewFixTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6BEDFC68AE6D8E29B8C78CC /* ReviewFixTests.swift */; };
 		CEDFC1919CC1221DD2B11C71 /* DiagnosticCounters.swift in Sources */ = {isa = PBXBuildFile; fileRef = E323287078B8754E837F745D /* DiagnosticCounters.swift */; };
 		CF4419B7FDB59826E9B3E860 /* PluginRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B141DC5A18167B93E51A1676 /* PluginRunner.swift */; };
 		CFDF09F10704FB0893C3F7E8 /* PythonFigures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 689795A776DB38F58B854B51 /* PythonFigures.swift */; };
@@ -543,6 +546,7 @@
 		A0CB73D9E008A6C0380E94DD /* ZoomableImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomableImage.swift; sourceTree = "<group>"; };
 		A56AE75878AC38E54E367EF0 /* TimelineMotionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineMotionTests.swift; sourceTree = "<group>"; };
 		A5BF573BD32EBB71EEDC79EF /* TurnRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnRunner.swift; sourceTree = "<group>"; };
+		A6BEDFC68AE6D8E29B8C78CC /* ReviewFixTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewFixTests.swift; sourceTree = "<group>"; };
 		A7FE7CF4DF4B965D2A9B7043 /* ContextGridViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextGridViews.swift; sourceTree = "<group>"; };
 		A8591D2FBB734E1956666DBD /* CodeBlocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeBlocks.swift; sourceTree = "<group>"; };
 		A89BAED1B31429F736228424 /* BlockScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockScanner.swift; sourceTree = "<group>"; };
@@ -567,6 +571,7 @@
 		B6F85CEAFCCA5E519C8FC093 /* MacSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSidebarView.swift; sourceTree = "<group>"; };
 		B72613A56D557C2C034E2812 /* IncrementalBlockParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncrementalBlockParser.swift; sourceTree = "<group>"; };
 		B780BC54FC0281497876F7B6 /* StrataCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrataCommands.swift; sourceTree = "<group>"; };
+		B891A8CC4C7C11D14F67A454 /* LimitedDownload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimitedDownload.swift; sourceTree = "<group>"; };
 		BA664C3216587A234466E7CA /* CheckpointPersister.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckpointPersister.swift; sourceTree = "<group>"; };
 		BAAF1AA8F6545AAD623C9514 /* InFlightLoads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InFlightLoads.swift; sourceTree = "<group>"; };
 		BB947F8AC9122712C0BF2C33 /* ResponsesAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResponsesAPITests.swift; sourceTree = "<group>"; };
@@ -732,6 +737,7 @@
 				342661A12FE2062C81D8B547 /* QuoteCitationTests.swift */,
 				BB947F8AC9122712C0BF2C33 /* ResponsesAPITests.swift */,
 				DE43918539189B11FD7FA06F /* ResumeTests.swift */,
+				A6BEDFC68AE6D8E29B8C78CC /* ReviewFixTests.swift */,
 				70031DD36F2FA5F8EF66FA84 /* SkillTests.swift */,
 				886C8F6D9B0406EB7F52AB97 /* SSEAndStreamTests.swift */,
 				23D74F0D9535BDC2282EFC76 /* StreamingMarkdownTests.swift */,
@@ -1012,6 +1018,7 @@
 				694AA33940881B512682FD28 /* FetchPipeline.swift */,
 				2591276CC7B49180E08D4971 /* HiddenWebView.swift */,
 				BAAF1AA8F6545AAD623C9514 /* InFlightLoads.swift */,
+				B891A8CC4C7C11D14F67A454 /* LimitedDownload.swift */,
 				B031EDB9576ABC245A6ADAE1 /* PDFFetch.swift */,
 				BE0FD91626F766E566AA1DCD /* Places.swift */,
 				F9DD5CE5A930F470033D1540 /* PluginCore.swift */,
@@ -1327,6 +1334,7 @@
 				6F0815E31AE206A439DA29D4 /* QuoteCitationTests.swift in Sources */,
 				3FD32AE69C1794195A9FA452 /* ResponsesAPITests.swift in Sources */,
 				BE08AB7DE04F0AA49A4F084A /* ResumeTests.swift in Sources */,
+				CEC962BAD84EB510A021A482 /* ReviewFixTests.swift in Sources */,
 				A27748A1CA53762E03335950 /* SSEAndStreamTests.swift in Sources */,
 				BD22ACFE94EF8A5CC117C075 /* SkillTests.swift in Sources */,
 				599BD0A34E25235EB6688000 /* StreamPacingTests.swift in Sources */,
@@ -1414,6 +1422,7 @@
 				92274183A5485DFE9F9AA180 /* Keyboard.swift in Sources */,
 				CB3BA25D454B87D44DA409D2 /* LenientEmphasis.swift in Sources */,
 				3485B54373467B7A448B09FF /* LicensesView.swift in Sources */,
+				662D7DC5087D14FC2A820317 /* LimitedDownload.swift in Sources */,
 				4291E80D25DBCC4AE6318B7C /* LoopbackServer.swift in Sources */,
 				93A4FFBDCE66B926A0F492BD /* MacComposerField.swift in Sources */,
 				9E53D09EF85B50BEDE3CF9A9 /* MacDebug.swift in Sources */,
@@ -1563,6 +1572,7 @@
 				D1E17F7AD7FD38951D8FF71C /* Keyboard.swift in Sources */,
 				D6E781CE9AE6C4F6CEA0C1E1 /* LenientEmphasis.swift in Sources */,
 				61931B76CC816BC61AEF27FD /* LicensesView.swift in Sources */,
+				5D1F237B143839E8918B244E /* LimitedDownload.swift in Sources */,
 				3ED44074FD4D0C1677289FC4 /* LoopbackServer.swift in Sources */,
 				0499F27BFD7B6D1267F4499F /* MacComposerField.swift in Sources */,
 				4677C7BBC549D586B0F14DC8 /* MacDebug.swift in Sources */,

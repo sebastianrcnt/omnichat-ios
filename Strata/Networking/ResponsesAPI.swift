@@ -196,7 +196,12 @@ struct ResponsesRequest: Encodable, Sendable {
                 }
                 out.append(contentsOf: m.toolCalls.map { .functionCall(callID: $0.id, name: $0.name, arguments: $0.arguments) })
             case "tool":
-                out.append(.functionCallOutput(callID: m.toolCallID ?? "", output: m.content.plainText))
+                if let id = m.toolCallID, !id.isEmpty {
+                    out.append(.functionCallOutput(callID: id, output: m.content.plainText))
+                } else {
+                    // A result with no call id (imported history) would make the API reject every later request.
+                    out.append(.message(role: "user", content: [.inputText("[Tool result]\n" + m.content.plainText)]))
+                }
             default:
                 break
             }
@@ -289,6 +294,9 @@ struct ResponsesEventDecoder: Sendable {
         var delta = ChatDelta()
         switch event.type {
         case "response.output_text.delta":
+            delta.content = event.delta
+        case "response.refusal.delta":
+            // A refusal is the model's answer too: shown as text rather than an empty reply.
             delta.content = event.delta
         case "response.reasoning_summary_part.added":
             // A new summary paragraph (also the first of a later reasoning item) starts after a blank line.

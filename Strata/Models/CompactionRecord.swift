@@ -34,8 +34,11 @@ final class CompactionRecord {
         self.createdAt = createdAt
     }
 
+    /// The messages that stand in for everything before the anchor. If they can't be decoded (a format change), the
+    /// notes alone stand in, rather than nothing: an empty replacement would silently drop all earlier context.
     var replacement: [APIMessage] {
-        DecodeCache.replacements.value(for: id, source: replacementData) { try? JSONDecoder().decode([APIMessage].self, from: replacementData) } ?? []
+        DecodeCache.replacements.value(for: id, source: replacementData) { try? JSONDecoder().decode([APIMessage].self, from: replacementData) }
+            ?? [.user(Compaction.summaryPrefix + notes)]
     }
 
     /// Covers the whole anchor message.

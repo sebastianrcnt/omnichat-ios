@@ -84,12 +84,13 @@ final class StreamingMarkdownModel {
     func finish(finalText: String? = nil) {
         if let finalText, finalText != text { reset(); text = finalText; reveal.receive(finalText) }
         revealAll()
-        pipeline?.send(.finish)
+        pipeline?.send(.finish(epoch))
         if pipeline == nil { load(text) }
     }
 
     /// Drop everything (a new tool round starts a fresh answer).
     func reset() {
+        epoch += 1
         text = ""
         reveal = RevealController(pacing: RevealPacing())
         pipeline?.send(.reset)
@@ -101,6 +102,7 @@ final class StreamingMarkdownModel {
 
     /// Replace the document synchronously (finished messages loaded from history).
     func load(_ newText: String) {
+        epoch += 1
         pipeline = nil
         reveal = RevealController(pacing: RevealPacing())
         text = newText
@@ -151,10 +153,15 @@ final class StreamingMarkdownModel {
             let keep = max(0, text.utf8.count - delta.utf8.count - reveal.backlog.utf8.count)
             pipeline = Pipeline(model: self, seed: String(decoding: text.utf8.prefix(keep), as: UTF8.self))
         }
-        pipeline?.send(.append(delta))
+        pipeline?.send(.append(delta, epoch))
     }
 
-    fileprivate func apply(_ result: PipelineResult) {
+    /// Bumped by `reset` and `load`: a parse the background pipeline finished for the text before them is dropped
+    /// instead of putting the previous answer's blocks on top of the new one.
+    private var epoch = 0
+
+    fileprivate func apply(_ result: PipelineResult, epoch: Int) {
+        guard epoch == self.epoch else { return }
         let interval = Self.signposter.beginInterval("apply")
         let start = ContinuousClock.now
         switch result {
@@ -180,7 +187,7 @@ final class StreamingMarkdownModel {
     }
 
     fileprivate enum Command: Sendable {
-        case append(String), finish, reset
+        case append(String, Int), finish(Int), reset
     }
 
     /// Serial background parser. Commands are processed in order.
@@ -197,11 +204,11 @@ final class StreamingMarkdownModel {
                 if !seed.isEmpty { parser.reset(text: seed) }
                 for await command in stream {
                     switch command {
-                    case .append(let s):
+                    case .append(let s, let epoch):
                         let update = parser.append(s)
-                        await model?.apply(.update(update))
-                    case .finish:
-                        await model?.apply(.reconcile(parser.finish()))
+                        await model?.apply(.update(update), epoch: epoch)
+                    case .finish(let epoch):
+                        await model?.apply(.reconcile(parser.finish()), epoch: epoch)
                     case .reset:
                         parser = IncrementalBlockParser()
                     }

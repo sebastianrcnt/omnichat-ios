@@ -16,6 +16,7 @@ struct SidebarView: View {
     @State private var query = ""
     @State private var renaming: Conversation?
     @State private var renameText = ""
+    @State private var deleting: Conversation?
 
     /// Conversations whose message text matches the current query, found by the store (not by loading messages here).
     @State private var contentMatches: Set<UUID> = []
@@ -43,13 +44,16 @@ struct SidebarView: View {
                         header("Pinned")
                         ForEach(pinned) { row($0) }
                     }
-                    header("Recent")
                     if recent.isEmpty && pinned.isEmpty {
+                        header("Recent")
                         Text(query.isEmpty ? "No chats yet" : "No matches")
                             .font(DS.Typography.uiSmall).foregroundStyle(theme.textTertiary)
                             .padding(.horizontal, DS.Spacing.lg)
                     }
-                    ForEach(recent) { row($0) }
+                    ForEach(ConversationGroups.group(recent)) { group in
+                        header(LocalizedStringKey(group.title))
+                        ForEach(group.items) { row($0) }
+                    }
                 }
                 .padding(.horizontal, DS.Spacing.sm)
             }
@@ -77,6 +81,16 @@ struct SidebarView: View {
             try? await Task.sleep(for: .milliseconds(250)) // typing debounce; a new query cancels this task
             guard !Task.isCancelled else { return }
             contentMatches = ConversationSearch.matchingConversationIDs(query: q, context: context)
+        }
+        .confirmationDialog("Delete this chat?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+                            titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                if let c = deleting {
+                    if selected?.id == c.id { selected = nil }
+                    ConversationDeletion.delete(c, context: context, controller: controller)
+                }
+                deleting = nil
+            }
         }
         .alert("Rename chat", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("Title", text: $renameText)
@@ -126,10 +140,15 @@ struct SidebarView: View {
                     .font(.system(size: DS.IconSize.md))
                     .foregroundStyle(theme.textSecondary)
                     .frame(width: DS.IconSize.lg)
-                TitlingText(conversation.displayTitle, isTitling: controller.isTitling(conversation.id))
-                    .font(DS.Typography.ui)
-                    .foregroundStyle(theme.textPrimary)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 0) {
+                    TitlingText(conversation.displayTitle, isTitling: controller.isTitling(conversation.id))
+                        .font(DS.Typography.ui)
+                        .foregroundStyle(theme.textPrimary)
+                        .lineLimit(1)
+                    if ConversationSearch.matchedOnlyInMessages(conversation, query: query, contentMatches: contentMatches) {
+                        Text("Found in messages").font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
+                    }
+                }
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, DS.Spacing.md)
@@ -145,20 +164,58 @@ struct SidebarView: View {
                 try? context.save()
             }
             Button("Rename", systemImage: "pencil") {
-                renameText = conversation.title
+                renameText = conversation.displayTitle
                 renaming = conversation
             }
             Button("Regenerate title", systemImage: "wand.and.stars") {
                 controller.autoRename(conversation: conversation, context: context, force: true)
             }
             .disabled(controller.isStreaming(conversation) || controller.isTitling(conversation.id))
-            Button("Delete", systemImage: "trash", role: .destructive) {
-                if selected?.id == conversation.id { selected = nil }
-                Diagnostics.forget(conversation.id)
-                PythonRuntime.shared.conversationDeleted(conversation.id)
-                context.delete(conversation)
-                try? context.save()
-            }
+            Button("Delete", systemImage: "trash", role: .destructive) { deleting = conversation }
         }
+    }
+}
+
+/// Deleting a chat, the same from every place that offers it: its running reply stops first, then its diagnostics,
+/// Python interpreter and figures go with it.
+@MainActor
+enum ConversationDeletion {
+    static func delete(_ conversation: Conversation, context: ModelContext, controller: ChatController) {
+        if controller.activeConversationID == conversation.id { controller.stop() }
+        Diagnostics.forget(conversation.id)
+        PythonRuntime.shared.conversationDeleted(conversation.id)
+        context.delete(conversation)
+        try? context.save()
+    }
+}
+
+/// The chat list by age: Today, Yesterday, Previous 7 Days, Previous 30 Days, then by month.
+enum ConversationGroups {
+    struct Group: Identifiable {
+        var title: String
+        var items: [Conversation]
+        var id: String { title }
+    }
+
+    static func group(_ conversations: [Conversation], now: Date = .now, calendar: Calendar = .current) -> [Group] {
+        var out: [Group] = []
+        for c in conversations {
+            let title = label(for: c.updatedAt, now: now, calendar: calendar)
+            if out.last?.title == title { out[out.count - 1].items.append(c) } else { out.append(Group(title: title, items: [c])) }
+        }
+        return out
+    }
+
+    static func label(for date: Date, now: Date, calendar: Calendar = .current) -> String {
+        if calendar.isDate(date, inSameDayAs: now) { return String(localized: "Today") }
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: yesterday) {
+            return String(localized: "Yesterday")
+        }
+        let startOfToday = calendar.startOfDay(for: now)
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: startOfToday).day ?? 0
+        if days < 7 { return String(localized: "Previous 7 Days") }
+        if days < 30 { return String(localized: "Previous 30 Days") }
+        if calendar.isDate(date, equalTo: now, toGranularity: .year) { return date.formatted(.dateTime.month(.wide)) }
+        return date.formatted(.dateTime.month(.wide).year())
     }
 }

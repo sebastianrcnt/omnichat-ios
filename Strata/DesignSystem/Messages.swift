@@ -12,6 +12,8 @@ struct MessageBubble: View {
     var onCopy: (() -> Void)?
     /// Nil hides Edit (while a reply is streaming).
     var onEdit: (() -> Void)?
+    @State private var copies = 0
+    @State private var selecting = false
 
     var body: some View {
         HStack {
@@ -33,9 +35,12 @@ struct MessageBubble: View {
                         .background(theme.bubble, in: RoundedRectangle(cornerRadius: DS.Radius.bubble))
                         .bubbleContextMenuShape()
                         .contextMenu {
-                            if let onCopy { Button("Copy", systemImage: "doc.on.doc", action: onCopy) }
+                            if let onCopy { Button("Copy", systemImage: "doc.on.doc") { onCopy(); copies += 1 } }
+                            Button("Select Text", systemImage: "selection.pin.in.out") { selecting = true }
                             if let onEdit { Button("Edit", systemImage: "pencil", action: onEdit) }
                         }
+                        .sensoryFeedback(.success, trigger: copies)
+                        .sheet(isPresented: $selecting) { SelectableTextSheet(text: text) }
                 }
                 if let branch {
                     BranchSwitcher(position: branch, isEnabled: branchEnabled, onSwitch: onSwitchBranch)
@@ -54,7 +59,10 @@ struct BranchSwitcher: View {
 
     var body: some View {
         HStack(spacing: DS.Spacing.xs) {
-            Button { onSwitch(-1) } label: { Image(systemName: "chevron.left").frame(width: 28, height: 28) }
+            Button { onSwitch(-1) } label: {
+                Image(systemName: "chevron.left").frame(width: 28, height: 28)
+                    .frame(width: 44, height: 44).contentShape(Rectangle()) // a finger-sized target around the small arrow
+            }
                 .disabled(!isEnabled || position.index <= 1)
                 .accessibilityLabel(Text("Previous version"))
             Text("\(position.index) / \(position.count)")
@@ -62,7 +70,10 @@ struct BranchSwitcher: View {
                 .monospacedDigit()
                 .foregroundStyle(theme.textSecondary)
                 .accessibilityHidden(true)
-            Button { onSwitch(1) } label: { Image(systemName: "chevron.right").frame(width: 28, height: 28) }
+            Button { onSwitch(1) } label: {
+                Image(systemName: "chevron.right").frame(width: 28, height: 28)
+                    .frame(width: 44, height: 44).contentShape(Rectangle())
+            }
                 .disabled(!isEnabled || position.index >= position.count)
                 .accessibilityLabel(Text("Next version"))
         }
@@ -182,7 +193,7 @@ struct MessageActionBar: View {
     }
 
     var body: some View {
-        HStack(spacing: DS.Spacing.lg) {
+        HStack(spacing: 0) {
             if let branch { BranchSwitcher(position: branch, isEnabled: branchEnabled, onSwitch: onSwitchBranch) }
             Menu {
                 Button("Copy", systemImage: "doc.on.doc") { onCopy(); flash() }
@@ -192,20 +203,24 @@ struct MessageActionBar: View {
             } label: {
                 Image(systemName: copied ? "checkmark" : "square.on.square")
                     .contentTransition(.symbolEffect(.replace))
+                    .actionTarget()
             } primaryAction: { onCopy(); flash() }
             .accessibilityLabel(Text("Copy"))
             if let onRegenerate {
-                Button(action: onRegenerate) { Image(systemName: "arrow.clockwise") }
+                Button(action: onRegenerate) { Image(systemName: "arrow.clockwise").actionTarget() }
                     .accessibilityLabel(Text("Regenerate"))
             }
             if translation.offered {
                 Button(action: onTranslate) {
-                    if translation.isTranslating {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: "translate")
-                            .foregroundStyle(translation.showing ? theme.accent : theme.textSecondary)
+                    Group {
+                        if translation.isTranslating {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: "translate")
+                                .foregroundStyle(translation.showing ? theme.accent : theme.textSecondary)
+                        }
                     }
+                    .actionTarget()
                 }
                 .disabled(translation.isTranslating)
                 .accessibilityLabel(Text(translation.hasTranslation
@@ -213,9 +228,26 @@ struct MessageActionBar: View {
             }
             Spacer()
         }
+        .padding(.leading, -DS.Spacing.sm - 2) // the first glyph lines up with the answer, its touch target reaches past
         .font(.system(size: DS.IconSize.md))
         .foregroundStyle(theme.textSecondary)
         .buttonStyle(.plain)
+    }
+}
+
+/// A sent message's text, selectable: the bubble's long press is its menu, so part of a long prompt is copied here.
+struct SelectableTextSheet: View {
+    let text: String
+
+    var body: some View {
+        SheetScaffold(title: "Select Text") {
+            Text(verbatim: text)
+                .font(DS.Typography.ui)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(DS.Spacing.lg)
+        }
+        .presentationDetents([.medium, .large])
     }
 }
 
@@ -432,6 +464,8 @@ struct AssistantMessage: View {
                         Text(error).font(DS.Typography.uiSmall).foregroundStyle(theme.textPrimary)
                         if content.errorNeedsSettings {
                             Button("Open Settings", action: onOpenSettings).buttonStyle(.glass)
+                        } else if content.canRegenerate {
+                            Button("Try again", systemImage: "arrow.clockwise", action: onRegenerate).buttonStyle(.glass)
                         }
                     }
                     Spacer(minLength: 0)
@@ -550,5 +584,12 @@ private extension View {
         #else
         self
         #endif
+    }
+}
+
+private extension View {
+    /// An action-bar icon with a 44pt touch target; the bar's icons sit at their old spacing (16pt between glyphs).
+    func actionTarget() -> some View {
+        frame(width: 40, height: 40).contentShape(Rectangle())
     }
 }
