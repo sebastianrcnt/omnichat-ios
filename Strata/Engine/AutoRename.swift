@@ -71,18 +71,38 @@ enum AutoRename {
         return [lines[u]] + (answer.map { [$0] } ?? [])
     }
 
+    /// What "Regenerate title" shows the model of a longer chat: the first exchange, the user's messages in between
+    /// (short, the last `middleLimit` of them), and the latest exchange in full clips. A chat often drifts from where
+    /// it started, and the first exchange alone keeps naming it after its opening question.
+    static let middleClip = 160
+    static let middleLimit = 8
+    static let tailLines = 4
+
+    static func wholeConversation(_ lines: [Line]) -> [Line] {
+        guard let u = lines.firstIndex(where: { $0.role == .user }) else { return [] }
+        let head = firstExchange(lines)
+        let headEnd = lines[(u + 1)...].firstIndex(where: { $0.role == .assistant }).map { $0 + 1 } ?? u + 1
+        let tailStart = max(headEnd, lines.count - tailLines)
+        let middle = lines[headEnd..<tailStart].filter { $0.role == .user }.suffix(middleLimit)
+            .map { Line(role: .user, text: clip($0.text, middleClip)) }
+        return head + middle + lines[tailStart...]
+    }
+
     /// The user message for the naming request: the first user message and the start of the answer, clipped.
     /// Nil when there is nothing to name yet (no user message). `replacing` is the title shown now, when the person asked
-    /// for a new one: without it the same request gets the same title back and the button seems to do nothing.
+    /// for a new one: the request then covers the whole chat (`wholeConversation`) and asks for a different title, or the
+    /// same request would get the same title back and the button would seem to do nothing.
     static func prompt(lines: [Line], replacing current: String? = nil) -> String? {
-        let exchange = firstExchange(lines)
+        let replacing = current.map { !$0.isEmpty } ?? false
+        let exchange = replacing ? wholeConversation(lines) : firstExchange(lines)
         guard !exchange.isEmpty else { return nil }
         let convo = exchange.map { line -> String in
             line.role == .user ? "User: " + clip(line.text, userClip) : "Assistant: " + clip(line.text, assistantClip)
         }
         var text = "The conversation:\n\n" + convo.joined(separator: "\n\n")
-        if let current, !current.isEmpty {
-            text += "\n\nThe current title is \"\(clip(current, maxNameLength))\". Write a different, better one."
+        if replacing, let current {
+            text += "\n\nThe current title is \"\(clip(current, maxNameLength))\". Write a different, better one that "
+                + "fits the whole conversation, not only how it started."
         }
         return text + "\n\nTitle:"
     }
@@ -109,6 +129,32 @@ enum AutoRename {
         return r
     }
 
+    // MARK: Follow-up
+
+    /// The question asked at the end of the chat's own request.
+    static func followUpQuestion(replacing current: String?) -> String {
+        var text = "Before we go on: give this conversation a title of at most 6 words that says what it is about as a "
+            + "whole, in the language of the conversation."
+        if let current, !current.isEmpty {
+            text += " The current title is \"\(clip(current, maxNameLength))\"; write a different, better one."
+        }
+        return text + " Reply with the title only: no quotes, no period at the end, nothing else."
+    }
+
+    /// The chat's next request (same system prompt, history, tools and effort, so the server's cached prefix is reused
+    /// and the model sees the whole conversation) with the title question appended. Tools stay listed, since changing
+    /// them would change the prefix, but none may be called: the same `tool_choice` a capped round sends. The budget
+    /// leaves room for thinking at the chat's effort.
+    static func followUp(_ base: ChatRequest, replacing current: String?) -> ChatRequest {
+        var r = base
+        r.messages.append(.user(followUpQuestion(replacing: current)))
+        if r.tools?.isEmpty == false { r.toolChoice = "none" }
+        r.maxTokens = followUpMaxTokens
+        return r
+    }
+
+    static let followUpMaxTokens = 8192
+
     // MARK: Trigger rules
 
     /// Automatic naming runs once, after the first completed answer, while the title is not user-set and the setting is on.
@@ -121,14 +167,18 @@ enum AutoRename {
     /// Asks the model for a name: first with thinking off, then, after an error or an empty reply, once more without
     /// thinking controls and with room to think. Returns nil on failure or an empty name (the caller keeps the old title).
     /// `log` sees each request as it is sent and as it ends, like the chat requests in the request ring.
+    /// With `followUp`, that request (the chat's own, see `followUp(_:replacing:)`) goes first, and the standalone ones
+    /// only after it fails.
     static func generate(prompt: String, endpoint: Endpoint, streamer: any ChatStreaming,
+                         followUp: ChatRequest? = nil,
                          timeout: Duration = AutoRename.timeout,
                          log: (@MainActor @Sendable (RequestLogEvent) -> Void)? = nil) async -> String? {
         let url = endpoint.requestURL.absoluteString
-        for thinking in [Thinking.off, .unchanged] {
+        let standalone = [Thinking.off, .unchanged].map {
+            request(model: endpoint.model.id, prompt: prompt, thinking: $0, supportsEffort: endpoint.model.supportsEffort)
+        }
+        for request in (followUp.map { [$0] } ?? []) + standalone {
             if Task.isCancelled { return nil }
-            let request = request(model: endpoint.model.id, prompt: prompt, thinking: thinking,
-                                  supportsEffort: endpoint.model.supportsEffort)
             let id = UUID()
             if let log, let body = try? request.encoded() { await log(.sent(id: id, url: url, body: body)) }
             do {

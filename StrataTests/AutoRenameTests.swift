@@ -73,6 +73,38 @@ struct AutoRenamePromptTests {
         #expect(!short.contains("\u{2026}"), "exactly at the limit is not clipped")
     }
 
+    @Test func regeneratingCoversTheWholeChat() throws {
+        var lines: [AutoRename.Line] = []
+        for i in 1...12 {
+            lines.append(.init(role: .user, text: "question \(i)"))
+            lines.append(.init(role: .assistant, text: "answer \(i)"))
+        }
+        let p = try #require(AutoRename.prompt(lines: lines, replacing: "Question one"))
+        #expect(p.contains("User: question 1\n\nAssistant: answer 1"))
+        #expect(p.contains("User: question 12\n\nAssistant: answer 12"))
+        #expect(p.contains("User: question 10") && !p.contains("answer 10")) // middle: user messages only
+        #expect(!p.contains("question 2\n")) // more than eight in the middle: the earliest drop out
+        #expect(p.contains("The current title is \"Question one\""))
+        let short = try #require(AutoRename.prompt(lines: Array(lines.prefix(2)), replacing: "T"))
+        #expect(short.components(separatedBy: "question 1").count == 2, "no line twice")
+    }
+
+    @Test func followUpKeepsTheChatRequestAndAppendsTheQuestion() throws {
+        var base = ChatRequest(model: "m", messages: [.system("sys"), .user("q"), .assistant("a")])
+        base.reasoningEffort = "high"
+        base.tools = ToolDefinition.available(python: false, images: false, browser: false, location: false)
+        let r = AutoRename.followUp(base, replacing: "Old")
+        #expect(r.messages.count == 4)
+        #expect(r.reasoningEffort == "high", "same effort: the prefix and the cache stay the same")
+        #expect(r.tools?.count == base.tools?.count)
+        #expect(r.toolChoice == "none")
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        #expect(try encoder.encode(Array(r.messages.prefix(3))) == encoder.encode(base.messages))
+        #expect(r.messages.last?.content.plainText.contains("\"Old\"") == true)
+        #expect(AutoRename.cleanName("Title: SQL NULL in aggregates.") == "SQL NULL in aggregates")
+    }
+
     @Test func nothingToNameWithoutAUserMessage() {
         #expect(AutoRename.prompt(lines: []) == nil)
         #expect(AutoRename.prompt(lines: [.init(role: .assistant, text: "hi")]) == nil)
@@ -237,18 +269,27 @@ struct AutoRenameControllerTests {
         await waitForTitle(r)
         #expect(!r.controller.isTitling(r.conversation.id))
         #expect(r.conversation.title == "Centering a Div" && !r.conversation.titleIsUserSet)
-        // The title request is separate: the history holds only the exchange, and the ring logged both requests.
+        // The title is a follow-up to the chat's own request, so the server's cached prefix is reused: the same system
+        // prompt, history and tools, plus the answer and the question. It never enters the history.
         #expect(r.conversation.messages.count == 2)
         #expect(r.controller.requestRing.recent(for: r.conversation.id).count == 2)
-        #expect(r.streamer.requests[1].tools == nil && r.streamer.requests[1].messages.first?.role == "system")
+        let turn = r.streamer.requests[0], title = r.streamer.requests[1]
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        #expect(try encoder.encode(Array(title.messages.prefix(turn.messages.count))) == encoder.encode(turn.messages))
+        #expect(try encoder.encode(title.tools) == encoder.encode(turn.tools))
+        #expect(title.messages.count == turn.messages.count + 2 && title.toolChoice == "none")
+        #expect(title.messages.last?.content.plainText.contains("title") == true)
     }
 
     @Test func aFailureKeepsThePlaceholderAndStopsTheTitlingState() async throws {
         let r = try rig([([ChatDelta(content: "Use flexbox.")], .finish),
+                         ([], .fail(APIError.transport("w"))), // the follow-up, then the two standalone requests
                          ([], .fail(APIError.transport("x"))), ([], .fail(APIError.transport("y")))])
         r.controller.send(text: "How do I center a div?", images: [], conversation: r.conversation, context: r.context)
         await r.controller.waitUntilIdle()
         await waitForTitle(r)
+        #expect(r.streamer.requests.count == 4)
         #expect(!r.controller.isTitling(r.conversation.id))
         #expect(r.conversation.title == "How do I center a div?")
         #expect(r.conversation.messages.allSatisfy { $0.errorText == nil })

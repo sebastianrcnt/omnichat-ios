@@ -206,6 +206,17 @@ final class ChatController {
             if force { titleFailedConversationID = conversation.id }
             return
         }
+        // The title is asked as a follow-up to the chat's own request: the cached prefix is reused, and the model sees
+        // everything, not just the first exchange.
+        let path = conversation.activePath
+        var followUp: ChatRequest?
+        if path.last?.role == .assistant {
+            var base = ChatRequest(model: endpoint.model.id,
+                                   messages: apiHistory(path: path, conversation: conversation, endpoint: endpoint))
+            if endpoint.model.supportsEffort { base.reasoningEffort = conversation.effort.apiValue }
+            if endpoint.model.supportsTools { base.tools = requestTools(endpoint) }
+            followUp = AutoRename.followUp(base, replacing: force ? conversation.displayTitle : nil)
+        }
         let streamer = streamer
         let ring = requestRing
         let conversationID = conversation.id
@@ -214,7 +225,7 @@ final class ChatController {
         titlingConversationIDs.insert(conversationID)
         Task { @MainActor [weak self] in
             defer { self?.titlingConversationIDs.remove(conversationID) }
-            let name = await AutoRename.generate(prompt: prompt, endpoint: endpoint, streamer: streamer) { event in
+            let name = await AutoRename.generate(prompt: prompt, endpoint: endpoint, streamer: streamer, followUp: followUp) { event in
                 switch event {
                 case .sent(let id, let url, let body): ring.record(conversationID: conversationID, url: url, body: body, id: id)
                 case .finished(let id, let reason, let usage): ring.complete(id, finishReason: reason, usage: usage)
