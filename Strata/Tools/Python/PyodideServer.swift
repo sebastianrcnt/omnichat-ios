@@ -2,8 +2,8 @@ import Foundation
 import CryptoKit
 
 // What the Python page can load, served through the `strata-py://` scheme: the bundled runtime, Pyodide packages
-// (downloaded once from the pinned CDN release, checked against the lock file's sha256 and kept in Caches), and a small
-// proxy for micropip that reaches only the Pyodide CDN and PyPI. Nothing here touches WebKit, so it is tested directly.
+// (downloaded once from the pinned CDN release, checked against the lock file's sha256 and kept in Caches), and a proxy
+// that carries Python's web requests (any http(s) URL, any method). Nothing here touches WebKit, so it is tested directly.
 
 enum Pyodide {
     /// The pinned release. The bundled core, the lock file and the CDN path must all be this version.
@@ -69,9 +69,16 @@ struct PyResponse: Sendable, Equatable {
     }
 }
 
-/// Which outside URLs the proxy may reach: the pinned Pyodide CDN release, PyPI's JSON and simple APIs, and PyPI's file host.
+/// Which outside URLs the proxy may reach: any http(s) URL without credentials in it.
 enum PyodideAllowlist {
     static func allows(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http",
+              url.user == nil, url.password == nil, url.host(percentEncoded: false)?.isEmpty == false else { return false }
+        return true
+    }
+
+    /// The package sources micropip uses: the pinned Pyodide CDN release, PyPI's JSON and simple APIs, and PyPI's file host.
+    static func isPackageSource(_ url: URL) -> Bool {
         guard url.scheme?.lowercased() == "https", url.port == nil || url.port == 443,
               url.user == nil, url.password == nil, let host = url.host(percentEncoded: false)?.lowercased() else { return false }
         let path = url.path(percentEncoded: false)
@@ -222,25 +229,52 @@ struct PyodideServer: Sendable {
         }
     }
 
-    /// An outside request from micropip: only allowlisted URLs, only GET.
+    /// Request headers the page adds for its own origin, which mean nothing to the outside site.
+    static let pageOnlyHeaders: Set<String> = ["host", "origin", "referer", "content-length", "connection"]
+
+    /// Response headers that describe the transfer from the site, not the body handed to the page.
+    static let transferHeaders: Set<String> = ["content-length", "content-encoding", "transfer-encoding", "connection",
+                                              "content-security-policy", "set-cookie"]
+
+    /// A web request from Python: any http(s) URL and method, with its headers and body; the response keeps its status and
+    /// headers. Lock-listed CDN packages are served from the checked cache.
     func proxy(_ target: URL, original: URLRequest) async -> PyResponse {
-        guard PyodideAllowlist.allows(target) else { return .error(403, "Blocked: Python may only reach PyPI and the Pyodide CDN.") }
+        guard PyodideAllowlist.allows(target) else { return .error(400, "Python can reach http and https URLs only.") }
         let method = (original.httpMethod ?? "GET").uppercased()
-        guard method == "GET" || method == "HEAD" else { return .error(405, "Only GET requests are allowed.") }
-        if let name = PyodideAllowlist.cdnFileName(target), lock.sha256(of: name) != nil { return await package(name) }
+        if method == "GET", let name = PyodideAllowlist.cdnFileName(target), lock.sha256(of: name) != nil { return await package(name) }
         var request = URLRequest(url: target)
         request.httpMethod = method
-        for header in ["Accept", "Accept-Encoding", "Range"] {
-            if let value = original.value(forHTTPHeaderField: header) { request.setValue(value, forHTTPHeaderField: header) }
+        for (name, value) in original.allHTTPHeaderFields ?? [:] where !Self.pageOnlyHeaders.contains(name.lowercased()) {
+            request.setValue(value, forHTTPHeaderField: name)
         }
+        request.httpBody = original.httpBody ?? original.httpBodyStream.map(Self.drain)
         do {
             let (data, response) = try await fetch(request)
             guard data.count <= maxDownload else { return .error(502, "The download is too large.") }
-            let mime = response.mimeType ?? "application/octet-stream"
-            return PyResponse(status: response.statusCode, mimeType: mime, body: data)
+            var headers: [String: String] = [:]
+            for (key, value) in response.allHeaderFields {
+                guard let name = key as? String, let value = value as? String, !Self.transferHeaders.contains(name.lowercased()) else { continue }
+                headers[name] = value
+            }
+            headers.removeValue(forKey: "Content-Type")
+            let mime = response.value(forHTTPHeaderField: "Content-Type") ?? response.mimeType ?? "application/octet-stream"
+            return PyResponse(status: response.statusCode, mimeType: mime, body: data, headers: headers)
         } catch {
             return .error(502, "The request failed: \(error.localizedDescription)")
         }
+    }
+
+    private static func drain(_ stream: InputStream) -> Data {
+        var data = Data()
+        stream.open()
+        defer { stream.close() }
+        var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+        while stream.hasBytesAvailable {
+            let n = stream.read(&buffer, maxLength: buffer.count)
+            guard n > 0 else { break }
+            data.append(buffer, count: n)
+        }
+        return data
     }
 
     static func sha256(_ data: Data) -> String {
@@ -248,7 +282,7 @@ struct PyodideServer: Sendable {
     }
 }
 
-/// The real network side of the proxy: an ephemeral session whose redirects must stay on the allowlist.
+/// The real network side of the proxy: an ephemeral session (no cookies kept) whose redirects stay on http(s).
 enum PyNetwork {
     private final class RedirectGuard: NSObject, URLSessionTaskDelegate {
         func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,

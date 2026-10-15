@@ -56,16 +56,30 @@ struct PythonIntegrationTests {
         #expect(next.text == "False", "\(next.text)")
     }
 
-    @Test func directNetworkAccessIsBlocked() async throws {
+    @Test func theWorkerCannotBypassTheProxy() async throws {
         let (python, _) = runtime()
         defer { python.dispose() }
         let out = await python.run(code: "from js import fetch\ntry:\n    await fetch('https://example.com/')\n    print('reached')\nexcept Exception as e:\n    print('blocked')",
                                    conversationID: UUID(), canView: false)
-        // The proxy refuses example.com with a 403, so fetch resolves but never reaches the site.
-        #expect(!out.text.contains("Example Domain"), "\(out.text)")
+        // Python's fetch goes through the proxy; the worker's own fetch, outside it, is blocked by the page's policy.
+        _ = out
         let host = try #require(python.testHost)
         let probe = try await host.probe("https://example.com/")
         #expect(probe.contains("\"reached\":false"), "\(probe)")
+    }
+
+    @Test func pythonReachesTheWeb() async throws {
+        guard await Self.online() else { return }
+        let (python, _) = runtime()
+        defer { python.dispose() }
+        let code = """
+        from pyodide.http import pyfetch, open_url
+        r = await pyfetch('https://example.com/')
+        print(r.status, 'Example Domain' in await r.string())
+        print('Example Domain' in open_url('https://example.com/').read())
+        """
+        let out = await python.run(code: code, conversationID: UUID(), canView: false)
+        #expect(out.text.contains("200 True\nTrue"), "\(out.text)")
     }
 
     @Test func sympyAndAFigure() async throws {

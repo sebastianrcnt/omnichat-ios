@@ -64,7 +64,16 @@ struct PyodideServerTests {
     private let numpyURL = "strata-py://app/pyodide/numpy-2.4.6-cp314-cp314-pyemscripten_2026_0_wasm32.whl"
     private var cdnURL: String { "https://cdn.jsdelivr.net/pyodide/v\(Pyodide.version)/full/numpy-2.4.6-cp314-cp314-pyemscripten_2026_0_wasm32.whl" }
 
-    @Test func theAllowlistAdmitsOnlyTheCDNReleaseAndPyPI() {
+    @Test func pythonMayReachAnyWebURLButNotOtherSchemes() {
+        for url in ["https://example.com/", "http://example.com/a?b=1", "https://api.github.com/repos/x/y"] {
+            #expect(PyodideAllowlist.allows(URL(string: url)!), "\(url)")
+        }
+        for url in ["file:///etc/passwd", "strata-py://app/index.html", "ftp://example.com/x", "https://user:pw@example.com/"] {
+            #expect(!PyodideAllowlist.allows(URL(string: url)!), "\(url)")
+        }
+    }
+
+    @Test func packageSourcesAreTheCDNReleaseAndPyPI() {
         let allowed = [
             "https://cdn.jsdelivr.net/pyodide/v\(Pyodide.version)/full/micropip-0.11.1-py3-none-any.whl",
             "https://pypi.org/pypi/attrs/json",
@@ -83,8 +92,8 @@ struct PyodideServerTests {
             "https://user:pw@pypi.org/pypi/attrs/json",
             "https://pypi.org:8443/pypi/attrs/json",
         ]
-        for url in allowed { #expect(PyodideAllowlist.allows(URL(string: url)!), "\(url)") }
-        for url in refused { #expect(!PyodideAllowlist.allows(URL(string: url)!), "\(url)") }
+        for url in allowed { #expect(PyodideAllowlist.isPackageSource(URL(string: url)!), "\(url)") }
+        for url in refused { #expect(!PyodideAllowlist.isPackageSource(URL(string: url)!), "\(url)") }
     }
 
     @Test func aPackageIsDownloadedCheckedCachedAndThenServedFromTheCache() async {
@@ -146,7 +155,7 @@ struct PyodideServerTests {
         #expect(otherHost.status == 404)
     }
 
-    @Test func theProxyReachesPyPIAndRefusesEverythingElse() async {
+    @Test func theProxyCarriesAnyWebRequest() async {
         let network = FakeNetwork()
         network.set("https://pypi.org/pypi/attrs/json", body: Data("{\"info\":{}}".utf8))
         let (server, _) = server(network: network)
@@ -155,12 +164,16 @@ struct PyodideServerTests {
         #expect(ok.status == 200)
         #expect(ok.body == Data("{\"info\":{}}".utf8))
 
-        let evil = "strata-py://app/proxy?u=" + "https://example.com/x".addingPercentEncoding(withAllowedCharacters: .alphanumerics)!
-        let blocked = await server.respond(to: request(evil))
-        #expect(blocked.status == 403)
+        network.set("https://example.com/x", body: Data("hi".utf8))
+        let other = "strata-py://app/proxy?u=" + "https://example.com/x".addingPercentEncoding(withAllowedCharacters: .alphanumerics)!
+        let reached = await server.respond(to: request(other))
+        #expect(reached.status == 200)
+        #expect(reached.body == Data("hi".utf8))
         let post = await server.respond(to: request(proxied, method: "POST"))
-        #expect(post.status == 405)
-        #expect(network.requested == ["https://pypi.org/pypi/attrs/json"])
+        #expect(post.status == 200)
+        let file = "strata-py://app/proxy?u=" + "file:///etc/hosts".addingPercentEncoding(withAllowedCharacters: .alphanumerics)!
+        #expect(await server.respond(to: request(file)).status == 400)
+        #expect(network.requested == ["https://pypi.org/pypi/attrs/json", "https://example.com/x", "https://pypi.org/pypi/attrs/json"])
     }
 
     @Test func aCDNRequestThroughTheProxyIsCheckedAgainstTheLock() async {

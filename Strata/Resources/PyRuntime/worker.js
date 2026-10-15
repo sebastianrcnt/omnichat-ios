@@ -2,8 +2,8 @@
 //   { id, type: "init" }          -> { id, status: "ok" | "error", message }
 //   { id, type: "load", code }    -> { id, status: "ok", errors: [String] }   (packages the code imports)
 //   { id, type: "run", code }     -> { id, status: "ok", output, result, error, figures: [{ png }], truncated }
-// Network access goes only to the app's own scheme: absolute http(s) URLs are sent through its proxy, which allows the
-// Pyodide CDN and PyPI and refuses everything else (and the page's CSP blocks any other origin).
+// Network access goes only to the app's own scheme (the page's CSP blocks any other origin): absolute http(s) URLs, from
+// fetch or XMLHttpRequest (what pyodide-http and open_url use), are sent through its proxy, which carries them anywhere.
 
 import { loadPyodide } from "./pyodide/pyodide.mjs";
 
@@ -15,6 +15,13 @@ self.fetch = (input, init) => {
     input = typeof input === "string" || input instanceof URL ? proxied : new Request(proxied, input);
   }
   return realFetch(input, init);
+};
+
+const realOpen = XMLHttpRequest.prototype.open;
+XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+  const href = url instanceof URL ? url.href : String(url);
+  if (/^https?:/i.test(href)) url = "strata-py://app/proxy?u=" + encodeURIComponent(href);
+  return realOpen.call(this, method, url, ...rest);
 };
 
 // Output kept per run; anything past this is dropped in the worker (the app caps it again for the model).
