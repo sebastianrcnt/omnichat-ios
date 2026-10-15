@@ -514,6 +514,7 @@ struct ChatView: View {
                 branch: branch,
                 branchEnabled: !controller.isStreaming,
                 onSwitchBranch: { switchBranch(message, by: $0) })
+            .modifier(AfterSendFlyIn(active: message.parentID != nil && message.parentID == flyingID))
         }
     }
 
@@ -1067,6 +1068,29 @@ private struct SendFlyIn: ViewModifier {
                 guard !settled else { return }
                 if reduceMotion { settled = true; return }
                 withAnimation(.spring(response: 0.42, dampingFraction: 0.78)) { settled = true }
+            }
+    }
+}
+
+/// The reply under a question that is flying in waits for it to land, so "Thinking" doesn't show up while the bubble
+/// is still on its way.
+private struct AfterSendFlyIn: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let active: Bool
+    @State private var shown: Bool
+
+    init(active: Bool) {
+        self.active = active
+        _shown = State(initialValue: !active)
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .onAppear {
+                guard !shown else { return }
+                if reduceMotion { shown = true; return }
+                withAnimation(.easeOut(duration: 0.2).delay(0.4)) { shown = true }
             }
     }
 }
