@@ -195,28 +195,6 @@ final class ConnectionStore {
         for c in pending { _ = try? await refreshModels(for: c.id) }
     }
 
-    /// Fetches `/models` and merges the result, keeping user-set flags for known ids.
-    @discardableResult
-    func refreshModels(for id: UUID) async throws -> Int {
-        if connection(id)?.isOpenCode == true { return try await refreshOpenCodeModels(for: id).count }
-        guard let conn = connection(id), let base = conn.normalizedBaseURL else { throw APIError.invalidBaseURL }
-        var headers: [String: String] = [:]
-        for h in conn.parsedHeaders { headers[h.name] = h.value }
-        let probe = Endpoint(connectionID: id, connectionName: conn.name, baseURL: base, apiKey: keys.key(for: id),
-                             headers: headers, model: ModelInfo(id: ""))
-        let entries = try await ModelsAPI.fetch(endpoint: probe, session: session)
-        // Merge into the connection as it is now: it may have been deleted or edited while the request ran.
-        guard let conn = connection(id) else { return entries.count }
-        var updated = conn
-        let manual = conn.models.filter { m in !entries.contains { $0.id == m.id } && m.isManual }
-        var merged: [ModelInfo] = entries.map { entry in
-            if var existing = conn.models.first(where: { $0.id == entry.id }) {
-                existing.fetchedContextLength = entry.contextLength ?? existing.fetchedContextLength
-                existing.maxOutputTokens = entry.maxOutputTokens ?? existing.maxOutputTokens
-                if !existing.supportsImagesUserSet, let images = entry.supportsImages ?? (conn.isStrata ? true : nil) {
-                    existing.supportsImages = images
-                }
-                return existing
     /// The last model-list fetch of each connection, from its editor or from launch: what the editor's Models section
     /// says even when the fetch ran in the background. Not saved: every launch fetches again.
     struct ModelFetch: Equatable {
@@ -245,16 +223,38 @@ final class ConnectionStore {
         }
     }
 
-            }
-            return conn.defaultModel(id: entry.id, fetchedContextLength: entry.contextLength, fetchedImages: entry.supportsImages)
-        }
-        merged.append(contentsOf: manual)
-        updated.models = merged
+    /// Fetches `/models` and merges the result, keeping user-set flags for known ids.
+    @discardableResult
+    func refreshModels(for id: UUID) async throws -> Int {
+        if connection(id)?.isOpenCode == true { return try await refreshOpenCodeModels(for: id).count }
         return try await tracked(id) { (try await fetchModels(for: id), 0) }.count
     }
 
     private func fetchModels(for id: UUID) async throws -> Int {
         if connection(id)?.isChatGPT == true { return try await refreshChatGPTModels(for: id) }
+        guard let conn = connection(id), let base = conn.normalizedBaseURL else { throw APIError.invalidBaseURL }
+        var headers: [String: String] = [:]
+        for h in conn.parsedHeaders { headers[h.name] = h.value }
+        let probe = Endpoint(connectionID: id, connectionName: conn.name, baseURL: base, apiKey: keys.key(for: id),
+                             headers: headers, model: ModelInfo(id: ""))
+        let entries = try await ModelsAPI.fetch(endpoint: probe, session: session)
+        // Merge into the connection as it is now: it may have been deleted or edited while the request ran.
+        guard let conn = connection(id) else { return entries.count }
+        var updated = conn
+        let manual = conn.models.filter { m in !entries.contains { $0.id == m.id } && m.isManual }
+        var merged: [ModelInfo] = entries.map { entry in
+            if var existing = conn.models.first(where: { $0.id == entry.id }) {
+                existing.fetchedContextLength = entry.contextLength ?? existing.fetchedContextLength
+                existing.maxOutputTokens = entry.maxOutputTokens ?? existing.maxOutputTokens
+                if !existing.supportsImagesUserSet, let images = entry.supportsImages ?? (conn.isStrata ? true : nil) {
+                    existing.supportsImages = images
+                }
+                return existing
+            }
+            return conn.defaultModel(id: entry.id, fetchedContextLength: entry.contextLength, fetchedImages: entry.supportsImages)
+        }
+        merged.append(contentsOf: manual)
+        updated.models = merged
         upsert(updated)
         return entries.count
     }
@@ -280,6 +280,10 @@ final class ConnectionStore {
     /// out go. Models of an API Strata can't talk yet are left out and counted.
     @discardableResult
     func refreshOpenCodeModels(for id: UUID) async throws -> (count: Int, unsupported: Int) {
+        try await tracked(id) { try await fetchOpenCodeModels(for: id) }
+    }
+
+    private func fetchOpenCodeModels(for id: UUID) async throws -> (count: Int, unsupported: Int) {
         guard let gateway = connection(id)?.openCodeGateway else { return (0, 0) }
         let fetched = try await OpenCodeModelsAPI.fetch(connectionID: id, gateway: gateway, auth: openCode, session: session)
         guard var updated = connection(id), updated.openCodeGateway == gateway else { return (0, 0) }
@@ -298,10 +302,6 @@ final class ConnectionStore {
         return (fetched.supported.count, fetched.unsupported.count)
     }
 }
-        try await tracked(id) { try await fetchOpenCodeModels(for: id) }
-    }
-
-    private func fetchOpenCodeModels(for id: UUID) async throws -> (count: Int, unsupported: Int) {
 
 extension ConnectionStore.ModelFetch {
     /// The Models section's footer: running, the error, or how many came and when.

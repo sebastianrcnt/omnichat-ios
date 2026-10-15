@@ -67,7 +67,7 @@ struct ContextLegendRow: View {
 
     var body: some View {
         let row = HStack(spacing: DS.Spacing.md) {
-            RoundedRectangle(cornerRadius: ContextGridCanvas.radius).fill(color)
+            RoundedRectangle(cornerRadius: 3).fill(color)
                 .frame(width: DS.Spacing.md - 2, height: DS.Spacing.md - 2)
             Text(verbatim: title).font(DS.Typography.uiSmall).foregroundStyle(theme.textPrimary)
                 .lineLimit(1).truncationMode(.tail)
