@@ -47,7 +47,7 @@ struct ParallelToolTests {
         return (outcome, streamer)
     }
 
-    @Test func theLimitIsThree() { #expect(ToolRound.maxConcurrent == 3) }
+    @Test func theLimitIsFive() { #expect(ToolRound.maxConcurrent == 5) }
 
     @Test func resultsAreAppendedInCallOrderWhateverTheFinishingOrder() async throws {
         var finished: [String] = []
@@ -73,11 +73,11 @@ struct ParallelToolTests {
         #expect(tools.maxRunning == 3)
     }
 
-    @Test func atMostThreeRunAtOnce() async throws {
+    @Test func atMostFiveRunAtOnce() async throws {
         let tools = TimedTools()
         let spec = (1...8).map { ("https://a.test/\($0)", 60) }
         let (outcome, _) = try await run(spec, tools: tools)
-        #expect(tools.maxRunning == 3)
+        #expect(tools.maxRunning == 5)
         #expect(outcome.steps[0].calls.count == 8)
         #expect(tools.executed.count == 8)
     }
@@ -111,15 +111,15 @@ struct ParallelToolTests {
 
     @Test func stopCancelsEveryRunningCallPromptly() async throws {
         let tools = TimedTools()
-        let spec = (1...5).map { ("https://a.test/\($0)", 30_000) }
+        let spec = (1...7).map { ("https://a.test/\($0)", 30_000) }
         let task = Task { @MainActor in try await self.run(spec, tools: tools) }
         try await Task.sleep(for: .milliseconds(150))
-        #expect(tools.maxRunning == 3)
+        #expect(tools.maxRunning == 5)
         let start = ContinuousClock.now
         task.cancel()
         await #expect(throws: CancellationError.self) { _ = try await task.value }
         #expect(ContinuousClock.now - start < .milliseconds(500))
-        #expect(tools.started.count == 3) // the queued calls never started
+        #expect(tools.started.count == 5) // the queued calls never started
         #expect(tools.executed.isEmpty)
     }
 

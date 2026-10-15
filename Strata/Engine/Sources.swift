@@ -102,6 +102,7 @@ enum AppPrompt {
     - Only cite a source that has an explicit id attribute, and only ids that appear in the tool results. Never invent ids or citations.
     - Do not output the <source> XML tags or their attributes. Do not add a separate list of sources.
     - If the sources are missing, unreadable or do not answer the question, say so, then answer from your own knowledge and make clear that it is not from the sources.
+    - Tool calls in one reply run in parallel. When you need several searches or pages that don't depend on each other, request them all in the same reply instead of one at a time. Call tools one after another only when a call needs an earlier result.
     """
 
     static let python = """

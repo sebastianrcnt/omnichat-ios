@@ -454,11 +454,14 @@ struct AssistantMessage: View {
         }
     }
 
-    /// The live text becomes a note in place when the model calls a tool after it, so neither animates.
+    /// The live text becomes a note in place when the model calls a tool after it, so neither animates. The live thought
+    /// line becomes a round's line the same way: it stops where it is.
     private func transition(_ item: MessageLayout.Item) -> AnyTransition {
         switch item {
         case .note: .asymmetric(insertion: .identity, removal: .enter(reduceMotion: reduceMotion))
         case .text: .asymmetric(insertion: .enter(reduceMotion: reduceMotion), removal: .identity)
+        case .thought, .reasoning: .identity
+        case .working: .asymmetric(insertion: .enter(reduceMotion: reduceMotion), removal: .identity)
         default: .enter(reduceMotion: reduceMotion)
         }
     }

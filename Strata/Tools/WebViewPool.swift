@@ -11,7 +11,7 @@ final class WebViewPool {
         return pool
     }()
 
-    var maxIdle = 2
+    var maxIdle = 3
     var idleLifetime: Duration = .seconds(60)
 
     private var idle: [(view: HiddenWebView, since: ContinuousClock.Instant)] = []

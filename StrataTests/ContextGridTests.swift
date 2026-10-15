@@ -92,8 +92,8 @@ struct ContextGridAllocationTests {
 
 struct ContextGridSummarizeTests {
     @Test func theSummarizeCellIsWhereTheLimitFalls() {
-        let limit = Compaction.limit(window: 262_144, maxOutput: nil) // 235_929
-        #expect(ContextGrid.summarizeCell(limit: limit, range: 262_144) == 179)
+        let limit = Compaction.limit(window: 262_144, maxOutput: nil) // 235_930
+        #expect(ContextGrid.summarizeCell(limit: limit, range: 262_144) == 180)
         #expect(ContextGrid.summarizeCell(limit: 90_000, range: 100_000) == 180)
     }
 

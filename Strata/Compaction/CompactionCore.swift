@@ -90,15 +90,19 @@ enum Compaction {
 
     // MARK: Trigger
 
-    /// The size at which a conversation is compacted: 90% of the window, and low enough that a full-size answer still fits.
+    /// Tokens kept free under the window for the reply: 10% of it, at least `reserveFloor` once the window is twice that.
+    static let reserveFloor = 16_000
+
+    /// The size at which a conversation is compacted: the window minus the room kept for the reply, which is 10% of the
+    /// window or `reserveFloor`, whichever is more, and never more than the model's output limit. A full-size answer is
+    /// not reserved: a 1M window with a 384k output limit would compact at 616k when 900k still leaves 100k for the
+    /// answer (OpenCode's `calculateCeiling` keeps the same room).
     static func limit(window: Int, maxOutput: Int?) -> Int {
         guard window > 0 else { return 0 }
         let window = min(window, ContextLimits.maxTokens)
-        var limit = window * 9 / 10
-        // A model whose output limit is most of its window (or more) would otherwise get a limit of 0, which means
-        // never compact: keep at least half the window for the conversation.
-        if let maxOutput, maxOutput > 0 { limit = min(limit, max(window - maxOutput, window / 2)) }
-        return max(limit, 0)
+        var reserve = max(window / 10, window >= 2 * reserveFloor ? reserveFloor : 0)
+        if let maxOutput, maxOutput > 0 { reserve = min(reserve, maxOutput) }
+        return max(window - reserve, 0)
     }
 
     /// True when `meter` (plus `extraChars` about to be appended) has reached `limit`.

@@ -875,11 +875,13 @@ struct ReasoningLinePreview: View {
     }
 
     /// With translation on: the newest finished sentence that has its translation; until then the sentence itself.
-    /// Thinking that isn't English shows as it streams.
+    /// Thinking that isn't English (its finished sentences come back as themselves) shows as it streams.
+    /// Decided by the finished sentences only: detecting the language of the sentence still streaming flips while it is
+    /// a few letters long, and the line would swap between the translation and the English at every new sentence.
     private func displayed(_ sentence: ThoughtSentence) -> String {
-        guard translate, ThoughtTranslator.detect(sentence.text) == ThoughtTranslator.source else { return sentence.text }
+        guard translate else { return sentence.text }
         for text in finished.reversed() {
-            if let result = ThoughtTranslator.shared.result(for: text) { return result }
+            if let result = ThoughtTranslator.shared.result(for: text) { return result == text ? sentence.text : result }
         }
         return sentence.text
     }

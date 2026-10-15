@@ -6,15 +6,19 @@ import SwiftData
 // MARK: - Pure pieces
 
 struct CompactionMathTests {
-    @Test func theLimitIsNinetyPercentOfTheWindow() {
-        #expect(Compaction.limit(window: 100_000, maxOutput: nil) == 90_000)
+    @Test func theLimitKeepsTenPercentOrSixteenThousandFree() {
+        #expect(Compaction.limit(window: 1_000_000, maxOutput: nil) == 900_000)
+        #expect(Compaction.limit(window: 100_000, maxOutput: nil) == 84_000)  // the 16k floor is more than 10%
+        #expect(Compaction.limit(window: 20_000, maxOutput: nil) == 18_000)   // too small to give up 16k: 10%
         #expect(Compaction.limit(window: 0, maxOutput: nil) == 0)
     }
 
-    @Test func theLimitLeavesRoomForAFullAnswer() {
-        #expect(Compaction.limit(window: 100_000, maxOutput: 20_000) == 80_000) // window - maxOutput is lower
-        #expect(Compaction.limit(window: 100_000, maxOutput: 5_000) == 90_000)   // 90% is lower
-        #expect(Compaction.limit(window: 10_000, maxOutput: 50_000) == 5_000)    // half the window, never 0 (never compacting)
+    @Test func theOutputLimitCapsTheRoomButAFullAnswerIsNotReserved() {
+        // DeepSeek V4.1 Flash: 1M window, 384k output. It used to compact at 616k.
+        #expect(Compaction.limit(window: 1_000_000, maxOutput: 384_000) == 900_000)
+        #expect(Compaction.limit(window: 100_000, maxOutput: 20_000) == 84_000)
+        #expect(Compaction.limit(window: 100_000, maxOutput: 5_000) == 95_000)  // no more room than the reply can take
+        #expect(Compaction.limit(window: 10_000, maxOutput: 50_000) == 9_000)   // never 0 (never compacting)
     }
 
     @Test func theMeterIsLastUsagePlusACharacterEstimateOfWhatCameAfter() {

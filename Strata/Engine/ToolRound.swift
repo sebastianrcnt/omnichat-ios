@@ -3,7 +3,7 @@ import Foundation
 /// Runs the calls of one tool round side by side, a few at a time.
 enum ToolRound {
     /// How many calls of a round run at once.
-    static let maxConcurrent = 3
+    static let maxConcurrent = 5
 
     /// Runs `indices` of `calls`, at most `limit` at a time. `onFinished` is called on the main actor with each result
     /// as it arrives (in finishing order, not call order). Cancelling the caller cancels every running call, and the
