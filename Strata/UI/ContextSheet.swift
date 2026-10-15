@@ -19,7 +19,6 @@ struct ContextSheet: View {
     @State private var split: [Int]?
     @State private var shownTotal = 0.0
     @State private var focus: Int?
-    @State private var showUsage = false
 
     /// The gauge's number: the last request's prompt plus completion.
     private var used: Int { conversation?.lastUsage?.totalTokens ?? 0 }
@@ -29,9 +28,7 @@ struct ContextSheet: View {
         let used = used
         let tokens = hasData ? (split ?? []) : []
         let limit = Compaction.limit(window: window, maxOutput: maxOutput)
-        SheetScaffold(title: "Context", trailing: {
-            GlassIconButton(systemName: "chart.bar", label: "Usage") { showUsage = true }
-        }) {
+        SheetScaffold(title: "Context") {
             VStack(alignment: .leading, spacing: 0) {
                 // One card: the window's use as a stacked bar, then each category.
                 VStack(alignment: .leading, spacing: 0) {
@@ -60,6 +57,16 @@ struct ContextSheet: View {
 
                 summarizeButton
                     .padding(.top, DS.Spacing.md)
+
+                if let usage = conversation?.lastUsage {
+                    GroupedSection(header: "Last request") {
+                        SettingsRow(title: "Input tokens", value: usage.promptTokens.formatted())
+                        SettingsRow(title: "Output tokens", value: usage.completionTokens.formatted())
+                        if let r = usage.reasoningTokens { SettingsRow(title: "Reasoning tokens", value: r.formatted()) }
+                        SettingsRow(title: "Cache hit", value: Self.cacheText(usage))
+                    }
+                    .padding(.top, DS.Spacing.xl)
+                }
             }
         }
         .presentationDetents([.large])
@@ -71,10 +78,6 @@ struct ContextSheet: View {
         .onChange(of: used) { _, n in
             computeSplit()
             countTo(n)
-        }
-        .sheet(isPresented: $showUsage) {
-            UsageSheet(conversation: conversation, contextLength: window, connection: connection)
-                .environment(\.theme, theme)
         }
     }
 
@@ -98,6 +101,13 @@ struct ContextSheet: View {
                              isDimmed: focus != nil)
         }
         .animation(.easeOut(duration: 0.2), value: focus)
+    }
+
+    static func cacheText(_ u: Usage) -> String {
+        guard let cached = u.cachedTokens else { return String(localized: "Not reported") }
+        guard u.promptTokens > 0 else { return String(localized: "None") }
+        let pct = Int((Double(cached) / Double(u.promptTokens) * 100).rounded())
+        return String(localized: "\(cached.formatted()) of \(u.promptTokens.formatted()) (\(pct)%)")
     }
 
     @ViewBuilder
