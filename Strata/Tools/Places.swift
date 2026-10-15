@@ -258,14 +258,24 @@ struct MapKitPlaceLocator: PlaceLocating {
     static let korea = MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 36.4, longitude: 127.8),
                                           span: MKCoordinateSpan(latitudeDelta: 6, longitudeDelta: 6))
 
+    /// Name and address first, then the address alone: Apple Maps knows few Korean places by name, but finds street
+    /// addresses (the pin is then the address, shown as approximate).
+    static func queries(for place: MapPlace) -> [String] {
+        var out = [[place.name, place.address].compactMap { $0 }.joined(separator: " ")]
+        if let address = place.address { out.append(address) }
+        return out
+    }
+
     func locate(_ place: MapPlace, near: CLLocationCoordinate2D?) async -> CLLocationCoordinate2D? {
-        let query = [place.name, place.address].compactMap { $0 }.joined(separator: " ")
-        let request = MKLocalSearch.Request()
-        request.naturalLanguageQuery = query
-        request.region = near.map { MKCoordinateRegion(center: $0, span: MKCoordinateSpan(latitudeDelta: 0.3, longitudeDelta: 0.3)) } ?? Self.korea
-        guard let response = try? await MKLocalSearch(request: request).start(), let item = response.mapItems.first else { return nil }
-        let c = item.location.coordinate
-        return PlaceInput.isValid(lat: c.latitude, lng: c.longitude) ? c : nil
+        for query in Self.queries(for: place) {
+            let request = MKLocalSearch.Request()
+            request.naturalLanguageQuery = query
+            request.region = near.map { MKCoordinateRegion(center: $0, span: MKCoordinateSpan(latitudeDelta: 0.3, longitudeDelta: 0.3)) } ?? Self.korea
+            guard let response = try? await MKLocalSearch(request: request).start(), let item = response.mapItems.first else { continue }
+            let c = item.location.coordinate
+            if PlaceInput.isValid(lat: c.latitude, lng: c.longitude) { return c }
+        }
+        return nil
     }
 }
 

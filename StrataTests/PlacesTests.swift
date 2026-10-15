@@ -89,6 +89,12 @@ struct ShowPlacesToolTests {
         #expect(out.text.contains("3 places (2 on the map)") && out.text.contains("3. C: not found on the map"))
     }
 
+    @Test func lookupsFallBackToTheAddress() {
+        let place = MapPlace(number: 1, input: PlaceInput(name: "조연탄 합정점", address: "서울 마포구 양화로8길 13"))
+        #expect(MapKitPlaceLocator.queries(for: place) == ["조연탄 합정점 서울 마포구 양화로8길 13", "서울 마포구 양화로8길 13"])
+        #expect(MapKitPlaceLocator.queries(for: MapPlace(number: 1, input: PlaceInput(name: "A"))) == ["A"])
+    }
+
     @Test func badArgumentsAreAnErrorForTheModel() async {
         let out = await ShowPlacesTool(locator: FakeLocator(found: [:]), near: nil).run(arguments: #"{"places": []}"#)
         #expect(out.isError && out.places == nil)

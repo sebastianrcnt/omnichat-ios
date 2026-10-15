@@ -80,7 +80,26 @@ struct PlacesMap: View {
     var selected: Int?
     var interactive = false
     var onSelect: (MapPlace) -> Void = { _ in }
-    @State private var position: MapCameraPosition = .automatic
+    @State private var position: MapCameraPosition
+
+    init(places: [MapPlace], selected: Int? = nil, interactive: Bool = false, onSelect: @escaping (MapPlace) -> Void = { _ in }) {
+        self.places = places
+        self.selected = selected
+        self.interactive = interactive
+        self.onSelect = onSelect
+        _position = State(initialValue: Self.camera(for: places))
+    }
+
+    /// All the pins with some room around them; a lone pin shows its neighborhood rather than a single building.
+    static func camera(for places: [MapPlace]) -> MapCameraPosition {
+        let points = places.compactMap(\.coordinate)
+        guard let first = points.first else { return .automatic }
+        let lats = points.map(\.latitude), lngs = points.map(\.longitude)
+        let center = CLLocationCoordinate2D(latitude: (lats.min()! + lats.max()!) / 2, longitude: (lngs.min()! + lngs.max()!) / 2)
+        let span = MKCoordinateSpan(latitudeDelta: max(0.012, (lats.max()! - lats.min()!) * 1.6),
+                                    longitudeDelta: max(0.012, (lngs.max()! - lngs.min()!) * 1.6))
+        return .region(MKCoordinateRegion(center: points.count == 1 ? first : center, span: span))
+    }
 
     var body: some View {
         Map(position: $position, interactionModes: interactive ? .all : []) {
