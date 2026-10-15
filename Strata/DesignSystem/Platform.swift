@@ -170,6 +170,16 @@ extension View {
         self.sheet(isPresented: isPresented, content: content)
         #endif
     }
+
+    /// `fullScreenCoverOrSheet(isPresented:)` for an item.
+    func fullScreenCoverOrSheet<Item: Identifiable, Content: View>(item: Binding<Item?>,
+                                                                 @ViewBuilder content: @escaping (Item) -> Content) -> some View {
+        #if canImport(UIKit)
+        self.fullScreenCover(item: item, content: content)
+        #else
+        self.sheet(item: item, content: content)
+        #endif
+    }
 }
 
 extension ToolbarItemPlacement {

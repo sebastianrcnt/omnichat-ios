@@ -84,18 +84,28 @@ enum LocalNetworkRules {
     /// Adds the rules to `controller`, now or once they are compiled.
     static func install(in controller: WKUserContentController) {
         if let list { controller.add(list); return }
-        if compiling == nil {
-            compiling = Task { @MainActor in
-                let compiled = try? await WKContentRuleListStore.default().compileContentRuleList(
-                    forIdentifier: "strata.local-network", encodedContentRuleList: json)
-                list = compiled
-                return compiled
-            }
-        }
-        let task = compiling
+        let task = compile()
         Task { @MainActor [weak controller] in
-            if let compiled = await task?.value { controller?.add(compiled) }
+            if let compiled = await task.value { controller?.add(compiled) }
         }
+    }
+
+    /// The compiled rules, for a view that must not load anything before they are in place (an artifact's page).
+    static func rules() async -> WKContentRuleList? {
+        if let list { return list }
+        return await compile().value
+    }
+
+    private static func compile() -> Task<WKContentRuleList?, Never> {
+        if let compiling { return compiling }
+        let task = Task { @MainActor in
+            let compiled = try? await WKContentRuleListStore.default().compileContentRuleList(
+                forIdentifier: "strata.local-network", encodedContentRuleList: json)
+            list = compiled
+            return compiled
+        }
+        compiling = task
+        return task
     }
 }
 

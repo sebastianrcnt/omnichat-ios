@@ -354,12 +354,12 @@ struct PythonSessionLedgerTests {
 @MainActor
 struct PythonToolListTests {
     @Test func theListDependsOnlyOnTheSettingAndTheModel() throws {
-        #expect(ToolDefinition.available(python: false, images: true) == ToolDefinition.standard)
-        #expect(ToolDefinition.available(python: false, images: false) == ToolDefinition.standard)
+        #expect(ToolDefinition.available(python: false, images: true) == ToolDefinition.standard + ToolDefinition.display)
+        #expect(ToolDefinition.available(python: false, images: false) == ToolDefinition.standard + ToolDefinition.display)
         #expect(ToolDefinition.available(python: true, images: false).map(\.function.name)
-                == ["web_search", "web_fetch", "run_plugin", "run_python"])
+                == ["web_search", "web_fetch", "run_plugin", "show_html", "run_python"])
         #expect(ToolDefinition.available(python: true, images: true).map(\.function.name)
-                == ["web_search", "web_fetch", "run_plugin", "run_python", "view_image"])
+                == ["web_search", "web_fetch", "run_plugin", "show_html", "run_python", "view_image"])
         for python in [false, true] {
             for images in [false, true] {
                 let a = try ChatRequest.encoder.encode(ToolDefinition.available(python: python, images: images))
@@ -384,7 +384,7 @@ struct PythonToolListTests {
     }
 
     @Test func theRunnerSendsPythonOnlyWhenOnAndViewImageOnlyToAnImageModel() async throws {
-        for (python, images, expected) in [(false, true, 3), (true, false, 4), (true, true, 5)] {
+        for (python, images, expected) in [(false, true, 4), (true, false, 5), (true, true, 6)] {
             let streamer = ScriptedStreamer([[ChatDelta(content: "ok")]])
             var runner = TurnRunner(streamer: streamer, tools: FakeTools())
             runner.python = python

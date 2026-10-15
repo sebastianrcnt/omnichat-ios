@@ -17,6 +17,7 @@ struct MacSidebarView: View {
     @State private var renaming: Conversation?
     @State private var renameText = ""
     @State private var deleting: Conversation?
+    @State private var showArtifacts = false
     @FocusState private var searchFocused: Bool
 
     /// Conversations whose message text matches the current query, found by the store (not by loading messages here).
@@ -28,6 +29,13 @@ struct MacSidebarView: View {
 
     var body: some View {
         List(selection: $selected) {
+            if query.isEmpty {
+                // Not a chat, so not selectable: a button that opens the list of every chat's artifacts.
+                Button { showArtifacts = true } label: {
+                    Label("Artifacts", systemImage: ArtifactFeedCard.icon).font(DS.Typography.uiSmall)
+                }
+                .buttonStyle(.plain)
+            }
             let pinned = filtered.filter(\.isPinned)
             let recent = filtered.filter { !$0.isPinned }
             if !pinned.isEmpty {
@@ -70,6 +78,9 @@ struct MacSidebarView: View {
                 if let c = deleting { delete(c) }
                 deleting = nil
             }
+        }
+        .sheet(isPresented: $showArtifacts) {
+            ArtifactsView { chat in selected = chat }
         }
     }
 

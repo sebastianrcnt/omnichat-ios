@@ -15,6 +15,8 @@ import Foundation
 /// Canned tool results so the UI can be exercised without the network.
 struct FakeWebTools: ToolExecuting {
     func execute(name: String, arguments: String) async -> ToolOutput {
+        // Artifacts are stored on the device anyway: show the real card.
+        if name == ToolNames.showHTML { return await ToolRouter().execute(name: name, arguments: arguments) }
         let args = (arguments.data(using: .utf8).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }) ?? [:]
         if name == ToolNames.webFetch, let id = ToolContext.callID {
             // Walks the progress fill the way a real fetch would: loading, settling, extracting. Feed-sample pages take

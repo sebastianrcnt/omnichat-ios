@@ -44,7 +44,7 @@ struct EmptyAnswerRetryTests {
         #expect(retry.messages.last == .user(EmptyAnswerRetry.nudge))
         // Same tools and system prompt, but no calling them.
         #expect(retry.tools == emptyRound.tools)
-        #expect(retry.tools == ToolDefinition.standard)
+        #expect(retry.tools == ToolDefinition.standard + ToolDefinition.display)
         #expect(retry.messages.first == .system("sys"))
         #expect(emptyRound.toolChoice == nil)
         #expect(retry.toolChoice == "none")

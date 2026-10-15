@@ -17,6 +17,7 @@ struct SidebarView: View {
     @State private var renaming: Conversation?
     @State private var renameText = ""
     @State private var deleting: Conversation?
+    @State private var showArtifacts = false
 
     /// Conversations whose message text matches the current query, found by the store (not by loading messages here).
     @State private var contentMatches: Set<UUID> = []
@@ -38,6 +39,7 @@ struct SidebarView: View {
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                    if query.isEmpty { artifactsRow }
                     let pinned = filtered.filter(\.isPinned)
                     let recent = filtered.filter { !$0.isPinned }
                     if !pinned.isEmpty {
@@ -97,6 +99,30 @@ struct SidebarView: View {
             try? context.save()
             renaming = nil
         }
+        .sheet(isPresented: $showArtifacts) {
+            ArtifactsView { chat in
+                selected = chat
+                close()
+            }
+        }
+    }
+
+    /// Opens the list of every chat's artifacts.
+    private var artifactsRow: some View {
+        Button { showArtifacts = true } label: {
+            HStack(spacing: DS.Spacing.md) {
+                Image(systemName: ArtifactFeedCard.icon)
+                    .font(.system(size: DS.IconSize.md))
+                    .foregroundStyle(theme.textSecondary)
+                    .frame(width: DS.IconSize.lg)
+                Text("Artifacts").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, DS.Spacing.md)
+            .padding(.vertical, DS.Spacing.md)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var searchField: some View {
@@ -173,13 +199,14 @@ struct SidebarView: View {
 }
 
 /// Deleting a chat, the same from every place that offers it: its running reply stops first, then its diagnostics,
-/// Python interpreter and figures go with it.
+/// Python interpreter, figures and artifacts go with it.
 @MainActor
 enum ConversationDeletion {
     static func delete(_ conversation: Conversation, context: ModelContext, controller: ChatController) {
         if controller.activeConversationID == conversation.id { controller.stop() }
         Diagnostics.forget(conversation.id)
         PythonRuntime.shared.conversationDeleted(conversation.id)
+        ArtifactStore.shared.removeAll(conversationID: conversation.id)
         context.delete(conversation)
         try? context.save()
     }

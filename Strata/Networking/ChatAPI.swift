@@ -272,17 +272,30 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
         description: "Get the user's approximate location (rounded coordinates and the area's name) from the device, to find places near them. The first call asks the user for permission; if they decline, ask them where they are instead.",
         parameters: .init(properties: [:], required: [])))
 
+    static let showHTML = ToolDefinition(function: .init(
+        name: "show_html",
+        description: "Show the user an HTML artifact: a page that opens full screen from a card in the chat and stays in their list of artifacts. Use it for interactive demos, visualizations and charts, small apps or games, and formatted documents worth keeping, not for short answers. Send a complete, self-contained HTML document every time (inline CSS and JS; scripts and styles from CDNs work), also when changing one. The page runs in a sandbox without access to the user's local network or this app.",
+        parameters: .init(properties: [
+            "title": .init(description: "A short title for the card, like \"Mortgage calculator\"."),
+            "html": .init(description: "The complete HTML document."),
+            "id": .init(description: "Optional. The id of an artifact shown earlier in this chat (like a1), to replace it with this new version. Leave it out to make a new artifact."),
+        ], required: ["title", "html"])))
+
     /// The web tools, always sent to a model with tools.
     static let standard: [ToolDefinition] = [webSearch, webFetch, runPlugin]
+
+    /// Tools that show the user something, always sent with the web tools (no setting: they only display).
+    static let display: [ToolDefinition] = [showHTML]
 
     /// The browser tools (Settings > Browser).
     static let browser: [ToolDefinition] = [browserOpen, browserEval, browserShow, loadSkill, runSkillScript, saveSkill, showPlaces]
 
     /// The tools of a request: fixed for a given setting and model, so the cached prefix never changes within a chat
     /// unless the setting or the model does. `view_image` needs a model that reads images.
-    /// `current_location` comes with the browser tools when Settings > Browser > Location is on.
+    /// `current_location` comes with the browser tools when Settings > Browser > Location is on. The tools without a
+    /// setting come first, so turning one on or off keeps the rest of the prefix.
     static func available(python: Bool, images: Bool, browser: Bool = false, location: Bool = false) -> [ToolDefinition] {
-        var out = standard
+        var out = standard + display
         if python { out += images ? [runPython, viewImage] : [runPython] }
         if browser { out += Self.browser + (location ? [currentLocation] : []) }
         return out

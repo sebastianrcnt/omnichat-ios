@@ -143,7 +143,7 @@ struct BrowserToolTests {
     @Test func theToolsAreOfferedOnlyWhenOn() {
         #expect(!ToolDefinition.available(python: false, images: false).map(\.function.name).contains("browser_open"))
         let names = ToolDefinition.available(python: true, images: true, browser: true).map(\.function.name)
-        #expect(Array(names.prefix(5)) == ToolDefinition.available(python: true, images: true).map(\.function.name),
+        #expect(Array(names.prefix(6)) == ToolDefinition.available(python: true, images: true).map(\.function.name),
                 "the browser tools come after the others, so turning them on keeps the rest of the prefix")
         #expect(names.contains("browser_open") && names.contains("browser_eval") && names.contains("load_skill"))
     }

@@ -368,6 +368,7 @@ struct ToolRouter: ToolExecuting {
     /// Runs Python code for a conversation. Test seam; `nil` uses `PythonRuntime.shared`.
     var pythonRunner: (@Sendable (_ code: String, _ conversation: UUID, _ canView: Bool) async -> ToolOutput)?
     var images: ToolImageStore = .shared
+    var artifacts: ArtifactStore = .shared
 
     var usesWebKit: Bool { true }
     func execute(name: String, arguments: String) async -> ToolOutput {
@@ -450,6 +451,9 @@ struct ToolRouter: ToolExecuting {
             return await ShowPlacesTool().run(arguments: arguments)
         case ToolNames.currentLocation:
             return await CurrentLocationTool().run()
+        case ToolNames.showHTML:
+            return ShowHTMLTool(store: artifacts).run(arguments: args, conversationID: ToolContext.conversationID,
+                                                      callID: ToolContext.callID)
         default:
             return ToolOutput(text: "Error: unknown tool \"\(name)\".", isError: true)
         }

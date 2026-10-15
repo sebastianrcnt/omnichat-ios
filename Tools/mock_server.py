@@ -59,6 +59,25 @@ REASONING_1 = ("The first result looks authoritative. Let me read that page in f
 REASONING_2 = ("I have enough to answer now. I should cite the sources with their ids, keep it concise, "
                "and mention the Korean summary at the end.\n\n")
 
+ARTIFACT_HTML = """<!doctype html>
+<html><head><meta charset="utf-8"><title>Bouncing dots</title>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<style>body{font-family:-apple-system,sans-serif;margin:0;padding:16px;background:#111;color:#eee}
+canvas{width:100%;height:320px;background:#1d1d1f;border-radius:12px}button{font-size:16px;padding:8px 14px;margin:12px 8px 0 0}</style>
+</head><body>
+<h2>Bouncing dots</h2>
+<canvas id="c"></canvas>
+<button onclick="add()">Add dot</button><button onclick="window.confetti && confetti()">Confetti</button>
+<p><a href="#c">Jump to the canvas</a> &middot; <a href="https://developer.apple.com/documentation/webkit">WebKit docs</a></p>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d');let dots=[];
+function size(){c.width=c.clientWidth*devicePixelRatio;c.height=c.clientHeight*devicePixelRatio}
+function add(){dots.push({x:Math.random()*c.width,y:Math.random()*c.height,vx:(Math.random()-.5)*8,vy:(Math.random()-.5)*8,h:Math.random()*360})}
+function tick(){x.clearRect(0,0,c.width,c.height);for(const d of dots){d.x+=d.vx;d.y+=d.vy;if(d.x<0||d.x>c.width)d.vx*=-1;if(d.y<0||d.y>c.height)d.vy*=-1;
+x.fillStyle=`hsl(${d.h},80%,60%)`;x.beginPath();x.arc(d.x,d.y,14,0,7);x.fill()}requestAnimationFrame(tick)}
+size();for(let i=0;i<5;i++)add();tick();
+</script></body></html>"""
+
 FEED_ANSWER_SHORT = """**2024년 합계출산율은 0.75명**으로, 9년 만에 처음 올랐어요 [{kostat}]. 가장 큰 원인은 **혼인 증가**예요 [{hani}][{reuters}].
 """
 
@@ -449,6 +468,15 @@ class Handler(BaseHTTPRequestHandler):
             self.stream_tool_call("call_p3", "web_fetch", json.dumps({"url": base + "glasseffect"}), index=2)
             self.stream_tool_call("call_p4", "web_fetch", json.dumps({"url": base + "applying-liquid-glass-to-custom-views"}), index=3)
             usage = {"prompt_tokens": prompt_tokens, "completion_tokens": 80}
+        elif "artifact" in user_text.lower() and not plain and rounds == 0:
+            # A show_html call: a small interactive page with a CDN script and an outside link.
+            self.stream_reasoning("A small page shows this best.\n\n")
+            self.stream_tool_call("call_h1", "show_html", json.dumps({"title": "Bouncing dots", "html": ARTIFACT_HTML}))
+            usage = {"prompt_tokens": prompt_tokens, "completion_tokens": 200}
+        elif "artifact" in user_text.lower() and not plain:
+            self.stream_content("Open the card above to try it: tap **Add dot** to add another one.")
+            usage = {"prompt_tokens": prompt_tokens, "completion_tokens": 20}
+            finished = True
         elif plain:
             self.stream_text("Quick thought: this is a simple request.\n\n", PLAIN)
             usage = {"prompt_tokens": 120, "completion_tokens": 90,

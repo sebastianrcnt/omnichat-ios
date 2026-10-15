@@ -159,7 +159,8 @@ struct BrowserScriptDetail: View {
 /// The icon and line of a call shown as a single line (`load_skill` and the like), in the feed and the Timeline.
 enum ToolNote {
     static func covers(_ tool: String) -> Bool {
-        [ToolNames.browserShow, ToolNames.loadSkill, ToolNames.runSkillScript, ToolNames.saveSkill, ToolNames.showPlaces, ToolNames.currentLocation].contains(tool)
+        [ToolNames.browserShow, ToolNames.loadSkill, ToolNames.runSkillScript, ToolNames.saveSkill, ToolNames.showPlaces, ToolNames.currentLocation,
+         ToolNames.showHTML].contains(tool)
     }
 
     static func icon(_ tool: String) -> String {
@@ -170,6 +171,7 @@ enum ToolNote {
         case ToolNames.saveSkill: "square.and.arrow.down"
         case ToolNames.showPlaces: "map"
         case ToolNames.currentLocation: "location"
+        case ToolNames.showHTML: ArtifactFeedCard.icon
         default: "wrench.and.screwdriver"
         }
     }
@@ -191,6 +193,9 @@ enum ToolNote {
             running ? String(localized: "Finding places on the map…") : String(localized: "Showed places on a map")
         case ToolNames.currentLocation:
             running ? String(localized: "Getting your location…") : String(localized: "Got your location")
+        case ToolNames.showHTML:
+            running ? String(localized: "Making an artifact…")
+                : failed ? String(localized: "Couldn't show the artifact") : String(localized: "Showed \(argument)")
         default:
             running ? String(localized: "Running \(tool)…") : String(localized: "Ran \(tool)")
         }

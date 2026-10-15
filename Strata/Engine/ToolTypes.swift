@@ -22,6 +22,8 @@ struct ToolOutput: Sendable, Equatable {
     var viewedImage: ToolImage?
     /// The places a `show_places` call put on the map (for the chat's map card; the model reads `text`).
     var places: PlaceCollection?
+    /// The artifact a `show_html` call saved (for the chat's card; the model reads `text`).
+    var artifact: ArtifactRef?
 }
 
 /// A tool result that finished before the results ahead of it in the round, held (and checkpointed) until it can be
@@ -35,6 +37,7 @@ struct RawToolResult: Codable, Sendable, Equatable {
     var figures: [ToolImage]?
     var viewedImage: ToolImage?
     var places: PlaceCollection?
+    var artifact: ArtifactRef?
 
     init(callID: String, output: ToolOutput) {
         self.callID = callID
@@ -45,11 +48,12 @@ struct RawToolResult: Codable, Sendable, Equatable {
         figures = output.figures.isEmpty ? nil : output.figures
         viewedImage = output.viewedImage
         places = output.places
+        artifact = output.artifact
     }
 
     var output: ToolOutput {
         ToolOutput(text: text, isError: isError, sources: sources, engine: engine, figures: figures ?? [], viewedImage: viewedImage,
-                   places: places)
+                   places: places, artifact: artifact)
     }
 }
 
@@ -80,6 +84,8 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
     var viewedImage: ToolImage?
     /// The places a `show_places` call put on the map (display only).
     var places: PlaceCollection?
+    /// The artifact a `show_html` call saved (display only).
+    var artifact: ArtifactRef?
 
     init(id: String, name: String, arguments: String, result: String, isError: Bool, sourceIDs: [Int] = []) {
         self.id = id
@@ -104,6 +110,7 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
         figures = try c.decodeIfPresent([ToolImage].self, forKey: .figures)
         viewedImage = try c.decodeIfPresent(ToolImage.self, forKey: .viewedImage)
         places = try c.decodeIfPresent(PlaceCollection.self, forKey: .places)
+        artifact = try c.decodeIfPresent(ArtifactRef.self, forKey: .artifact)
     }
 
     /// Human-readable argument (the query or URL; for a plugin, the page it opens).
@@ -123,6 +130,7 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
         case "run_skill_script":
             return [obj["skill"] as? String, obj["script"] as? String].compactMap { $0 }.joined(separator: " · ")
         case "show_places": return (obj["title"] as? String) ?? ""
+        case "show_html": return (obj["title"] as? String) ?? ""
         case "current_location": return ""
         default: return arguments
         }
@@ -143,7 +151,9 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
     var toolCall: ToolCall { ToolCall(id: id, name: name, arguments: arguments) }
 
     /// The result as the next requests send it again (with the image a `view_image` call attached).
-    var output: ToolOutput { ToolOutput(text: result, isError: isError, figures: figures ?? [], viewedImage: viewedImage, places: places) }
+    var output: ToolOutput {
+        ToolOutput(text: result, isError: isError, figures: figures ?? [], viewedImage: viewedImage, places: places, artifact: artifact)
+    }
 
     /// The record without its result text: all a process row needs, so segments never hold fetched page bodies.
     /// A Python run and a browser script keep their output (the card shows it; it is capped like a page slice).
@@ -154,6 +164,7 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
         out.figures = figures
         out.viewedImage = viewedImage
         out.places = places
+        out.artifact = artifact
         if name == ToolNames.webSearch {
             out.engine = searchEngine
         } else if name == ToolNames.webFetch, !isError {
@@ -225,6 +236,7 @@ enum ToolNames {
     static let saveSkill = "save_skill"
     static let showPlaces = "show_places"
     static let currentLocation = "current_location"
+    static let showHTML = "show_html"
 
     /// Tools safe to run a second time when the first run failed because the app went to the background: they only
     /// read. Python, page scripts, plugins and skill scripts may have done something already (a click, a POST).
@@ -234,7 +246,8 @@ enum ToolNames {
 
     /// Tools shown in the feed as a card of their own (not a search card or a row of "Read pages").
     static func hasOwnCard(_ name: String) -> Bool {
-        [runPython, viewImage, browserOpen, browserEval, browserShow, loadSkill, runSkillScript, saveSkill, showPlaces, currentLocation].contains(name)
+        [runPython, viewImage, browserOpen, browserEval, browserShow, loadSkill, runSkillScript, saveSkill, showPlaces, currentLocation,
+         showHTML].contains(name)
     }
 
     /// Tools that read a page (and count as one in the summaries).

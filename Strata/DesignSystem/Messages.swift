@@ -414,6 +414,7 @@ struct AssistantMessage: View {
             case ToolNames.saveSkill: String(localized: "Waiting for your answer")
             case ToolNames.browserShow: String(localized: "Waiting for you in the browser")
             case ToolNames.showPlaces: String(localized: "Mapping places")
+            case ToolNames.showHTML: String(localized: "Making an artifact")
             case ToolNames.currentLocation: String(localized: "Finding your location")
             default: String(localized: "Reading")
             }

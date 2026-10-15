@@ -257,6 +257,7 @@ struct TurnRunner: Sendable {
                     record.figures = out.figures.isEmpty ? nil : out.figures
                     record.viewedImage = out.viewedImage
                     record.places = out.places
+                    record.artifact = out.artifact
                     records.append(record)
                     outputs.append(out)
                     checkpoint.pendingResults?.removeAll { $0.callID == call.id }
