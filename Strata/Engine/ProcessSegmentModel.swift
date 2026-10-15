@@ -36,7 +36,7 @@ struct ProcessSegment: Codable, Hashable, Identifiable, Sendable {
         }
         if calls.contains(where: { $0.name == ToolNames.runPython }) { parts.append(String(localized: "Ran Python")) }
         if calls.contains(where: { $0.name == ToolNames.viewImage }) { parts.append(String(localized: "Viewed an image")) }
-        if calls.contains(where: { $0.name == ToolNames.browserEval }) { parts.append(String(localized: "Ran a script")) }
+        if calls.contains(where: { $0.name == ToolNames.browserEval || $0.name == ToolNames.runSkillScript }) { parts.append(String(localized: "Ran a script")) }
         if calls.contains(where: { $0.name == ToolNames.showPlaces }) { parts.append(String(localized: "Mapped places")) }
         return parts.isEmpty ? String(localized: "Used tools") : parts.joined(separator: " · ")
     }

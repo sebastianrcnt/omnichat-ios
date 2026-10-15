@@ -417,7 +417,19 @@ struct ToolRouter: ToolExecuting {
             guard let skill = args["name"] as? String else {
                 return ToolOutput(text: "Error: missing required argument \"name\".", isError: true)
             }
-            return LoadSkillTool().run(name: skill)
+            return LoadSkillTool().run(name: skill, script: args["script"] as? String)
+        case ToolNames.runSkillScript:
+            guard let skill = args["skill"] as? String, let script = args["script"] as? String else {
+                return ToolOutput(text: "Error: run_skill_script needs \"skill\" and \"script\".", isError: true)
+            }
+            let argsJSON: String?
+            switch args["args"] {
+            case let s as String: argsJSON = s
+            case let o as [String: Any]: argsJSON = (try? JSONSerialization.data(withJSONObject: o)).flatMap { String(data: $0, encoding: .utf8) }
+            default: argsJSON = nil
+            }
+            return await RunSkillScriptTool().run(skill: skill, script: script, argsJSON: argsJSON,
+                                                  conversation: ToolContext.conversationID)
         case ToolNames.saveSkill:
             guard let skill = args["name"] as? String, let description = args["description"] as? String,
                   let body = args["body"] as? String else {

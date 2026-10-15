@@ -159,12 +159,13 @@ struct BrowserScriptDetail: View {
 /// The icon and line of a call shown as a single line (`load_skill` and the like), in the feed and the Timeline.
 enum ToolNote {
     static func covers(_ tool: String) -> Bool {
-        [ToolNames.loadSkill, ToolNames.saveSkill, ToolNames.showPlaces, ToolNames.currentLocation].contains(tool)
+        [ToolNames.loadSkill, ToolNames.runSkillScript, ToolNames.saveSkill, ToolNames.showPlaces, ToolNames.currentLocation].contains(tool)
     }
 
     static func icon(_ tool: String) -> String {
         switch tool {
         case ToolNames.loadSkill: "book.closed"
+        case ToolNames.runSkillScript: "play.rectangle"
         case ToolNames.saveSkill: "square.and.arrow.down"
         case ToolNames.showPlaces: "map"
         case ToolNames.currentLocation: "location"
@@ -176,6 +177,9 @@ enum ToolNote {
         switch tool {
         case ToolNames.loadSkill:
             running ? String(localized: "Loading skill \(argument)…") : String(localized: "Loaded skill \(argument)")
+        case ToolNames.runSkillScript:
+            running ? String(localized: "Running \(argument)…")
+                : failed ? String(localized: "Script failed: \(argument)") : String(localized: "Ran \(argument)")
         case ToolNames.saveSkill:
             running ? String(localized: "Asking to save skill \(argument)…")
                 : failed ? String(localized: "Didn't save skill \(argument)") : String(localized: "Saved skill \(argument)")

@@ -7,21 +7,21 @@ description: Find places in Korea (restaurants, cafes, bars, shops) on Naver Pla
 
 Use this for any request to find, compare or recommend places in Korea, to read what visitors say about a place, or to get directions there. Naver Place has the most complete Korean listings and visitor reviews.
 
-Work with `browser_open` (opens a page and returns its text) and `browser_eval` (runs one of the scripts below in that page). Copy the scripts exactly; they return JSON.
+Work with `browser_open` (opens a page and returns its text) and `run_skill_script` (runs one of the scripts below in that page by name, like `run_skill_script(skill: "naver-places", script: "LIST")`). The scripts return JSON.
 
 ## 1. Search for places
 
 Write the query in Korean the way a person would type it into Naver: area + kind of place + what matters ("성수 조용한 카페", "합정 저녁", "강남역 회식 고깃집", "연남동 브런치 웨이팅 없는"). If the user wants places near them and has not named an area, call `current_location` first and use the locality it returns.
 
 1. `browser_open` with `https://m.search.naver.com/search.naver?query=` + the URL-encoded query.
-2. `browser_eval` with the LIST script. It returns the places in the Naver Place block (ads are skipped): `name`, `category`, `placeId`, `rating` (별점, often null: Naver hides it for many restaurants), `reviewCount`, `status` (영업 중 / 영업 전 / 영업 종료 / 휴무), `distance`, `address` (area only), up to 3 short `reviews` snippets, and the place `url`.
+2. `run_skill_script` with the LIST script. It returns the places in the Naver Place block (ads are skipped): `name`, `category`, `placeId`, `rating` (별점, often null: Naver hides it for many restaurants), `reviewCount`, `status` (영업 중 / 영업 전 / 영업 종료 / 휴무), `distance`, `address` (area only), up to 3 short `reviews` snippets, and the place `url`.
 3. For more than the first five or so, run the MORE script, then the LIST script again.
 
 `distance` is measured from where Naver guesses the browser is (often central Seoul), not from the user. Do not quote it; when the user's location is known, judge distance from the coordinates instead.
 
 LIST script:
 
-```js
+```js script=LIST
 // naver-places:list
 const words = (el, withHidden) => {
   const out = [];
@@ -73,7 +73,7 @@ return JSON.stringify(places);
 
 MORE script (opens the rest of the list):
 
-```js
+```js script=MORE
 // naver-places:more
 const before = document.querySelectorAll('a[href*="place.naver.com/"]').length;
 const button = Array.from(document.querySelectorAll("a, button")).find(e => /펼쳐서 더보기/.test(e.innerText || ""));
@@ -85,11 +85,11 @@ return "Opened more results (" + before + " place links before, " + document.que
 
 ## 2. Read a place's details
 
-For each place worth recommending (usually 3 to 5), `browser_open` `https://m.place.naver.com/place/{placeId}/home`, then `browser_eval` with the DETAILS script. It returns `name`, `category`, the full `address`, `lat` and `lng`, `rating` (visitor review score), `visitorReviews`, `blogReviews`, `phone`, a one-line `summary`, and the `topKeywords` visitors voted for (like "집중하기 좋아요 (252)").
+For each place worth recommending (usually 3 to 5), `browser_open` `https://m.place.naver.com/place/{placeId}/home`, then `run_skill_script` with the DETAILS script. It returns `name`, `category`, the full `address`, `lat` and `lng`, `rating` (visitor review score), `visitorReviews`, `blogReviews`, `phone`, a one-line `summary`, and the `topKeywords` visitors voted for (like "집중하기 좋아요 (252)").
 
 DETAILS script:
 
-```js
+```js script=DETAILS
 // naver-places:details
 const s = window.__APOLLO_STATE__ || {};
 const key = Object.keys(s).find(k => k.startsWith("PlaceDetailBase:"));
@@ -115,11 +115,11 @@ return JSON.stringify({
 
 ## 3. Read visitor reviews
 
-To check what people actually say (quiet? good for work? long waits?), `browser_open` `https://m.place.naver.com/place/{placeId}/review/visitor`, then `browser_eval` with the REVIEWS script. It returns up to 15 recent reviews: `rating`, `visited` (date), the `keywords` the visitor picked, and the review `text` (cut to 400 characters).
+To check what people actually say (quiet? good for work? long waits?), `browser_open` `https://m.place.naver.com/place/{placeId}/review/visitor`, then `run_skill_script` with the REVIEWS script. It returns up to 15 recent reviews: `rating`, `visited` (date), the `keywords` the visitor picked, and the review `text` (cut to 400 characters).
 
 REVIEWS script:
 
-```js
+```js script=REVIEWS
 // naver-places:reviews
 const s = window.__APOLLO_STATE__ || {};
 const reviews = Object.keys(s).filter(k => k.startsWith("VisitorReview:")).map(k => s[k])

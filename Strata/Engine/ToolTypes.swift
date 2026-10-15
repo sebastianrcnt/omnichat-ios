@@ -119,6 +119,8 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
         case "browser_open": return (obj["url"] as? String) ?? arguments
         case "browser_eval": return (obj["js"] as? String) ?? arguments
         case "load_skill", "save_skill": return (obj["name"] as? String) ?? arguments
+        case "run_skill_script":
+            return [obj["skill"] as? String, obj["script"] as? String].compactMap { $0 }.joined(separator: " · ")
         case "show_places": return (obj["title"] as? String) ?? ""
         case "current_location": return ""
         default: return arguments
@@ -217,13 +219,14 @@ enum ToolNames {
     static let browserOpen = "browser_open"
     static let browserEval = "browser_eval"
     static let loadSkill = "load_skill"
+    static let runSkillScript = "run_skill_script"
     static let saveSkill = "save_skill"
     static let showPlaces = "show_places"
     static let currentLocation = "current_location"
 
     /// Tools shown in the feed as a card of their own (not a search card or a row of "Read pages").
     static func hasOwnCard(_ name: String) -> Bool {
-        [runPython, viewImage, browserOpen, browserEval, loadSkill, saveSkill, showPlaces, currentLocation].contains(name)
+        [runPython, viewImage, browserOpen, browserEval, loadSkill, runSkillScript, saveSkill, showPlaces, currentLocation].contains(name)
     }
 
     /// Tools that read a page (and count as one in the summaries).

@@ -9,13 +9,7 @@ private func skill(_ name: String, _ description: String = "Does a thing.", body
 
 /// The fenced ```js block of a bundled skill that starts with `// <marker>`.
 func skillScript(_ skill: Skill, marker: String) -> String? {
-    let parts = skill.body.components(separatedBy: "```js\n")
-    for part in parts.dropFirst() {
-        guard let end = part.range(of: "\n```") else { continue }
-        let code = String(part[..<end.lowerBound])
-        if code.hasPrefix("// " + marker) { return code }
-    }
-    return nil
+    skill.scripts.first { $0.code.hasPrefix("// " + marker) }?.code
 }
 
 struct SkillFormatTests {
@@ -50,6 +44,11 @@ struct SkillFormatTests {
         for marker in ["naver-places:list", "naver-places:more", "naver-places:details", "naver-places:reviews"] {
             #expect(skillScript(naver, marker: marker) != nil, "\(marker)")
         }
+        #expect(naver.scripts.map(\.name) == ["LIST", "MORE", "DETAILS", "REVIEWS"])
+        // load_skill shows how to run them, not their code.
+        let loaded = LoadSkillTool(store: SkillStore(builtIn: [naver], directory: nil)).run(name: "naver-places").text
+        #expect(loaded.contains("[Script REVIEWS") && !loaded.contains("// naver-places:reviews"))
+        #expect(loaded.count * 10 < naver.body.count * 7, "\(loaded.count) of \(naver.body.count)")
         for scheme in ["nmap://route/walk", "nmap://route/public", "nmap://route/car", "nmap://route/bicycle"] {
             #expect(naver.body.contains(scheme))
         }
@@ -156,20 +155,24 @@ struct NaverLiveTests {
         let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!
         let opened = await BrowserOpenTool().run(urlString: "https://m.search.naver.com/search.naver?query=" + encoded, conversation: chat)
         #expect(!opened.isError, "\(opened.text.prefix(300))")
-        let listed = await BrowserEvalTool().run(code: try #require(skillScript(naver, marker: "naver-places:list")), conversation: chat)
+        let store = SkillStore(builtIn: [naver], directory: nil)
+        func run(_ script: String) async -> ToolOutput {
+            await RunSkillScriptTool(store: store).run(skill: "naver-places", script: script, argsJSON: nil, conversation: chat)
+        }
+        let listed = await run("LIST")
         print("LIVE list \(query): \(body(listed).prefix(1500))")
         let places = try JSONDecoder().decode([Place].self, from: Data(body(listed).utf8))
         #expect(places.count >= 3)
         let first = try #require(places.first)
 
         _ = await BrowserOpenTool().run(urlString: "https://m.place.naver.com/place/\(first.placeId)/home", conversation: chat)
-        let detailed = await BrowserEvalTool().run(code: try #require(skillScript(naver, marker: "naver-places:details")), conversation: chat)
+        let detailed = await run("DETAILS")
         print("LIVE details \(first.name): \(body(detailed))")
         let details = try JSONDecoder().decode(Details.self, from: Data(body(detailed).utf8))
         #expect(details.lat != nil && details.lng != nil && details.address != nil)
 
         _ = await BrowserOpenTool().run(urlString: "https://m.place.naver.com/place/\(first.placeId)/review/visitor", conversation: chat)
-        let reviews = await BrowserEvalTool().run(code: try #require(skillScript(naver, marker: "naver-places:reviews")), conversation: chat)
+        let reviews = await run("REVIEWS")
         print("LIVE reviews \(first.name): \(body(reviews).prefix(800))")
         #expect(body(reviews).hasPrefix("[{"))
     }
@@ -235,5 +238,59 @@ struct SaveSkillTests {
         b.cancel()
         #expect(await b.value == false, "a stopped turn counts as no")
         #expect(approvals.pending == nil)
+    }
+}
+
+struct SkillScriptTests {
+    private let body = """
+    Open the page, then run LIST.
+
+    ```js script=LIST
+    return args.limit ?? 5;
+    ```
+
+    Not a script:
+
+    ```js
+    return 1;
+    ```
+
+    ```javascript script: "REV-2"
+    return "reviews";
+    ```
+    """
+
+    @Test func namedBlocksAreScripts() {
+        let skill = Skill(name: "demo", description: "Demo.", body: body)
+        #expect(skill.scripts.map(\.name) == ["LIST", "REV-2"])
+        #expect(skill.script(named: "list")?.code == "return args.limit ?? 5;")
+        #expect(skill.script(named: "nope") == nil)
+        let shown = skill.bodyForModel
+        #expect(shown.contains("[Script LIST, 1 lines: run it with run_skill_script(skill: \"demo\", script: \"LIST\")."))
+        #expect(shown.contains("```js\nreturn 1;\n```"), "an unnamed block stays as it is")
+        #expect(!shown.contains("args.limit"))
+    }
+
+    @Test func loadSkillGivesOneScriptsCode() {
+        let store = SkillStore(builtIn: [Skill(name: "demo", description: "Demo.", body: body)], directory: nil)
+        let out = LoadSkillTool(store: store).run(name: "demo", script: "REV-2")
+        #expect(!out.isError && out.text.contains("return \"reviews\";"))
+        let missing = LoadSkillTool(store: store).run(name: "demo", script: "X")
+        #expect(missing.isError && missing.text.contains("Its scripts: LIST, REV-2."))
+    }
+
+    @Test func argsAreDeclaredFirstAndMustBeAnObject() throws {
+        #expect(try RunSkillScriptTool.code("return args;", argsJSON: nil).get() == "const args = {};\nreturn args;")
+        #expect(try RunSkillScriptTool.code("return args;", argsJSON: "{\"a\":1}").get() == "const args = {\"a\":1};\nreturn args;")
+        #expect((try? RunSkillScriptTool.code("x", argsJSON: "[1]").get()) == nil)
+        #expect((try? RunSkillScriptTool.code("x", argsJSON: "1); alert(1); (").get()) == nil)
+    }
+
+    @MainActor @Test func runningAMissingScriptSaysWhatExists() async {
+        let store = SkillStore(builtIn: [Skill(name: "demo", description: "Demo.", body: body)], directory: nil)
+        let out = await RunSkillScriptTool(store: store).run(skill: "demo", script: "GONE", argsJSON: nil, conversation: UUID())
+        #expect(out.isError && out.text.contains("Its scripts: LIST, REV-2."))
+        let noSkill = await RunSkillScriptTool(store: store).run(skill: "other", script: "LIST", argsJSON: nil, conversation: UUID())
+        #expect(noSkill.isError && noSkill.text.contains("Available skills: demo."))
     }
 }

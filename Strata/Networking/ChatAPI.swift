@@ -193,7 +193,7 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
 
     static let runPython = ToolDefinition(function: .init(
         name: "run_python",
-        description: "Run Python 3 code on the user's device (Pyodide) and return its printed output, the value of the last expression, or the traceback. numpy, scipy, sympy, pandas, matplotlib and the standard library are available; they load on first import. Variables and imports persist between calls within this chat until the session is reset. Figures left open by matplotlib are saved as PNG images and listed in the result. There is no direct internet access; pure-Python packages from PyPI can be installed with `import micropip; await micropip.install(\"name\")`. Each call has a time limit.",
+        description: "Run Python 3 code on the user's device (Pyodide) and return its printed output, the value of the last expression, or the traceback. numpy, scipy, sympy, pandas, matplotlib and the standard library are available; they load on first import. Variables and imports persist between calls within this chat until the session is reset. Figures left open by matplotlib are saved as PNG images and listed in the result. It can reach the web: pyodide.http.pyfetch (async) and pyodide.http.open_url work for any http(s) URL; pure-Python packages from PyPI can be installed with `import micropip; await micropip.install(\"name\")`. Each call has a time limit.",
         parameters: .init(properties: ["code": .init(description: "The Python code to run. Use print() for output; the value of the last expression is shown too.")],
                           required: ["code"])))
 
@@ -218,9 +218,20 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
     /// Which skills exist is never part of this definition: the system prompt lists them.
     static let loadSkill = ToolDefinition(function: .init(
         name: "load_skill",
-        description: "Load a skill: instructions for a specific task, such as which pages to open and which scripts to run. Only skills listed in the system prompt exist. Load the skill before starting a task it covers, then follow it.",
-        parameters: .init(properties: ["name": .init(description: "The skill name, exactly as listed.")],
-                          required: ["name"])))
+        description: "Load a skill: instructions for a specific task, such as which pages to open and which scripts to run. Only skills listed in the system prompt exist. Load the skill before starting a task it covers, then follow it. Its named scripts are listed, not shown: run them with run_skill_script, or pass script to read one's code.",
+        parameters: .init(properties: [
+            "name": .init(description: "The skill name, exactly as listed."),
+            "script": .init(description: "Optional. A script's name, to get its code instead of the skill (to adapt it when it stops working)."),
+        ], required: ["name"])))
+
+    static let runSkillScript = ToolDefinition(function: .init(
+        name: "run_skill_script",
+        description: "Run a named script from a skill in the page browser_open opened last in this chat, and return its result, like browser_eval. Prefer it to copying a skill's script into browser_eval.",
+        parameters: .init(properties: [
+            "skill": .init(description: "The skill name."),
+            "script": .init(description: "The script's name in the skill, like REVIEWS."),
+            "args": .init(description: "Optional. A JSON object string the script reads as `args`, like {\"limit\": 10}."),
+        ], required: ["skill", "script"])))
 
     static let saveSkill = ToolDefinition(function: .init(
         name: "save_skill",
@@ -228,7 +239,7 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
         parameters: .init(properties: [
             "name": .init(description: "Lowercase letters, digits and hyphens, starting with a letter (like seoul-bus-times). The same name replaces a saved skill."),
             "description": .init(description: "One line saying what tasks the skill is for; listed in the system prompt of new chats."),
-            "body": .init(description: "The instructions in Markdown, for yourself in a later chat."),
+            "body": .init(description: "The instructions in Markdown, for yourself in a later chat. Put each reusable browser script in a fenced block whose first line is ```js script=NAME (NAME in letters, digits, _ or -); later it runs with run_skill_script by name, reading inputs from `args`."),
         ], required: ["name", "description", "body"])))
 
     static let showPlaces = ToolDefinition(function: .init(
@@ -259,7 +270,7 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
     static let standard: [ToolDefinition] = [webSearch, webFetch, runPlugin]
 
     /// The browser tools (Settings > Browser).
-    static let browser: [ToolDefinition] = [browserOpen, browserEval, loadSkill, saveSkill, showPlaces]
+    static let browser: [ToolDefinition] = [browserOpen, browserEval, loadSkill, runSkillScript, saveSkill, showPlaces]
 
     /// The tools of a request: fixed for a given setting and model, so the cached prefix never changes within a chat
     /// unless the setting or the model does. `view_image` needs a model that reads images.

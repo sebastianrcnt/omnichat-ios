@@ -49,6 +49,66 @@ struct Skill: Sendable, Equatable, Identifiable, Codable {
         guard b.count <= Self.bodyLimit else { throw Problem.bodyTooLong }
     }
 
+    /// A named script: a fenced code block whose info line reads `js script=NAME`.
+    struct Script: Equatable, Sendable {
+        var name: String
+        var code: String
+        /// The block's lines in the body, fences included.
+        var lines: ClosedRange<Int>
+    }
+
+    static func isValidScriptName(_ name: String) -> Bool {
+        !name.isEmpty && name.count <= 40 && name.unicodeScalars.allSatisfy {
+            CharacterSet.alphanumerics.contains($0) || $0 == "_" || $0 == "-"
+        }
+    }
+
+    /// The named scripts in the body, in order. A name used twice keeps its first block.
+    var scripts: [Script] {
+        let lines = body.components(separatedBy: "\n")
+        var out: [Script] = []
+        var i = 0
+        while i < lines.count {
+            let line = lines[i].trimmingCharacters(in: .whitespaces)
+            guard line.hasPrefix("```"), let name = Self.scriptName(info: String(line.dropFirst(3))),
+                  let close = lines[(i + 1)...].firstIndex(where: { $0.trimmingCharacters(in: .whitespaces).hasPrefix("```") }) else {
+                i += 1
+                continue
+            }
+            if !out.contains(where: { $0.name == name }) {
+                out.append(Script(name: name, code: lines[(i + 1)..<close].joined(separator: "\n"), lines: i...close))
+            }
+            i = close + 1
+        }
+        return out
+    }
+
+    func script(named name: String) -> Script? {
+        let wanted = name.trimmingCharacters(in: .whitespaces)
+        return scripts.first { $0.name == wanted } ?? scripts.first { $0.name.lowercased() == wanted.lowercased() }
+    }
+
+    /// `script=NAME` (or `script: NAME`) in a fence's info line.
+    static func scriptName(info: String) -> String? {
+        guard let range = info.range(of: #"script\s*[=:]\s*"?([A-Za-z0-9_-]+)"?"#, options: .regularExpression) else { return nil }
+        let token = info[range].replacingOccurrences(of: #"^script\s*[=:]\s*"?|"$"#, with: "", options: .regularExpression)
+        return isValidScriptName(token) ? token : nil
+    }
+
+    /// The body as `load_skill` returns it: each named script's code replaced by a line saying how to run it.
+    var bodyForModel: String {
+        let found = scripts
+        guard !found.isEmpty else { return body }
+        var lines = body.components(separatedBy: "\n")
+        for s in found.reversed() {
+            let count = s.code.components(separatedBy: "\n").count
+            lines.replaceSubrange(s.lines, with: [
+                "[Script \(s.name), \(count) lines: run it with run_skill_script(skill: \"\(name)\", script: \"\(s.name)\"). "
+                    + "To read or adapt its code, call load_skill with script: \"\(s.name)\".]"])
+        }
+        return lines.joined(separator: "\n")
+    }
+
     /// The skill as a Markdown file.
     var document: String {
         "---\nname: \(name)\ndescription: \(description.trimmingCharacters(in: .whitespacesAndNewlines))\n---\n\n"
@@ -182,18 +242,78 @@ enum SkillIndex {
     }
 }
 
-/// `load_skill(name)`: the skill's body.
+/// `load_skill(name, script?)`: the skill's body with its scripts as run instructions, or one script's code.
 struct LoadSkillTool {
     var store: SkillStore = .shared
 
-    func run(name: String) -> ToolOutput {
+    func run(name: String, script: String? = nil) -> ToolOutput {
+        let skill: Skill
+        switch SkillLookup.find(name, in: store) {
+        case .failure(let error): return error.output
+        case .success(let found): skill = found
+        }
+        if let script, !script.trimmingCharacters(in: .whitespaces).isEmpty {
+            guard let s = skill.script(named: script) else { return SkillLookup.noScript(script, in: skill).output }
+            return ToolOutput(text: "Script \(s.name) of skill \(skill.name):\n\n```js\n\(s.code)\n```")
+        }
+        return ToolOutput(text: "Skill: \(skill.name)\n\n" + skill.bodyForModel)
+    }
+}
+
+/// Finding a skill or one of its scripts by name, with errors that say what exists.
+enum SkillLookup {
+    struct Failure: Error {
+        let text: String
+        var output: ToolOutput { ToolOutput(text: text, isError: true) }
+    }
+
+    static func find(_ name: String, in store: SkillStore) -> Result<Skill, Failure> {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let skill = store.skill(named: trimmed) else {
             let names = store.all.map(\.name)
             let list = names.isEmpty ? "No skills exist." : "Available skills: " + names.joined(separator: ", ") + "."
-            return ToolOutput(text: "Error: there is no skill named \"\(trimmed)\". " + list, isError: true)
+            return .failure(Failure(text: "Error: there is no skill named \"\(trimmed)\". " + list))
         }
-        return ToolOutput(text: "Skill: \(skill.name)\n\n" + skill.body)
+        return .success(skill)
+    }
+
+    static func noScript(_ name: String, in skill: Skill) -> Failure {
+        let names = skill.scripts.map(\.name)
+        let list = names.isEmpty ? "It has no named scripts." : "Its scripts: " + names.joined(separator: ", ") + "."
+        return Failure(text: "Error: skill \(skill.name) has no script named \"\(name)\". " + list)
+    }
+}
+
+/// `run_skill_script(skill, script, args?)`: runs a skill's named script in the chat's browser page, like `browser_eval`,
+/// with `args` (a JSON object) available to it as `args`.
+struct RunSkillScriptTool {
+    var store: SkillStore = .shared
+    var eval = BrowserEvalTool()
+
+    /// The script with its arguments declared first. `args` must be a JSON object (or nothing).
+    static func code(_ script: String, argsJSON: String?) -> Result<String, SkillLookup.Failure> {
+        var json = "{}"
+        if let raw = argsJSON?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty, raw != "null" {
+            guard let data = raw.data(using: .utf8), (try? JSONSerialization.jsonObject(with: data)) is [String: Any] else {
+                return .failure(.init(text: "Error: args must be a JSON object, like {\"placeId\": \"123\"}."))
+            }
+            json = raw
+        }
+        return .success("const args = \(json);\n\(script)")
+    }
+
+    @MainActor
+    func run(skill name: String, script: String, argsJSON: String?, conversation: UUID?) async -> ToolOutput {
+        let skill: Skill
+        switch SkillLookup.find(name, in: store) {
+        case .failure(let error): return error.output
+        case .success(let found): skill = found
+        }
+        guard let s = skill.script(named: script) else { return SkillLookup.noScript(script, in: skill).output }
+        switch Self.code(s.code, argsJSON: argsJSON) {
+        case .failure(let error): return error.output
+        case .success(let code): return await eval.run(code: code, conversation: conversation)
+        }
     }
 }
 
