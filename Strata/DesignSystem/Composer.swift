@@ -75,6 +75,7 @@ struct GaugeNeedle: Shape {
 /// The composer's model-and-effort control. Tap opens the chat settings; when the model takes an effort, a long press
 /// offers the levels as a quick switch and the dial shows the current one. Otherwise a plain model icon.
 struct ModelSettingsButton<QuickMenu: View>: View {
+    @Environment(\.theme) private var theme
     /// The effort's place on the dial, or nil when the model does not support effort.
     let effortFraction: Double?
     /// Spoken after "Model and reasoning effort": the effort level, or the model name.
@@ -92,7 +93,7 @@ struct ModelSettingsButton<QuickMenu: View>: View {
             }
         }
         .frame(width: d, height: d)
-        .glassEffect(.regular.interactive(), in: Circle())
+        .background(theme.composerControl, in: Circle()) // on the composer's glass: flat, no glass of its own
         .contentShape(Circle().inset(by: -max(0, (DS.IconSize.minHitTarget - d) / 2)))
     }
 
@@ -376,13 +377,13 @@ struct ComposerBar<Accessory: View>: View {
     private var cancelDictationButton: some View {
         GlassIconButton(systemName: "xmark", label: dictation.failure == nil ? "Cancel dictation" : "Dismiss",
                         diameter: DS.IconSize.compactControlDiameter, iconSize: DS.IconSize.composerIcon,
-                        action: cancelDictation)
+                        flat: true, action: cancelDictation)
             .matchedGeometryEffect(id: "plus", in: controls)
     }
 
     private func micButton(expanded: Bool) -> some View {
         GlassIconButton(systemName: "mic", label: "Dictate", diameter: DS.IconSize.compactControlDiameter,
-                        iconSize: DS.IconSize.composerIcon) { startDictation(expanded: expanded) }
+                        iconSize: DS.IconSize.composerIcon, flat: true) { startDictation(expanded: expanded) }
             .matchedGeometryEffect(id: "mic", in: controls)
             #if os(macOS)
             .help(Text("Dictate"))
@@ -471,7 +472,7 @@ struct ComposerBar<Accessory: View>: View {
 
     private var plusButton: some View {
         GlassIconButton(systemName: "plus", label: "Add photo", diameter: DS.IconSize.compactControlDiameter,
-                        iconSize: DS.IconSize.composerIcon, action: onAttach)
+                        iconSize: DS.IconSize.composerIcon, flat: true, action: onAttach)
             .opacity(plusDimmed ? 0.45 : 1)
             .matchedGeometryEffect(id: "plus", in: controls)
     }
@@ -484,7 +485,7 @@ struct ComposerBar<Accessory: View>: View {
                 Image(systemName: "stop.fill").font(.system(size: DS.IconSize.composerIcon, weight: .semibold))
                     .foregroundStyle(theme.onAccent)
                     .frame(width: d, height: d)
-                    .glassEffect(.regular.tint(theme.accent).interactive(), in: Circle())
+                    .background(theme.accent, in: Circle())
                     .contentShape(Circle().inset(by: -4))
             }
             .buttonStyle(.plain)

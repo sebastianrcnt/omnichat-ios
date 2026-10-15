@@ -287,6 +287,8 @@ struct DSTheme: Equatable {
     /// Light disc behind a site icon so dark glyphs stay visible in dark mode.
     var faviconBackdrop: Color { Color(light: 0xFFFFFF, dark: 0xF2F2F2) }
     var fillTertiary: Color { Color(light: 0xE4E4E8, dark: 0x2E2E32) }
+    /// A button inside the composer's glass: a flat circle a step lighter than the bar.
+    var composerControl: Color { Color(light: 0xE6E6EA, dark: 0x48484C) }
 
     // Text
     var textPrimary: Color { Color(light: 0x111111, dark: 0xF2F2F2) }

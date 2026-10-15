@@ -307,8 +307,7 @@ struct ChatView: View {
             .padding(.horizontal, DS.Spacing.md)
             .padding(.vertical, DS.Spacing.sm) // 8pt below the 44pt buttons, clear of the blur edge
         }
-        // A real surface behind the title: answer text scrolling underneath must never show through it.
-        .background(alignment: .top) { HeaderBacking() }
+        // No backing of its own: the list's soft top edge effect blurs and fades what scrolls under the header.
     }
     #endif
 

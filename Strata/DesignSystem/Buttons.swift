@@ -7,6 +7,8 @@ struct GlassIconButton: View {
     var diameter: CGFloat = DS.IconSize.controlDiameter
     var iconSize: CGFloat = DS.IconSize.headerIcon
     var tint: Color?
+    /// A flat filled circle instead of glass: for buttons that sit on glass already (the composer).
+    var flat = false
     let action: () -> Void
 
     var body: some View {
@@ -14,11 +16,26 @@ struct GlassIconButton: View {
             Image(systemName: systemName)
                 .font(.system(size: iconSize, weight: .medium))
                 .frame(width: diameter, height: diameter)
-                .glassEffect(.regular.tint(tint).interactive(), in: Circle())
+                .modifier(ControlSurface(flat: flat, tint: tint))
                 .contentShape(Circle().inset(by: -max(0, (DS.IconSize.minHitTarget - diameter) / 2)))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(label))
+    }
+}
+
+/// Glass, or (on glass already) a flat circle of `composerControl`, pressed darker.
+struct ControlSurface: ViewModifier {
+    @Environment(\.theme) private var theme
+    let flat: Bool
+    var tint: Color?
+
+    func body(content: Content) -> some View {
+        if flat {
+            content.background(tint ?? theme.composerControl, in: Circle())
+        } else {
+            content.glassEffect(.regular.tint(tint).interactive(), in: Circle())
+        }
     }
 }
 
