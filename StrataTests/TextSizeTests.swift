@@ -87,17 +87,17 @@ struct TextSizeTests {
     }
 
     @Test func theLineGapIsRecomputedFromTheScaledSize() {
-        // At each text size the answer's line height is 1.65 times the size on screen, not the gap of the default size.
+        // At each text size the answer's line height is `DS.Leading.answer.multiple` times the size on screen, not the gap of the default size.
         for size in TextSizeSetting.sizes {
             let onScreen = 17 * DS.typeScale(size)
             let lineHeight = UIFont(name: DS.Typography.regularFontName, size: onScreen)!.lineHeight
             let gap = DS.Leading.spacing(multiple: DS.Leading.answer.multiple, size: onScreen)
-            #expect(abs((lineHeight + gap) / onScreen - 1.65) < 0.001, "\(size)")
+            #expect(abs((lineHeight + gap) / onScreen - DS.Leading.answer.multiple) < 0.001, "\(size)")
         }
-        let small = DS.Leading.spacing(multiple: 1.65, size: 17 * DS.typeScale(.xSmall))
-        let large = DS.Leading.spacing(multiple: 1.65, size: 17 * DS.typeScale(.xxxLarge))
+        let small = DS.Leading.spacing(multiple: DS.Leading.answer.multiple, size: 17 * DS.typeScale(.xSmall))
+        let large = DS.Leading.spacing(multiple: DS.Leading.answer.multiple, size: 17 * DS.typeScale(.xxxLarge))
         #expect(large > small * 1.5)
-        #expect(small != DS.Leading.spacing(multiple: 1.65, size: 17))
+        #expect(small != DS.Leading.spacing(multiple: DS.Leading.answer.multiple, size: 17))
     }
 
     @Test func theMarkdownThemeGapStaysProportionalToTheSize() {
@@ -106,7 +106,7 @@ struct TextSizeTests {
         for scale in [DS.typeScale(.xSmall), 1, DS.typeScale(.xxxLarge)] {
             let size = 17 * scale
             let lineHeight = UIFont(name: DS.Typography.regularFontName, size: size)!.lineHeight
-            #expect(abs((lineHeight + em * size) / size - 1.65) < 0.001)
+            #expect(abs((lineHeight + em * size) / size - DS.Leading.answer.multiple) < 0.001)
         }
     }
 

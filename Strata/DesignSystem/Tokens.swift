@@ -173,7 +173,7 @@ enum DS {
         var style: Font.TextStyle
 
         /// Answer body.
-        static let answer = Leading(multiple: 1.65, size: 17, style: .body)
+        static let answer = Leading(multiple: 1.55, size: 17, style: .body)
         /// Controls, rows, sheets.
         static let ui = Leading(multiple: 1.4, size: 17, style: .body)
         /// Thinking cards and timeline text (15 pt).
@@ -200,8 +200,9 @@ enum DS {
         var em: CGFloat { max(0, Self.spacing(multiple: multiple, size: 100) / 100) }
     }
 
-    /// Space between blocks of an answer (paragraphs, lists, code), a little more than the old 12 since lines are looser.
-    static let blockSpacing: CGFloat = 16
+    /// Space between blocks of an answer (paragraphs, lists, code): clearly more than the gap between lines, so a new
+    /// paragraph reads as one.
+    static let blockSpacing: CGFloat = 20
 
     // MARK: Motion
     enum Motion {

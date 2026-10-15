@@ -48,17 +48,17 @@ struct FontTests {
         for size: CGFloat in [15, 17, 22, 28] {
             let lineHeight = UIFont(name: DS.Typography.regularFontName, size: size)!.lineHeight
             let spacing = DS.Leading.spacing(multiple: DS.Leading.answer.multiple, size: size)
-            #expect(abs((lineHeight + spacing) / size - 1.65) < 0.001, "\(size)")
+            #expect(abs((lineHeight + spacing) / size - DS.Leading.answer.multiple) < 0.001, "\(size)")
         }
         // UI rows 1.4, thinking text 1.55.
         #expect(abs((UIFont(name: DS.Typography.regularFontName, size: 17)!.lineHeight + DS.Leading.spacing(multiple: 1.4, size: 17)) / 17 - 1.4) < 0.001)
-        #expect(DS.Leading.thinking.multiple == 1.55 && DS.Leading.ui.multiple == 1.4 && DS.Leading.answer.multiple == 1.65)
+        #expect(DS.Leading.thinking.multiple == 1.55 && DS.Leading.ui.multiple == 1.4 && DS.Leading.answer.multiple == 1.55)
     }
 
     @Test func theEmGapMatchesThePointGap() {
         let leading = DS.Leading.answer
-        #expect(abs(leading.em * 17 - DS.Leading.spacing(multiple: 1.65, size: 17)) < 0.01)
-        #expect(leading.em > 0.4)
+        #expect(abs(leading.em * 17 - DS.Leading.spacing(multiple: DS.Leading.answer.multiple, size: 17)) < 0.01)
+        #expect(leading.em > 0.3) // a real gap over Pretendard's own tight line height
     }
 
     @Test func boldInAnAnswerIsDrawnWithTheSemiboldFontNotTheSystemBold() {
