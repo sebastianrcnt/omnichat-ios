@@ -124,6 +124,10 @@ struct ActivityEntry: Identifiable, Equatable {
         case python(code: String, output: String, figures: [ToolImage])
         /// `view_image`.
         case image(id: String, image: ToolImage?)
+        /// `browser_eval`: the script and what it returned.
+        case script(code: String, output: String)
+        /// A call with nothing to show but a line (`load_skill`, ...).
+        case note(tool: String, argument: String)
     }
     let id: String
     var kind: Kind
@@ -149,6 +153,10 @@ struct ActivityEntry: Identifiable, Equatable {
             kind = .python(code: call.primaryArgument, output: call.result, figures: call.figures ?? [])
         } else if call.name == ToolNames.viewImage {
             kind = .image(id: call.primaryArgument, image: call.viewedImage)
+        } else if call.name == ToolNames.browserEval {
+            kind = .script(code: call.primaryArgument, output: call.result)
+        } else if ToolNote.covers(call.name) {
+            kind = .note(tool: call.name, argument: call.primaryArgument)
         } else {
             kind = .visit(url: call.primaryArgument, host: Self.host(of: call.primaryArgument))
             isContinuation = call.fetchOffset > 0
@@ -166,6 +174,10 @@ struct ActivityEntry: Identifiable, Equatable {
             kind = .python(code: pending.primaryArgument, output: "", figures: [])
         } else if pending.name == ToolNames.viewImage {
             kind = .image(id: pending.primaryArgument, image: nil)
+        } else if pending.name == ToolNames.browserEval {
+            kind = .script(code: pending.primaryArgument, output: "")
+        } else if ToolNote.covers(pending.name) {
+            kind = .note(tool: pending.name, argument: pending.primaryArgument)
         } else {
             kind = .visit(url: pending.primaryArgument, host: Self.host(of: pending.primaryArgument))
             isContinuation = pending.offset > 0
@@ -284,6 +296,31 @@ struct ActivityRow: View {
                 else if entry.isError { Text("failed").font(DS.Typography.uiCaption).foregroundStyle(theme.warning) }
                 Spacer(minLength: 0)
                 if let image, wrapsChips { ToolImageThumbnail(image: image, height: 44) }
+            }
+        case .script(let code, let output):
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                HStack(spacing: DS.Spacing.sm) {
+                    icon("curlybraces")
+                    Text(entry.isRunning ? "Running a script…" : "Ran a script").font(DS.Typography.uiSmall).foregroundStyle(theme.textPrimary)
+                    if entry.isRunning {
+                        ProgressView().controlSize(.mini)
+                    } else if entry.isError {
+                        Text("failed").font(DS.Typography.uiCaption).foregroundStyle(theme.warning)
+                    }
+                    Spacer(minLength: 0)
+                }
+                if wrapsChips {
+                    BrowserScriptDetail(code: code, output: output, isRunning: entry.isRunning, isError: entry.isError)
+                }
+            }
+        case .note(let tool, let argument):
+            HStack(spacing: DS.Spacing.sm) {
+                icon(ToolNote.icon(tool))
+                Text(ToolNote.title(tool: tool, argument: argument, running: entry.isRunning, failed: entry.isError))
+                    .font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary).lineLimit(1)
+                if entry.isRunning { ProgressView().controlSize(.mini) }
+                else if entry.isError && tool != ToolNames.saveSkill { Text("failed").font(DS.Typography.uiCaption).foregroundStyle(theme.warning) }
+                Spacer(minLength: 0)
             }
         }
     }

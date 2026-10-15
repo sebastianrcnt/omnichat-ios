@@ -403,6 +403,31 @@ struct ToolRouter: ToolExecuting {
             }
             return ViewImageTool(store: images).run(id: id, conversationID: ToolContext.conversationID,
                                                     readsImages: ToolContext.readsImages)
+        case ToolNames.browserOpen:
+            guard let url = args["url"] as? String else {
+                return ToolOutput(text: "Error: missing required argument \"url\".", isError: true)
+            }
+            return await BrowserOpenTool().run(urlString: url, conversation: ToolContext.conversationID)
+        case ToolNames.browserEval:
+            guard let js = args["js"] as? String else {
+                return ToolOutput(text: "Error: missing required argument \"js\".", isError: true)
+            }
+            return await BrowserEvalTool().run(code: js, conversation: ToolContext.conversationID)
+        case ToolNames.loadSkill:
+            guard let skill = args["name"] as? String else {
+                return ToolOutput(text: "Error: missing required argument \"name\".", isError: true)
+            }
+            return LoadSkillTool().run(name: skill)
+        case ToolNames.saveSkill:
+            guard let skill = args["name"] as? String, let description = args["description"] as? String,
+                  let body = args["body"] as? String else {
+                return ToolOutput(text: "Error: save_skill needs \"name\", \"description\" and \"body\".", isError: true)
+            }
+            return await SaveSkillTool().run(name: skill, description: description, body: body)
+        case ToolNames.showPlaces:
+            return await ShowPlacesTool().run(arguments: arguments)
+        case ToolNames.currentLocation:
+            return await CurrentLocationTool().run()
         default:
             return ToolOutput(text: "Error: unknown tool \"\(name)\".", isError: true)
         }

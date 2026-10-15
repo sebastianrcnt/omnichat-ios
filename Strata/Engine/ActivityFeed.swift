@@ -76,12 +76,15 @@ struct FeedCall: Equatable, Sendable {
     var failure: FetchFailure?
     /// The plugin a `run_plugin` call ran (its row is the plugin's page, titled with the plugin's name).
     var plugin: String?
-    /// The tool, when it is not a web tool: `run_python` (its own card with code and output) or `view_image`.
+    /// The tool, when it is not a search or a page read: `run_python` (its own card with code and output),
+    /// `view_image`, or a browser tool (`ToolNames.hasOwnCard`).
     var tool: String?
     /// A Python run's output as the model read it (empty while it runs).
     var output = ""
     var figures: [ToolImage] = []
     var viewedImage: ToolImage?
+    /// What a `show_places` call put on the map.
+    var places: PlaceCollection?
 
     init(id: String, isSearch: Bool, argument: String, status: Status, sourceIDs: [Int] = [], engine: String? = nil, thin: Bool = false) {
         self.id = id
@@ -100,18 +103,19 @@ struct FeedCall: Equatable, Sendable {
                   thin: record.name == ToolNames.webFetch && record.isThinPage)
         if record.isError { failure = FetchFailure(errorText: record.result) }
         if record.name == ToolNames.runPlugin { plugin = PluginCall.name(in: record.arguments) }
-        if record.name == ToolNames.runPython || record.name == ToolNames.viewImage {
+        if ToolNames.hasOwnCard(record.name) {
             tool = record.name
             output = record.result
             figures = record.figures ?? []
             viewedImage = record.viewedImage
+            places = record.places
         }
     }
 
     init(pending: PendingToolCall) {
         self.init(id: pending.id, isSearch: pending.name == ToolNames.webSearch, argument: pending.primaryArgument, status: .running)
         plugin = pending.plugin
-        if pending.name == ToolNames.runPython || pending.name == ToolNames.viewImage { tool = pending.name }
+        if ToolNames.hasOwnCard(pending.name) { tool = pending.name }
     }
 
     /// Finished rounds, then the running round in request order (a finished call keeps its place); each id once.
@@ -222,6 +226,14 @@ struct FeedCard: Identifiable, Equatable, Sendable {
         case python(code: String)
         /// One `view_image` call.
         case image(id: String)
+        /// One `browser_open` call: the page it opened.
+        case browser(url: String)
+        /// One `browser_eval` call: the script it ran.
+        case script(code: String)
+        /// A one-line card for a call with nothing to unfold (`load_skill`, ...): the tool and its argument.
+        case note(tool: String, argument: String)
+        /// One `show_places` call: the map and the place cards.
+        case places
     }
 
     var id: String
@@ -237,6 +249,10 @@ struct FeedCard: Identifiable, Equatable, Sendable {
     var output = ""
     var figures: [ToolImage] = []
     var pythonFailure: PythonFailure?
+    /// Why a `.browser` card's page could not be opened.
+    var pageFailure: FetchFailure?
+    /// A `.places` card's places.
+    var places: PlaceCollection?
 
     var rows: [FeedRow] { results + extras }
     var hasLoadingRow: Bool { rows.contains { if case .loading? = $0.read { return true } else { return false } } }
@@ -263,11 +279,22 @@ enum ActivityFeed {
         for (order, call) in calls.enumerated() {
             if let tool = call.tool {
                 readRun = false
-                var card = FeedCard(id: call.id, kind: tool == ToolNames.runPython ? .python(code: call.argument) : .image(id: call.argument),
-                                    isRunning: call.status == .running, isError: call.status == .failed)
+                let kind: FeedCard.Kind = switch tool {
+                case ToolNames.runPython: .python(code: call.argument)
+                case ToolNames.browserOpen: .browser(url: call.argument)
+                case ToolNames.browserEval: .script(code: call.argument)
+                case ToolNames.viewImage: .image(id: call.argument)
+                case ToolNames.showPlaces: .places
+                default: .note(tool: tool, argument: call.argument)
+                }
+                var card = FeedCard(id: call.id, kind: kind, isRunning: call.status == .running, isError: call.status == .failed)
                 card.output = call.output
+                card.places = call.places
                 card.figures = tool == ToolNames.runPython ? call.figures : (call.viewedImage.map { [$0] } ?? [])
-                if call.status == .failed { card.pythonFailure = PythonFailure(errorText: call.output) }
+                if call.status == .failed {
+                    if tool == ToolNames.browserOpen { card.pageFailure = call.failure ?? .failed }
+                    else { card.pythonFailure = PythonFailure(errorText: call.output) }
+                }
                 cards.append(card)
             } else if call.isSearch {
                 readRun = false

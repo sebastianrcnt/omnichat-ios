@@ -124,6 +124,8 @@ struct SettingsView: View {
 
                     PythonSettingsSection()
 
+                    BrowserSettingsSection()
+
                     GroupedSection(header: "Answers", footer: "If the model searches and then stops without writing anything, it is asked once more for the answer.") {
                         SettingsToggleRow(title: "Continue when the answer is empty", isOn: $settings.continueOnEmptyAnswer)
                         SettingsToggleRow(title: "Generate chat titles",
@@ -432,6 +434,27 @@ struct ModelEditor: View {
             if capped != text { aliasText = capped; return }
             connections.setModelAlias(text, connectionID: connectionID, modelID: modelID)
         }
+    }
+}
+
+/// Settings > Browser: the browser tools on or off, and whether they include `current_location`.
+struct BrowserSettingsSection: View {
+    @Environment(\.appSettings) private var settings
+
+    var body: some View {
+        @Bindable var settings = settings
+        GroupedSection(header: "Browser", footer: "The model can open pages in a hidden browser on this device with browser_open and run JavaScript in them with browser_eval. The browser keeps no cookies or logins and can't reach your local network. Skills teach the model tasks like finding places on Naver; it saves new ones only when you approve.") {
+            SettingsToggleRow(title: "Browser", subtitle: "Let the model browse sites and read data from them.", isOn: $settings.browserEnabled)
+            if settings.browserEnabled {
+                SettingsToggleRow(title: "Location", subtitle: "Let the model ask for your approximate location to find places near you.",
+                                  isOn: $settings.locationEnabled)
+            }
+            NavigationLink { SkillsSettingsView() } label: {
+                SettingsRow(systemImage: "book.closed", title: "Skills", showsChevron: true)
+            }
+            .buttonStyle(.plain)
+        }
+        .onChange(of: settings.browserEnabled) { _, on in if !on { BrowserSessions.shared.closeAll() } }
     }
 }
 

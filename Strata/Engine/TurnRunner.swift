@@ -71,6 +71,10 @@ struct TurnRunner: Sendable {
     var requestLog: (@MainActor @Sendable (RequestLogEvent) -> Void)?
     /// Offer `run_python` (and `view_image` to a model that reads images). Settings > Python; off in tests by default.
     var python = false
+    /// Offer the browser tools and skills. Settings > Browser; off in tests by default.
+    var browser = false
+    /// Offer `current_location` with the browser tools.
+    var location = false
 
     /// - Parameter messages: the API history up to and including the new user message.
     @MainActor
@@ -88,7 +92,7 @@ struct TurnRunner: Sendable {
         var finalReasoning = ""
         let toolsEnabled = endpoint.model.supportsTools
         let readsImages = endpoint.model.supportsImages
-        let toolList = ToolDefinition.available(python: python, images: readsImages)
+        let toolList = ToolDefinition.available(python: python, images: readsImages, browser: browser, location: location)
 
         var meter = compaction?.meter ?? ContextMeter()
         if restored != nil { meter = .estimate(messages) }
@@ -245,6 +249,7 @@ struct TurnRunner: Sendable {
                                                 result: out.text, isError: out.isError, sourceIDs: ids)
                     record.figures = out.figures.isEmpty ? nil : out.figures
                     record.viewedImage = out.viewedImage
+                    record.places = out.places
                     records.append(record)
                     outputs.append(out)
                     checkpoint.pendingResults?.removeAll { $0.callID == call.id }

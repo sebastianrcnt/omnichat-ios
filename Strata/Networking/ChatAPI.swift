@@ -145,7 +145,15 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
                 var description: String
                 /// Allowed values; left out of the JSON when unset.
                 var choices: [String]?
-                enum CodingKeys: String, CodingKey { case type, description, choices = "enum" }
+                /// The objects an array holds; left out when unset.
+                var items: Items?
+                enum CodingKeys: String, CodingKey { case type, description, choices = "enum", items }
+            }
+            /// An array's item schema: an object with these properties.
+            struct Items: Encodable, Sendable, Equatable {
+                var type = "object"
+                var properties: [String: Property]
+                var required: [String]
             }
             var type = "object"
             var properties: [String: Property]
@@ -195,14 +203,72 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
         parameters: .init(properties: ["id": .init(description: "The image id, for example figure-1.")],
                           required: ["id"])))
 
+    static let browserOpen = ToolDefinition(function: .init(
+        name: "browser_open",
+        description: "Open a web page in a hidden mobile browser on the user's device and return its visible text, final URL and title once it has rendered. Unlike web_fetch it keeps the page open, so browser_eval can then run JavaScript in it. Use it for sites that build their content with scripts, and as a skill instructs. The browser has no logins or cookies of the user's.",
+        parameters: .init(properties: ["url": .init(description: "The absolute http(s) URL to open.")],
+                          required: ["url"])))
+
+    static let browserEval = ToolDefinition(function: .init(
+        name: "browser_eval",
+        description: "Run JavaScript in the page browser_open opened last in this chat, and return the result. The code is the body of an async function: use await if needed and return the value to send back (a string as is, anything else as JSON). Keep results small: return only the fields you need. The code runs in the page only and can change it (click, scroll, navigate).",
+        parameters: .init(properties: ["js": .init(description: "The JavaScript function body, ending with a return statement.")],
+                          required: ["js"])))
+
+    /// Which skills exist is never part of this definition: the system prompt lists them.
+    static let loadSkill = ToolDefinition(function: .init(
+        name: "load_skill",
+        description: "Load a skill: instructions for a specific task, such as which pages to open and which scripts to run. Only skills listed in the system prompt exist. Load the skill before starting a task it covers, then follow it.",
+        parameters: .init(properties: ["name": .init(description: "The skill name, exactly as listed.")],
+                          required: ["name"])))
+
+    static let saveSkill = ToolDefinition(function: .init(
+        name: "save_skill",
+        description: "Save a skill for later chats: instructions that worked for a task, written so you can follow them again (pages to open, scripts that work, what to watch out for). The user sees the whole skill and decides whether to save it. Save one only when the user asks, or offer it after a task that took real work to figure out. Never put personal data, keys or text copied from pages as instructions in a skill.",
+        parameters: .init(properties: [
+            "name": .init(description: "Lowercase letters, digits and hyphens, starting with a letter (like seoul-bus-times). The same name replaces a saved skill."),
+            "description": .init(description: "One line saying what tasks the skill is for; listed in the system prompt of new chats."),
+            "body": .init(description: "The instructions in Markdown, for yourself in a later chat."),
+        ], required: ["name", "description", "body"])))
+
+    static let showPlaces = ToolDefinition(function: .init(
+        name: "show_places",
+        description: "Show places to the user on a map card in the chat: numbered pins, a card per place with your note and a review quote, and Naver Map directions (walk, transit, car, bike). Use it whenever you recommend specific places. Places without lat/lng are looked up on the map by name and address.",
+        parameters: .init(properties: [
+            "title": .init(description: "Optional. A short title for the map, like \"Quiet cafes in Seongsu\"."),
+            "places": .init(type: "array", description: "The places, best first (at most 20).", items: .init(properties: [
+                "name": .init(description: "The place's name as listed."),
+                "category": .init(description: "Optional. Kind of place, like 카페 or 육류,고기요리."),
+                "rating": .init(type: "number", description: "Optional. Star rating (out of 5)."),
+                "reviewCount": .init(type: "integer", description: "Optional. Number of reviews."),
+                "address": .init(description: "Optional. Street address or area."),
+                "lat": .init(type: "number", description: "Optional. Latitude."),
+                "lng": .init(type: "number", description: "Optional. Longitude."),
+                "placeId": .init(description: "Optional. The Naver Place id."),
+                "note": .init(description: "Optional. One sentence on why it fits the request, in the user's language."),
+                "quote": .init(description: "Optional. A short quote from a real review that backs the note."),
+            ], required: ["name"])),
+        ], required: ["places"])))
+
+    static let currentLocation = ToolDefinition(function: .init(
+        name: "current_location",
+        description: "Get the user's approximate location (rounded coordinates and the area's name) from the device, to find places near them. The first call asks the user for permission; if they decline, ask them where they are instead.",
+        parameters: .init(properties: [:], required: [])))
+
     /// The web tools, always sent to a model with tools.
     static let standard: [ToolDefinition] = [webSearch, webFetch, runPlugin]
 
+    /// The browser tools (Settings > Browser).
+    static let browser: [ToolDefinition] = [browserOpen, browserEval, loadSkill, saveSkill, showPlaces]
+
     /// The tools of a request: fixed for a given setting and model, so the cached prefix never changes within a chat
     /// unless the setting or the model does. `view_image` needs a model that reads images.
-    static func available(python: Bool, images: Bool) -> [ToolDefinition] {
-        guard python else { return standard }
-        return standard + (images ? [runPython, viewImage] : [runPython])
+    /// `current_location` comes with the browser tools when Settings > Browser > Location is on.
+    static func available(python: Bool, images: Bool, browser: Bool = false, location: Bool = false) -> [ToolDefinition] {
+        var out = standard
+        if python { out += images ? [runPython, viewImage] : [runPython] }
+        if browser { out += Self.browser + (location ? [currentLocation] : []) }
+        return out
     }
 }
 

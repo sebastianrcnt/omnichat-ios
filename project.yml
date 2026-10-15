@@ -29,7 +29,12 @@ targets:
           - "**/*.md"
           - Resources/PyRuntime
           - Resources/PyRuntime/**
+          - Resources/Skills
+          - Resources/Skills/**
       - path: Strata/Resources/PyRuntime
+        type: folder
+        buildPhase: resources
+      - path: Strata/Resources/Skills
         type: folder
         buildPhase: resources
     dependencies:
@@ -50,6 +55,7 @@ targets:
         INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: Strata saves figures you choose to your photo library.
         INFOPLIST_KEY_NSMicrophoneUsageDescription: Strata uses the microphone when you dictate a message.
         INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: Strata turns your dictation into text on this device.
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: Strata uses your approximate location when you ask the assistant to find places near you.
         INFOPLIST_KEY_UIUserInterfaceStyle: Automatic
         SWIFT_EMIT_LOC_STRINGS: YES
     info:
@@ -66,6 +72,8 @@ targets:
           - Pretendard-SemiBold.otf
           - Pretendard-Bold.otf
         UIFileSharingEnabled: true
+        LSApplicationQueriesSchemes:
+          - nmap
         LSSupportsOpeningDocumentsInPlace: true
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
@@ -80,7 +88,12 @@ targets:
           - Resources/Info.plist
           - Resources/PyRuntime
           - Resources/PyRuntime/**
+          - Resources/Skills
+          - Resources/Skills/**
       - path: Strata/Resources/PyRuntime
+        type: folder
+        buildPhase: resources
+      - path: Strata/Resources/Skills
         type: folder
         buildPhase: resources
     dependencies:
@@ -93,6 +106,7 @@ targets:
         com.apple.security.network.server: true # the 127.0.0.1 listener for the Sign in with ChatGPT redirect
         com.apple.security.files.user-selected.read-only: true
         com.apple.security.device.audio-input: true
+        com.apple.security.personal-information.location: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cc.coolservices.strata.mac
@@ -105,6 +119,8 @@ targets:
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         INFOPLIST_KEY_NSMicrophoneUsageDescription: Strata uses the microphone when you dictate a message.
         INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: Strata turns your dictation into text on this Mac.
+        INFOPLIST_KEY_NSLocationUsageDescription: Strata uses your approximate location when you ask the assistant to find places near you.
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: Strata uses your approximate location when you ask the assistant to find places near you.
         SWIFT_EMIT_LOC_STRINGS: YES
     info:
       path: StrataMac/Info.plist
