@@ -26,11 +26,16 @@ private func manyRounds(_ rounds: Int) -> [ProcessSegment] {
 
 @MainActor
 struct MessageLayoutTests {
-    @Test func aManyRoundTurnIsTheThoughtLineTheFeedAndTheAnswer() {
-        let segments = manyRounds(8)
-        #expect(segments.count == 24)
-        let items = MessageLayout.items(hasThought: true, hasActivity: true, isStreaming: false, hasAnswer: true)
-        #expect(items == [.thought, .feed(0), .text])
+    private func items(_ segments: [ProcessSegment], hasThought: Bool = true, liveCalls: Bool = false, streaming: Bool = false,
+                       working: Bool = false, answer: Bool = true) -> [MessageLayout.Item] {
+        MessageLayout.items(hasThought: hasThought, parts: MessageLayout.parts(segments: segments, hasLiveCalls: liveCalls),
+                            isStreaming: streaming, isWorking: working, hasAnswer: answer)
+    }
+
+    @Test func aManyRoundTurnShowsEachRoundInOrder() {
+        let segments = manyRounds(3)
+        #expect(items(segments) == [.reasoning(0), .note(1), .feed(0), .reasoning(3), .note(4), .feed(1),
+                                    .reasoning(6), .note(7), .feed(2), .text])
     }
 
     @Test func summaryCountsAndTitle() {
@@ -46,7 +51,7 @@ struct MessageLayoutTests {
     @Test func aSingleThinkingRoundIsOneRow() {
         let segments: [ProcessSegment] = [.init(index: 0, kind: .thinking, text: "hm", seconds: 4)]
         #expect(ProcessSummary(segments: segments).title == "Thought for 4s")
-        #expect(MessageLayout.items(hasThought: true, hasActivity: false, isStreaming: false, hasAnswer: true) == [.thought, .text])
+        #expect(items(segments) == [.reasoning(0), .text])
         // The time falls back to the message's total when the segment has none.
         let bare: [ProcessSegment] = [.init(index: 0, kind: .thinking, text: "hm")]
         #expect(ProcessSummary(segments: bare, fallbackSeconds: 7).seconds == 7)
@@ -59,20 +64,29 @@ struct MessageLayoutTests {
         #expect(ProcessSummary.duration(82) == "1m 22s")
     }
 
-    @Test func aRunningTurnAlwaysShowsTheThoughtLine() {
-        #expect(MessageLayout.items(hasThought: false, hasActivity: false, isStreaming: true, hasAnswer: false) == [.thought])
-        #expect(MessageLayout.items(hasThought: true, hasActivity: true, isStreaming: true, hasAnswer: false) == [.thought, .feed(0)])
-        #expect(MessageLayout.items(hasThought: true, hasActivity: true, isStreaming: true, hasAnswer: true) == [.thought, .feed(0), .text])
+    @Test func theLiveLineClosesTheWorkWhileTheModelWorks() {
+        let round: [ProcessSegment] = [.init(index: 0, kind: .thinking, text: "a", seconds: 2),
+                                       .init(index: 1, kind: .toolRound, calls: [search("s")])]
+        #expect(items([], hasThought: false, streaming: true, working: true, answer: false) == [.working])
+        #expect(items(round, liveCalls: true, streaming: true, working: true, answer: false) == [.reasoning(0), .feed(0), .working])
+        // Once the answer is being written the live line goes; the round's thought line stays where it was.
+        #expect(items(round, streaming: true, working: false) == [.reasoning(0), .feed(0), .text])
+        #expect(items(round) == [.reasoning(0), .feed(0), .text])
         // A finished answer without reasoning or tools is just the text.
-        #expect(MessageLayout.items(hasThought: false, hasActivity: false, isStreaming: false, hasAnswer: true) == [.text])
-        // A stopped turn with steps but no answer keeps its thought line and cards.
-        #expect(MessageLayout.items(hasThought: true, hasActivity: true, isStreaming: false, hasAnswer: false) == [.thought, .feed(0)])
+        #expect(items([], hasThought: false) == [.text])
+        // A stopped turn with steps but no answer keeps its lines and cards.
+        #expect(items(round, answer: false) == [.reasoning(0), .feed(0)])
+    }
+
+    @Test func aMessageWithoutRoundThinkingKeepsOneLineOnTop() {
+        let round: [ProcessSegment] = [.init(index: 0, kind: .toolRound, calls: [search("s")])]
+        #expect(items(round) == [.thought, .feed(0), .text])
+        #expect(items(round, hasThought: false) == [.feed(0), .text])
     }
 
     @Test func theTextBeingWrittenKeepsItsIdentityWhenTheAnswerIsFinal() {
-        let live = MessageLayout.items(hasThought: true, hasActivity: true, isStreaming: true, hasAnswer: true)
-        let done = MessageLayout.items(hasThought: true, hasActivity: true, isStreaming: false, hasAnswer: true)
-        #expect(live == done)
+        let round: [ProcessSegment] = [.init(index: 0, kind: .thinking, text: "a"), .init(index: 1, kind: .toolRound, calls: [search("s")])]
+        #expect(items(round, streaming: true) == items(round))
     }
 
     @Test func theAnswerStartsWhenTextArrivesWithNoCallRunning() {
@@ -82,25 +96,12 @@ struct MessageLayoutTests {
         #expect(!MessageLayout.answerStarted(isStreaming: true, pendingCount: 0, hasRoundText: false))
     }
 
-    @Test func aMultiRoundStreamKeepsOneThoughtLineAndOneFeed() {
-        // think -> tools -> think -> tools -> final text: the items never grow beyond three.
-        let states: [[MessageLayout.Item]] = [
-            MessageLayout.items(hasThought: false, hasActivity: false, isStreaming: true, hasAnswer: false),
-            MessageLayout.items(hasThought: true, hasActivity: true, isStreaming: true, hasAnswer: false),
-            MessageLayout.items(hasThought: true, hasActivity: true, isStreaming: true, hasAnswer: true),
-            MessageLayout.items(hasThought: true, hasActivity: true, isStreaming: false, hasAnswer: true),
-        ]
-        #expect(states.map(\.count) == [1, 2, 3, 3])
-        #expect(states.allSatisfy { $0.first == .thought })
-    }
-
-    @Test func preamblesAreNotShownSeparately() {
-        // Preamble text lives only in the segments (shown in the Timeline), never as its own row.
-        let segments = manyRounds(8)
-        let items = MessageLayout.items(hasThought: true, hasActivity: true, isStreaming: false, hasAnswer: true)
-        #expect(items.count == 3)
-        let preambles = segments.filter { $0.kind == .text }.map(\.text)
-        #expect(Set(preambles).count == preambles.count)
+    @Test func thinkingBetweenRoundsSplitsTheFeed() {
+        let segments: [ProcessSegment] = [.init(index: 0, kind: .toolRound, calls: [search("a")]),
+                                          .init(index: 1, kind: .thinking, text: "next", seconds: 3),
+                                          .init(index: 2, kind: .toolRound, calls: [search("b")])]
+        #expect(items(segments) == [.feed(0), .reasoning(1), .feed(1), .text])
+        #expect(MessageLayout.parts(segments: segments, hasLiveCalls: false)[1] == .thought(segment: 1, seconds: 3))
     }
 }
 
@@ -150,13 +151,14 @@ struct MessageLayoutControllerTests {
         #expect(running.map(\.status) == [.running], "the running search has its card")
         // The preamble stays on screen, as a note above the running round's feed.
         let liveParts = MessageLayout.parts(segments: assistant.segments, hasLiveCalls: !controller.roundRequested.isEmpty)
-        #expect(MessageLayout.items(hasThought: false, parts: liveParts, isStreaming: true, hasAnswer: false) == [.thought, .note(0), .feed(0)])
+        #expect(MessageLayout.items(hasThought: false, parts: liveParts, isStreaming: true, isWorking: true, hasAnswer: false)
+                == [.note(0), .feed(0), .working])
 
         gate.release()
         await controller.waitUntilIdle()
         let liveCalls = FeedCall.ordered(finished: assistant.segments.flatMap(\.calls), requested: [], roundFinished: [])
         let liveFinal = MessageLayout.items(hasThought: false, parts: MessageLayout.parts(segments: assistant.segments, hasLiveCalls: false),
-                                            isStreaming: false, hasAnswer: render.markdown.hasContent)
+                                            isStreaming: false, isWorking: false, hasAnswer: render.markdown.hasContent)
         #expect(liveFinal == [.note(0), .feed(0), .text])
         #expect(MessageLayout.fullText(segments: assistant.segments, answer: assistant.text) == "Let me search.\n\nThe answer.")
         #expect(assistant.text == "The answer.")
@@ -171,7 +173,7 @@ struct MessageLayoutControllerTests {
         let reloadedCalls = FeedCall.ordered(finished: reloaded.segments.flatMap(\.calls), requested: [], roundFinished: [])
         #expect(reloadedCalls == liveCalls)
         let reloadedLayout = MessageLayout.items(hasThought: false, parts: MessageLayout.parts(segments: reloaded.segments, hasLiveCalls: false),
-                                                 isStreaming: false, hasAnswer: reloadedRender.markdown.hasContent)
+                                                 isStreaming: false, isWorking: false, hasAnswer: reloadedRender.markdown.hasContent)
         #expect(reloadedLayout == liveFinal)
         #expect(ProcessSummary(segments: reloaded.segments) == ProcessSummary(segments: assistant.segments))
         #expect(ProcessSummary(segments: reloaded.segments).searches == 1)
@@ -192,10 +194,10 @@ struct MessagePartsTests {
             .init(index: 4, kind: .toolRound, calls: [search("c")]),
         ]
         let parts = MessageLayout.parts(segments: segments, hasLiveCalls: false)
-        #expect(parts == [.calls([search("a"), search("b")]), .note(segment: 3, text: "Found it. Checking one more thing."),
-                          .calls([search("c")])])
-        #expect(MessageLayout.items(hasThought: true, parts: parts, isStreaming: false, hasAnswer: true)
-                == [.thought, .feed(0), .note(3), .feed(1), .text])
+        #expect(parts == [.thought(segment: 0, seconds: nil), .calls([search("a"), search("b")]),
+                          .note(segment: 3, text: "Found it. Checking one more thing."), .calls([search("c")])])
+        #expect(MessageLayout.items(hasThought: true, parts: parts, isStreaming: false, isWorking: false, hasAnswer: true)
+                == [.reasoning(0), .feed(0), .note(3), .feed(1), .text])
     }
 
     @Test func liveCallsAfterANoteStartANewFeed() {

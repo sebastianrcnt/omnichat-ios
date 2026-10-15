@@ -2,13 +2,18 @@ import Foundation
 
 /// How one assistant message is laid out, live and finished, from the same inputs.
 ///
-/// One thought line (the sentence being thought while working, "Thought for Ns" once the answer starts), then the work
-/// in stream order: the activity feed (a card per search, pages read attached to their rows), broken wherever the model
-/// wrote to the person between tool rounds, with that text in between. Then the answer. The live text keeps the same
-/// identity when the answer is final, so it never jumps.
+/// The work in stream order: each round's thinking as a "Thought for Ns" line, the activity feed (a card per search, pages
+/// read attached to their rows) broken wherever the model thought or wrote to the person between tool rounds, and that
+/// text in between. While working, the sentence being thought sits at the end, where the work is happening. Then the
+/// answer. The live text keeps the same identity when the answer is final, so it never jumps.
 enum MessageLayout {
     enum Item: Equatable, Identifiable {
+        /// The whole message's thinking, for a message without per-round thinking segments.
         case thought
+        /// One round's thinking, by its segment index.
+        case reasoning(Int)
+        /// The live line at the end while the model works: the sentence being thought, or what it is doing.
+        case working
         /// The `n`th run of tool calls (counted from 0).
         case feed(Int)
         /// Text written between tool rounds, by its segment index.
@@ -19,6 +24,8 @@ enum MessageLayout {
         var id: String {
             switch self {
             case .thought: "thought"
+            case .reasoning(let n): "reasoning\(n)"
+            case .working: "working"
             case .feed(let n): n == 0 ? "feed" : "feed\(n)"
             case .note(let n): "note\(n)"
             case .text: "text"
@@ -32,6 +39,8 @@ enum MessageLayout {
         case calls([ToolCallRecord])
         /// What the model wrote before the next round's calls.
         case note(segment: Int, text: String)
+        /// A round's thinking.
+        case thought(segment: Int, seconds: Double?)
     }
 
     /// Rounds run together into one feed until the model writes something; that text sits between the feeds.
@@ -41,7 +50,9 @@ enum MessageLayout {
         for segment in segments {
             switch segment.kind {
             case .thinking:
-                continue
+                if !segment.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    out.append(.thought(segment: segment.index, seconds: segment.seconds))
+                }
             case .text:
                 let text = segment.text.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !text.isEmpty { out.append(.note(segment: segment.index, text: text)) }
@@ -72,11 +83,14 @@ enum MessageLayout {
     }
 
     /// - Parameters:
-    ///   - hasThought: the message has reasoning (a running turn always shows the line: it says what is happening).
+    ///   - hasThought: the message has reasoning. Without per-round thinking in `parts` (a message saved before rounds
+    ///     kept their thinking), a finished one shows it as one line at the top.
     ///   - parts: the work before the answer, from `parts(segments:hasLiveCalls:)`.
-    static func items(hasThought: Bool, parts: [Part], isStreaming: Bool, hasAnswer: Bool) -> [Item] {
+    ///   - isWorking: the turn runs and its answer hasn't started: the live line closes the work.
+    static func items(hasThought: Bool, parts: [Part], isStreaming: Bool, isWorking: Bool, hasAnswer: Bool) -> [Item] {
         var out: [Item] = []
-        if isStreaming || hasThought { out.append(.thought) }
+        let roundThoughts = parts.contains { if case .thought = $0 { true } else { false } }
+        if hasThought && !roundThoughts && !isStreaming { out.append(.thought) }
         var feeds = 0
         for part in parts {
             switch part {
@@ -85,15 +99,13 @@ enum MessageLayout {
                 feeds += 1
             case .note(let segment, _):
                 out.append(.note(segment))
+            case .thought(let segment, _):
+                out.append(.reasoning(segment))
             }
         }
+        if isStreaming && isWorking { out.append(.working) }
         if hasAnswer { out.append(.text) }
         return out
-    }
-
-    /// One feed of all the calls (`hasActivity`), as before notes split it.
-    static func items(hasThought: Bool, hasActivity: Bool, isStreaming: Bool, hasAnswer: Bool) -> [Item] {
-        items(hasThought: hasThought, parts: hasActivity ? [.calls([])] : [], isStreaming: isStreaming, hasAnswer: hasAnswer)
     }
 }
 

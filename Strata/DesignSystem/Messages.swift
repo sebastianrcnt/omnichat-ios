@@ -298,7 +298,13 @@ struct AssistantMessage: View {
 
     private func items(_ parts: [MessageLayout.Part]) -> [MessageLayout.Item] {
         MessageLayout.items(hasThought: hasThought, parts: parts, isStreaming: content.isStreaming,
-                            hasAnswer: render.markdown.hasContent)
+                            isWorking: !answerStarted, hasAnswer: render.markdown.hasContent)
+    }
+
+    private func thoughtSeconds(_ parts: [MessageLayout.Part]) -> [Int: Double?] {
+        var out: [Int: Double?] = [:]
+        for case .thought(let segment, let seconds) in parts { out[segment] = seconds }
+        return out
     }
 
     private var phaseLabel: String {
@@ -329,12 +335,17 @@ struct AssistantMessage: View {
     }
 
     @ViewBuilder
-    private func itemView(_ item: MessageLayout.Item, feeds: [[FeedCall]], notes: [Int: String]) -> some View {
+    private func itemView(_ item: MessageLayout.Item, feeds: [[FeedCall]], notes: [Int: String],
+                          thoughts: [Int: Double?]) -> some View {
         switch item {
         case .thought:
-            let working = content.isStreaming && !answerStarted
-            ThoughtLine(isWorking: working, seconds: content.thinkingSeconds,
-                        reasoning: working ? render.reasoning : nil, placeholder: phaseLabel,
+            ThoughtLine(isWorking: false, seconds: content.thinkingSeconds, placeholder: phaseLabel,
+                        action: onOpenReasoning, onDetails: onOpenTimeline)
+        case .reasoning(let segment):
+            ThoughtLine(isWorking: false, seconds: thoughts[segment] ?? nil, placeholder: phaseLabel,
+                        action: onOpenReasoning, onDetails: onOpenTimeline)
+        case .working:
+            ThoughtLine(isWorking: true, reasoning: render.reasoning, placeholder: phaseLabel,
                         action: onOpenReasoning, onDetails: onOpenTimeline)
         case .feed(let n):
             // A feed with a note after it is done: it folds like a feed does once the answer starts.
@@ -390,10 +401,11 @@ struct AssistantMessage: View {
         let parts = parts
         let feeds = feeds(parts)
         let notes = notes(parts)
+        let thoughts = thoughtSeconds(parts)
         let items = items(parts)
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
             ForEach(items) { item in
-                itemView(item, feeds: feeds, notes: notes)
+                itemView(item, feeds: feeds, notes: notes, thoughts: thoughts)
                     .transition(transition(item))
             }
             .animation(reduceMotion ? nil : DS.Motion.enter, value: items)

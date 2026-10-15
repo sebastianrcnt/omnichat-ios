@@ -750,6 +750,7 @@ final class TurnTracker {
     func beginTools(_ calls: [ToolCall]) {
         requested = calls
         finishedRecords = []
+        finishThinking() // the round's thinking time, for its line
         emitThinking()
         let preamble = roundContent.trimmingCharacters(in: .whitespacesAndNewlines)
         if !preamble.isEmpty { append(.init(index: 0, kind: .text, text: preamble)) }
