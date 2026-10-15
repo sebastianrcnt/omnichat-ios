@@ -22,8 +22,10 @@ struct OpenCodeConnectionEditor: View {
     @State private var apiKeyText = ""
     @State private var status: String?
     @State private var statusIsError = false
-    @State private var fetchStatus: String?
     @State private var fetching = false
+
+    /// This editor's fetch, or one from launch still running.
+    private var fetchingModels: Bool { fetching || connections.modelFetches[connectionID]?.running == true }
     @State private var editingModel: String?
     @State private var copied = false
     @State private var browser = DeviceSignInBrowser()
@@ -85,7 +87,7 @@ struct OpenCodeConnectionEditor: View {
                             }))
                     }
 
-                    GroupedSection(header: "Models", footer: fetchStatus.map { LocalizedStringKey($0) }) {
+                    GroupedSection(header: "Models", footer: connections.modelFetches[connectionID]?.footer.map { LocalizedStringKey($0) }) {
                         ForEach(connection.models) { model in
                             SettingsRow(modelID: model.id, alias: connection.alias(forModel: model.id) ?? model.fetchedDisplayName,
                                         subtitle: connection.showsInPicker(model.id)
@@ -94,7 +96,7 @@ struct OpenCodeConnectionEditor: View {
                                         value: model.effectiveContextLength(default: AppSettings.defaultContextLength).formatted(),
                                         showsChevron: true) { editingModel = model.id }
                         }
-                        SettingsRow(systemImage: "arrow.down.circle", title: fetching ? "Fetching…" : "Fetch models") {
+                        SettingsRow(systemImage: "arrow.down.circle", title: fetchingModels ? "Fetching…" : "Fetch models") {
                             Task { await fetch() }
                         }
                         .disabled(fetching || !signedIn)
@@ -277,7 +279,6 @@ struct OpenCodeConnectionEditor: View {
         c.baseURL = gateway.baseURL.absoluteString
         c.models = [] // each plan has its own models
         connections.upsert(c)
-        fetchStatus = nil
         if signedIn { Task { await fetch() } }
     }
 
@@ -291,14 +292,8 @@ struct OpenCodeConnectionEditor: View {
     private func fetch() async {
         fetching = true
         defer { fetching = false }
-        do {
-            let result = try await connections.refreshOpenCodeModels(for: connectionID)
-            fetchStatus = result.unsupported == 0
-                ? String(localized: "Fetched \(result.count) models.")
-                : String(localized: "Fetched \(result.count) models. \(result.unsupported) more use an API Strata doesn't support yet.")
-        } catch {
-            reload()
-            fetchStatus = error.localizedDescription
-        }
+        // How it went shows in the Models footer (`ConnectionStore.modelFetches`).
+        do { try await connections.refreshOpenCodeModels(for: connectionID) } catch { reload() }
     }
+
 }

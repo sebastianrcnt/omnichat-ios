@@ -22,6 +22,23 @@ struct ThoughtLine: View {
     var placeholder: String
     let action: () -> Void
     var onDetails: (() -> Void)?
+    /// What the live line was showing when this round's line took its place (a translation whose sentence the round's
+    /// last line isn't translated yet): kept until that translation comes, so the English doesn't flash in between.
+    @State private var carried: String?
+
+    /// - Parameter takesOverLive: this round's line is replacing the live one now (its message is streaming).
+    init(isWorking: Bool, line: String? = nil, seconds: Double? = nil, reasoning: ReasoningChunkModel? = nil,
+         placeholder: String, takesOverLive: Bool = false, action: @escaping () -> Void, onDetails: (() -> Void)? = nil) {
+        self.isWorking = isWorking
+        self.line = line
+        self.seconds = seconds
+        self.reasoning = reasoning
+        self.placeholder = placeholder
+        self.action = action
+        self.onDetails = onDetails
+        let untranslated = line.map { ThoughtTranslator.shared.result(for: $0) == nil } ?? false
+        _carried = State(initialValue: takesOverLive && untranslated ? ThoughtTranslator.shared.recentlyShown(within: 1.5) : nil)
+    }
 
     var body: some View {
         Button(action: action) {
@@ -68,7 +85,11 @@ struct ThoughtLine: View {
     }
 
     private var doneTitle: String {
-        if let line { return settings.translateThinking ? ThoughtTranslator.shared.result(for: line) ?? line : line }
+        if let line {
+            guard settings.translateThinking else { return line }
+            // Until the last sentence is translated, what the live line showed stays.
+            return ThoughtTranslator.shared.result(for: line) ?? carried ?? line
+        }
         guard let seconds else { return String(localized: "Thoughts") }
         return String(localized: "Thought for \(ProcessSummary.duration(seconds))")
     }

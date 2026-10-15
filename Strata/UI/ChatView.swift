@@ -51,6 +51,7 @@ struct ChatView: View {
     @State private var citationItem: SourceListItem?
     @State private var sourcesItem: SourceListItem?
     @State private var showRename = false
+    @State private var loadingModels = false
     #if DEBUG
     @State private var debugSelection: String?
     @State private var debugArtifact: ArtifactRef?
@@ -473,7 +474,8 @@ struct ChatView: View {
                           branch: branch, branchEnabled: !controller.isStreaming,
                           onSwitchBranch: { switchBranch(message, by: $0) },
                           onCopy: { Pasteboard.copy(message.text) },
-                          onEdit: controller.isStreaming ? nil : { beginEdit(message) })
+                          onEdit: controller.isStreaming ? nil : { beginEdit(message) },
+                          isEditing: editing?.id == message.id)
                 .modifier(SendFlyIn(active: message.id == flyingID))
         case .assistant:
             let active = controller.activeMessageID == message.id
@@ -636,12 +638,13 @@ struct ChatView: View {
         ComposerHost(
             draft: draft,
             isStreaming: isStreamingHere,
-            isBusy: controller.isStreaming,
+            isBusy: controller.isStreaming || loadingModels,
             busyElsewhere: controller.isStreaming && !isStreamingHere,
+            loadingModels: loadingModels,
             onShowBusy: showBusyChat,
             plusDimmed: !(selectedModel?.supportsImages ?? false),
             onAttach: attach,
-            onSend: send,
+            onSend: { send() },
             onStop: { controller.stop() },
             onCancelEdit: editing == nil ? nil : { withAnimation(DS.Motion.snappy) { cancelEdit() } },
             onPasteImages: pasteHandler,
@@ -738,13 +741,43 @@ struct ChatView: View {
     }
     #endif
 
-    private func send() {
+    /// No model to send with while a connection that can list models has none yet (right after install, before the
+    /// launch fetch is back, or after it failed).
+    private var needsModelList: Bool {
+        guard (conversation == nil ? selection.modelID : conversation?.modelID) == nil else { return false }
+        return connections.connections.contains { c in
+            c.models.isEmpty && (connections.apiKey(for: c.id) != nil || connections.isChatGPTSignedIn(c.id)
+                                 || connections.isOpenCodeSignedIn(c.id))
+        }
+    }
+
+    private func send(afterFetch: Bool = false) {
         // Nothing is cleared or created unless the controller will take it: another chat's reply may still be running.
-        guard !controller.isStreaming, draft.canSend else { return }
+        guard !controller.isStreaming, !loadingModels, draft.canSend else { return }
+        // Fetch the model list first, then send: the draft stays in the composer meanwhile. If no model comes, the
+        // send goes on and the chat says what's missing.
+        if !afterFetch, needsModelList {
+            loadingModels = true
+            Task { @MainActor in
+                for c in connections.connections where c.models.isEmpty {
+                    _ = try? await connections.refreshModels(for: c.id)
+                }
+                loadingModels = false
+                send(afterFetch: true)
+            }
+            return
+        }
         let sel = selection
         let target: Conversation
         if let existing = conversation {
             target = existing
+            // A chat made while there was no model takes the one there is now.
+            if existing.modelID == nil, let choice = ModelSelection.resolve(connections: connections.connections,
+                                                                         preferredConnectionID: settings.lastConnectionID,
+                                                                         preferredModelID: settings.lastModelID) {
+                existing.connectionID = choice.connectionID
+                existing.modelID = choice.modelID
+            }
         } else {
             target = Conversation(connectionID: sel.connectionID, modelID: sel.modelID, effort: sel.effort)
             context.insert(target)
@@ -963,6 +996,8 @@ private struct ComposerHost<Accessory: View>: View {
     let isStreaming: Bool
     let isBusy: Bool
     let busyElsewhere: Bool
+    /// The model list is being fetched before a send (`ChatView.send`).
+    var loadingModels = false
     let onShowBusy: () -> Void
     let plusDimmed: Bool
     let onAttach: () -> Void
@@ -989,7 +1024,7 @@ private struct ComposerHost<Accessory: View>: View {
             onRemoveAttachment: { id in draft.attachments.removeAll { $0.id == id } },
             onCancelEdit: onCancelEdit,
             onPasteImages: onPasteImages,
-            notice: busyElsewhere && draft.canSend ? "Another chat is still answering" : nil,
+            notice: loadingModels ? "Loading models…" : busyElsewhere && draft.canSend ? "Another chat is still answering" : nil,
             onNotice: onShowBusy,
             onSend: onSend,
             onStop: onStop,

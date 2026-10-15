@@ -197,7 +197,7 @@ extension ChatClient: ResumableChatStreaming {
                             for try await byte in bytes {
                                 try Task.checkCancellation()
                                 line.append(byte)
-                                if byte != 10 { continue }
+                                if byte != 0x0A && byte != 0x0D { continue } // CR alone also ends an SSE line
                                 let events = parser.feed(line)
                                 line.removeAll(keepingCapacity: true)
                                 if try handle(events) { continuation.finish(); return }

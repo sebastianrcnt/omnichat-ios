@@ -12,6 +12,8 @@ struct MessageBubble: View {
     var onCopy: (() -> Void)?
     /// Nil hides Edit (while a reply is streaming).
     var onEdit: (() -> Void)?
+    /// This is the message the composer is editing: outlined, with a label under it.
+    var isEditing = false
     @State private var copies = 0
     @State private var selecting = false
 
@@ -33,6 +35,11 @@ struct MessageBubble: View {
                         .padding(.horizontal, DS.Spacing.lg)
                         .padding(.vertical, DS.Spacing.md)
                         .background(theme.bubble, in: RoundedRectangle(cornerRadius: DS.Radius.bubble))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: DS.Radius.bubble)
+                                .strokeBorder(theme.accent, lineWidth: 1.5)
+                                .opacity(isEditing ? 1 : 0)
+                        }
                         .bubbleContextMenuShape()
                         .contextMenu {
                             if let onCopy { Button("Copy", systemImage: "doc.on.doc") { onCopy(); copies += 1 } }
@@ -42,10 +49,16 @@ struct MessageBubble: View {
                         .sensoryFeedback(.success, trigger: copies)
                         .sheet(isPresented: $selecting) { SelectableTextSheet(text: text) }
                 }
-                if let branch {
+                if isEditing {
+                    Label("Editing", systemImage: "pencil")
+                        .font(DS.Typography.uiCaption)
+                        .foregroundStyle(theme.accent)
+                        .transition(.opacity)
+                } else if let branch {
                     BranchSwitcher(position: branch, isEnabled: branchEnabled, onSwitch: onSwitchBranch)
                 }
             }
+            .animation(DS.Motion.snappy, value: isEditing)
         }
     }
 }
@@ -436,10 +449,10 @@ struct AssistantMessage: View {
         switch item {
         case .thought:
             ThoughtLine(isWorking: false, line: MessageLayout.lastLine(of: render.reasoning.text), seconds: content.thinkingSeconds,
-                        placeholder: phaseLabel, action: onOpenReasoning, onDetails: onOpenTimeline)
+                        placeholder: phaseLabel, takesOverLive: content.isStreaming, action: onOpenReasoning, onDetails: onOpenTimeline)
         case .reasoning(let segment):
             ThoughtLine(isWorking: false, line: thoughts[segment]?.line, seconds: thoughts[segment]?.seconds ?? nil,
-                        placeholder: phaseLabel, action: onOpenReasoning, onDetails: onOpenTimeline)
+                        placeholder: phaseLabel, takesOverLive: content.isStreaming, action: onOpenReasoning, onDetails: onOpenTimeline)
         case .working:
             ThoughtLine(isWorking: true, reasoning: toolRunning ? nil : render.reasoning, placeholder: phaseLabel,
                         action: onOpenReasoning, onDetails: onOpenTimeline)

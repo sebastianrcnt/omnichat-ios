@@ -175,7 +175,6 @@ final class ConnectionStore {
     /// Fetches `/models` and merges the result, keeping user-set flags for known ids.
     @discardableResult
     func refreshModels(for id: UUID) async throws -> Int {
-        if connection(id)?.isChatGPT == true { return try await refreshChatGPTModels(for: id) }
         if connection(id)?.isOpenCode == true { return try await refreshOpenCodeModels(for: id).count }
         guard let conn = connection(id), let base = conn.normalizedBaseURL else { throw APIError.invalidBaseURL }
         var headers: [String: String] = [:]
@@ -195,11 +194,44 @@ final class ConnectionStore {
                     existing.supportsImages = images
                 }
                 return existing
+    /// The last model-list fetch of each connection, from its editor or from launch: what the editor's Models section
+    /// says even when the fetch ran in the background. Not saved: every launch fetches again.
+    struct ModelFetch: Equatable {
+        var running = false
+        var finished: Date?
+        var count: Int?
+        var unsupported = 0
+        var error: String?
+    }
+
+    private(set) var modelFetches: [UUID: ModelFetch] = [:]
+
+    /// Runs a model-list fetch of `id` and records how it went in `modelFetches`.
+    private func tracked(_ id: UUID, _ fetch: () async throws -> (count: Int, unsupported: Int)) async throws
+        -> (count: Int, unsupported: Int) {
+        modelFetches[id, default: ModelFetch()].running = true
+        do {
+            let result = try await fetch()
+            modelFetches[id] = ModelFetch(finished: .now, count: result.count, unsupported: result.unsupported)
+            return result
+        } catch {
+            var failed = ModelFetch(finished: .now)
+            if !(error is CancellationError) { failed.error = error.localizedDescription }
+            modelFetches[id] = failed
+            throw error
+        }
+    }
+
             }
             return conn.defaultModel(id: entry.id, fetchedContextLength: entry.contextLength, fetchedImages: entry.supportsImages)
         }
         merged.append(contentsOf: manual)
         updated.models = merged
+        return try await tracked(id) { (try await fetchModels(for: id), 0) }.count
+    }
+
+    private func fetchModels(for id: UUID) async throws -> Int {
+        if connection(id)?.isChatGPT == true { return try await refreshChatGPTModels(for: id) }
         upsert(updated)
         return entries.count
     }
@@ -241,5 +273,22 @@ final class ConnectionStore {
         }
         upsert(updated)
         return (fetched.supported.count, fetched.unsupported.count)
+    }
+}
+        try await tracked(id) { try await fetchOpenCodeModels(for: id) }
+    }
+
+    private func fetchOpenCodeModels(for id: UUID) async throws -> (count: Int, unsupported: Int) {
+
+extension ConnectionStore.ModelFetch {
+    /// The Models section's footer: running, the error, or how many came and when.
+    var footer: String? {
+        if running { return String(localized: "Fetching models…") }
+        if let error { return String(localized: "Couldn't fetch models: \(error)") }
+        guard let count, let finished else { return nil }
+        let when = finished.formatted(.relative(presentation: .named))
+        var text = String(localized: "Fetched \(count) models \(when).")
+        if unsupported > 0 { text += " " + String(localized: "\(unsupported) more use an API Strata doesn't support yet.") }
+        return text
     }
 }

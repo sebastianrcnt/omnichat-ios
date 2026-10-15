@@ -80,7 +80,7 @@ struct ResponsesClient: ChatStreaming {
         }
         for try await byte in bytes {
             line.append(byte)
-            if byte == 0x0A {
+            if byte == 0x0A || byte == 0x0D { // SSE lines may end in CR alone; the parser joins CRLF across feeds
                 try handle(parser.feed(line))
                 line.removeAll(keepingCapacity: true)
                 if decoder.finished { return }

@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import os
 @testable import Strata
 
 /// Fixes from the code reviews: inputs that used to crash, hang, or lose data.
@@ -98,5 +99,36 @@ private extension Array where Element == UInt8 {
             for b in bytes { continuation.yield(b) }
             continuation.finish()
         }
+    }
+}
+
+/// SSE servers may end lines with CR alone: each event arrives as it is sent, not at the end of the stream.
+struct CROnlySSETests {
+    @Test func crOnlyLinesAreDeliveredAsTheyArrive() async throws {
+        let (bytes, input) = AsyncStream<UInt8>.makeStream()
+        let seen = OSAllocatedUnfairLock<[String]>(initialState: [])
+        let reader = Task {
+            try await ChatClient.consume(bytes) { delta in
+                if let t = delta.content { seen.withLock { $0.append(t) } }
+            }
+        }
+        for b in Array("data: {\"choices\":[{\"delta\":{\"content\":\"Hel\"}}]}\r\r".utf8) { input.yield(b) }
+        // The first event arrives while the stream is still open.
+        let deadline = ContinuousClock.now + .seconds(2)
+        while seen.withLock({ $0.isEmpty }), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(seen.withLock { $0 } == ["Hel"])
+        for b in Array("data: {\"choices\":[{\"delta\":{\"content\":\"lo\"},\"finish_reason\":\"stop\"}]}\r\rdata: [DONE]\r\r".utf8) {
+            input.yield(b)
+        }
+        input.finish()
+        try await reader.value
+        #expect(seen.withLock { $0 } == ["Hel", "lo"])
+    }
+
+    @Test func crlfStillCountsAsOneLineBreak() {
+        var parser = SSEParser()
+        var events = parser.feed("data: a\r")
+        events += parser.feed("\n\r\n")
+        #expect(events.map(\.data) == ["a"])
     }
 }

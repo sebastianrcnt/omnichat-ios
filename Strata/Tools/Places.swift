@@ -350,8 +350,11 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
     private nonisolated static let lastKnownLock = OSAllocatedUnfairLock<CLLocationCoordinate2D?>(initialState: nil)
 
     private let manager = CLLocationManager()
-    private var authorization: [CheckedContinuation<CLAuthorizationStatus, Never>] = []
-    private var fixes: [CheckedContinuation<CLLocation, Error>] = []
+    /// Callers waiting for the permission answer or a fix, by call. A cancelled call leaves at once (`leave`).
+    private var authorization: [UUID: CheckedContinuation<CLAuthorizationStatus, Never>] = [:]
+    private var fixes: [UUID: CheckedContinuation<CLLocation, Error>] = [:]
+    /// Calls cancelled before their continuation was stored.
+    private var leftEarly: Set<UUID> = []
 
     enum Failure: Error, LocalizedError {
         case denied, restricted, unavailable(String)
@@ -373,9 +376,15 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
     func currentLocation() async throws -> CLLocation {
         var status = manager.authorizationStatus
         if status == .notDetermined {
-            status = await withCheckedContinuation { cont in
-                authorization.append(cont)
-                manager.requestWhenInUseAuthorization()
+            let id = UUID()
+            status = await withTaskCancellationHandler {
+                await withCheckedContinuation { cont in
+                    if leftEarly.remove(id) != nil { cont.resume(returning: .notDetermined); return }
+                    authorization[id] = cont
+                    manager.requestWhenInUseAuthorization()
+                }
+            } onCancel: {
+                Task { @MainActor in self.leave(id) }
             }
         }
         switch status {
@@ -385,20 +394,34 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
         }
         // Stopped (or timed out) while the permission prompt was up: don't start a fix nobody waits for.
         try Task.checkCancellation()
-        let location = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<CLLocation, Error>) in
-            fixes.append(cont)
-            manager.requestLocation()
+        let id = UUID()
+        let location = try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<CLLocation, Error>) in
+                if leftEarly.remove(id) != nil { cont.resume(throwing: CancellationError()); return }
+                fixes[id] = cont
+                manager.requestLocation()
+            }
+        } onCancel: {
+            Task { @MainActor in self.leave(id) }
         }
         Self.lastKnown = location.coordinate
         return location
+    }
+
+    /// A cancelled call stops waiting: the permission wait gives back "not determined" (the caller then sees the
+    /// cancellation), a fix wait throws. Before the wait began, it is remembered so the wait ends as it starts.
+    private func leave(_ id: UUID) {
+        if let cont = authorization.removeValue(forKey: id) { cont.resume(returning: .notDetermined) }
+        else if let cont = fixes.removeValue(forKey: id) { cont.resume(throwing: CancellationError()) }
+        else { leftEarly.insert(id) }
     }
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
         Task { @MainActor in
             guard status != .notDetermined else { return }
-            let waiting = authorization
-            authorization = []
+            let waiting = authorization.values
+            authorization = [:]
             for cont in waiting { cont.resume(returning: status) }
         }
     }
@@ -406,8 +429,8 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let last = locations.last else { return }
         Task { @MainActor in
-            let waiting = fixes
-            fixes = []
+            let waiting = fixes.values
+            fixes = [:]
             for cont in waiting { cont.resume(returning: last) }
         }
     }
@@ -415,8 +438,8 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         let message = error.localizedDescription
         Task { @MainActor in
-            let waiting = fixes
-            fixes = []
+            let waiting = fixes.values
+            fixes = [:]
             for cont in waiting { cont.resume(throwing: Failure.unavailable(message)) }
         }
     }

@@ -278,6 +278,9 @@ final class ChatController {
     }
 
     static let cancelRetryWindow: TimeInterval = 600
+    /// How long after its message a cancel whose request the server doesn't know yet is kept for a later foreground.
+    /// Past it, the server has no stream left for the turn.
+    static let cancelLookupLifetime: TimeInterval = 3600
 
     private func cancelOnServer(_ message: Message, endpoint: Endpoint, context: ModelContext) {
         guard cancelTasks[message.id] == nil else { return }
@@ -307,7 +310,12 @@ final class ChatController {
                         // The original POST may still be in gateway authentication/routing.
                         try await RecoverySignals.shared.wait(seconds: 0.5)
                         continue
+                    } else if Date().timeIntervalSince(message.createdAt) < Self.cancelLookupLifetime {
+                        // Still no request for the key: it may yet arrive (a slow upload). Nothing was cancelled, so
+                        // the flag stays and the next foreground looks again (restorePending).
+                        break
                     }
+                    // A cancel went out, or the turn is too old for the server to still run it.
                     guard message.modelContext != nil, !message.isDeleted else { break }
                     message.cancelPending = false
                     message.clearResume()

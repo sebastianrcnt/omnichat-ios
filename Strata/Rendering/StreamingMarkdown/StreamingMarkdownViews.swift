@@ -832,6 +832,9 @@ struct ReasoningLinePreview: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.3), value: translationIdentity)
+        .onChange(of: translationIdentity, initial: true) { _, shown in
+            if !shown.isEmpty { ThoughtTranslator.shared.noteShown(shown) }
+        }
         .opacity(Self.opacity(hasThought: shown != nil || placeholder != nil, toolRunning: isDimmed))
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isDimmed)
         .onChange(of: model?.thought, initial: true) { _, latest in apply(latest) }

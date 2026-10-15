@@ -154,6 +154,9 @@ struct ConnectionEditor: View {
     @State private var hasKey = false
     @State private var fetchStatus: String?
     @State private var fetching = false
+
+    /// This editor's fetch, or one from launch still running.
+    private var fetchingModels: Bool { fetching || connections.modelFetches[connectionID]?.running == true }
     @State private var manualModel = ""
     @State private var keyError: String?
     @State private var editingModel: String?
@@ -223,7 +226,7 @@ struct ConnectionEditor: View {
                         Text(keyError).font(DS.Typography.uiCaption).foregroundStyle(theme.destructive)
                     }
 
-                    GroupedSection(header: "Models", footer: fetchStatus.map { LocalizedStringKey($0) }) {
+                    GroupedSection(header: "Models", footer: connections.modelFetches[connectionID]?.footer.map { LocalizedStringKey($0) }) {
                         ForEach(connection.models) { model in
                             SettingsRow(modelID: model.id, alias: connection.alias(forModel: model.id),
                                         subtitle: connection.showsInPicker(model.id)
@@ -232,7 +235,7 @@ struct ConnectionEditor: View {
                                         value: model.effectiveContextLength(default: AppSettings.defaultContextLength).formatted(),
                                         showsChevron: true) { editingModel = model.id }
                         }
-                        SettingsRow(systemImage: "arrow.down.circle", title: fetching ? "Fetching…" : "Fetch models") {
+                        SettingsRow(systemImage: "arrow.down.circle", title: fetchingModels ? "Fetching…" : "Fetch models") {
                             Task { await fetch() }
                         }
                         .disabled(fetching)

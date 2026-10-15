@@ -34,6 +34,18 @@ final class ThoughtTranslator {
     /// What to show for `text`, once known.
     func result(for text: String) -> String? { results[text] }
 
+    /// The translation the live thought line showed last, and when. When thinking ends, the round's line keeps it until
+    /// its own last sentence is translated, instead of flashing the English in between.
+    @ObservationIgnored private var lastShown: (text: String, at: ContinuousClock.Instant)?
+
+    func noteShown(_ text: String) { lastShown = (text, .now) }
+
+    /// The live line's last translation, if it showed one in the last `seconds`.
+    func recentlyShown(within seconds: Double) -> String? {
+        guard let lastShown, ContinuousClock.now - lastShown.at < .seconds(seconds) else { return nil }
+        return lastShown.text
+    }
+
     /// Asks for `text`; the newest request is translated next.
     func request(_ text: String) {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
