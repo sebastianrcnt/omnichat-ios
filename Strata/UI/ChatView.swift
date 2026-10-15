@@ -169,7 +169,7 @@ struct ChatView: View {
                     jumpButton
                     answerNowCapsule
                 }
-                .padding(.bottom, composerHeight + DS.Spacing.sm)
+                .padding(.bottom, composerHeight + Self.floatingGap)
             }
             // Where a language that is not installed yet is downloaded and the answer translated.
             .translationTask(controller.translation.configuration) { session in
@@ -364,7 +364,9 @@ struct ChatView: View {
                         CompactionStatusRow(start: controller.turnStart ?? .now)
                     }
                 }
-                Color.clear.frame(height: DS.Spacing.lg).id("bottom")
+                // The end of the chat sits one gap above the composer, or above "Answer now" while it can show.
+                Color.clear.frame(height: Self.floatingGap + (reservesAnswerNowRoom ? DS.IconSize.capsuleHeight + Self.floatingGap : 0))
+                    .id("bottom")
                     .onScrollVisibilityChange(threshold: 0.01) { atBottom = $0 } // true scroll position: is the end of the chat on screen?
                     .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(PinLayout.space)).minY } action: {
                         pin.contentEnd = $0
@@ -512,6 +514,15 @@ struct ChatView: View {
         savedDraft = nil
     }
 
+    /// One gap between the chat, the floating controls ("Answer now", the jump button) and the composer.
+    static let floatingGap = DS.Spacing.lg
+
+    /// "Answer now" can appear for this chat's running turn: the end of the chat leaves it room.
+    private var reservesAnswerNowRoom: Bool {
+        guard let conversation else { return false }
+        return controller.canAnswerNow && controller.activeConversationID == conversation.id
+    }
+
     private var jumpButton: some View {
         Group {
             if !atBottom && conversation != nil {
@@ -520,7 +531,7 @@ struct ChatView: View {
                     followsBottom = true
                     withAnimation(DS.Motion.spring) { position.scrollTo(id: "bottom", anchor: .bottom) }
                 }
-                .padding(.bottom, DS.Spacing.sm)
+                .padding(.bottom, Self.floatingGap)
                 .transition(.scale.combined(with: .opacity))
             }
         }
