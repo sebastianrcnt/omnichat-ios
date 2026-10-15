@@ -155,7 +155,7 @@ final class BrowserSessions {
 
     var idleLifetime: Duration = .seconds(600)
     /// Makes the page of a new session. Test seam; by default a hidden web view.
-    var makePage: @MainActor () -> any BrowserPage = { HiddenWebView(guardNavigations: true) }
+    var makePage: @MainActor () -> any BrowserPage = { HiddenWebView(guardNavigations: true, store: BrowserData.store) }
 
     @MainActor
     final class Session {
@@ -165,6 +165,8 @@ final class BrowserSessions {
         fileprivate var tail: Task<Void, Never>?
         /// A page was opened in this session.
         var hasPage = false
+        /// Calls running now; the idle sweep leaves a busy session alone (`browser_show` can wait minutes for the user).
+        var busy = 0
 
         init(page: any BrowserPage) { self.page = page }
     }
@@ -191,6 +193,8 @@ final class BrowserSessions {
         let previous = session.tail
         let task = Task { @MainActor () -> Result<T, Error> in
             await previous?.value
+            session.busy += 1
+            defer { session.busy -= 1; session.lastUsed = .now }
             do { return .success(try await operation(session)) } catch { return .failure(error) }
         }
         session.tail = Task { @MainActor in _ = await task.value }
@@ -224,7 +228,7 @@ final class BrowserSessions {
                 try? await Task.sleep(for: .seconds(60))
                 guard !Task.isCancelled else { return }
                 let now = ContinuousClock.now
-                for (key, session) in self.sessions where now - session.lastUsed >= self.idleLifetime { self.close(key) }
+                for (key, session) in self.sessions where session.busy == 0 && now - session.lastUsed >= self.idleLifetime { self.close(key) }
             }
             self?.sweeper = nil
         }
@@ -360,6 +364,71 @@ struct BrowserEvalTool {
             return ToolOutput(text: "Error: cancelled.", isError: true)
         } catch WebToolError.timeout {
             return ToolOutput(text: "Error: the script did not finish within \(FetchTimeouts.seconds(timeout)).", isError: true)
+        } catch {
+            return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true)
+        }
+    }
+}
+
+/// Pages the model asked the user to use (`browser_show`): the chat shows `pending` as a sheet with the page in it.
+@MainActor
+@Observable
+final class BrowserShowRequests {
+    static let shared = BrowserShowRequests()
+
+    struct Request: Identifiable {
+        let id = UUID()
+        /// Why the model wants the user there, in its words ("Sign in to X so I can read your feed").
+        let reason: String
+        let page: HiddenWebView
+    }
+
+    private var queue: [(request: Request, answer: CheckedContinuation<Bool, Never>)] = []
+
+    var pending: Request? { queue.first?.request }
+
+    /// Waits until the user taps Done (true) or closes the sheet (false). A cancelled turn closes it.
+    func ask(_ request: Request) async -> Bool {
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { cont in
+                if Task.isCancelled { cont.resume(returning: false); return }
+                queue.append((request, cont))
+            }
+        } onCancel: {
+            Task { @MainActor in self.answer(request.id, done: false) }
+        }
+    }
+
+    func answer(_ id: UUID, done: Bool) {
+        guard let i = queue.firstIndex(where: { $0.request.id == id }) else { return }
+        queue.remove(at: i).answer.resume(returning: done)
+    }
+}
+
+/// `browser_show(reason)`: shows the page `browser_open` opened to the user, so they can sign in, pass a check or do a
+/// step only they should do, and returns where the page is when they are done. Cookies from a sign-in are kept
+/// (`BrowserData`).
+struct BrowserShowTool {
+    var sessions: BrowserSessions?
+    var ask: @MainActor (BrowserShowRequests.Request) async -> Bool = { await BrowserShowRequests.shared.ask($0) }
+
+    @MainActor
+    func run(reason: String, conversation: UUID?) async -> ToolOutput {
+        let reason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ask = ask
+        do {
+            return try await (sessions ?? .shared).run(conversation: conversation) { session in
+                guard session.hasPage, let page = session.page as? HiddenWebView else {
+                    return ToolOutput(text: "Error: no page is open. Open it with browser_open first, then call browser_show.", isError: true)
+                }
+                let done = await ask(BrowserShowRequests.Request(reason: reason, page: page))
+                let place = [page.webView.title, page.webView.url?.absoluteString].compactMap { $0 }.filter { !$0.isEmpty }
+                    .joined(separator: " — ")
+                if done {
+                    return ToolOutput(text: "The user tapped Done. The page is now: \(place). Read it with browser_eval or open the next page with browser_open; a sign-in stays saved for later.")
+                }
+                return ToolOutput(text: "The user closed the browser without tapping Done. The page is now: \(place). Don't show it again unless they ask.", isError: true)
+            }
         } catch {
             return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true)
         }

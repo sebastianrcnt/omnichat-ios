@@ -413,6 +413,8 @@ struct ToolRouter: ToolExecuting {
                 return ToolOutput(text: "Error: missing required argument \"js\".", isError: true)
             }
             return await BrowserEvalTool().run(code: js, conversation: ToolContext.conversationID)
+        case ToolNames.browserShow:
+            return await BrowserShowTool().run(reason: args["reason"] as? String ?? "", conversation: ToolContext.conversationID)
         case ToolNames.loadSkill:
             guard let skill = args["name"] as? String else {
                 return ToolOutput(text: "Error: missing required argument \"name\".", isError: true)

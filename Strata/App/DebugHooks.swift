@@ -6,6 +6,8 @@ import Foundation
 ///   -StrataMockKey test-key                        store a fake key in the Keychain
 ///   -StrataFakeTools 1                             canned web_search/web_fetch results (no network)
 ///   -StrataAutoSend "hello"                        send a message right after launch
+///   -StrataAutoSendRepeat 8                        send it that many times (a long chat)
+///   -StrataDebugJump 1                             after the sends: scroll to the top, then press "Jump to bottom"
 ///   -StrataDebugBranch switch|editbar               after the first answer: edit + regenerate, or open edit mode
 ///   -StrataOpenSheet usage|model|settings|connection|attach|details|diagnostics   open a sheet right after launch
 ///   -StrataDraft "text"                            put text in the composer after launch (expanded composer)

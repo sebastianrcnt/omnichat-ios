@@ -49,6 +49,14 @@ enum SharedWebData {
     static let store = WKWebsiteDataStore.nonPersistent()
 }
 
+/// The model's browser (`browser_open`, `browser_eval`, skill scripts) keeps its own cookies on disk, apart from the
+/// search and fetch views: a site the user signed in to through `browser_show` stays signed in. It never sees Safari's.
+@MainActor
+enum BrowserData {
+    static let identifier = UUID(uuidString: "5D1A7E0B-6C1E-4C2B-9A55-B0B5E7C0F1E5")!
+    static let store = WKWebsiteDataStore(forIdentifier: identifier)
+}
+
 /// The page text extractor, read once from the bundle: Readability, then `Extractor.js` (which defines
 /// `strataExtract`), joined into one user script.
 enum ReadabilitySource {
@@ -82,9 +90,10 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage {
     /// Page-load estimate (0...1), as the web view reports it.
     var onProgress: (@MainActor (Double) -> Void)?
 
-    init(guardNavigations: Bool = true, resolver: any HostResolving = SystemHostResolver(), injectsReader: Bool = false) {
+    init(guardNavigations: Bool = true, resolver: any HostResolving = SystemHostResolver(), injectsReader: Bool = false,
+         store: WKWebsiteDataStore? = nil) {
         let config = WKWebViewConfiguration()
-        config.websiteDataStore = SharedWebData.store
+        config.websiteDataStore = store ?? SharedWebData.store
         config.defaultWebpagePreferences.allowsContentJavaScript = true
         if injectsReader, let source = ReadabilitySource.script {
             config.userContentController.addUserScript(WKUserScript(source: source, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
@@ -106,14 +115,45 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage {
             // KVO for a web view fires on the main thread.
             MainActor.assumeIsolated { self?.onProgress?(value) }
         }
+        park()
+    }
+
+    /// Puts the view back off screen (after `browser_show` lent it to a sheet): nearly transparent, untouchable.
+    func park() {
+        guard !disposed else { return }
         #if canImport(UIKit)
+        webView.alpha = 0.01
+        webView.isUserInteractionEnabled = false
+        webView.autoresizingMask = []
+        webView.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
         if let window = Self.keyWindow {
             window.insertSubview(webView, at: 0)
         }
         #else
+        webView.autoresizingMask = []
+        webView.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
         OffscreenWebHost.shared.attach(webView)
         #endif
     }
+
+    /// Lends the view to a container on screen, where the user can use it.
+    #if canImport(UIKit)
+    func show(in container: UIView) {
+        webView.removeFromSuperview()
+        webView.frame = container.bounds
+        webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        webView.alpha = 1
+        webView.isUserInteractionEnabled = true
+        container.addSubview(webView)
+    }
+    #else
+    func show(in container: NSView) {
+        webView.removeFromSuperview()
+        webView.frame = container.bounds
+        webView.autoresizingMask = [.width, .height]
+        container.addSubview(webView)
+    }
+    #endif
 
     #if canImport(UIKit)
     static var keyWindow: UIWindow? {

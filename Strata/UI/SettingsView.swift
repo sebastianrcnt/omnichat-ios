@@ -9,6 +9,7 @@ struct SettingsView: View {
 
     @State private var path: [UUID] = []
     @State private var showDiagnostics = false
+    @State private var showCookies = false
     @State private var showLicenses = false
 
     var body: some View {
@@ -166,6 +167,7 @@ struct SettingsView: View {
                         SettingsToggleRow(title: "Developer mode", isOn: $settings.developerMode)
                         if settings.developerMode {
                             SettingsRow(systemImage: "gauge.with.dots.needle.50percent", title: "Diagnostics", showsChevron: true) { showDiagnostics = true }
+                            SettingsRow(systemImage: "list.bullet.rectangle", title: "Browser cookies", showsChevron: true) { showCookies = true }
                         }
                     }
                 }
@@ -189,6 +191,7 @@ struct SettingsView: View {
                 }
             }
             .navigationDestination(isPresented: $showDiagnostics) { AppDiagnosticsView() }
+            .navigationDestination(isPresented: $showCookies) { BrowserCookiesView() }
             .navigationDestination(isPresented: $showLicenses) { LicensesView() }
         }
         .presentationBackground(theme.background)

@@ -24,6 +24,8 @@ struct ChatView: View {
     @State private var pinnedID: UUID?
     /// Set by the jump button: the view then sticks to the end while the answer grows, until the user scrolls or sends.
     @State private var followsBottom = false
+    /// The question just sent: its bubble flies up from the composer once (`SendFlyIn`).
+    @State private var flyingID: UUID?
     @State private var jumpRetry: Task<Void, Never>?
     /// Heights for the room under the pinned question; read only by `PinReserve`, so scrolling and streaming never
     /// re-evaluate this view.
@@ -191,6 +193,11 @@ struct ChatView: View {
                 SkillApprovalSheet(request: request) { SkillApprovals.shared.answer(request.id, approved: $0) }
                     .environment(\.theme, theme)
             }
+            .sheet(item: Binding(get: { BrowserShowRequests.shared.pending },
+                                 set: { if $0 == nil, let open = BrowserShowRequests.shared.pending { BrowserShowRequests.shared.answer(open.id, done: false) } })) { request in
+                BrowserShowSheet(request: request) { BrowserShowRequests.shared.answer(request.id, done: $0) }
+                    .environment(\.theme, theme)
+            }
             .sheet(isPresented: $showDetails) {
                 if let conversation {
                     ConversationDetailsSheet(conversation: conversation, contextLength: contextLength)
@@ -347,23 +354,27 @@ struct ChatView: View {
 
     private var messageList: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: DS.Spacing.xl) {
-                if let conversation {
-                    let tree = conversation.treeIndex
-                    let items = conversation.activePath.filter { !$0.isHiddenInTranscript }
-                    let summaries = conversation.compactions(anchoredIn: items)
-                    ForEach(items) { message in
-                        row(message, isLast: message.id == items.last?.id, branch: tree.branch(of: message.id))
-                            .id(message.id)
-                            .modifier(PinTopReader(isPinned: message.id == pinnedID, pin: pin))
-                        ForEach(summaries[message.id] ?? []) { record in
-                            CompactionDivider { compactionNotes = record }
+            VStack(alignment: .leading, spacing: DS.Spacing.xl) {
+                LazyVStack(alignment: .leading, spacing: DS.Spacing.xl) {
+                    if let conversation {
+                        let tree = conversation.treeIndex
+                        let items = conversation.activePath.filter { !$0.isHiddenInTranscript }
+                        let summaries = conversation.compactions(anchoredIn: items)
+                        ForEach(items) { message in
+                            row(message, isLast: message.id == items.last?.id, branch: tree.branch(of: message.id))
+                                .id(message.id)
+                                .modifier(PinTopReader(isPinned: message.id == pinnedID, pin: pin))
+                            ForEach(summaries[message.id] ?? []) { record in
+                                CompactionDivider { compactionNotes = record }
+                            }
+                        }
+                        if controller.compactingConversationID == conversation.id {
+                            CompactionStatusRow(start: controller.turnStart ?? .now)
                         }
                     }
-                    if controller.compactingConversationID == conversation.id {
-                        CompactionStatusRow(start: controller.turnStart ?? .now)
-                    }
                 }
+                // Outside the lazy stack, so it always exists: scrolling to it from far above works even before the
+                // rows near the end are laid out (a lazy child that far away isn't found, and the scroll did nothing).
                 // The end of the chat sits one gap above the composer, or above "Answer now" while it can show.
                 Color.clear.frame(height: Self.floatingGap + (reservesAnswerNowRoom ? DS.IconSize.capsuleHeight + Self.floatingGap : 0))
                     .id("bottom")
@@ -435,6 +446,7 @@ struct ChatView: View {
                           onSwitchBranch: { switchBranch(message, by: $0) },
                           onCopy: { Pasteboard.copy(message.text) },
                           onEdit: controller.isStreaming ? nil : { beginEdit(message) })
+                .modifier(SendFlyIn(active: message.id == flyingID))
         case .assistant:
             let active = controller.activeMessageID == message.id
             let translation = controller.translation.ui(for: message, isStreaming: active)
@@ -543,7 +555,13 @@ struct ChatView: View {
         // The end isn't on screen, so neither is the room under a pinned question: dropping it moves nothing.
         pinnedID = nil
         followsBottom = true
-        withAnimation(DS.Motion.spring) { scrollToEnd() }
+        // A short way animates; a long one jumps, since an animated scroll across rows the lazy stack hasn't laid out
+        // draws them blank on the way.
+        if pin.contentEnd - pin.visibleBottom < pin.viewport * 2 {
+            withAnimation(DS.Motion.spring) { scrollToEnd() }
+        } else {
+            scrollToEnd()
+        }
         jumpRetry?.cancel()
         jumpRetry = Task { @MainActor in
             for _ in 0..<6 {
@@ -555,10 +573,11 @@ struct ChatView: View {
     }
 
     /// The end of the chat. The same scroll asked twice is the same `ScrollPosition` value, which SwiftUI may ignore,
-    /// so it alternates between the end marker and the bottom edge (the same place without a pinned question).
+    /// so the anchor alternates by a hair. (Scrolling to the bottom edge instead jumps past rows the lazy stack hasn't
+    /// laid out yet, and the screen stays blank until the next scroll.)
     private func scrollToEnd() {
-        pin.endByEdge.toggle()
-        if pin.endByEdge && pinnedID == nil { position.scrollTo(edge: .bottom) } else { position.scrollTo(id: "bottom", anchor: .bottom) }
+        pin.endAnchorFlip.toggle()
+        position.scrollTo(id: "bottom", anchor: pin.endAnchorFlip ? .bottom : UnitPoint(x: 0.5, y: 0.999))
     }
 
     /// Holds the question being answered at the top: room is reserved under it, then one animated scroll puts it there.
@@ -686,6 +705,12 @@ struct ChatView: View {
             savedDraft = nil
         }
         controller.send(text: text, images: images, thumbnails: thumbnails, conversation: target, context: context, editing: edited)
+        let sent = target.activePath.last { $0.role == .user && !$0.isHiddenInTranscript }?.id
+        flyingID = sent
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1))
+            if flyingID == sent { flyingID = nil } // a row laid out again later doesn't fly a second time
+        }
         pinLatestQuestion()
     }
 
@@ -782,13 +807,23 @@ struct ChatView: View {
         if let text = DebugHooks.autoSend, conversation == nil, !DebugHooks.autoSendFired {
             DebugHooks.autoSendFired = true // New Chat later must not send it again
             try? await Task.sleep(for: .seconds(1.5))
-            draft.text = text
-            send()
-            for _ in 0..<200 {
-                try? await Task.sleep(for: .milliseconds(200))
-                if !controller.isStreaming { break }
+            // `-StrataAutoSendRepeat N` sends it N times, each after the last answer, for a long chat.
+            let times = max(1, DebugHooks.value("StrataAutoSendRepeat").flatMap(Int.init) ?? 1)
+            for _ in 0..<times {
+                draft.text = text
+                send()
+                for _ in 0..<200 {
+                    try? await Task.sleep(for: .milliseconds(200))
+                    if !controller.isStreaming { break }
+                }
+                try? await Task.sleep(for: .seconds(1))
             }
-            try? await Task.sleep(for: .seconds(1))
+            // `-StrataDebugJump 1`: scroll to the top, then press the jump button.
+            if DebugHooks.value("StrataDebugJump") != nil {
+                position.scrollTo(edge: .top)
+                try? await Task.sleep(for: .seconds(3))
+                jumpToBottom()
+            }
         } else if DebugHooks.autoSend != nil {
             return
         } else {
@@ -885,8 +920,8 @@ final class PinLayout {
     /// The visible height (between the header and the composer).
     var viewport: CGFloat = 0
     @ObservationIgnored var visibleBottom: CGFloat = 0
-    /// Alternates the end scroll's target, so asking again is a new value and never a no-op (`ChatView.scrollToEnd`).
-    @ObservationIgnored var endByEdge = false
+    /// Alternates the end scroll's anchor, so asking again is a new value and never a no-op (`ChatView.scrollToEnd`).
+    @ObservationIgnored var endAnchorFlip = false
 
     /// Room under the transcript so the pinned question can sit at the top of the screen.
     var reserve: CGFloat { Self.reserve(viewport: viewport, pinnedTop: pinnedTop, contentEnd: contentEnd) }
@@ -917,4 +952,29 @@ private struct PinTopReader: ViewModifier {
 private struct PinReserve: View {
     let pin: PinLayout
     var body: some View { Color.clear.frame(height: pin.reserve).accessibilityHidden(true) }
+}
+
+/// A sent question's bubble rises from the composer into its place, like a sent iMessage: it starts lower, a little
+/// smaller and faint, and springs up as the chat scrolls the question to the top.
+private struct SendFlyIn: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let active: Bool
+    @State private var settled: Bool
+
+    init(active: Bool) {
+        self.active = active
+        _settled = State(initialValue: !active)
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(settled ? 1 : 0.9, anchor: .bottomTrailing)
+            .offset(y: settled ? 0 : 140)
+            .opacity(settled ? 1 : 0.3)
+            .onAppear {
+                guard !settled else { return }
+                if reduceMotion { settled = true; return }
+                withAnimation(.spring(response: 0.42, dampingFraction: 0.78)) { settled = true }
+            }
+    }
 }
