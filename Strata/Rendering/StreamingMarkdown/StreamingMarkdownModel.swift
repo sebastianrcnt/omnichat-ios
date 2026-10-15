@@ -240,6 +240,8 @@ final class ReasoningChunkModel {
 
     /// Everything revealed so far.
     @ObservationIgnored private(set) var text = ""
+    /// UTF-8 offset where the current section starts: the preview shows only sentences from it.
+    @ObservationIgnored private var sectionStart = 0
     @ObservationIgnored private var reveal = RevealController()
     @ObservationIgnored private var tickScheduled = false
     @ObservationIgnored private let activation = ActivationFlush()
@@ -259,6 +261,7 @@ final class ReasoningChunkModel {
         finalized = []
         tail = ""
         text = ""
+        sectionStart = 0
         thought = nil
         freshSpans = []
         reveal = RevealController()
@@ -279,6 +282,8 @@ final class ReasoningChunkModel {
     func beginSection() {
         revealAll()
         if !text.isEmpty && !text.hasSuffix("\n\n") { consume("\n\n") }
+        sectionStart = text.utf8.count
+        if thought != nil { thought = nil }
     }
 
     func revealAll() {
@@ -336,7 +341,7 @@ final class ReasoningChunkModel {
         }
         if !newChunks.isEmpty { finalized.append(contentsOf: newChunks) }
         tail = String(buffer[paragraphStart...])
-        let sentence = ThoughtSentences.latest(in: text)
+        let sentence = ThoughtSentences.latest(in: text).flatMap { $0.start >= sectionStart ? $0 : nil }
         if sentence != thought { thought = sentence }
         if !hasContent, !text.isEmpty { hasContent = true }
     }

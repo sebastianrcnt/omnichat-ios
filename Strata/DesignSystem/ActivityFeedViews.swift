@@ -11,6 +11,8 @@ import SwiftUI
 struct ThoughtLine: View {
     @Environment(\.theme) private var theme
     let isWorking: Bool
+    /// The last line of the finished thinking (done only).
+    var line: String?
     var seconds: Double?
     /// The live reasoning (working only).
     var reasoning: ReasoningChunkModel?
@@ -24,11 +26,14 @@ struct ThoughtLine: View {
             HStack(spacing: DS.Spacing.sm) {
                 if isWorking {
                     PulsingDot()
+                    // A new preview per state: after a tool, the slot starts from the placeholder, not the old thought.
                     ReasoningLinePreview(model: reasoning, font: DS.Typography.thought, color: theme.textSecondary,
                                          placeholder: placeholder)
+                        .id(reasoning == nil ? "placeholder" : "reasoning")
                 } else {
                     Text(verbatim: "✦").font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
-                    Text(doneTitle).font(DS.Typography.thought).foregroundStyle(theme.textSecondary).lineLimit(1)
+                    Text(doneTitle).font(DS.Typography.thought).foregroundStyle(theme.textSecondary)
+                        .lineLimit(1).truncationMode(.tail)
                     Image(systemName: "chevron.right")
                         .font(.system(size: DS.IconSize.sm - 3, weight: .semibold)).foregroundStyle(theme.textTertiary)
                     Spacer(minLength: 0)
@@ -45,6 +50,7 @@ struct ThoughtLine: View {
     }
 
     private var doneTitle: String {
+        if let line { return line }
         guard let seconds else { return String(localized: "Thoughts") }
         return String(localized: "Thought for \(ProcessSummary.duration(seconds))")
     }

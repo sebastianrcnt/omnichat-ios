@@ -39,8 +39,8 @@ enum MessageLayout {
         case calls([ToolCallRecord])
         /// What the model wrote before the next round's calls.
         case note(segment: Int, text: String)
-        /// A round's thinking.
-        case thought(segment: Int, seconds: Double?)
+        /// A round's thinking, shown by its last line.
+        case thought(segment: Int, seconds: Double?, line: String)
     }
 
     /// Rounds run together into one feed until the model writes something; that text sits between the feeds.
@@ -50,8 +50,8 @@ enum MessageLayout {
         for segment in segments {
             switch segment.kind {
             case .thinking:
-                if !segment.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    out.append(.thought(segment: segment.index, seconds: segment.seconds))
+                if let line = lastLine(of: segment.text) {
+                    out.append(.thought(segment: segment.index, seconds: segment.seconds, line: line))
                 }
             case .text:
                 let text = segment.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -66,6 +66,20 @@ enum MessageLayout {
             if case .calls? = out.last {} else { out.append(.calls([])) }
         }
         return out
+    }
+
+    /// The last line of some reasoning, as plain text for a one-line label: markdown marks (headings, list bullets,
+    /// emphasis, code ticks) removed. Nil when there is nothing to show.
+    static func lastLine(of text: String) -> String? {
+        for raw in text.split(whereSeparator: \.isNewline).reversed() {
+            var line = raw.trimmingCharacters(in: .whitespaces)
+            while let first = line.first, "#>".contains(first) { line.removeFirst(); line = line.trimmingCharacters(in: .whitespaces) }
+            for bullet in ["- ", "* ", "+ "] where line.hasPrefix(bullet) { line.removeFirst(2) }
+            for mark in ["**", "__", "`"] { line = line.replacingOccurrences(of: mark, with: "") }
+            line = line.trimmingCharacters(in: .whitespaces)
+            if line.contains(where: { $0.isLetter || $0.isNumber }) { return line }
+        }
+        return nil
     }
 
     /// Everything the model wrote to the person in this message: the notes between rounds, then the answer.
@@ -99,7 +113,7 @@ enum MessageLayout {
                 feeds += 1
             case .note(let segment, _):
                 out.append(.note(segment))
-            case .thought(let segment, _):
+            case .thought(let segment, _, _):
                 out.append(.reasoning(segment))
             }
         }

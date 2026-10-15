@@ -301,10 +301,16 @@ struct AssistantMessage: View {
                             isWorking: !answerStarted, hasAnswer: render.markdown.hasContent)
     }
 
-    private func thoughtSeconds(_ parts: [MessageLayout.Part]) -> [Int: Double?] {
-        var out: [Int: Double?] = [:]
-        for case .thought(let segment, let seconds) in parts { out[segment] = seconds }
+    private func thoughtLines(_ parts: [MessageLayout.Part]) -> [Int: (line: String, seconds: Double?)] {
+        var out: [Int: (line: String, seconds: Double?)] = [:]
+        for case .thought(let segment, let seconds, let line) in parts { out[segment] = (line, seconds) }
         return out
+    }
+
+    /// A tool is running: the live line says what it does, not the thought from before the call.
+    private var toolRunning: Bool {
+        if case .tool = content.phase { return true }
+        return !content.pending.isEmpty
     }
 
     private var phaseLabel: String {
@@ -336,16 +342,16 @@ struct AssistantMessage: View {
 
     @ViewBuilder
     private func itemView(_ item: MessageLayout.Item, feeds: [[FeedCall]], notes: [Int: String],
-                          thoughts: [Int: Double?]) -> some View {
+                          thoughts: [Int: (line: String, seconds: Double?)]) -> some View {
         switch item {
         case .thought:
-            ThoughtLine(isWorking: false, seconds: content.thinkingSeconds, placeholder: phaseLabel,
-                        action: onOpenReasoning, onDetails: onOpenTimeline)
+            ThoughtLine(isWorking: false, line: MessageLayout.lastLine(of: render.reasoning.text), seconds: content.thinkingSeconds,
+                        placeholder: phaseLabel, action: onOpenReasoning, onDetails: onOpenTimeline)
         case .reasoning(let segment):
-            ThoughtLine(isWorking: false, seconds: thoughts[segment] ?? nil, placeholder: phaseLabel,
-                        action: onOpenReasoning, onDetails: onOpenTimeline)
+            ThoughtLine(isWorking: false, line: thoughts[segment]?.line, seconds: thoughts[segment]?.seconds ?? nil,
+                        placeholder: phaseLabel, action: onOpenReasoning, onDetails: onOpenTimeline)
         case .working:
-            ThoughtLine(isWorking: true, reasoning: render.reasoning, placeholder: phaseLabel,
+            ThoughtLine(isWorking: true, reasoning: toolRunning ? nil : render.reasoning, placeholder: phaseLabel,
                         action: onOpenReasoning, onDetails: onOpenTimeline)
         case .feed(let n):
             // A feed with a note after it is done: it folds like a feed does once the answer starts.
@@ -401,7 +407,7 @@ struct AssistantMessage: View {
         let parts = parts
         let feeds = feeds(parts)
         let notes = notes(parts)
-        let thoughts = thoughtSeconds(parts)
+        let thoughts = thoughtLines(parts)
         let items = items(parts)
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
             ForEach(items) { item in

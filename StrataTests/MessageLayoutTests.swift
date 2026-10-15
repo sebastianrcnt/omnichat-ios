@@ -101,7 +101,7 @@ struct MessageLayoutTests {
                                           .init(index: 1, kind: .thinking, text: "next", seconds: 3),
                                           .init(index: 2, kind: .toolRound, calls: [search("b")])]
         #expect(items(segments) == [.feed(0), .reasoning(1), .feed(1), .text])
-        #expect(MessageLayout.parts(segments: segments, hasLiveCalls: false)[1] == .thought(segment: 1, seconds: 3))
+        #expect(MessageLayout.parts(segments: segments, hasLiveCalls: false)[1] == .thought(segment: 1, seconds: 3, line: "next"))
     }
 }
 
@@ -181,6 +181,26 @@ struct MessageLayoutControllerTests {
 }
 
 struct MessagePartsTests {
+    @Test func aThoughtLineIsItsLastLineWithoutMarkdown() {
+        #expect(MessageLayout.lastLine(of: "**Planning**\n\nFirst I search.\nThen I read `the page`.\n\n") == "Then I read the page.")
+        #expect(MessageLayout.lastLine(of: "## Checking sources\n- ") == "Checking sources")
+        #expect(MessageLayout.lastLine(of: "- **Also** Marmot?") == "Also Marmot?")
+        #expect(MessageLayout.lastLine(of: " \n\n") == nil)
+    }
+
+    @Test @MainActor func aNewSectionDropsTheOldSentenceFromThePreview() {
+        let model = ReasoningChunkModel(smoothing: false)
+        model.isDisplayActive = { false }
+        model.append("Also Marmot?")
+        model.revealAll()
+        #expect(model.thought?.text == "Also Marmot?")
+        model.beginSection()
+        #expect(model.thought == nil)
+        model.append("Now the reviews.")
+        model.revealAll()
+        #expect(model.thought?.text == "Now the reviews.")
+    }
+
     private func search(_ id: String) -> ToolCallRecord {
         ToolCallRecord(id: id, name: "web_search", arguments: "{\"query\":\"q\"}", result: "", isError: false)
     }
@@ -194,7 +214,7 @@ struct MessagePartsTests {
             .init(index: 4, kind: .toolRound, calls: [search("c")]),
         ]
         let parts = MessageLayout.parts(segments: segments, hasLiveCalls: false)
-        #expect(parts == [.thought(segment: 0, seconds: nil), .calls([search("a"), search("b")]),
+        #expect(parts == [.thought(segment: 0, seconds: nil, line: "hmm"), .calls([search("a"), search("b")]),
                           .note(segment: 3, text: "Found it. Checking one more thing."), .calls([search("c")])])
         #expect(MessageLayout.items(hasThought: true, parts: parts, isStreaming: false, isWorking: false, hasAnswer: true)
                 == [.reasoning(0), .feed(0), .note(3), .feed(1), .text])
