@@ -898,6 +898,16 @@ struct ChatView: View {
                 position.scrollTo(edge: .top)
                 try? await Task.sleep(for: .seconds(3))
                 jumpToBottom()
+                // How long the main thread stalls while the jump lays the rows out (printed for smoke runs).
+                let clock = ContinuousClock()
+                var last = clock.now, worst = Duration.zero
+                let end = last + .seconds(4)
+                while clock.now < end {
+                    try? await Task.sleep(for: .milliseconds(16))
+                    worst = max(worst, clock.now - last)
+                    last = clock.now
+                }
+                print("StrataDebugJump worst main-thread gap:", worst, "atBottom:", atBottom)
             }
         } else if DebugHooks.autoSend != nil {
             return
