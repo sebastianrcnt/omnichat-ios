@@ -229,9 +229,7 @@ struct ConnectionEditor: View {
                     GroupedSection(header: "Models", footer: connections.modelFetches[connectionID]?.footer.map { LocalizedStringKey($0) }) {
                         ForEach(connection.models) { model in
                             SettingsRow(modelID: model.id, alias: connection.alias(forModel: model.id),
-                                        subtitle: connection.showsInPicker(model.id)
-                                            ? model.capabilitiesSummary
-                                            : [String(localized: "Hidden"), model.capabilitiesSummary].compactMap { $0 }.joined(separator: " · "),
+                                        subtitle: connection.modelRowSubtitle(model),
                                         value: model.effectiveContextLength(default: AppSettings.defaultContextLength).formatted(),
                                         showsChevron: true) { editingModel = model.id }
                         }
@@ -370,6 +368,9 @@ struct ModelEditor: View {
                     SettingsToggleRow(title: "Supports tools", subtitle: "Lets the model use web search, Python, the browser and plugins.",
                                       isOn: Binding(get: { model.supportsTools }, set: { v in update { $0.supportsTools = v } }))
                 }
+                if connections.connection(connectionID)?.kind == .openAICompatible {
+                    ModelAPISection(connectionID: connectionID, modelID: modelID)
+                }
                 if model.isManual {
                     GroupedSection {
                         SettingsRow(systemImage: "trash", title: "Remove model", isDestructive: true) {
@@ -389,6 +390,48 @@ struct ModelEditor: View {
             let capped = String(text.prefix(ModelAlias.maxLength))
             if capped != text { aliasText = capped; return }
             connections.setModelAlias(text, connectionID: connectionID, modelID: modelID)
+        }
+    }
+}
+
+/// The API an OpenAI-compatible model is talked to with: Automatic (Chat Completions, switching to the Responses API when
+/// the server says the model needs it) or one picked by hand.
+private struct ModelAPISection: View {
+    @Environment(\.theme) private var theme
+    @Environment(\.connectionStore) private var connections
+    let connectionID: UUID
+    let modelID: String
+
+    private var connection: Connection? { connections.connection(connectionID) }
+
+    private var footer: LocalizedStringKey {
+        guard let connection else { return "" }
+        if let picked = connection.modelAPIOverrides[modelID] {
+            return picked == .responses
+                ? "Requests always use the Responses API. Replies through it can't be resumed."
+                : "Requests always use Chat Completions."
+        }
+        if connection.detectedModelAPIs[modelID] == .responses {
+            return "Using the Responses API: this model refused Chat Completions and answered there."
+        }
+        return "Using Chat Completions. Switches to the Responses API if the server says this model needs it."
+    }
+
+    var body: some View {
+        GroupedSection(header: "API", footer: footer) {
+            HStack {
+                Text("API").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
+                Spacer()
+                Picker("API", selection: Binding(get: { connection?.modelAPIOverrides[modelID] },
+                                                 set: { connections.setModelAPIOverride($0, connectionID: connectionID, modelID: modelID) })) {
+                    Text("Automatic").tag(ChatAPI?.none)
+                    ForEach(ChatAPI.allCases, id: \.self) { Text($0.title).tag(ChatAPI?.some($0)) }
+                }
+                .labelsHidden()
+                .tint(theme.textSecondary)
+            }
+            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.vertical, DS.Spacing.sm)
         }
     }
 }

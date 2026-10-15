@@ -36,7 +36,8 @@ struct ChatClient: ChatStreaming {
     /// Tokens for OpenCode connections, whose requests go to the API family of each model.
     var openCodeTokens: any OpenCodeTokenProviding = OpenCodeAuth.shared
 
-    /// Chat Completions, or for a ChatGPT connection the Responses API, or for an OpenCode connection the model's API.
+    /// Chat Completions (or the Responses API for a model that needs it, see `ResponsesFallback`), or for a ChatGPT
+    /// connection the ChatGPT Responses route, or for an OpenCode connection the model's API.
     /// Routing here means every request that goes through the app's streamer (turns, compaction, titles) reaches the
     /// right API.
     func stream(_ request: ChatRequest, endpoint: Endpoint) -> AsyncThrowingStream<ChatDelta, Error> {
@@ -49,6 +50,11 @@ struct ChatClient: ChatStreaming {
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
+                    if endpoint.chatAPI == .responses {
+                        try await StandardResponses.run(request, endpoint: endpoint, session: session, into: continuation)
+                        continuation.finish()
+                        return
+                    }
                     let body = try request.encoded()
                     var req = HTTP.makeRequest(url: endpoint.baseURL.appendingPathComponent("chat/completions"),
                                                endpoint: endpoint, method: "POST", body: body)
@@ -58,7 +64,14 @@ struct ChatClient: ChatStreaming {
                     if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
                         var errorData = Data()
                         for try await b in bytes { errorData.append(b); if errorData.count > 4096 { break } }
-                        throw APIError.http(status: http.statusCode, message: HTTP.errorMessage(from: errorData))
+                        let refused = APIError.http(status: http.statusCode, message: HTTP.errorMessage(from: errorData))
+                        // Refused before any of the answer: a model that only answers the Responses API gets one try there.
+                        guard let route = endpoint.apiRoute, route.automatic,
+                              ResponsesFallback.shouldSwitch(status: http.statusCode, body: errorData) else { throw refused }
+                        try await StandardResponses.run(request, endpoint: endpoint, session: session, into: continuation,
+                                                        fallbackError: refused) { route.detected(.responses) }
+                        continuation.finish()
+                        return
                     }
                     try await Self.consume(bytes) { continuation.yield($0) }
                     continuation.finish()

@@ -109,6 +109,11 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
     var hiddenModelIDs: Set<String> = []
     /// The gateway of an OpenCode connection (nil on other kinds).
     var openCodeGateway: OpenCodeGateway?
+    /// OpenAI-compatible only: the API each model turned out to need (see `ResponsesFallback`), keyed by model id.
+    /// Kept apart from `models` like the aliases, so it survives `/models` refreshes.
+    var detectedModelAPIs: [String: ChatAPI] = [:]
+    /// OpenAI-compatible only: the API the user picked for a model. No entry means Automatic.
+    var modelAPIOverrides: [String: ChatAPI] = [:]
 
     init(id: UUID = UUID(), kind: Kind = .openAICompatible, name: String, baseURL: String, customHeaders: String = "",
          models: [ModelInfo] = [], supportsResumable: Bool? = nil) {
@@ -133,6 +138,8 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
         modelAliases = try c.decodeIfPresent([String: String].self, forKey: .modelAliases) ?? [:]
         hiddenModelIDs = try c.decodeIfPresent(Set<String>.self, forKey: .hiddenModelIDs) ?? []
         openCodeGateway = try c.decodeIfPresent(OpenCodeGateway.self, forKey: .openCodeGateway)
+        detectedModelAPIs = ChatAPI.decodeMap(c, forKey: .detectedModelAPIs)
+        modelAPIOverrides = ChatAPI.decodeMap(c, forKey: .modelAPIOverrides)
     }
 
     static func strataPreset() -> Connection {
@@ -185,6 +192,30 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
         if shown { hiddenModelIDs.remove(modelID) } else { hiddenModelIDs.insert(modelID) }
     }
 
+    /// The API requests for a model use: the user's pick, else what was detected, else Chat Completions.
+    func chatAPI(forModel modelID: String) -> ChatAPI {
+        modelAPIOverrides[modelID] ?? detectedModelAPIs[modelID] ?? .chatCompletions
+    }
+
+    /// "Responses API" for a model row whose requests go there; nil for the usual Chat Completions.
+    func apiLabel(forModel modelID: String) -> String? {
+        kind == .openAICompatible && chatAPI(forModel: modelID) == .responses ? ChatAPI.responses.title : nil
+    }
+
+    /// A model row's subtitle in the connection editor: "Hidden", what the model can do, and the Responses API when
+    /// its requests go there. Nil when there is nothing to say.
+    func modelRowSubtitle(_ model: ModelInfo) -> String? {
+        let parts = [showsInPicker(model.id) ? nil : String(localized: "Hidden"), model.capabilitiesSummary,
+                     apiLabel(forModel: model.id)].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// Sets the user's pick (nil: Automatic). Going back to Automatic forgets what was detected, so it is found again.
+    mutating func setAPIOverride(_ api: ChatAPI?, forModel modelID: String) {
+        modelAPIOverrides[modelID] = api
+        if api == nil { detectedModelAPIs[modelID] = nil }
+    }
+
     var parsedHeaders: [(name: String, value: String)] {
         customHeaders
             .split(whereSeparator: \.isNewline)
@@ -231,13 +262,19 @@ struct Endpoint: Sendable {
     /// Chat Completions, or the Responses API for a ChatGPT account (whose token comes from `ChatGPTAuth`, not `apiKey`),
     /// or the model's API for an OpenCode account (token from `OpenCodeAuth`).
     var kind: Connection.Kind = .openAICompatible
+    /// For an OpenAI-compatible connection: Chat Completions or the Responses API, and whether a refused Chat
+    /// Completions request may switch (see `ResponsesFallback`). Nil means Chat Completions, never switching.
+    var apiRoute: ChatAPIRoute?
+
+    /// The API an OpenAI-compatible endpoint's requests use now.
+    var chatAPI: ChatAPI { apiRoute?.current ?? .chatCompletions }
 
     /// The URL requests are sent to, for the diagnostics ring.
     var requestURL: URL {
         switch kind {
         case .chatGPT: baseURL.appendingPathComponent("responses")
         case .openCode: baseURL.appendingPathComponent(openCodeAPI.path(model: model.id))
-        case .openAICompatible: baseURL.appendingPathComponent("chat/completions")
+        case .openAICompatible: baseURL.appendingPathComponent(chatAPI == .responses ? "responses" : "chat/completions")
         }
     }
 

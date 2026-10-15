@@ -14,6 +14,10 @@ POST /v1/chat/completions    -> SSE stream. Behaviour depends on the conversatio
     round 1 = reasoning + web_fetch tool call, round 2 = final markdown answer that cites the
     <source id="N"> blocks found in the tool messages with [N].
 Streaming is deliberately bursty (small and large chunks) and tool-call arguments are split across chunks.
+Model "strata-mock-responses" only answers the Responses API, like OpenAI's Responses-only models:
+POST /v1/chat/completions with it -> 404 "only supported in v1/responses"
+POST /v1/responses           -> Responses SSE: reasoning summary, then a web_search call (first round, when tools
+                                are offered), then a short answer
 No auth is checked; the API key is never logged.
 """
 import json
@@ -29,6 +33,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 RESUMABLE = "--resumable" in sys.argv
+RESPONSES_ONLY = "strata-mock-responses"
 DROP_AFTER = int(os.environ.get("MOCK_DROP_AFTER", "0"))
 STREAMS = {}
 IDEMPOTENCY = {}
@@ -282,7 +287,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.replay(rid, stream, after)
         if self.path.rstrip("/").endswith("/models"):
             self._json(200, {"object": "list", "data": [{"id": "strata-mock", "object": "model", "max_model_len": 262144,
-                      "architecture": {"input_modalities": ["text", "image"], "output_modalities": ["text"]}}]})
+                      "architecture": {"input_modalities": ["text", "image"], "output_modalities": ["text"]}},
+                      {"id": RESPONSES_ONLY, "object": "model", "max_model_len": 200000}]})
         else:
             self._json(404, {"error": {"message": "not found"}})
 
@@ -300,6 +306,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {"state": "cancelled", "last_seq": len(stream.events)})
         length = int(self.headers.get("Content-Length", "0"))
         req = json.loads(self.rfile.read(length) or b"{}")
+        if urlparse(self.path).path.endswith("/responses"):
+            return self.responses_api(req)
+        if req.get("model") == RESPONSES_ONLY:
+            return self._json(404, {"error": {"message": "This model is only supported in v1/responses and not in v1/chat/completions.",
+                                              "type": "invalid_request_error", "param": "model", "code": None}})
         msgs = req.get("messages", [])
         image_parts = [p for m in msgs if isinstance(m.get("content"), list) for p in m["content"] if p.get("type") == "image_url"]
         sys.stderr.write(f"mock: request with {len(image_parts)} image_url part(s)" +
@@ -371,6 +382,51 @@ class Handler(BaseHTTPRequestHandler):
         try:
             self.generate(req, user_text, tail, rounds, tools_enabled)
         finally:
+            self.wfile = raw_wfile
+
+    def responses_api(self, req):
+        """A standard Responses API stream (store: false, flat function tools)."""
+        items = req.get("input", [])
+        sys.stderr.write(f"mock: /responses model={req.get('model')} items={len(items)} "
+                         f"instructions={'yes' if req.get('instructions') else 'no'} tools={len(req.get('tools') or [])}\n")
+        if any(t.get("type") == "namespace" for t in req.get("tools") or []):
+            return self._json(400, {"error": {"message": "namespace tools are not supported here"}})
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Transfer-Encoding", "chunked")
+        self.end_headers()
+        raw_wfile = self.wfile
+        self.wfile = _Chunked(raw_wfile)
+        def ev(obj):
+            sse(self, obj)
+        try:
+            ev({"type": "response.created", "response": {"id": "resp_mock"}})
+            ev({"type": "response.reasoning_summary_part.added", "item_id": "rs_1", "summary_index": 0})
+            for piece in pieces("Checking what the Responses API route has to say."):
+                ev({"type": "response.reasoning_summary_text.delta", "item_id": "rs_1", "summary_index": 0, "delta": piece})
+                time.sleep(0.03)
+            ev({"type": "response.output_item.done", "output_index": 0,
+                "item": {"type": "reasoning", "id": "rs_1", "encrypted_content": "mock-encrypted",
+                         "summary": [{"type": "summary_text", "text": "Checking what the Responses API route has to say."}]}})
+            answered = any(i.get("type") == "function_call_output" for i in items)
+            tools = [t.get("name") for t in req.get("tools") or []]
+            usage = {"input_tokens": 40 * (len(items) + 1), "output_tokens": 30,
+                     "input_tokens_details": {"cached_tokens": 20 * len(items)}, "output_tokens_details": {"reasoning_tokens": 12}}
+            if not answered and "web_search" in tools and req.get("tool_choice") != "none":
+                ev({"type": "response.output_item.added", "output_index": 1,
+                    "item": {"type": "function_call", "call_id": "call_resp_1", "name": "web_search", "arguments": ""}})
+                for piece in pieces(json.dumps({"query": "responses api"})):
+                    ev({"type": "response.function_call_arguments.delta", "output_index": 1, "delta": piece})
+                ev({"type": "response.completed", "response": {"usage": usage}})
+                return
+            for piece in pieces("This answer came through the **Responses API**. The model refused Chat Completions, "
+                                "so Strata switched and will remember it."):
+                ev({"type": "response.output_text.delta", "output_index": 1, "delta": piece})
+                time.sleep(0.03)
+            ev({"type": "response.completed", "response": {"usage": usage}})
+        finally:
+            self.wfile.close()
             self.wfile = raw_wfile
 
     def before_stream_headers(self, rid, stream, created):

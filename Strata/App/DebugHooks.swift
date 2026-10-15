@@ -195,6 +195,10 @@ enum DebugHooks {
         guard let base = value("StrataMockBaseURL") else { return }
         var strata = connections.connection(Connection.strataID) ?? .strataPreset()
         strata.baseURL = base
+        // Smoke runs of paths a resumable gateway skips (the Responses API fallback).
+        if UserDefaults.standard.object(forKey: "StrataMockNotResumable") != nil {
+            strata.supportsResumable = !UserDefaults.standard.bool(forKey: "StrataMockNotResumable")
+        }
         connections.upsert(strata)
         if let key = value("StrataMockKey") { try? connections.setAPIKey(key, for: Connection.strataID) }
     }

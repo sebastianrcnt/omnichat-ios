@@ -28,6 +28,8 @@ struct ResponsesRequest: Encodable, Sendable {
     var toolChoice: String?
     var reasoning: Reasoning?
     var include: [String]?
+    /// Only the standard Responses API takes an output cap (the ChatGPT route rejects it); only side requests set it.
+    var maxOutputTokens: Int?
     var store = false
     var stream = true
     /// Not encoded: whether `tools` and the calls in `input` use the `strata` namespace.
@@ -42,6 +44,7 @@ struct ResponsesRequest: Encodable, Sendable {
     enum CodingKeys: String, CodingKey {
         case model, instructions, input, tools, reasoning, include, store, stream
         case toolChoice = "tool_choice"
+        case maxOutputTokens = "max_output_tokens"
     }
 
     /// One `input` item.

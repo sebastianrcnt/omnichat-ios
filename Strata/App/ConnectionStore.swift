@@ -139,9 +139,32 @@ final class ConnectionStore {
         guard let base = conn.normalizedBaseURL else { return nil }
         var headers: [String: String] = [:]
         for h in conn.parsedHeaders { headers[h.name] = h.value }
+        // Chat Completions unless the model is known to need the Responses API, which is never resumable (the gateway
+        // replays Chat Completions streams only).
+        let api = conn.chatAPI(forModel: modelID)
+        let connectionID = conn.id
+        let route = ChatAPIRoute(api: api, automatic: conn.modelAPIOverrides[modelID] == nil) { [weak self] detected in
+            Task { @MainActor in self?.recordDetectedAPI(detected, connectionID: connectionID, modelID: modelID) }
+        }
         return Endpoint(connectionID: conn.id, connectionName: conn.name, baseURL: base,
                         apiKey: keys.key(for: conn.id), headers: headers, model: model,
-                        supportsResumable: conn.supportsResumable)
+                        supportsResumable: conn.supportsResumable && api == .chatCompletions, apiRoute: route)
+    }
+
+    /// Remembers that a model answered only through `api` (found by `ResponsesFallback`), unless the user picked one.
+    func recordDetectedAPI(_ api: ChatAPI, connectionID: UUID, modelID: String) {
+        guard var c = connection(connectionID), c.kind == .openAICompatible, c.modelAPIOverrides[modelID] == nil,
+              c.detectedModelAPIs[modelID] != api else { return }
+        c.detectedModelAPIs[modelID] = api
+        upsert(c)
+    }
+
+    /// The API picked for a model in its settings; nil is Automatic (and forgets what was detected).
+    func setModelAPIOverride(_ api: ChatAPI?, connectionID: UUID, modelID: String) {
+        guard var c = connection(connectionID) else { return }
+        c.setAPIOverride(api, forModel: modelID)
+        guard c != connection(connectionID) else { return }
+        upsert(c)
     }
 
     // MARK: ChatGPT
