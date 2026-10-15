@@ -194,7 +194,14 @@ struct ActivityFeedTests {
 }
 
 struct FeedCollapseTests {
-    let cards = [FeedCard(id: "a", kind: .search(query: "a")), FeedCard(id: "b", kind: .search(query: "b"))]
+    let cards = [FeedCard(id: "a", kind: .pages), FeedCard(id: "b", kind: .pages)]
+
+    @Test func aSearchNeverOpensByItself() {
+        let searches = [FeedCard(id: "a", kind: .search(query: "a")), FeedCard(id: "b", kind: .search(query: "b"))]
+        for i in searches.indices {
+            #expect(FeedCollapse.autoCollapsed(index: i, cards: searches, isStreaming: true, answerStarted: false))
+        }
+    }
 
     @Test func theNewestCardIsOpenWhileWorking() {
         #expect(FeedCollapse.autoCollapsed(index: 0, cards: cards, isStreaming: true, answerStarted: false))

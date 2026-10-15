@@ -101,6 +101,7 @@ struct ActivityFeedView: View {
     var onDetails: () -> Void = {}
     @State private var overrides: [String: FeedCollapse.Override] = [:]
     @State private var showingAll: Set<String> = []
+    @State private var stagger = StaggerClock()
 
     var body: some View {
         let epoch = FeedCollapse.epoch(cardCount: cards.count, isStreaming: isStreaming, answerStarted: answerStarted)
@@ -134,10 +135,9 @@ struct ActivityFeedView: View {
                                      onDetails: onDetails)
                     }
                 }
-                .transition(.enter(reduceMotion: reduceMotion))
+                .modifier(StaggerIn(animates: isStreaming && !reduceMotion, clock: stagger))
             }
         }
-        .animation(reduceMotion ? nil : DS.Motion.enter, value: cards.map(\.id))
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -477,5 +477,44 @@ struct ReadProgressRing: View {
             ActivityFeedView(cards: ActivityFeed.cards(calls: calls, sources: sources), isStreaming: true, answerStarted: false)
         }
         .padding()
+    }
+}
+
+/// Hands out start times so cards that appear together (a round asking for three searches) rise one after another.
+@MainActor
+final class StaggerClock {
+    static let step = 0.08
+    private var next = Date.distantPast
+
+    /// The delay for a card appearing now: none if the last one came a step ago or more.
+    func claim() -> Double {
+        let now = Date()
+        let start = max(now, next)
+        next = start.addingTimeInterval(Self.step)
+        return start.timeIntervalSince(now)
+    }
+}
+
+/// A live card rises into place after the cards that appeared just before it (`StaggerClock`). Cards of a finished
+/// message are simply there.
+private struct StaggerIn: ViewModifier {
+    let animates: Bool
+    let clock: StaggerClock
+    @State private var shown: Bool
+
+    init(animates: Bool, clock: StaggerClock) {
+        self.animates = animates
+        self.clock = clock
+        _shown = State(initialValue: !animates)
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown ? 0 : 10)
+            .onAppear {
+                guard !shown else { return }
+                withAnimation(DS.Motion.enter.delay(clock.claim())) { shown = true }
+            }
     }
 }

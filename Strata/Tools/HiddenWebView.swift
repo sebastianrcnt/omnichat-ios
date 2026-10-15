@@ -75,7 +75,7 @@ enum ReadabilitySource {
 /// borderless, fully transparent window parked far outside every screen.)
 @MainActor
 final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage {
-    static let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+    nonisolated static let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
 
     let webView: WKWebView
     /// Fetch views carry the page reader as a user script, injected once per page by WebKit.

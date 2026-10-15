@@ -356,10 +356,12 @@ enum ActivityFeed {
 enum FeedCollapse {
     /// The state the feed picks by itself:
     /// - everything is folded once the answer is being written, and in a finished message;
-    /// - while working, the newest card is open and older ones fold, except one whose page is still loading.
+    /// - while working, the newest card is open and older ones fold, except one whose page is still loading;
+    /// - a search never opens by itself: what it found matters less than the answer (a tap shows it).
     static func autoCollapsed(index: Int, cards: [FeedCard], isStreaming: Bool, answerStarted: Bool) -> Bool {
         guard isStreaming, !answerStarted else { return true }
         guard cards.indices.contains(index) else { return true }
+        if case .search = cards[index].kind { return true }
         if index == cards.count - 1 { return false }
         return !cards[index].hasLoadingRow
     }
