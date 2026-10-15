@@ -41,6 +41,8 @@ struct SkillApprovalSheet: View {
         }
         .interactiveDismissDisabled()
         .presentationDetents([.large])
+        // Closing the sheet any other way (its close button) is a "no"; an answer already given stands.
+        .onDisappear { onAnswer(false) }
     }
 }
 

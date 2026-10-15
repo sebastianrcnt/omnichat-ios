@@ -227,6 +227,7 @@ final class SkillApprovals {
         }
     }
 
+    /// Ignored for a request already answered.
     func answer(_ id: UUID, approved: Bool) {
         guard let i = queue.firstIndex(where: { $0.request.id == id }) else { return }
         queue.remove(at: i).answer.resume(returning: approved)
