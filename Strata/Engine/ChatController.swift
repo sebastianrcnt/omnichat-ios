@@ -647,7 +647,8 @@ final class ChatController {
             message.errorNeedsSettings = (error as? APIError)?.needsSettings ?? false
         }
         if !message.cancelPending { message.clearResume() }
-        background.end(success: error == nil && !message.stoppedByUser)
+        // A turn the person stopped ended as they asked: only an error reads "failed" in the system's task list.
+        background.end(success: error == nil)
         activeMessage = nil
         activeContext = nil
         activeEndpoint = nil

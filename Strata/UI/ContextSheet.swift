@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The context gauge's sheet (reference/mockups/context-grid.html): the total, a 200-cell grid by category with auto
-/// zoom, the legend and "Summarize now". Display only: the split is an estimate scaled to the last request's real size,
+/// The context gauge's sheet: one card with the window's use as a bar split by category, the total and where it
+/// summarizes, and a row per category; then "Summarize now". Display only: the split is an estimate scaled to the last request's real size,
 /// and nothing here changes what is sent. Usage and balance moved behind the chart button.
 struct ContextSheet: View {
     @Environment(\.theme) private var theme
@@ -28,57 +28,35 @@ struct ContextSheet: View {
     var body: some View {
         let used = used
         let tokens = hasData ? (split ?? []) : []
-        let range = ContextGrid.range(used: used, window: window)
         let limit = Compaction.limit(window: window, maxOutput: maxOutput)
         SheetScaffold(title: "Context", trailing: {
             GlassIconButton(systemName: "chart.bar", label: "Usage") { showUsage = true }
         }) {
             VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.xs) {
-                    CountingTokens(value: shownTotal)
-                        .font(DS.Typography.contextTotal)
-                        .foregroundStyle(theme.textPrimary)
-                    Text("/ \(ContextGrid.sizeLabel(window)) tokens")
-                        .font(DS.Typography.uiSmall.weight(.medium))
-                        .foregroundStyle(theme.textSecondary)
-                }
-                .monospacedDigit()
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text("\(TokenFormat.short(used)) of \(ContextGrid.sizeLabel(window)) tokens used"))
-                Text(meta(used: used, limit: limit))
+                // One card: the window's use as a stacked bar, then each category.
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Context window").font(DS.Typography.uiEmphasis).foregroundStyle(theme.textPrimary)
+                        Spacer()
+                        Text(percentUsed(used)).font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary).monospacedDigit()
+                    }
+                    ContextStackBar(tokens: tokens, window: window, limit: limit, focus: focus)
+                        .padding(.top, DS.Spacing.md)
+                    HStack(spacing: DS.Spacing.xs) {
+                        CountingTokens(value: shownTotal)
+                        Text("of \(ContextGrid.sizeLabel(window)) tokens · summarizes at \(TokenFormat.short(limit))")
+                    }
                     .font(DS.Typography.uiCaption)
                     .foregroundStyle(theme.textSecondary)
                     .monospacedDigit()
-                    .padding(.top, DS.Spacing.xxs)
-                    .padding(.bottom, DS.Spacing.md)
-
-                if !hasData || split != nil {
-                    ContextGridCanvas(owners: ContextGrid.allocate(tokens, range: range), range: range,
-                                      summarizeCell: ContextGrid.summarizeCell(limit: limit, range: range), focus: focus)
-                } else {
-                    Color.clear.frame(height: 1) // the split is computed on appear, before the grid's first frame
+                    .padding(.top, DS.Spacing.sm)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text("\(TokenFormat.short(used)) of \(ContextGrid.sizeLabel(window)) tokens used"))
+                    Divider().overlay(theme.separator).padding(.vertical, DS.Spacing.md)
+                    legend(tokens: tokens, used: used)
                 }
-                HStack {
-                    Text("1 cell ≈ \(TokenFormat.short(ContextGrid.tokensPerCell(range: range))) tokens")
-                        .foregroundStyle(theme.textTertiary)
-                    Spacer()
-                    Group {
-                        if range < window {
-                            Text("Showing \(ContextGrid.sizeLabel(range)) of \(ContextGrid.sizeLabel(window))")
-                        } else {
-                            Text("Whole window")
-                        }
-                    }
-                    .foregroundStyle(theme.textSecondary)
-                }
-                .font(DS.Typography.feedMeta)
-                .monospacedDigit()
-                .padding(.top, DS.Spacing.sm)
-                ContextZoomBar(range: range, used: used, window: window)
-                    .padding(.top, DS.Spacing.sm - 2)
-
-                legend(tokens: tokens, used: used)
-                    .padding(.top, DS.Spacing.md)
+                .padding(DS.Spacing.lg)
+                .background(theme.surface, in: RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
 
                 summarizeButton
                     .padding(.top, DS.Spacing.md)
@@ -100,11 +78,10 @@ struct ContextSheet: View {
         }
     }
 
-    private func meta(used: Int, limit: Int) -> String {
-        let at = String(localized: "summarizes at \(TokenFormat.short(limit))")
-        guard hasData else { return String(localized: "No messages yet") + " · " + at }
+    private func percentUsed(_ used: Int) -> String {
+        guard hasData else { return String(localized: "No messages yet") }
         let pct = window > 0 ? Double(used) / Double(window) : 0
-        return String(localized: "\(pct.formatted(.percent.precision(.fractionLength(1)))) used") + " · " + at
+        return String(localized: "\(pct.formatted(.percent.precision(.fractionLength(1)))) used")
     }
 
     @ViewBuilder

@@ -310,6 +310,44 @@ struct ContextZoomBar: View {
     }
 }
 
+/// The whole window as one bar: each category's share in its color, the rest free, and a tick where it summarizes.
+struct ContextStackBar: View {
+    @Environment(\.theme) private var theme
+    /// Tokens per category, in `ContextCategory` order.
+    let tokens: [Int]
+    let window: Int
+    let limit: Int
+    var focus: Int?
+
+    var body: some View {
+        let w = Double(max(window, 1))
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(theme.contextFree)
+                HStack(spacing: 0) {
+                    ForEach(Array(tokens.enumerated()), id: \.offset) { i, n in
+                        if n > 0, let c = ContextCategory(rawValue: i) {
+                            Rectangle().fill(theme.contextCategory(c))
+                                .frame(width: max(2, geo.size.width * Double(n) / w))
+                                .opacity(focus == nil || focus == i ? 1 : 0.3)
+                        }
+                    }
+                }
+                .clipShape(Capsule())
+                if limit > 0 && limit < window {
+                    Rectangle().fill(theme.textTertiary)
+                        .frame(width: 2, height: geo.size.height + 6)
+                        .offset(x: geo.size.width * Double(limit) / w - 1)
+                }
+            }
+        }
+        .frame(height: 8)
+        .animation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.6), value: tokens)
+        .animation(.easeOut(duration: 0.2), value: focus)
+        .accessibilityHidden(true)
+    }
+}
+
 /// A legend row: swatch, name, tokens, share of the window. Tapping highlights the category.
 struct ContextLegendRow: View {
     @Environment(\.theme) private var theme
