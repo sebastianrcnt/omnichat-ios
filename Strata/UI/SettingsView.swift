@@ -18,6 +18,7 @@ struct SettingsView: View {
     @State private var path: [UUID] = []
     @State private var showDiagnostics = false
     @State private var showCookies = false
+    @State private var showBackgroundWebTest = false
     @State private var showLicenses = false
     @State private var showAppearance = false
     @State private var showTools = false
@@ -82,6 +83,9 @@ struct SettingsView: View {
                         if settings.developerMode {
                             SettingsRow(systemImage: "gauge.with.dots.needle.50percent", title: "Diagnostics", showsChevron: true) { showDiagnostics = true }
                             SettingsRow(systemImage: "list.bullet.rectangle", title: "Browser cookies", showsChevron: true) { showCookies = true }
+                            #if os(iOS)
+                            SettingsRow(systemImage: "moon.zzz", title: "Background web test", showsChevron: true) { showBackgroundWebTest = true }
+                            #endif
                         }
                     }
                 }
@@ -106,6 +110,9 @@ struct SettingsView: View {
             }
             .navigationDestination(isPresented: $showDiagnostics) { AppDiagnosticsView() }
             .navigationDestination(isPresented: $showCookies) { BrowserCookiesView() }
+            #if os(iOS)
+            .navigationDestination(isPresented: $showBackgroundWebTest) { BackgroundWebTestView() }
+            #endif
             .navigationDestination(isPresented: $showLicenses) { LicensesView() }
             .onChange(of: SettingsRoute.shared.connection, initial: true) { _, id in
                 guard let id else { return }
@@ -120,6 +127,9 @@ struct SettingsView: View {
         #if DEBUG
         .task {
             if DebugHooks.openSheet == "diagnostics" { settings.developerMode = true; showDiagnostics = true }
+            #if os(iOS)
+            if DebugHooks.openSheet == "bgwebtest" { settings.developerMode = true; showBackgroundWebTest = true }
+            #endif
             if DebugHooks.openSheet == "licenses" { showLicenses = true }
             if DebugHooks.openSheet == "connection" { // what "Add connection" does
                 let new = Connection(name: String(localized: "New connection"), baseURL: "https://")

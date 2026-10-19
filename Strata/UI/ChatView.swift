@@ -904,7 +904,7 @@ struct ChatView: View {
             switch DebugHooks.openSheet {
             case "usage" where conversation != nil: showContext = true
             case "model", "chatsettings": showChatSettings = true
-            case "settings", "diagnostics", "licenses", "connection": onOpenSettings()
+            case "settings", "diagnostics", "licenses", "connection", "bgwebtest": onOpenSettings()
             case "attach": showAttach = true
             case "code": debugViewer = true
             default: break

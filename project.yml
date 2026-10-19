@@ -65,6 +65,7 @@ targets:
           - cc.coolservices.strata.reply.*
         UIBackgroundModes:
           - processing
+          - audio
         UIAppFonts:
           - PretendardVariable.ttf
           - Pretendard-Regular.otf
