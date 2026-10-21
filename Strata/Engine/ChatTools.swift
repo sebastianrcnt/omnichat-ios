@@ -9,6 +9,8 @@ import Foundation
 /// end of the next user message (`Message.apiNote`). A group that was off at the start is simply not offered.
 enum ToolGroup: String, CaseIterable, Codable, Sendable, Identifiable {
     case web, browser, python, location, video
+    /// Interactive views (OpenUI Lang blocks in answers): no tools, only a system prompt section.
+    case views
 
     var id: String { rawValue }
 
@@ -20,6 +22,7 @@ enum ToolGroup: String, CaseIterable, Codable, Sendable, Identifiable {
         case .python: [ToolNames.runPython, ToolNames.viewImage]
         case .location: [ToolNames.currentLocation]
         case .video: [ToolNames.videoTranscript]
+        case .views: []
         }
     }
 
@@ -35,6 +38,7 @@ enum ToolGroup: String, CaseIterable, Codable, Sendable, Identifiable {
         case .python: String(localized: "Python")
         case .location: String(localized: "Location")
         case .video: String(localized: "Video transcripts")
+        case .views: String(localized: "Interactive views")
         }
     }
 
@@ -45,6 +49,7 @@ enum ToolGroup: String, CaseIterable, Codable, Sendable, Identifiable {
         case .python: "chevron.left.forwardslash.chevron.right"
         case .location: "location"
         case .video: "captions.bubble"
+        case .views: "square.grid.2x2"
         }
     }
 
@@ -56,6 +61,7 @@ enum ToolGroup: String, CaseIterable, Codable, Sendable, Identifiable {
         case .python: "Python"
         case .location: "Location"
         case .video: "Video transcripts"
+        case .views: "Interactive views"
         }
     }
 
@@ -66,6 +72,7 @@ enum ToolGroup: String, CaseIterable, Codable, Sendable, Identifiable {
         case .python: "Python"
         case .location: "location"
         case .video: "video transcripts"
+        case .views: "interactive views"
         }
     }
 

@@ -132,11 +132,13 @@ enum AppPrompt {
     """
 
     /// The app prompt for a model with (or without) tools, with `run_python` offered or not, with the browser's index
-    /// tools offered or not, with skills (`save_skill`) offered or not, and with `video_transcript` offered or not.
-    static func text(tools: Bool, python: Bool, browser: Bool = false, skills: Bool = false, video: Bool = false) -> String {
+    /// tools offered or not, with skills (`save_skill`) offered or not, with `video_transcript` offered or not, and with
+    /// interactive views (`views`, `OpenUIPrompt.swift`) or not.
+    static func text(tools: Bool, python: Bool, browser: Bool = false, skills: Bool = false, video: Bool = false,
+                     views: Bool = false) -> String {
         guard tools else { return base }
         return base + "\n\n" + Self.tools + (python ? "\n" + Self.python : "") + (browser ? "\n" + Self.browser : "")
-            + (skills ? "\n" + Self.skillOffer : "") + (video ? "\n" + Self.video : "")
+            + (skills ? "\n" + Self.skillOffer : "") + (video ? "\n" + Self.video : "") + (views ? "\n\n" + Self.views : "")
     }
 
     /// The user's preferences as a system-prompt section, or "" when they are blank. Followed in every reply, so

@@ -607,7 +607,8 @@ final class ChatController {
         let skillIndex = !offered.contains(.browser) ? ""
             : freeze ? conversation.frozenSkillIndex(current: skills.index) : conversation.skillIndexSnapshot ?? skills.index
         let base = [AppPrompt.text(tools: tools, python: offered.contains(.python), browser: offered.contains(.browser),
-                                   skills: offered.contains(.browser), video: offered.contains(.video)),
+                                   skills: offered.contains(.browser), video: offered.contains(.video),
+                                   views: offered.contains(.views)),
                     skillIndex,
                     AppPrompt.preferences(freeze ? conversation.frozenPreferences(current: settings.userPreferences)
                                                   : conversation.preferencesSnapshot ?? settings.userPreferences)]

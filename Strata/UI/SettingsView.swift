@@ -478,6 +478,19 @@ struct VideoTranscriptSettingsSection: View {
     }
 }
 
+/// Settings > Tools > Interactive views: whether new chats tell the model it can write OpenUI views.
+struct InteractiveViewsSettingsSection: View {
+    @Environment(\.appSettings) private var settings
+
+    var body: some View {
+        @Bindable var settings = settings
+        GroupedSection(header: "Interactive views", footer: "The model can put small tables, charts, choices and forms in its answers, drawn as part of the chat. Pressing a button or sending a form answers with your choice. A chat can turn interactive views on or off from the + menu.") {
+            SettingsToggleRow(title: "Interactive views in new chats", subtitle: "Let the model show tables, charts and quick forms.",
+                              isOn: $settings.interactiveViewsEnabled)
+        }
+    }
+}
+
 /// Settings > Tools > Robot checks: whether a page that shows one is handed to the user or fails the tool at once.
 struct RobotCheckSettingsSection: View {
     @Environment(\.appSettings) private var settings
@@ -750,6 +763,8 @@ private struct ToolSettingsView: View {
                 PythonSettingsSection()
 
                 VideoTranscriptSettingsSection()
+
+                InteractiveViewsSettingsSection()
 
                 BrowserSettingsSection()
 

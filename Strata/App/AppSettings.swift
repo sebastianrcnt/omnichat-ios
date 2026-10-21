@@ -88,6 +88,7 @@ final class AppSettings {
     nonisolated static let locationEnabledKey = "locationTool"
     nonisolated static let webSearchEnabledKey = "webSearchTool"
     nonisolated static let videoTranscriptsEnabledKey = "videoTranscriptTool"
+    nonisolated static let interactiveViewsEnabledKey = "interactiveViews"
 
     private let defaults: UserDefaults
 
@@ -147,6 +148,8 @@ final class AppSettings {
     var locationEnabled: Bool { didSet { defaults.set(locationEnabled, forKey: Self.locationEnabledKey) } }
     /// `video_transcript` in new chats (on by default).
     var videoTranscriptsEnabled: Bool { didSet { defaults.set(videoTranscriptsEnabled, forKey: Self.videoTranscriptsEnabledKey) } }
+    /// Interactive views (OpenUI Lang blocks) in new chats (on by default).
+    var interactiveViewsEnabled: Bool { didSet { defaults.set(interactiveViewsEnabled, forKey: Self.interactiveViewsEnabledKey) } }
     /// A soft sound while web tools run in the background, which keeps their pages running (`BackgroundLoadingSound`
     /// reads the key). On by default.
     var backgroundLoadingSound: Bool { didSet { defaults.set(backgroundLoadingSound, forKey: BackgroundLoadingSound.enabledKey) } }
@@ -189,6 +192,8 @@ final class AppSettings {
         locationEnabled = defaults.object(forKey: Self.locationEnabledKey) == nil ? true : defaults.bool(forKey: Self.locationEnabledKey)
         videoTranscriptsEnabled = defaults.object(forKey: Self.videoTranscriptsEnabledKey) == nil
             ? true : defaults.bool(forKey: Self.videoTranscriptsEnabledKey)
+        interactiveViewsEnabled = defaults.object(forKey: Self.interactiveViewsEnabledKey) == nil
+            ? true : defaults.bool(forKey: Self.interactiveViewsEnabledKey)
         backgroundLoadingSound = defaults.object(forKey: BackgroundLoadingSound.enabledKey) == nil
             ? true : defaults.bool(forKey: BackgroundLoadingSound.enabledKey)
         askRobotChecks = defaults.object(forKey: RobotCheck.askKey) == nil ? true : defaults.bool(forKey: RobotCheck.askKey)
@@ -214,6 +219,7 @@ final class AppSettings {
         if browserEnabled { groups.insert(.browser) }
         if browserEnabled && locationEnabled { groups.insert(.location) }
         if videoTranscriptsEnabled { groups.insert(.video) }
+        if interactiveViewsEnabled { groups.insert(.views) }
         return groups
     }
 
