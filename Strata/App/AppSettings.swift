@@ -143,6 +143,8 @@ final class AppSettings {
     /// A soft sound while web tools run in the background, which keeps their pages running (`BackgroundLoadingSound`
     /// reads the key). On by default.
     var backgroundLoadingSound: Bool { didSet { defaults.set(backgroundLoadingSound, forKey: BackgroundLoadingSound.enabledKey) } }
+    /// A page showing a robot check is handed to the user (`RobotCheck.asksUser` reads the key). On by default.
+    var askRobotChecks: Bool { didSet { defaults.set(askRobotChecks, forKey: RobotCheck.askKey) } }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -179,6 +181,7 @@ final class AppSettings {
         locationEnabled = defaults.object(forKey: Self.locationEnabledKey) == nil ? true : defaults.bool(forKey: Self.locationEnabledKey)
         backgroundLoadingSound = defaults.object(forKey: BackgroundLoadingSound.enabledKey) == nil
             ? true : defaults.bool(forKey: BackgroundLoadingSound.enabledKey)
+        askRobotChecks = defaults.object(forKey: RobotCheck.askKey) == nil ? true : defaults.bool(forKey: RobotCheck.askKey)
         // `bool` and `integer` also read launch-argument strings ("NO", "0"), which `as? Bool` would not.
         useSystemTextSize = defaults.object(forKey: "useSystemTextSize") == nil ? true : defaults.bool(forKey: "useSystemTextSize")
         textSizeStep = defaults.object(forKey: "textSizeStep") == nil

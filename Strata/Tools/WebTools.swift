@@ -106,6 +106,7 @@ struct WebSearchTool {
         guard !engines.isEmpty else { return ToolOutput(text: "Error: no search engine is configured.", isError: true) }
         var failures: [String] = []
         var sawEmpty = false
+        var skippedCheck = false
         for engine in engines {
             guard let url = engine.searchURL(for: q) else { continue }
             let started = ContinuousClock.now
@@ -123,11 +124,13 @@ struct WebSearchTool {
                     ? WebToolError.timeoutMessage(after: ContinuousClock.now - started, limit: timeouts.overall, what: "the search page")
                     : error.localizedDescription
                 failures.append(engines.count > 1 ? "\(engine.name): \(message)" : message)
+                skippedCheck = skippedCheck || error is RobotCheckError
             }
         }
         // An engine that answered with nothing is an answer; errors alone are a failure.
         if sawEmpty || failures.isEmpty { return ToolOutput(text: SearchFormatter.format(query: q, results: [])) }
-        return ToolOutput(text: "Error: " + failures.joined(separator: " "), isError: true)
+        let note = skippedCheck ? "" : KeptPages.shared.note(forCall: ToolContext.callID)
+        return ToolOutput(text: "Error: " + failures.joined(separator: " ") + note, isError: true)
     }
 
     @MainActor
@@ -136,11 +139,18 @@ struct WebSearchTool {
             let pool = WebViewPool.shared
             let page = pool.acquire(reader: false)
             var reusable = false
-            defer { pool.release(page, reusable: reusable) }
-            try await page.load(url, timeout: timeouts.load)
-            let results = try await SearchExtractor.extract(engine: engine, from: page)
-            reusable = true
-            return results
+            var keep = false
+            defer { pool.release(page, reusable: reusable, keep: keep) }
+            do {
+                try await page.load(url, timeout: timeouts.load)
+                try await RobotCheckGate.pass(page, timeouts: timeouts)
+                let results = try await SearchExtractor.extract(engine: engine, from: page)
+                reusable = true
+                return results
+            } catch {
+                keep = KeptPages.shouldKeep(after: error)
+                throw error
+            }
         }
     }
 }
@@ -313,9 +323,11 @@ struct WebFetchTool {
                 }
             } catch WebToolError.timeout {
                 let text = WebToolError.timeoutMessage(after: ContinuousClock.now - started, limit: timeouts.load, what: "loading the page")
-                return ToolOutput(text: "Error: \(text)", isError: true)
-            } catch {
+                return ToolOutput(text: "Error: \(text)" + KeptPages.shared.note(forCall: ToolContext.callID), isError: true)
+            } catch let error as RobotCheckError {
                 return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true)
+            } catch {
+                return ToolOutput(text: "Error: \(error.localizedDescription)" + KeptPages.shared.note(forCall: ToolContext.callID), isError: true)
             }
             cache.store(page, for: url)
         }
@@ -344,16 +356,22 @@ struct WebFetchTool {
             let pool = WebViewPool.shared
             let view = pool.acquire(reader: true, resolver: resolver)
             var reusable = false
-            defer { pool.release(view, reusable: reusable) }
+            var keep = false
+            defer { pool.release(view, reusable: reusable, keep: keep) }
             let sink = ToolContext.progressSink
             do {
-                let page = try await FetchPipeline.fetch(url, page: view, timeouts: timeouts) { value in sink?(value) }
+                let page = try await FetchPipeline.fetch(url, page: view, timeouts: timeouts, progress: { value in sink?(value) },
+                                                         check: { try await RobotCheckGate.pass(view, timeouts: timeouts) })
                 reusable = true
                 return page
             } catch WebToolError.script(let message) {
                 // No text in the page: it may be a PDF served from a URL that doesn't say so.
                 if let pdf = try? await PDFFetch.load(view.currentURL ?? url, timeout: timeouts.load, resolver: resolver) { return pdf }
+                keep = true
                 throw WebToolError.script(message)
+            } catch {
+                keep = KeptPages.shouldKeep(after: error)
+                throw error
             }
         }
     }
@@ -423,7 +441,8 @@ struct ToolRouter: ToolExecuting {
             }
             return await BrowserEvalTool().run(code: js, conversation: ToolContext.conversationID)
         case ToolNames.browserShow:
-            return await BrowserShowTool().run(reason: args["reason"] as? String ?? "", conversation: ToolContext.conversationID)
+            return await BrowserShowTool().run(reason: args["reason"] as? String ?? "", page: args["page"] as? String,
+                                               conversation: ToolContext.conversationID)
         case ToolNames.loadSkill:
             guard let skill = args["name"] as? String else {
                 return ToolOutput(text: "Error: missing required argument \"name\".", isError: true)

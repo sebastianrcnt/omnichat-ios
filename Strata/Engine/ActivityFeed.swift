@@ -171,6 +171,8 @@ struct FeedRow: Identifiable, Equatable, Sendable {
     var readOrder: Int?
     /// Set while `read` is `.failed`: the short reason shown in place of the domain.
     var failure: FetchFailure?
+    /// The call that last read the page (its kept page is opened from a failed row).
+    var callID: String?
 }
 
 /// Why a Python run failed, from its result text, for a short label like a page read's.
@@ -204,7 +206,7 @@ enum FetchFailure: Equatable, Sendable {
         if t.contains("timed out") || t.contains("took too long") { self = .timedOut }
         else if t.contains("certificate") { self = .certificate }
         else if t.contains("no readable text") { self = .noText }
-        else if ["blocked", "not allowed", "challenge", "captcha", "403", "forbidden", "denied", "private"].contains(where: t.contains) {
+        else if ["blocked", "not allowed", "challenge", "captcha", "robot check", "403", "forbidden", "denied", "private"].contains(where: t.contains) {
             self = .blocked
         } else { self = .failed }
     }
@@ -279,6 +281,18 @@ struct FeedCard: Identifiable, Equatable, Sendable {
 }
 
 enum ActivityFeed {
+    /// The card that shows the model's page live: the newest browser card, while the reply works (not once the
+    /// answer is being written, nor in a finished message).
+    static func liveBrowserCard(_ cards: [FeedCard], isStreaming: Bool, answerStarted: Bool) -> String? {
+        guard isStreaming, !answerStarted else { return nil }
+        return cards.last { card in
+            switch card.kind {
+            case .browser, .script: true
+            default: false
+            }
+        }?.id
+    }
+
     /// The cards for a turn's calls, in call order.
     static func cards(calls: [FeedCall], sources: [Int: SourceInfo]) -> [FeedCard] {
         var cards: [FeedCard] = []
@@ -346,6 +360,7 @@ enum ActivityFeed {
            let r = cards[c].extras.firstIndex(where: { keys.contains($0.id) }) {
             cards[c].extras[r].read = cards[c].extras[r].read.map { $0.merged(with: state) } ?? state
             cards[c].extras[r].failure = cards[c].extras[r].read == .failed ? call.failure : nil
+            cards[c].extras[r].callID = call.id
             return
         }
         // Until the page's own source arrives, a search result listing the link gives the row its title.
@@ -355,7 +370,7 @@ enum ActivityFeed {
         var title = page.map { $0.title.isEmpty ? $0.host : $0.title } ?? listed?.title ?? host
         if let plugin = call.plugin, !plugin.isEmpty { title = page.map { $0.title.isEmpty || $0.title == plugin ? plugin : plugin + " · " + $0.title } ?? plugin }
         let row = FeedRow(id: keys[0], title: title, host: host, url: url,
-                          read: state, readOrder: order, failure: state == .failed ? call.failure : nil)
+                          read: state, readOrder: order, failure: state == .failed ? call.failure : nil, callID: call.id)
         if !continuingRun || cards.last?.kind != .pages { cards.append(FeedCard(id: "pages-" + call.id, kind: .pages)) }
         cards[cards.count - 1].extras.append(row)
     }

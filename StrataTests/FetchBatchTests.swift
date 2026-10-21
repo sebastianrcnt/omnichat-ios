@@ -519,12 +519,12 @@ struct WebViewPoolTests {
         #expect(pool.idleCount == 0)
     }
 
-    @Test func viewsShareOneNonPersistentDataStore() {
+    @Test func viewsShareTheBrowsersPersistentDataStore() {
         let a = HiddenWebView(guardNavigations: false)
         let b = HiddenWebView(guardNavigations: false, injectsReader: true)
         defer { a.dispose(); b.dispose() }
         #expect(a.webView.configuration.websiteDataStore === b.webView.configuration.websiteDataStore)
-        #expect(!a.webView.configuration.websiteDataStore.isPersistent)
+        #expect(a.webView.configuration.websiteDataStore === BrowserData.store && BrowserData.store.isPersistent)
     }
 
     @Test func theCounterTracksLiveViews() {

@@ -42,19 +42,25 @@ enum WebToolError: Error, LocalizedError, Equatable {
     ]
 }
 
-/// One non-persistent data store for the whole session: every hidden view shares it (cookies last until the app quits,
-/// nothing is written to disk), instead of each fetch creating and tearing down its own.
-@MainActor
-enum SharedWebData {
-    static let store = WKWebsiteDataStore.nonPersistent()
-}
-
-/// The model's browser (`browser_open`, `browser_eval`, skill scripts) keeps its own cookies on disk, apart from the
-/// search and fetch views: a site the user signed in to through `browser_show` stays signed in. It never sees Safari's.
+/// The one data store of every hidden web view: search, fetch, plugins and the model's browser (`browser_open`,
+/// `browser_eval`, skill scripts). It is kept on disk, so a site the user signed in to or a robot check they solved
+/// (Cloudflare's `cf_clearance`, Google's) works for every tool and later chats. It never sees Safari's.
+/// Settings > Tools > Clear browsing data empties it (`BrowsingData`).
 @MainActor
 enum BrowserData {
     static let identifier = UUID(uuidString: "5D1A7E0B-6C1E-4C2B-9A55-B0B5E7C0F1E5")!
     static let store = WKWebsiteDataStore(forIdentifier: identifier)
+}
+
+/// Everything the hidden browser keeps: its pages and the store's cookies, storage and caches.
+@MainActor
+enum BrowsingData {
+    static func clearAll() async {
+        BrowserSessions.shared.closeAll()
+        WebViewPool.shared.drain()
+        PageCache.shared.removeAll()
+        await BrowserData.store.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast)
+    }
 }
 
 /// Blocks requests to local-network and loopback address literals from inside pages: subframes, `fetch` and XHR from
@@ -122,14 +128,17 @@ enum ReadabilitySource {
     }()
 }
 
-/// An off-screen WKWebView with a non-persistent data store, used by the search and fetch tools.
+/// An off-screen WKWebView on the shared `BrowserData` store, used by the search, fetch and browser tools.
 /// It stays attached to the key window at near-zero alpha so WebKit does not throttle it. (On a Mac it lives in a
 /// borderless, fully transparent window parked far outside every screen.)
 @MainActor
-final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage {
+final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage, KeepablePage {
     nonisolated static let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
 
     let webView: WKWebView
+    /// Names the page to the model ("page7"), for `browser_show(page:)` after a tool failed on it (`KeptPages`).
+    let pageID: String
+    private static var pageCount = 0
     /// Fetch views carry the page reader as a user script, injected once per page by WebKit.
     let injectsReader: Bool
     private var continuation: CheckedContinuation<Void, Error>?
@@ -148,13 +157,15 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage {
     init(guardNavigations: Bool = true, resolver: any HostResolving = SystemHostResolver(), injectsReader: Bool = false,
          store: WKWebsiteDataStore? = nil) {
         let config = WKWebViewConfiguration()
-        config.websiteDataStore = store ?? SharedWebData.store
+        config.websiteDataStore = store ?? BrowserData.store
         config.defaultWebpagePreferences.allowsContentJavaScript = true
         if guardNavigations { LocalNetworkRules.install(in: config.userContentController) }
         if injectsReader, let source = ReadabilitySource.script {
             config.userContentController.addUserScript(WKUserScript(source: source, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         }
-        webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 844), configuration: config)
+        webView = WKWebView(frame: CGRect(origin: .zero, size: Self.layoutSize), configuration: config)
+        Self.pageCount += 1
+        pageID = "page\(Self.pageCount)"
         webView.customUserAgent = Self.userAgent
         #if canImport(UIKit)
         webView.alpha = 0.01
@@ -175,42 +186,130 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage {
         park()
     }
 
-    /// Puts the view back off screen (after `browser_show` lent it to a sheet): nearly transparent, untouchable.
-    func park() {
+    /// Puts the view back off screen: nearly transparent, untouchable.
+    private func park() {
         guard !disposed else { return }
         #if canImport(UIKit)
+        webView.transform = .identity
         webView.alpha = 0.01
         webView.isUserInteractionEnabled = false
         webView.autoresizingMask = []
-        webView.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        webView.frame = CGRect(x: 0, y: 0, width: Self.layoutSize.width, height: Self.layoutSize.height)
         if let window = Self.keyWindow {
             window.insertSubview(webView, at: 0)
+        } else {
+            webView.removeFromSuperview() // out of a card or sheet, whatever happens to it next
         }
         #else
         webView.autoresizingMask = []
-        webView.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        webView.frame = CGRect(x: 0, y: 0, width: Self.layoutSize.width, height: Self.layoutSize.height)
         OffscreenWebHost.shared.attach(webView)
         #endif
     }
 
-    /// Lends the view to a container on screen, where the user can use it.
-    #if canImport(UIKit)
-    func show(in container: UIView) {
-        webView.removeFromSuperview()
-        webView.frame = container.bounds
-        webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    /// The size pages are laid out at, wherever the view is: a phone's screen. A card's live preview scales it down.
+    nonisolated static let layoutSize = CGSize(width: 390, height: 844)
+
+    // MARK: On screen
+
+    /// Who wants the view on screen. A web view has one superview, so one claim holds it at a time
+    /// (`ScreenOwnership`): a sheet before a card's preview, the newest of equals; with none it is parked.
+    private var claims: [ScreenClaim] = []
+    private weak var owner: ScreenClaim?
+    private static var claimCount = 0
+
+    /// Shown in a sheet or a card now.
+    var isOnScreen: Bool { owner != nil }
+    /// Shown in a sheet now (the user is looking at it full size).
+    var isInSheet: Bool { owner?.kind == .sheet }
+
+    /// Asks for the view in `container`. It moves there when the claim is the strongest whose container is in a
+    /// window; `release` gives it back (to the next claim, or off screen).
+    func claim(_ kind: ScreenClaim.Kind, in container: PlatformView, interactive: Bool) -> ScreenClaim {
+        Self.claimCount += 1
+        let claim = ScreenClaim(kind: kind, container: container, interactive: interactive, order: Self.claimCount)
+        claims.append(claim)
+        updatePlacement()
+        return claim
+    }
+
+    func release(_ claim: ScreenClaim) {
+        claims.removeAll { $0 === claim }
+        updatePlacement()
+    }
+
+    /// Moves the view to the claim that should hold it now (a container joined or left a window, or a claim changed).
+    func updatePlacement() {
+        guard !disposed else { return }
+        claims.removeAll { $0.container == nil }
+        let index = ScreenOwnership.owner(claims.map { .init(kind: $0.kind, order: $0.order, inWindow: $0.container?.window != nil) })
+        let top = index.map { claims[$0] }
+        owner = top
+        guard let top, let container = top.container else {
+            if isAttachedToStage { park() }
+            return
+        }
+        if webView.superview !== container {
+            webView.removeFromSuperview()
+            container.addSubview(webView)
+        }
+        layout(in: container, preview: top.kind == .preview, interactive: top.interactive)
+    }
+
+    /// The view is in a sheet or a card (not parked).
+    private var isAttachedToStage: Bool {
+        guard let superview = webView.superview else { return false }
+        return claims.contains { $0.container === superview } || !isParkedSuperview(superview)
+    }
+
+    private func isParkedSuperview(_ view: PlatformView) -> Bool {
+        #if canImport(UIKit)
+        view is UIWindow
+        #else
+        view.window === OffscreenWebHost.shared.window
+        #endif
+    }
+
+    /// Lays the view out in its container again (the container changed size).
+    func layoutOnStage(_ container: PlatformView) {
+        guard let owner, owner.container === container, webView.superview === container else { return }
+        layout(in: container, preview: owner.kind == .preview, interactive: owner.interactive)
+    }
+
+    private func layout(in container: PlatformView, preview: Bool, interactive: Bool) {
+        let size = Self.layoutSize
+        #if canImport(UIKit)
         webView.alpha = 1
-        webView.isUserInteractionEnabled = true
-        container.addSubview(webView)
+        if preview {
+            // Laid out at full size and drawn at the card's width: the page looks as it would on the phone.
+            let scale = container.bounds.width / size.width
+            webView.autoresizingMask = []
+            webView.transform = .identity
+            webView.bounds = CGRect(origin: .zero, size: size)
+            webView.transform = CGAffineTransform(scaleX: scale, y: scale)
+            webView.center = CGPoint(x: size.width * scale / 2, y: size.height * scale / 2)
+            webView.isUserInteractionEnabled = false
+        } else {
+            webView.transform = .identity
+            webView.frame = container.bounds
+            webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            webView.isUserInteractionEnabled = interactive
+        }
+        #else
+        if preview {
+            // The container's bounds are scaled (as NSScrollView magnifies), so the page keeps its phone layout.
+            let scale = max(container.frame.width / size.width, 0.01)
+            container.setBoundsSize(NSSize(width: container.frame.width / scale, height: container.frame.height / scale))
+            webView.autoresizingMask = []
+            webView.frame = CGRect(origin: .zero, size: size)
+        } else {
+            container.setBoundsSize(container.frame.size)
+            webView.frame = container.bounds
+            webView.autoresizingMask = [.width, .height]
+        }
+        (container as? WebStageView)?.passesEvents = !preview && interactive
+        #endif
     }
-    #else
-    func show(in container: NSView) {
-        webView.removeFromSuperview()
-        webView.frame = container.bounds
-        webView.autoresizingMask = [.width, .height]
-        container.addSubview(webView)
-    }
-    #endif
 
     #if canImport(UIKit)
     static var keyWindow: UIWindow? {
@@ -222,10 +321,13 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage {
     #endif
 
     private var disposed = false
+    var isDisposed: Bool { disposed }
 
     /// Tears the view down for good.
     func dispose() {
         if !disposed { disposed = true; DiagnosticCounters.shared.webViewDisposed() }
+        claims.removeAll()
+        owner = nil
         BackgroundLoadingSound.shared.unregister(self)
         progressObservation = nil
         onProgress = nil
@@ -377,8 +479,8 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage {
 final class OffscreenWebHost {
     static let shared = OffscreenWebHost()
 
-    private lazy var window: NSWindow = {
-        let window = NSWindow(contentRect: NSRect(x: -20_000, y: -20_000, width: 390, height: 844),
+    private(set) lazy var window: NSWindow = {
+        let window = NSWindow(contentRect: NSRect(x: -20_000, y: -20_000, width: HiddenWebView.layoutSize.width, height: HiddenWebView.layoutSize.height),
                               styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.alphaValue = 0

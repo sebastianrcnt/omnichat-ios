@@ -6,12 +6,15 @@ Everything else those reviews reported was fixed in that commit. Each entry: whe
 
 ## Security and privacy
 
-- **One browser login store for every chat** (`Tools/HiddenWebView.swift` `BrowserData`, `Tools/BrowserTools.swift`).
-  A site signed in through `browser_show` in chat A stays signed in for `browser_open`/`browser_eval` in chat B, so a
-  page that injects instructions in B can drive that session. Kept on purpose (one app-wide store, no per-site switches).
-  If it matters: ask before `browser_eval` runs on a host with stored cookies, or scope sessions per chat.
-- **Search/fetch web views share cookies across chats for the app session** (`SharedWebData`, `WebViewPool`). Kept on
-  purpose; could clear the non-persistent store when the chat changes.
+- **One cookie store for every web view and every chat** (`Tools/HiddenWebView.swift` `BrowserData`, `WebViewPool`,
+  `Tools/BrowserTools.swift`). Search, fetch, plugins and the model's browser all use one persistent store, so a
+  sign-in or a solved robot check (`cf_clearance`, Google's) works everywhere and survives relaunches. The cost: a site
+  signed in through `browser_show` in chat A is signed in for every `web_fetch`, `browser_open` and `browser_eval` in
+  every other chat too, so a page that injects instructions in chat B can drive that session (read the account, post,
+  buy); and search/fetch now leave cookies, storage and caches on disk where they used to vanish at quit, so sites can
+  link the model's visits across chats and launches. Kept on purpose (one app-wide store, no per-site switches); the
+  user can see cookies by site and clear everything in Settings > Tools > Browsing data. If it matters: ask before
+  `browser_eval` runs on a host with stored cookies, or scope sessions per chat.
 - **DNS rebinding** (`Tools/URLGuard.swift`). The guard resolves the host itself, then WebKit or URLSession resolves
   again; a TTL-0 domain can answer public then private. Literal private IPs are now blocked inside pages
   (`LocalNetworkRules`) and redirects are checked, but a rebinding name is not. Fix: connect to the checked IP (pin it),
@@ -39,11 +42,17 @@ Everything else those reviews reported was fixed in that commit. Each entry: whe
   right after compacting). Fix: budget the whole replacement against the window.
 - **`BrowserSessions.dispose` cancels only the queue's tail task** (`Tools/BrowserTools.swift`). The sweep skips busy
   sessions, so this matters only for `closeAll` during a call.
+- **Pages kept for the user cost memory** (`Tools/KeptPages.swift`). Up to three failed web views, each with its own
+  WebContent process, stay alive until five minutes after the reply that kept them (a memory warning drops them).
+- **Take over holds only later browser calls** (`BrowserSessions.takeOver`). A call already running when the user taps
+  Take over finishes in the page while they use it. Fix: cancel it with a "the user took over" result.
 - **Malformed `content_block_start` input** and other Anthropic edge cases beyond block-start text are untested
   against real gateways.
 
 ## UX not done
 
+- `run_plugin` pages are not checked for robot checks (search, fetch and the browser tools are); a plugin that hits
+  one just fails.
 - iPad hardware-keyboard shortcuts: the app targets iPhone only (`TARGETED_DEVICE_FAMILY: "1"`).
 - Opening Settings from the model picker is still two sheets in a row (picker closes, Settings opens).
 - Search results say "Found in messages" but show no snippet of the match.

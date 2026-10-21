@@ -130,6 +130,7 @@ struct ActivityFeedView: View {
 
     var body: some View {
         let epoch = FeedCollapse.epoch(cardCount: cards.count, isStreaming: isStreaming, answerStarted: answerStarted)
+        let live = ActivityFeed.liveBrowserCard(cards, isStreaming: isStreaming, answerStarted: answerStarted)
         VStack(alignment: .leading, spacing: 10) {
             ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
                 let auto = FeedCollapse.autoCollapsed(index: index, cards: cards, isStreaming: isStreaming, answerStarted: answerStarted)
@@ -144,7 +145,7 @@ struct ActivityFeedView: View {
                     case .python, .image:
                         PythonFeedCard(card: card, collapsed: collapsed, onToggle: toggle, onDetails: onDetails)
                     case .browser, .script:
-                        BrowserFeedCard(card: card, collapsed: collapsed, onToggle: toggle, onDetails: onDetails)
+                        BrowserFeedCard(card: card, collapsed: collapsed, live: card.id == live, onToggle: toggle, onDetails: onDetails)
                     case .note:
                         ToolNoteFeedCard(card: card, onDetails: onDetails)
                     case .places:
@@ -163,6 +164,13 @@ struct ActivityFeedView: View {
                     }
                 }
                 .modifier(StaggerIn(animates: isStreaming && !reduceMotion, clock: stagger))
+            }
+            // A tool of this reply stopped at a robot check (only one reply works at a time).
+            if isStreaming && !answerStarted {
+                ForEach(RobotCheckRequests.shared.pending) { request in
+                    RobotCheckPromptCard(request: request)
+                        .transition(.opacity)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -205,6 +213,11 @@ struct FeedCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
+            if card.isError && !card.isRunning {
+                KeptPageButton(callID: card.id)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 10)
+            }
             if !collapsed && !card.rows.isEmpty {
                 rowList
                     .transition(.opacity)
@@ -342,9 +355,17 @@ struct FeedCardView: View {
                 .buttonStyle(.plain)
                 .transition(.opacity)
             }
-            // A "Read pages" card's rows.
+            // A "Read pages" card's rows; a failed one whose page was kept can open it.
             ForEach(card.extras.prefix(max(0, visible - results.count))) { row in
-                FeedRowView(row: row).transition(rowTransition)
+                VStack(alignment: .leading, spacing: 0) {
+                    FeedRowView(row: row)
+                    if row.read == .failed, let callID = row.callID {
+                        KeptPageButton(callID: callID)
+                            .padding(.leading, 33)
+                            .padding(.bottom, DS.Spacing.xs)
+                    }
+                }
+                .transition(rowTransition)
             }
         }
         .padding(.horizontal, 6)

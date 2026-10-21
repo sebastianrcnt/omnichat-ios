@@ -17,7 +17,6 @@ struct SettingsView: View {
 
     @State private var path: [UUID] = []
     @State private var showDiagnostics = false
-    @State private var showCookies = false
     @State private var showSoundTest = false
     @State private var showLicenses = false
     @State private var showAppearance = false
@@ -82,7 +81,6 @@ struct SettingsView: View {
                         SettingsToggleRow(title: "Developer mode", isOn: $settings.developerMode)
                         if settings.developerMode {
                             SettingsRow(systemImage: "gauge.with.dots.needle.50percent", title: "Diagnostics", showsChevron: true) { showDiagnostics = true }
-                            SettingsRow(systemImage: "list.bullet.rectangle", title: "Browser cookies", showsChevron: true) { showCookies = true }
                             #if os(iOS)
                             SettingsRow(systemImage: "speaker.wave.2", title: "Background sound test", showsChevron: true) { showSoundTest = true }
                             #endif
@@ -109,7 +107,6 @@ struct SettingsView: View {
                 }
             }
             .navigationDestination(isPresented: $showDiagnostics) { AppDiagnosticsView() }
-            .navigationDestination(isPresented: $showCookies) { BrowserCookiesView() }
             #if os(iOS)
             .navigationDestination(isPresented: $showSoundTest) { BackgroundSoundTestView() }
             #endif
@@ -467,6 +464,40 @@ struct BrowserSettingsSection: View {
     }
 }
 
+/// Settings > Tools > Robot checks: whether a page that shows one is handed to the user or fails the tool at once.
+struct RobotCheckSettingsSection: View {
+    @Environment(\.appSettings) private var settings
+
+    var body: some View {
+        @Bindable var settings = settings
+        GroupedSection(header: "Robot checks", footer: "Strata stops at a robot check (CAPTCHA) and asks you to solve it on the page; it never solves one itself. With this off, a page that shows one isn't read.") {
+            SettingsToggleRow(title: "Ask me to solve robot checks", isOn: $settings.askRobotChecks)
+        }
+    }
+}
+
+/// Settings > Tools > Browsing data: the hidden browser's cookies by site, and clearing everything it keeps.
+struct BrowsingDataSection: View {
+    @State private var confirm = false
+
+    static let clearMessage = String(localized: "Cookies, storage and caches of Strata's browser, used by search, fetch and browsing. Sites you signed in to will ask again, and robot checks may come back.")
+
+    var body: some View {
+        GroupedSection(header: "Browsing data", footer: "Search, fetch and the browser share one set of cookies, so a sign-in or a solved robot check works everywhere. They are kept on this device and never shared with Safari.") {
+            NavigationLink { BrowserCookiesView() } label: {
+                SettingsRow(systemImage: "list.bullet.rectangle", title: "Site cookies", showsChevron: true)
+            }
+            .buttonStyle(.plain)
+            SettingsRow(systemImage: "trash", title: "Clear browsing data", isDestructive: true) { confirm = true }
+        }
+        .confirmationDialog("Clear browsing data?", isPresented: $confirm, titleVisibility: .visible) {
+            Button("Clear", role: .destructive) { Task { await BrowsingData.clearAll() } }
+        } message: {
+            Text(Self.clearMessage)
+        }
+    }
+}
+
 /// Settings > Python: on/off, the time limit of one run, and the packages downloaded so far.
 struct PythonSettingsSection: View {
     @Environment(\.theme) private var theme
@@ -706,6 +737,10 @@ private struct ToolSettingsView: View {
                 PythonSettingsSection()
 
                 BrowserSettingsSection()
+
+                RobotCheckSettingsSection()
+
+                BrowsingDataSection()
             }
             .padding(DS.Spacing.lg)
         }

@@ -10,12 +10,25 @@ struct BrowserFeedCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let card: FeedCard
     let collapsed: Bool
+    /// The newest browser card of a reply at work: it shows the model's page live (`BrowserLivePreview`).
+    var live = false
     let onToggle: () -> Void
     var onDetails: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
+            if live {
+                BrowserLivePreview(callID: card.id)
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 10)
+                    .transition(.opacity)
+            }
+            if card.isError && !card.isRunning {
+                KeptPageButton(callID: card.id)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 10)
+            }
             if case .script(let code) = card.kind, !collapsed {
                 BrowserScriptDetail(code: code, output: card.output, isRunning: card.isRunning, isError: card.isError)
                     .padding(.horizontal, 10)
@@ -107,6 +120,135 @@ struct BrowserFeedCard: View {
             Image(systemName: "chevron.right")
                 .font(.system(size: 10, weight: .semibold)).foregroundStyle(theme.textTertiary)
                 .rotationEffect(.degrees(collapsed ? 0 : 90))
+        }
+    }
+}
+
+/// The model's page, live in its card while the reply works: the browser's own web view, laid out at phone size and
+/// drawn at the card's width (`WebStage` preview), never touched. A tap opens the Watch sheet. It goes back off screen
+/// when the card scrolls away or the reply stops working.
+struct BrowserLivePreview: View {
+    @Environment(\.theme) private var theme
+    let callID: String
+
+    static let height: CGFloat = 150
+
+    var body: some View {
+        let sessions = BrowserSessions.shared
+        if let page = sessions.page(forCall: callID), let conversation = sessions.conversation(forCall: callID) {
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                Button { PageHandover.watch(page, conversation: conversation) } label: {
+                    ZStack {
+                        theme.background
+                        // Seen only while the sheet has the page.
+                        Text("Showing in the browser").font(DS.Typography.feedMeta).foregroundStyle(theme.textTertiary)
+                        WebStage(page: page, kind: .preview, interactive: false)
+                            .allowsHitTesting(false)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: Self.height)
+                    .overlay(alignment: .topLeading) { badge(live: true) }
+                    .overlay(alignment: .bottomTrailing) { badge(live: false) }
+                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous).strokeBorder(theme.separator, lineWidth: 1)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("Live view of the page"))
+                .accessibilityHint(Text("Opens the page to watch"))
+                HStack(spacing: DS.Spacing.sm) {
+                    Button("Watch", systemImage: "eye") { PageHandover.watch(page, conversation: conversation) }
+                        .buttonStyle(.glass)
+                    Button("Stop browsing", systemImage: "stop.fill", role: .destructive) { sessions.stopBrowsing(conversation) }
+                        .buttonStyle(.glass)
+                        .tint(theme.destructive)
+                    Spacer(minLength: 0)
+                }
+                .font(DS.Typography.uiSmall)
+                .controlSize(.small)
+            }
+        }
+    }
+
+    private func badge(live: Bool) -> some View {
+        HStack(spacing: 4) {
+            if live { Circle().fill(Color.red).frame(width: 6, height: 6) }
+            Text(live ? "LIVE" : "Tap to watch").font(.system(size: 10, weight: .semibold))
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(Color.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .padding(6)
+        .accessibilityHidden(true)
+    }
+}
+
+/// "Open this page" under a failed call whose page was kept (`KeptPages`): hands that same page to the user.
+struct KeptPageButton: View {
+    let callID: String
+
+    var body: some View {
+        if let page = KeptPages.shared.page(forCall: callID) as? HiddenWebView {
+            Button("Open this page", systemImage: "hand.point.up.left") { PageHandover.open(page) }
+                .buttonStyle(.glass)
+                .controlSize(.small)
+                .font(DS.Typography.uiSmall)
+                .accessibilityHint(Text("Shows the page the tool stopped on"))
+        }
+    }
+}
+
+/// A tool stopped at a robot check: "<host> wants a robot check", the page small, Open page / Skip. Open hands the
+/// same web view to the browser sheet; the tool goes on in it after Done.
+struct RobotCheckPromptCard: View {
+    @Environment(\.theme) private var theme
+    let request: RobotCheckRequests.Request
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            HStack(spacing: DS.Spacing.sm) {
+                Image(systemName: "hand.raised.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(theme.warning)
+                Text("\(request.host) wants a robot check")
+                    .font(DS.Typography.feedEmphasis)
+                    .foregroundStyle(theme.textPrimary)
+                    .lineLimit(2)
+            }
+            Text("Solve it on the page and Strata continues from there. A solved check is kept for later searches.")
+                .font(DS.Typography.uiSmall)
+                .foregroundStyle(theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            ZStack {
+                theme.background
+                WebStage(page: request.page, kind: .preview, interactive: false)
+                    .allowsHitTesting(false)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 120)
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous).strokeBorder(theme.separator, lineWidth: 1)
+            }
+            .accessibilityHidden(true)
+            HStack(spacing: DS.Spacing.sm) {
+                Button("Open page") { RobotCheckRequests.shared.answer(request.id, .open) }
+                    .buttonStyle(.glassProminent)
+                    .tint(theme.accent)
+                Button("Skip") { RobotCheckRequests.shared.answer(request.id, .skip) }
+                    .buttonStyle(.glass)
+                Spacer(minLength: 0)
+            }
+            .font(DS.Typography.uiSmall)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(theme.warning.opacity(0.1), in: RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous).strokeBorder(theme.warning.opacity(0.5), lineWidth: 1)
         }
     }
 }

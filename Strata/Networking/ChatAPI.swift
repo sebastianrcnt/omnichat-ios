@@ -205,7 +205,7 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
 
     static let browserOpen = ToolDefinition(function: .init(
         name: "browser_open",
-        description: "Open a web page in a hidden mobile browser on the user's device and return its visible text, final URL and title once it has rendered. Unlike web_fetch it keeps the page open, so browser_eval can then run JavaScript in it. Use it for sites that build their content with scripts, and as a skill instructs. The browser keeps its own cookies: a site the user signed in to with browser_show stays signed in. It never has the user's Safari logins.",
+        description: "Open a web page in a hidden mobile browser on the user's device and return its visible text, final URL and title once it has rendered. Unlike web_fetch it keeps the page open, so browser_eval can then run JavaScript in it. Use it for sites that build their content with scripts, and as a skill instructs. The browser shares its cookies with web_search and web_fetch: a site the user signed in to with browser_show, or a robot check they solved, stays that way. It never has the user's Safari logins.",
         parameters: .init(properties: ["url": .init(description: "The absolute http(s) URL to open.")],
                           required: ["url"])))
 
@@ -217,8 +217,9 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
 
     static let browserShow = ToolDefinition(function: .init(
         name: "browser_show",
-        description: "Show the page browser_open opened last in this chat to the user, and wait until they tap Done. Use it when the page needs the user: to sign in (the sign-in is kept for later chats), to pass a robot check, or for a step only they should take (paying, booking, sending). Never ask for passwords in the chat; the user types them into the page. Returns the page's title and URL when they are done.",
-        parameters: .init(properties: ["reason": .init(description: "One short sentence, in the user's language, telling them what to do on the page, like \"Sign in to X, then tap Done.\"")],
+        description: "Show a page to the user, and wait until they tap Done: by default the page browser_open opened last in this chat, or, with page, a page a failed web_search, web_fetch or browser call kept open (its result names the page id). Use it when the page needs the user: to sign in (the sign-in is kept for later chats and every web tool), to pass a robot check, to close a pop-up, or for a step only they should take (paying, booking, sending). Never ask for passwords in the chat; the user types them into the page. Returns the page's title and URL when they are done, and for a kept page its text.",
+        parameters: .init(properties: ["reason": .init(description: "One short sentence, in the user's language, telling them what to do on the page, like \"Sign in to X, then tap Done.\""),
+                                       "page": .init(description: "Optional. The id of a page a failed tool kept open, like page7, from its result. Leave it out for the page browser_open opened last.")],
                           required: ["reason"])))
 
     /// Which skills exist is never part of this definition: the system prompt lists them.

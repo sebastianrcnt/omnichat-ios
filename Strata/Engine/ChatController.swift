@@ -724,6 +724,9 @@ final class ChatController {
                         error: Error?, tracker: TurnTracker? = nil) {
         persister?.close()
         persister = nil
+        // Pages kept for the user after a failed tool go a few minutes from now; Stop browsing applied to this reply.
+        KeptPages.shared.turnEnded()
+        BrowserSessions.shared.turnEnded()
         if let error {
             message.errorText = error.localizedDescription
             message.errorNeedsSettings = (error as? APIError)?.needsSettings ?? false
