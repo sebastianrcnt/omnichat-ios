@@ -121,6 +121,12 @@ final class AppSettings {
     static let defaultThinkingLines = 2
     /// The language dictation listens for (`DictationLanguage.current` reads the same key).
     var dictationLanguage: String { didSet { defaults.set(dictationLanguage, forKey: DictationLanguage.defaultsKey) } }
+    /// The dictation engine and, for the API one, its connection and model (`DictationSettings.load` reads the keys).
+    var dictationEngine: DictationEngineKind { didSet { defaults.set(dictationEngine.rawValue, forKey: DictationSettings.engineKey) } }
+    var dictationConnectionID: UUID? {
+        didSet { defaults.set(dictationConnectionID?.uuidString, forKey: DictationSettings.connectionKey) }
+    }
+    var dictationModel: String { didSet { defaults.set(dictationModel, forKey: DictationSettings.modelKey) } }
     /// How the assistant should behave and respond (personality, tone, a name). Sent after the app prompt; a chat
     /// keeps the preferences it started with (`Conversation.frozenPreferences`).
     var userPreferences: String { didSet { defaults.set(userPreferences, forKey: Self.userPreferencesKey) } }
@@ -155,6 +161,10 @@ final class AppSettings {
         userPreferences = defaults.string(forKey: Self.userPreferencesKey) ?? ""
         enabledPlugins = Set(defaults.stringArray(forKey: Self.enabledPluginsKey) ?? [])
         dictationLanguage = defaults.string(forKey: DictationLanguage.defaultsKey) ?? DictationLanguage.defaultID()
+        let dictation = DictationSettings.load(defaults)
+        dictationEngine = dictation.engine
+        dictationConnectionID = dictation.connectionID
+        dictationModel = dictation.model
         let lines = defaults.integer(forKey: "thinkingLines")
         thinkingLines = Self.thinkingLineOptions.contains(lines) ? lines : Self.defaultThinkingLines
         translateThinking = defaults.bool(forKey: "translateThinking")

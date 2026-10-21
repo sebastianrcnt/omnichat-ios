@@ -15,6 +15,12 @@ final class FakeDictationEngine: DictationEngine {
     var hangsOnFinish = false
     /// `prepare` waits until the test lets it go.
     var holdPrepare = false
+    /// Behaves like a recording engine: the text comes at `finish()`.
+    var transcribes = false
+    /// `finish()` ends the stream with this error (a transcription that failed).
+    var finishError: DictationError?
+
+    var transcribesOnFinish: Bool { transcribes }
 
     private(set) var prepared = false
     private(set) var started = 0
@@ -57,6 +63,7 @@ final class FakeDictationEngine: DictationEngine {
     func finish() async {
         finished += 1
         for e in onFinish { continuation?.yield(e) }
+        if let finishError { continuation?.finish(throwing: finishError); return }
         if !hangsOnFinish { continuation?.finish() }
     }
 

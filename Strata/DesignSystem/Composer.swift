@@ -202,7 +202,7 @@ struct ComposerBar<Accessory: View>: View {
     @State private var inputHandle = TextInputHandle()
     @Namespace private var controls
     @Environment(\.scenePhase) private var scenePhase
-    @State private var dictation = DictationController(engine: SpeechDictationEngine())
+    @State private var dictation = DictationController(engine: ConfiguredDictationEngine())
     /// Dictation started with the keyboard up: it comes back afterwards.
     @State private var refocusAfterDictation = false
     /// When the bar last changed shape. Controls move then, so a touch meant for another one can land on the microphone.
@@ -348,7 +348,8 @@ struct ComposerBar<Accessory: View>: View {
                     if expanded {
                         appendedWords
                     } else if dictation.showsTranscript {
-                        DictationLiveLine(text: dictation.transcript)
+                        DictationLiveLine(text: dictation.transcript,
+                                          placeholder: dictation.isTranscribing ? "Transcribing…" : "Listening…")
                     } else {
                         DictationStatusLine(phase: dictation.phase)
                     }
@@ -371,7 +372,8 @@ struct ComposerBar<Accessory: View>: View {
         }
         return Group {
             if text.isEmpty && words.isEmpty {
-                Text(dictation.showsTranscript ? "Listening…" : "Message").foregroundStyle(theme.textSecondary)
+                Text(dictation.isTranscribing ? "Transcribing…" : dictation.showsTranscript ? "Listening…" : "Message")
+                    .foregroundStyle(theme.textSecondary)
             } else {
                 Text(shown)
             }

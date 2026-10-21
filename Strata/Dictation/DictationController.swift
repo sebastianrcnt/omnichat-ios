@@ -24,12 +24,32 @@ enum DictationError: Error, Sendable, Equatable {
     case assetUnavailable
     /// There is no audio input.
     case microphoneUnavailable
+    /// The selected engine needs settings it doesn't have (an API engine without a connection or model).
+    case notConfigured
+    /// The transcription service could not be reached.
+    case network
+    /// The transcription service did not answer in time.
+    case timedOut
+    /// The transcription service refused the API key (401 / 403).
+    case unauthorized
+    /// The recording is over what the transcription service takes.
+    case tooLong
+    /// The transcription service answered with an error; the detail is short and meant for the user.
+    case service(String)
     case failed(String)
 }
 
-/// The speech side of dictation, behind a protocol so `DictationController` can be tested with a fake.
+/// The speech side of dictation, behind a protocol so `DictationController` can be tested with a fake and so engines
+/// can be swapped (`DictationEngineKind`, picked in Settings, resolved by `ConfiguredDictationEngine`).
+///
+/// Two shapes fit: a live engine streams `.volatile` / `.finalized` text while it listens (Apple on-device); a
+/// recording engine only sends `.level` while it listens and the whole text at `finish()` (an upload to a
+/// transcription API). The latter says so with `transcribesOnFinish`, so the controller waits longer for `finish()`
+/// and shows its errors instead of keeping the (empty) words heard so far.
 @MainActor
 protocol DictationEngine: AnyObject {
+    /// The text comes at `finish()`, not while listening. Read after `start`.
+    var transcribesOnFinish: Bool { get }
     /// Asks for (or reads) microphone and speech recognition permission.
     func authorize() async -> DictationAuthorization
     /// True when the on-device model for `locale` has to be downloaded first.
@@ -44,6 +64,10 @@ protocol DictationEngine: AnyObject {
     func cancel()
 }
 
+extension DictationEngine {
+    var transcribesOnFinish: Bool { false }
+}
+
 /// The dictation state machine behind the composer's microphone: permission, model download, listening with a live
 /// transcript and input level, then confirm (the text goes into the field) or cancel (it is dropped).
 @MainActor
@@ -55,6 +79,12 @@ final class DictationController {
         case unsupportedLocale
         case assetUnavailable
         case microphoneUnavailable
+        case notConfigured
+        case network
+        case timedOut
+        case unauthorized
+        case tooLong
+        case service(String)
         case failed
 
         /// The failure is fixed in Settings, so the message offers a way there.
@@ -70,7 +100,7 @@ final class DictationController {
         case listening
         /// The audio ended on its own; the transcript waits for confirm or cancel.
         case stopped
-        /// Confirm was tapped; the recognizer settles the last words.
+        /// Confirm was tapped; the recognizer settles the last words (or a recording engine transcribes).
         case finishing
         case failed(Failure)
     }
@@ -99,6 +129,8 @@ final class DictationController {
     @ObservationIgnored private var generation = 0
     /// Longest wait for the recognizer to settle after confirm.
     @ObservationIgnored var finishTimeout: Duration = .seconds(3)
+    /// Longest wait for an engine that transcribes on finish (an upload, then the service's work).
+    @ObservationIgnored var transcriptionTimeout: Duration = .seconds(90)
 
     init(engine: DictationEngine, locale: Locale? = nil, now: @escaping () -> Date = Date.init) {
         self.engine = engine
@@ -113,6 +145,8 @@ final class DictationController {
     /// Dictation is on screen (listening, getting ready, or showing a failure).
     var isActive: Bool { phase != .idle }
     var isListening: Bool { phase == .listening }
+    /// Confirm was tapped and the recording is being transcribed: "Transcribing…" rather than "Listening…".
+    var isTranscribing: Bool { phase == .finishing && engine.transcribesOnFinish }
     /// The live row (waveform, transcript, time, confirm) rather than a status line.
     var showsTranscript: Bool {
         switch phase {
@@ -152,9 +186,16 @@ final class DictationController {
             let current = generation
             // The timeout covers the engine's own finishing too: a recognizer that never settles can't hold the
             // composer in "finishing" for good.
-            await finish(within: finishTimeout, session: session)
-            // Cancelled meanwhile and a new dictation started: its words and session are not this confirm's.
+            let transcribes = engine.transcribesOnFinish
+            let settled = await finish(within: transcribes ? transcriptionTimeout : finishTimeout, session: session)
+            // Cancelled meanwhile, failed, or a new dictation started: its words and session are not this confirm's.
             guard current == generation else { return "" }
+            // A transcription that never came has no words to fall back on: say so rather than insert nothing.
+            if !settled && transcribes {
+                engine.cancel()
+                fail(.timedOut)
+                return ""
+            }
         case .stopped:
             break
         case .finishing: // a second tap; the first one inserts the words
@@ -249,7 +290,8 @@ final class DictationController {
         } catch {
             guard current == generation else { return }
             engine.cancel()
-            if phase == .finishing { return } // the words so far are kept; confirm takes them
+            // A live engine's words so far are kept; confirm takes them. A recording engine has none: the error shows.
+            if phase == .finishing && !engine.transcribesOnFinish { return }
             fail(Self.failure(for: error))
         }
     }
@@ -296,25 +338,33 @@ final class DictationController {
         case .unsupportedLocale: .unsupportedLocale
         case .assetUnavailable: .assetUnavailable
         case .microphoneUnavailable: .microphoneUnavailable
+        case .notConfigured: .notConfigured
+        case .network: .network
+        case .timedOut: .timedOut
+        case .unauthorized: .unauthorized
+        case .tooLong: .tooLong
+        case .service(let detail): .service(detail)
         default: .failed
         }
     }
 
     private final class Once { var done = false }
 
-    /// `engine.finish()` and the session's last results, or `timeout`, whichever comes first.
-    private func finish(within timeout: Duration, session: Task<Void, Never>?) async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+    /// `engine.finish()` and the session's last results, or `timeout`, whichever comes first. False on the timeout.
+    private func finish(within timeout: Duration, session: Task<Void, Never>?) async -> Bool {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
             let once = Once()
             Task { @MainActor in
                 await self.engine.finish()
                 await session?.value
-                if !once.done { once.done = true; continuation.resume() }
+                if !once.done { once.done = true; continuation.resume(returning: true) }
             }
             Task { @MainActor in
                 try? await Task.sleep(for: timeout)
+                guard !once.done else { return }
                 session?.cancel()
-                if !once.done { once.done = true; continuation.resume() }
+                once.done = true
+                continuation.resume(returning: false)
             }
         }
     }

@@ -70,7 +70,7 @@ struct DictationLiveLine: View {
         .lineLimit(1)
         .truncationMode(.head)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityLabel(text.isEmpty ? Text("Listening") : Text(verbatim: text))
+        .accessibilityLabel(text.isEmpty ? Text(placeholder) : Text(verbatim: text))
     }
 }
 
@@ -122,6 +122,12 @@ struct DictationStatusLine: View {
         case .unsupportedLocale: "Dictation isn't available for this language on this device."
         case .assetUnavailable: "The dictation model couldn't be downloaded. Try again later."
         case .microphoneUnavailable: "No microphone is available."
+        case .notConfigured: "Dictation is set to use an API, but no connection or model is chosen. Pick them in Settings > Chats > Dictation."
+        case .network: "Couldn't reach the transcription service. Check your connection and try again."
+        case .timedOut: "Transcription took too long. Try again."
+        case .unauthorized: "The transcription service rejected the API key. Check the connection in Settings."
+        case .tooLong: "The recording is too long to transcribe. Try a shorter one."
+        case .service(let detail): "Transcription failed: \(detail)"
         case .failed: "Dictation stopped unexpectedly."
         }
         #else
@@ -131,6 +137,12 @@ struct DictationStatusLine: View {
         case .unsupportedLocale: "Dictation isn't available for this language on this device."
         case .assetUnavailable: "The dictation model couldn't be downloaded. Try again later."
         case .microphoneUnavailable: "No microphone is available."
+        case .notConfigured: "Dictation is set to use an API, but no connection or model is chosen. Pick them in Settings > Chats > Dictation."
+        case .network: "Couldn't reach the transcription service. Check your connection and try again."
+        case .timedOut: "Transcription took too long. Try again."
+        case .unauthorized: "The transcription service rejected the API key. Check the connection in Settings."
+        case .tooLong: "The recording is too long to transcribe. Try a shorter one."
+        case .service(let detail): "Transcription failed: \(detail)"
         case .failed: "Dictation stopped unexpectedly."
         }
         #endif
