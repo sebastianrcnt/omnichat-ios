@@ -225,8 +225,11 @@ final class Message {
     var translationTarget: String?
     /// Whether the translation is the version on screen.
     var showingTranslation: Bool = false
-    /// The instruction sent by "Answer now". It is on the path (so later requests carry it) but never shown.
+    /// The instruction sent by "Answer now" (or "Save as skill"). It is on the path (so later requests carry it) but never
+    /// shown.
     var hiddenInstruction: Bool = false
+    /// A hidden instruction sent by "Save as skill" (`SkillOffer`), not "Answer now": the reply after it may use tools.
+    var skillRequest: Bool = false
     /// The run that "Answer now" cut short; it keeps the results gathered so far.
     var cutForEarlyAnswer: Bool = false
     /// The answer written after "Answer now".

@@ -18,7 +18,7 @@ struct SettingsView: View {
     @State private var path: [UUID] = []
     @State private var showDiagnostics = false
     @State private var showCookies = false
-    @State private var showBackgroundWebTest = false
+    @State private var showSoundTest = false
     @State private var showLicenses = false
     @State private var showAppearance = false
     @State private var showTools = false
@@ -84,7 +84,7 @@ struct SettingsView: View {
                             SettingsRow(systemImage: "gauge.with.dots.needle.50percent", title: "Diagnostics", showsChevron: true) { showDiagnostics = true }
                             SettingsRow(systemImage: "list.bullet.rectangle", title: "Browser cookies", showsChevron: true) { showCookies = true }
                             #if os(iOS)
-                            SettingsRow(systemImage: "moon.zzz", title: "Background web test", showsChevron: true) { showBackgroundWebTest = true }
+                            SettingsRow(systemImage: "speaker.wave.2", title: "Background sound test", showsChevron: true) { showSoundTest = true }
                             #endif
                         }
                     }
@@ -111,7 +111,7 @@ struct SettingsView: View {
             .navigationDestination(isPresented: $showDiagnostics) { AppDiagnosticsView() }
             .navigationDestination(isPresented: $showCookies) { BrowserCookiesView() }
             #if os(iOS)
-            .navigationDestination(isPresented: $showBackgroundWebTest) { BackgroundWebTestView() }
+            .navigationDestination(isPresented: $showSoundTest) { BackgroundSoundTestView() }
             #endif
             .navigationDestination(isPresented: $showLicenses) { LicensesView() }
             .onChange(of: SettingsRoute.shared.connection, initial: true) { _, id in
@@ -128,7 +128,7 @@ struct SettingsView: View {
         .task {
             if DebugHooks.openSheet == "diagnostics" { settings.developerMode = true; showDiagnostics = true }
             #if os(iOS)
-            if DebugHooks.openSheet == "bgwebtest" { settings.developerMode = true; showBackgroundWebTest = true }
+            if DebugHooks.openSheet == "bgsoundtest" { settings.developerMode = true; showSoundTest = true }
             #endif
             if DebugHooks.openSheet == "licenses" { showLicenses = true }
             if DebugHooks.openSheet == "connection" { // what "Add connection" does
@@ -681,6 +681,12 @@ private struct ToolSettingsView: View {
                     .padding(.horizontal, DS.Spacing.lg)
                     .padding(.vertical, DS.Spacing.sm)
                 }
+
+                #if os(iOS)
+                GroupedSection(footer: "With this off, web searches and browsing can stop while Strata is in the background. The sound plays only while the model is using the web and Strata is not on screen, even in silent mode, and may pause other audio until it ends.") {
+                    SettingsToggleRow(title: "Play a sound while browsing in the background", isOn: $settings.backgroundLoadingSound)
+                }
+                #endif
 
                 GroupedSection(header: "Plugins", footer: "Site plugins the model can run with run_plugin. A plugin that is on is listed in the system prompt.") {
                     if PluginRegistry.bundled.plugins.isEmpty {

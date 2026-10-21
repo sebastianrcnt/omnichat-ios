@@ -49,13 +49,21 @@ enum ToolExecutionRecovery {
         let observer = NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification,
                                                               object: nil, queue: nil) { _ in transitions.mark() }
         defer { NotificationCenter.default.removeObserver(observer) }
-        let output = await tools.execute(name: call.name, arguments: call.arguments)
+        let output = await executeAudibly(call, using: tools)
         try Task.checkCancellation()
         if output.isError && transitions.wasBackgrounded && ToolNames.isSafeToRetry(call.name) {
             try await waitForForeground()
-            return await tools.execute(name: call.name, arguments: call.arguments)
+            return await executeAudibly(call, using: tools)
         }
         return output
         #endif
+    }
+
+    /// Runs a call; one that works in hidden web views plays the background loading sound meanwhile, if the app is
+    /// (or goes) in the background.
+    @MainActor
+    private static func executeAudibly(_ call: ToolCall, using tools: any ToolExecuting) async -> ToolOutput {
+        guard ToolNames.usesWebPage(call.name) else { return await tools.execute(name: call.name, arguments: call.arguments) }
+        return await BackgroundLoadingSound.shared.duringWebWork { await tools.execute(name: call.name, arguments: call.arguments) }
     }
 }
