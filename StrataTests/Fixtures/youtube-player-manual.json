@@ -1,0 +1,350 @@
+{
+ "playabilityStatus": {
+  "status": "OK"
+ },
+ "videoDetails": {
+  "videoId": "LKrwhjOI8Nc",
+  "title": "There's never been a better time to go into math",
+  "lengthSeconds": "2444",
+  "author": "3Blue1Brown"
+ },
+ "captions": {
+  "playerCaptionsTracklistRenderer": {
+   "captionTracks": [
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=LKrwhjOI8Nc&caps=asr&lang=ar&signature=TEST",
+     "name": {
+      "runs": [
+       {
+        "text": "Arabic"
+       }
+      ]
+     },
+     "vssId": ".ar",
+     "languageCode": "ar",
+     "rtl": true,
+     "isTranslatable": true,
+     "trackName": ""
+    },
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=LKrwhjOI8Nc&caps=asr&lang=bn&signature=TEST",
+     "name": {
+      "runs": [
+       {
+        "text": "Bangla"
+       }
+      ]
+     },
+     "vssId": ".bn",
+     "languageCode": "bn",
+     "isTranslatable": true,
+     "trackName": ""
+    },
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=LKrwhjOI8Nc&caps=asr&lang=zh&signature=TEST",
+     "name": {
+      "runs": [
+       {
+        "text": "Chinese"
+       }
+      ]
+     },
+     "vssId": ".zh",
+     "languageCode": "zh",
+     "isTranslatable": true,
+     "trackName": ""
+    },
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=LKrwhjOI8Nc&caps=asr&lang=hr&signature=TEST",
+     "name": {
+      "runs": [
+       {
+        "text": "Croatian"
+       }
+      ]
+     },
+     "vssId": ".hr",
+     "languageCode": "hr",
+     "isTranslatable": true,
+     "trackName": ""
+    },
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=LKrwhjOI8Nc&caps=asr&lang=en&signature=TEST",
+     "name": {
+      "runs": [
+       {
+        "text": "English"
+       }
+      ]
+     },
+     "vssId": ".en",
+     "languageCode": "en",
+     "isTranslatable": true,
+     "trackName": ""
+    },
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=LKrwhjOI8Nc&caps=asr&kind=asr&lang=en&signature=TEST",
+     "name": {
+      "runs": [
+       {
+        "text": "English (auto-generated)"
+       }
+      ]
+     },
+     "vssId": "a.en",
+     "languageCode": "en",
+     "kind": "asr",
+     "isTranslatable": true,
+     "trackName": ""
+    },
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=LKrwhjOI8Nc&caps=asr&lang=fr&signature=TEST",
+     "name": {
+      "runs": [
+       {
+        "text": "French"
+       }
+      ]
+     },
+     "vssId": ".fr",
+     "languageCode": "fr",
+     "isTranslatable": true,
+     "trackName": ""
+    },
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=LKrwhjOI8Nc&caps=asr&lang=de&signature=TEST",
+     "name": {
+      "runs": [
+       {
+        "text": "German"
+       }
+      ]
+     },
+     "vssId": ".de",
+     "languageCode": "de",
+     "isTranslatable": true,
+     "trackName": ""
+    },
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=LKrwhjOI8Nc&caps=asr&lang=hi&signature=TEST",
+     "name": {
+      "runs": [
+       {
+        "text": "Hindi"
+       }
+      ]
+     },
+     "vssId": ".hi",
+     "languageCode": "hi",
+     "isTranslatable": true,
+     "trackName": ""
+    },
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=LKrwhjOI8Nc&caps=asr&lang=it&signature=TEST",
+     "name": {
+      "runs": [
+       {
+        "text": "Italian"
+       }
+      ]
+     },
+     "vssId": ".it",
+     "languageCode": "it",
+     "isTranslatable": true,
+     "trackName": ""
+    },
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=LKrwhjOI8Nc&caps=asr&lang=ko&signature=TEST",
+     "name": {
+      "runs": [
+       {
+        "text": "Korean"
+       }
+      ]
+     },
+     "vssId": ".ko",
+     "languageCode": "ko",
+     "isTranslatable": true,
+     "trackName": ""
+    },
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=LKrwhjOI8Nc&caps=asr&lang=pl&signature=TEST",
+     "name": {
+      "runs": [
+       {
+        "text": "Polish"
+       }
+      ]
+     },
+     "vssId": ".pl",
+     "languageCode": "pl",
+     "isTranslatable": true,
+     "trackName": ""
+    },
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=LKrwhjOI8Nc&caps=asr&lang=pt-BR&signature=TEST",
+     "name": {
+      "runs": [
+       {
+        "text": "Portuguese (Brazil)"
+       }
+      ]
+     },
+     "vssId": ".pt-BR",
+     "languageCode": "pt-BR",
+     "isTranslatable": true,
+     "trackName": ""
+    },
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=LKrwhjOI8Nc&caps=asr&lang=ru&signature=TEST",
+     "name": {
+      "runs": [
+       {
+        "text": "Russian"
+       }
+      ]
+     },
+     "vssId": ".ru",
+     "languageCode": "ru",
+     "isTranslatable": true,
+     "trackName": ""
+    },
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=LKrwhjOI8Nc&caps=asr&lang=es&signature=TEST",
+     "name": {
+      "runs": [
+       {
+        "text": "Spanish"
+       }
+      ]
+     },
+     "vssId": ".es",
+     "languageCode": "es",
+     "isTranslatable": true,
+     "trackName": ""
+    },
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=LKrwhjOI8Nc&caps=asr&lang=th&signature=TEST",
+     "name": {
+      "runs": [
+       {
+        "text": "Thai"
+       }
+      ]
+     },
+     "vssId": ".th",
+     "languageCode": "th",
+     "isTranslatable": true,
+     "trackName": ""
+    },
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=LKrwhjOI8Nc&caps=asr&lang=tr&signature=TEST",
+     "name": {
+      "runs": [
+       {
+        "text": "Turkish"
+       }
+      ]
+     },
+     "vssId": ".tr",
+     "languageCode": "tr",
+     "isTranslatable": true,
+     "trackName": ""
+    },
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=LKrwhjOI8Nc&caps=asr&lang=vi&signature=TEST",
+     "name": {
+      "runs": [
+       {
+        "text": "Vietnamese"
+       }
+      ]
+     },
+     "vssId": ".vi",
+     "languageCode": "vi",
+     "isTranslatable": true,
+     "trackName": ""
+    }
+   ],
+   "audioTracks": [
+    {
+     "captionTrackIndices": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      5
+     ],
+     "defaultCaptionTrackIndex": 4,
+     "hasDefaultTrack": true,
+     "captionsInitialState": "CAPTIONS_INITIAL_STATE_OFF_RECOMMENDED"
+    }
+   ],
+   "translationLanguages": [
+    {
+     "languageCode": "ar",
+     "languageName": {
+      "runs": [
+       {
+        "text": "Arabic"
+       }
+      ]
+     }
+    },
+    {
+     "languageCode": "zh-Hant",
+     "languageName": {
+      "runs": [
+       {
+        "text": "Chinese (Traditional)"
+       }
+      ]
+     }
+    },
+    {
+     "languageCode": "nl",
+     "languageName": {
+      "runs": [
+       {
+        "text": "Dutch"
+       }
+      ]
+     }
+    },
+    {
+     "languageCode": "en",
+     "languageName": {
+      "runs": [
+       {
+        "text": "English"
+       }
+      ]
+     },
+     "translationSourceTrackIndices": [
+      0
+     ]
+    }
+   ],
+   "defaultAudioTrackIndex": 0,
+   "defaultTranslationSourceTrackIndices": [
+    4
+   ]
+  }
+ },
+ "streamingData": {
+  "adaptiveFormats": []
+ }
+}

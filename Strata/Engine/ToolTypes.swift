@@ -124,7 +124,7 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return arguments }
         switch name {
         case "web_search": return (obj["query"] as? String) ?? arguments
-        case "web_fetch": return (obj["url"] as? String) ?? arguments
+        case "web_fetch", "video_transcript": return (obj["url"] as? String) ?? arguments
         case "run_plugin": return PluginCall.pageURL(in: arguments) ?? (obj["name"] as? String) ?? arguments
         case "run_python": return (obj["code"] as? String) ?? arguments
         case "view_image": return (obj["id"] as? String) ?? arguments
@@ -264,11 +264,13 @@ enum ToolNames {
     static let showPlaces = "show_places"
     static let currentLocation = "current_location"
     static let showHTML = "show_html"
+    static let videoTranscript = "video_transcript"
 
     /// Tools safe to run a second time when the first run failed because the app went to the background: they only
     /// read. Python, page scripts, plugins and skill scripts may have done something already (a click, a POST).
     static func isSafeToRetry(_ name: String) -> Bool {
-        [webSearch, webFetch, browserOpen, browserState, browserFind, browserScreenshot, loadSkill, currentLocation].contains(name)
+        [webSearch, webFetch, browserOpen, browserState, browserFind, browserScreenshot, loadSkill, currentLocation,
+         videoTranscript].contains(name)
     }
 
     /// The index tools (`BrowserAction`): one card each, with the page live while the reply works.
@@ -288,6 +290,9 @@ enum ToolNames {
 
     /// Tools that read a page (and count as one in the summaries).
     static func readsPage(_ name: String) -> Bool { name == webFetch || name == runPlugin || name == browserOpen }
+
+    /// `video_transcript`: a read like a page's, shown and counted as a transcript.
+    static func readsTranscript(_ name: String) -> Bool { name == videoTranscript }
 }
 
 /// Plain-value message used to build API history without touching SwiftData.

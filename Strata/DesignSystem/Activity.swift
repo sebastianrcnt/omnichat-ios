@@ -137,6 +137,8 @@ struct ActivityEntry: Identifiable, Equatable {
     var isError: Bool
     /// A `web_fetch` with an offset: shown as "Read more of <domain>".
     var isContinuation = false
+    /// A `video_transcript` call: a visit shown as "Read transcript".
+    var isTranscript = false
     /// A finished page read: the page's length (the Timeline shows it; the feed shows only a status mark).
     var characters: Int?
 
@@ -165,6 +167,7 @@ struct ActivityEntry: Identifiable, Equatable {
         } else {
             kind = .visit(url: call.primaryArgument, host: Self.host(of: call.primaryArgument))
             isContinuation = call.fetchOffset > 0
+            isTranscript = ToolNames.readsTranscript(call.name)
             characters = call.fetchedCharacters
         }
     }
@@ -188,6 +191,7 @@ struct ActivityEntry: Identifiable, Equatable {
         } else {
             kind = .visit(url: pending.primaryArgument, host: Self.host(of: pending.primaryArgument))
             isContinuation = pending.offset > 0
+            isTranscript = ToolNames.readsTranscript(pending.name)
         }
     }
 
@@ -261,16 +265,16 @@ struct ActivityRow: View {
         case .visit(let url, let host):
             let progress = ToolProgress.shared.value(for: entry.id)
             HStack(spacing: DS.Spacing.sm) {
-                icon("globe")
+                icon(entry.isTranscript ? "captions.bubble" : "globe")
                 if wrapsChips, let u = URL(string: url) {
-                    Text(entry.isContinuation ? "Read more of" : "Visited").font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary)
+                    Text(visitLabel).font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary)
                     SourceChip(host: host, url: u, progress: progress, isError: entry.isError)
                     if let characters = entry.characters {
                         Text("\(characters.formatted()) chars")
                             .font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary).lineLimit(1)
                     }
                 } else {
-                    Text(entry.isContinuation ? "Read more of \(host)" : "Visited \(host)").font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary).lineLimit(1)
+                    Text(visitLine(host)).font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary).lineLimit(1)
                         .padding(.horizontal, DS.Spacing.sm).padding(.vertical, DS.Spacing.xs)
                         .progressFill(progress, isError: entry.isError)
                         .padding(.horizontal, -DS.Spacing.sm).padding(.vertical, -DS.Spacing.xs)
@@ -333,6 +337,17 @@ struct ActivityRow: View {
             SSHTimelineRow(call: SSHCallDisplay(tool: tool, arguments: arguments, output: output), callID: entry.id,
                            isRunning: entry.isRunning, isError: entry.isError, showsDetail: wrapsChips)
         }
+    }
+
+    /// What a visit did, before its domain chip.
+    private var visitLabel: LocalizedStringKey {
+        if entry.isTranscript { return entry.isContinuation ? "Read more of the transcript from" : "Read the transcript from" }
+        return entry.isContinuation ? "Read more of" : "Visited"
+    }
+
+    private func visitLine(_ host: String) -> LocalizedStringKey {
+        if entry.isTranscript { return entry.isContinuation ? "Read more of the transcript from \(host)" : "Read the transcript from \(host)" }
+        return entry.isContinuation ? "Read more of \(host)" : "Visited \(host)"
     }
 
     private func icon(_ name: String) -> some View {

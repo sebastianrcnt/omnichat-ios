@@ -2,8 +2,8 @@
 import SwiftUI
 
 /// `-StrataActivityGallery 1`: instead of the app, one scrolling page with the activity feed's states (a browser run at
-/// work with its live view, a robot check, a failed page that was kept, searches, page reads and other tools) built
-/// from sample cards, for simulator screenshots in light and dark. Nothing here runs a tool or touches the network.
+/// work with its live view, a robot check, a failed page that was kept, searches, page reads, a video transcript and
+/// other tools) built from sample cards, for simulator screenshots in light and dark. Nothing here runs a tool or touches the network.
 struct ActivityGallery: View {
     @Environment(\.theme) private var theme
 
@@ -138,16 +138,20 @@ struct ActivityGallery: View {
         1: .init(id: 1, title: "성수동 조용한 카페 BEST 7", url: "https://blog.naver.com/cafe/1", snippet: ""),
         2: .init(id: 2, title: "Seongsu cafe guide 2026", url: "https://www.timeout.com/seoul/seongsu", snippet: ""),
         3: .init(id: 3, title: "성수 작업하기 좋은 카페", url: "https://www.mangoplate.com/top_lists/seongsu", snippet: ""),
+        4: .init(id: 4, title: "성수동 카페 투어 브이로그", url: "https://www.youtube.com/watch?v=qpu_kIMdo0k", snippet: ""),
     ]
 
     static var otherCalls: [FeedCall] {
         var python = FeedCall(id: "p", isSearch: false, argument: "print(sum(range(10)))", status: .done)
         python.tool = ToolNames.runPython
         python.output = "45"
+        var video = FeedCall(id: "v", isSearch: false, argument: "https://youtu.be/qpu_kIMdo0k", status: .done, sourceIDs: [4])
+        video.transcript = true
         return [
             .init(id: "q", isSearch: true, argument: "성수동 조용한 카페", status: .done, sourceIDs: [1, 2, 3], engine: "Naver"),
             .init(id: "r1", isSearch: false, argument: "https://blog.naver.com/cafe/1", status: .done, sourceIDs: [1]),
             .init(id: "r2", isSearch: false, argument: "https://www.mangoplate.com/top_lists/seongsu", status: .failed),
+            video,
             python,
         ]
     }

@@ -469,6 +469,19 @@ struct BrowserSettingsSection: View {
     }
 }
 
+/// Settings > Tools > Video transcripts: whether new chats start with `video_transcript`.
+struct VideoTranscriptSettingsSection: View {
+    @Environment(\.appSettings) private var settings
+
+    var body: some View {
+        @Bindable var settings = settings
+        GroupedSection(header: "Video transcripts", footer: "The model can read what is said in a YouTube video with video_transcript: its captions, uploaded or auto-generated, read on this device. Videos without captions can't be read. A chat can turn video transcripts on or off from the + menu.") {
+            SettingsToggleRow(title: "Video transcripts in new chats", subtitle: "Let the model read YouTube videos' captions.",
+                              isOn: $settings.videoTranscriptsEnabled)
+        }
+    }
+}
+
 /// Settings > Tools > Robot checks: whether a page that shows one is handed to the user or fails the tool at once.
 struct RobotCheckSettingsSection: View {
     @Environment(\.appSettings) private var settings
@@ -739,6 +752,8 @@ private struct ToolSettingsView: View {
                 }
 
                 PythonSettingsSection()
+
+                VideoTranscriptSettingsSection()
 
                 BrowserSettingsSection()
 

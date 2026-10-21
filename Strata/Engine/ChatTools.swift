@@ -8,7 +8,7 @@ import Foundation
 /// the request and its calls are refused (`OfferedTools`), and the model hears about the change in a short note at the
 /// end of the next user message (`Message.apiNote`). A group that was off at the start is simply not offered.
 enum ToolGroup: String, CaseIterable, Codable, Sendable, Identifiable {
-    case web, browser, python, location, ssh
+    case web, browser, python, location, video, ssh
 
     var id: String { rawValue }
 
@@ -20,6 +20,7 @@ enum ToolGroup: String, CaseIterable, Codable, Sendable, Identifiable {
         case .python: [ToolNames.runPython, ToolNames.viewImage]
         case .location: [ToolNames.currentLocation]
         case .ssh: Set(SSHToolNames.all)
+        case .video: [ToolNames.videoTranscript]
         }
     }
 
@@ -35,6 +36,7 @@ enum ToolGroup: String, CaseIterable, Codable, Sendable, Identifiable {
         case .python: String(localized: "Python")
         case .location: String(localized: "Location")
         case .ssh: String(localized: "SSH")
+        case .video: String(localized: "Video transcripts")
         }
     }
 
@@ -45,6 +47,7 @@ enum ToolGroup: String, CaseIterable, Codable, Sendable, Identifiable {
         case .python: "chevron.left.forwardslash.chevron.right"
         case .location: "location"
         case .ssh: "terminal"
+        case .video: "captions.bubble"
         }
     }
 
@@ -56,6 +59,7 @@ enum ToolGroup: String, CaseIterable, Codable, Sendable, Identifiable {
         case .python: "Python"
         case .location: "Location"
         case .ssh: "SSH"
+        case .video: "Video transcripts"
         }
     }
 
@@ -66,6 +70,7 @@ enum ToolGroup: String, CaseIterable, Codable, Sendable, Identifiable {
         case .python: "Python"
         case .location: "location"
         case .ssh: "SSH"
+        case .video: "video transcripts"
         }
     }
 

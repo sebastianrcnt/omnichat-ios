@@ -20,7 +20,8 @@ struct SourceInfo: Codable, Hashable, Identifiable, Sendable {
 enum SourceUsage {
     static func ids(calls: [ToolCallRecord], text: String, known: Set<Int>) -> [Int] {
         var ids: [Int] = []
-        for id in calls.filter({ ToolNames.readsPage($0.name) }).flatMap(\.sourceIDs) where !ids.contains(id) { ids.append(id) }
+        for id in calls.filter({ ToolNames.readsPage($0.name) || ToolNames.readsTranscript($0.name) }).flatMap(\.sourceIDs)
+        where !ids.contains(id) { ids.append(id) }
         for id in CitationParser.citedIDs(in: text, known: known) where !ids.contains(id) { ids.append(id) }
         return ids
     }
@@ -116,6 +117,11 @@ enum AppPrompt {
     - Don't offer for one-off questions, for tasks that worked on the first try, or again in a chat where the user declined. If a loaded skill was wrong or incomplete, offer to update it instead.
     """
 
+    /// When to read a video's transcript.
+    static let video = """
+    - When the user shares a YouTube link or asks what is said in a video, read it with video_transcript (web_fetch can't). Point to moments by their [mm:ss] timestamps, and say so when the captions are auto-generated and a word or name may be misheard.
+    """
+
     /// Driving the browser with the index tools; rules adapted from browser-use (MIT).
     static let browser = """
     - In the browser, act on pages with the index tools: browser_click, browser_type, browser_select and browser_scroll take an [index] from the latest page state, and each returns the new state. Use only indices from the latest state.
@@ -132,11 +138,13 @@ enum AppPrompt {
     """
 
     /// The app prompt for a model with (or without) tools, with `run_python` offered or not, with the browser's index
-    /// tools offered or not, with skills (`save_skill`) offered or not, and with the SSH tools offered or not.
-    static func text(tools: Bool, python: Bool, browser: Bool = false, skills: Bool = false, ssh: Bool = false) -> String {
+    /// tools offered or not, with skills (`save_skill`) offered or not, with `video_transcript` offered or not, and
+    /// with the SSH tools offered or not.
+    static func text(tools: Bool, python: Bool, browser: Bool = false, skills: Bool = false, video: Bool = false,
+                     ssh: Bool = false) -> String {
         guard tools else { return base }
         return base + "\n\n" + Self.tools + (python ? "\n" + Self.python : "") + (browser ? "\n" + Self.browser : "")
-            + (skills ? "\n" + Self.skillOffer : "") + (ssh ? "\n" + Self.ssh : "")
+            + (skills ? "\n" + Self.skillOffer : "") + (video ? "\n" + Self.video : "") + (ssh ? "\n" + Self.ssh : "")
     }
 
     /// The user's preferences as a system-prompt section, or "" when they are blank. Followed in every reply, so

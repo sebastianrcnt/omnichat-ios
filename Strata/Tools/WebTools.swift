@@ -192,8 +192,9 @@ enum PageSlicer {
         case offsetPastEnd(offset: Int, total: Int)
     }
 
-    /// Returns `[offset, offset+limit)` of `text` plus a footer telling the model how to continue.
-    static func slice(_ text: String, offset: Int, limit: Int) -> Result {
+    /// Returns `[offset, offset+limit)` of `text` plus a footer telling the model how to continue: by calling `tool`
+    /// again (`video_transcript` pages a transcript the same way, `noun` "transcript").
+    static func slice(_ text: String, offset: Int, limit: Int, tool: String = ToolNames.webFetch, noun: String = "page") -> Result {
         let total = text.count
         let start = max(0, offset)
         if start > 0 && start >= total { return .offsetPastEnd(offset: start, total: total) }
@@ -202,8 +203,8 @@ enum PageSlicer {
         let to = text.index(from, offsetBy: end - start)
         let body = String(text[from..<to])
         let footer = end >= total
-            ? "[End of page, \(total) characters total.]"
-            : "[Showing characters \(start)\u{2013}\(end) of \(total). Call web_fetch with the same url and offset=\(end) to read more.]"
+            ? "[End of \(noun), \(total) characters total.]"
+            : "[Showing characters \(start)\u{2013}\(end) of \(total). Call \(tool) with the same url and offset=\(end) to read more.]"
         return .slice(text: body, footer: footer)
     }
 }
@@ -407,6 +408,12 @@ struct ToolRouter: ToolExecuting {
             }
             let offset = (args["offset"] as? Int) ?? (args["offset"] as? Double).flatMap { Int(exactly: $0.rounded(.down)) } ?? Int((args["offset"] as? String) ?? "") ?? 0
             return await WebFetchTool().run(urlString: url, offset: offset)
+        case ToolNames.videoTranscript:
+            guard let url = args["url"] as? String else {
+                return ToolOutput(text: "Error: missing required argument \"url\".", isError: true)
+            }
+            return await VideoTranscriptTool().run(urlString: url, language: args["lang"] as? String,
+                                                   offset: ToolCallRecord.fetchOffset(in: arguments))
         case ToolNames.runPlugin:
             guard let plugin = args["name"] as? String else {
                 return ToolOutput(text: "Error: missing required argument \"name\".", isError: true)

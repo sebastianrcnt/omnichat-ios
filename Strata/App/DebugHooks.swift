@@ -18,6 +18,7 @@ import SwiftData
 ///   -StrataSeedArtifacts 1                         with it: first add three sample chats with artifacts (once)
 ///   -StrataGalleryOpen 1                           with it: open the gallery's second artifact in the viewer
 ///   -StrataActivityGallery 1                       show the activity feed states instead of the app (`ActivityGallery`)
+///   -StrataVideoSelfTest 1                         real video_transcript calls, reported to stderr (`runVideoSelfTest`)
 /// Canned tool results so the UI can be exercised without the network.
 struct FakeWebTools: ToolExecuting {
     func execute(name: String, arguments: String) async -> ToolOutput {
@@ -155,6 +156,51 @@ enum DebugHooks {
             }
             say("done")
         }
+    }
+
+    /// `-StrataVideoSelfTest 1`: real `video_transcript` calls (a Korean video, an English one with uploaded captions, a
+    /// Short, a Korean one with only auto-generated captions and dubbed audio, Korean asked of an English video, a video
+    /// without captions, a non-YouTube link),
+    /// reported to stderr with the result's head. `-StrataVideoSelfTestURLs "a b|ko"` reads those links instead (`|ko`: with lang).
+    ///   -StrataVideoSelfTestPage 1   skips the direct requests and reads every video from a page in the hidden browser
+    @MainActor
+    static func runVideoSelfTest() {
+        guard UserDefaults.standard.bool(forKey: "StrataVideoSelfTest") else { return }
+        func say(_ text: String) { FileHandle.standardError.write(Data("[video-selftest] \(text)\n".utf8)) }
+        Task { @MainActor in
+            let cases: [(url: String, lang: String?)] = value("StrataVideoSelfTestURLs").map { list in
+                list.split(separator: " ").map { item in
+                    let parts = item.split(separator: "|", maxSplits: 1).map(String.init)
+                    return (parts[0], parts.count > 1 ? parts[1] : nil)
+                }
+            } ?? [
+                ("https://youtu.be/qpu_kIMdo0k?si=abc", nil),
+                ("https://www.youtube.com/watch?v=LKrwhjOI8Nc&t=42s", nil),
+                ("https://www.youtube.com/shorts/IXasas568yY", nil),
+                ("music.youtube.com/watch?v=eApr0i4hUlw&list=RD", nil),
+                ("https://m.youtube.com/watch?v=dQw4w9WgXcQ", "ko"),
+                ("https://www.youtube.com/watch?v=uWJ-XmhAUX8", nil),
+                ("https://vimeo.com/76979871", nil),
+            ]
+            var source = YouTubeTranscriptSource()
+            if UserDefaults.standard.bool(forKey: "StrataVideoSelfTestPage") {
+                source.transport = FailingYouTubeTransport()
+            }
+            for (url, lang) in cases {
+                let started = ContinuousClock.now
+                TranscriptCache.shared.removeAll()
+                let out = await VideoTranscriptTool(sources: [source]).run(urlString: url, language: lang)
+                say("\(url) lang=\(lang ?? "-"): error=\(out.isError) chars=\(out.text.count) source=\(out.sources.first?.title ?? "-") in \(ContinuousClock.now - started)")
+                say("  " + out.text.prefix(420).replacingOccurrences(of: "\n", with: " | "))
+            }
+            say("done")
+        }
+    }
+
+    /// Fails every direct request like a bot check, so the self-test goes to the hidden browser.
+    struct FailingYouTubeTransport: YouTubeTransport {
+        func player(videoID: String, client: InnerTubeClient) async throws -> Data { throw YouTubeError.botCheck }
+        func track(_ url: URL) async throws -> Data { throw YouTubeError.botCheck }
     }
 
     /// `-StrataKeychainSelfTest 1`: saves, reads back, replaces and deletes a throwaway key through the same store the
