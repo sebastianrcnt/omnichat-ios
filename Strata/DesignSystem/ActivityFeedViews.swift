@@ -272,7 +272,7 @@ struct ActivityFeedView: View {
             PlacesFeedCard(card: card, onDetails: onDetails)
         case .artifact:
             ArtifactFeedCard(card: card, onDetails: onDetails)
-        case .search, .pages:
+        case .search, .pages, .transcripts:
             FeedCardView(card: card, collapsed: collapsed, showAll: showingAll.contains(card.id), staggerRows: isStreaming,
                          onToggle: toggle,
                          onShowAll: { // toggles: "+N more" expands, "Show less" folds back
@@ -341,13 +341,21 @@ struct FeedCardView: View {
         Button(action: onToggle) {
             FeedLine(title: title, meta: summary, expanded: card.isRunning || card.isError ? nil : !collapsed) {
                 if card.isRunning || (collapsed && card.hasLoadingRow) { FeedSpinner() }
-                else { FeedSymbol(name: card.kind == .pages ? "doc.text" : "magnifyingglass") }
+                else { FeedSymbol(name: symbol) }
             }
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(accessibilityTitle))
         .accessibilityValue(Text(collapsed ? "Collapsed" : "Expanded"))
         .accessibilityHint(Text(collapsed ? "Shows the results" : "Hides the results"))
+    }
+
+    private var symbol: String {
+        switch card.kind {
+        case .pages: "doc.text"
+        case .transcripts: "captions.bubble"
+        default: "magnifyingglass"
+        }
     }
 
     private var title: String {
@@ -357,6 +365,10 @@ struct FeedCardView: View {
             card.hasLoadingRow
                 ? (card.extras.count == 1 ? String(localized: "Reading 1 page…") : String(localized: "Reading \(card.extras.count) pages…"))
                 : (card.extras.count == 1 ? String(localized: "Read 1 page") : String(localized: "Read \(card.extras.count) pages"))
+        case .transcripts:
+            card.hasLoadingRow
+                ? (card.extras.count == 1 ? String(localized: "Reading transcript…") : String(localized: "Reading \(card.extras.count) transcripts…"))
+                : (card.extras.count == 1 ? String(localized: "Read transcript") : String(localized: "Read \(card.extras.count) transcripts"))
         case .python: String(localized: "Ran Python")
         case .image(let id): String(localized: "Viewed \(id)")
         case .browser, .script, .browserAction, .note, .places, .artifact: ""
@@ -367,18 +379,19 @@ struct FeedCardView: View {
         switch card.kind {
         case .search(let query): String(localized: "Search: \(query)")
         case .pages: String(localized: "Pages read")
+        case .transcripts: String(localized: "Transcripts read")
         case .python: String(localized: "Ran Python")
         case .image(let id): String(localized: "Viewed \(id)")
         case .browser, .script, .browserAction, .note, .places, .artifact: ""
         }
     }
 
-    /// "Bing · 8 results"; for pages, "1 failed" (the title already counts them).
+    /// "Bing · 8 results"; for pages and transcripts, "1 failed" (the title already counts them).
     private var summary: String {
         if card.isError && !card.isRunning { return String(localized: "Failed") }
         if card.isRunning { return "" }
         switch card.kind {
-        case .pages:
+        case .pages, .transcripts:
             return card.failedCount > 0 ? String(localized: "\(card.failedCount) failed") : ""
         case .python, .image, .browser, .script, .browserAction, .note, .places, .artifact:
             return ""

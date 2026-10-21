@@ -1,0 +1,831 @@
+{
+ "wireMagic": "pb3",
+ "pens": [
+  {}
+ ],
+ "wsWinStyles": [
+  {},
+  {
+   "mhModeHint": 2,
+   "juJustifCode": 0,
+   "sdScrollDir": 3
+  }
+ ],
+ "wpWinPositions": [
+  {},
+  {
+   "apPoint": 6,
+   "ahHorPos": 20,
+   "avVerPos": 100,
+   "rcRows": 2,
+   "ccCols": 40
+  }
+ ],
+ "events": [
+  {
+   "tStartMs": 0,
+   "dDurationMs": 140360,
+   "id": 1,
+   "wpWinPosId": 1,
+   "wsWinStyleId": 1
+  },
+  {
+   "tStartMs": 120,
+   "dDurationMs": 4719,
+   "wWinId": 1,
+   "segs": [
+    {
+     "utf8": "김정은이",
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 죽었다고.",
+     "tOffsetMs": 560,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 김정은이",
+     "tOffsetMs": 1599,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 여러분이",
+     "tOffsetMs": 2039,
+     "acAsrConf": 0
+    }
+   ]
+  },
+  {
+   "tStartMs": 2470,
+   "dDurationMs": 2369,
+   "wWinId": 1,
+   "aAppend": 1,
+   "segs": [
+    {
+     "utf8": "\n"
+    }
+   ]
+  },
+  {
+   "tStartMs": 2480,
+   "dDurationMs": 4070,
+   "wWinId": 1,
+   "segs": [
+    {
+     "utf8": "하도",
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 죽었다",
+     "tOffsetMs": 280,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 그러니까",
+     "tOffsetMs": 600,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 북한이",
+     "tOffsetMs": 1199,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 사진도",
+     "tOffsetMs": 1920,
+     "acAsrConf": 0
+    }
+   ]
+  },
+  {
+   "tStartMs": 4829,
+   "dDurationMs": 1721,
+   "wWinId": 1,
+   "aAppend": 1,
+   "segs": [
+    {
+     "utf8": "\n"
+    }
+   ]
+  },
+  {
+   "tStartMs": 4839,
+   "dDurationMs": 2801,
+   "wWinId": 1,
+   "segs": [
+    {
+     "utf8": "공개했어요.",
+     "acAsrConf": 0
+    }
+   ]
+  },
+  {
+   "tStartMs": 6540,
+   "dDurationMs": 1100,
+   "wWinId": 1,
+   "aAppend": 1,
+   "segs": [
+    {
+     "utf8": "\n"
+    }
+   ]
+  },
+  {
+   "tStartMs": 6550,
+   "dDurationMs": 3570,
+   "wWinId": 1,
+   "segs": [
+    {
+     "utf8": "[웃음]"
+    }
+   ]
+  },
+  {
+   "tStartMs": 7630,
+   "dDurationMs": 2490,
+   "wWinId": 1,
+   "aAppend": 1,
+   "segs": [
+    {
+     "utf8": "\n"
+    }
+   ]
+  },
+  {
+   "tStartMs": 7640,
+   "dDurationMs": 4840,
+   "wWinId": 1,
+   "segs": [
+    {
+     "utf8": "언제",
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 찍은",
+     "tOffsetMs": 239,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 건지",
+     "tOffsetMs": 440,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 모르겠는데",
+     "tOffsetMs": 640,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 김정은",
+     "tOffsetMs": 1999,
+     "acAsrConf": 0
+    }
+   ]
+  },
+  {
+   "tStartMs": 10110,
+   "dDurationMs": 2370,
+   "wWinId": 1,
+   "aAppend": 1,
+   "segs": [
+    {
+     "utf8": "\n"
+    }
+   ]
+  },
+  {
+   "tStartMs": 10120,
+   "dDurationMs": 3599,
+   "wWinId": 1,
+   "segs": [
+    {
+     "utf8": "죽었다니까",
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 사진도",
+     "tOffsetMs": 760,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 공개했는데",
+     "tOffsetMs": 1160,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 이게",
+     "tOffsetMs": 1960,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 뭐",
+     "tOffsetMs": 2280,
+     "acAsrConf": 0
+    }
+   ]
+  },
+  {
+   "tStartMs": 12470,
+   "dDurationMs": 1249,
+   "wWinId": 1,
+   "aAppend": 1,
+   "segs": [
+    {
+     "utf8": "\n"
+    }
+   ]
+  },
+  {
+   "tStartMs": 12480,
+   "dDurationMs": 3079,
+   "wWinId": 1,
+   "segs": [
+    {
+     "utf8": "언제",
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 찍은",
+     "tOffsetMs": 239,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 거야?",
+     "tOffsetMs": 400,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 그럼",
+     "tOffsetMs": 600,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 누가",
+     "tOffsetMs": 760,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 맞는",
+     "tOffsetMs": 960,
+     "acAsrConf": 0
+    }
+   ]
+  },
+  {
+   "tStartMs": 13709,
+   "dDurationMs": 1850,
+   "wWinId": 1,
+   "aAppend": 1,
+   "segs": [
+    {
+     "utf8": "\n"
+    }
+   ]
+  },
+  {
+   "tStartMs": 13719,
+   "dDurationMs": 3241,
+   "wWinId": 1,
+   "segs": [
+    {
+     "utf8": "거야?지이",
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 사진",
+     "tOffsetMs": 840,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 쭉",
+     "tOffsetMs": 1120,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 뜨고",
+     "tOffsetMs": 1281,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 있던데.",
+     "tOffsetMs": 1481,
+     "acAsrConf": 0
+    }
+   ]
+  },
+  {
+   "tStartMs": 15549,
+   "dDurationMs": 1411,
+   "wWinId": 1,
+   "aAppend": 1,
+   "segs": [
+    {
+     "utf8": "\n"
+    }
+   ]
+  },
+  {
+   "tStartMs": 15559,
+   "dDurationMs": 5041,
+   "wWinId": 1,
+   "segs": [
+    {
+     "utf8": "물론",
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 뭐",
+     "tOffsetMs": 240,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 옛날에",
+     "tOffsetMs": 401,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 찍어",
+     "tOffsetMs": 681,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 놓은",
+     "tOffsetMs": 881,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 사진인지",
+     "tOffsetMs": 1001,
+     "acAsrConf": 0
+    }
+   ]
+  },
+  {
+   "tStartMs": 16950,
+   "dDurationMs": 3650,
+   "wWinId": 1,
+   "aAppend": 1,
+   "segs": [
+    {
+     "utf8": "\n"
+    }
+   ]
+  },
+  {
+   "tStartMs": 16960,
+   "dDurationMs": 6559,
+   "wWinId": 1,
+   "segs": [
+    {
+     "utf8": "모르겠는데.",
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " AI라고.",
+     "tOffsetMs": 1239,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 아",
+     "tOffsetMs": 2120,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 대역이야.",
+     "tOffsetMs": 2640,
+     "acAsrConf": 0
+    }
+   ]
+  },
+  {
+   "tStartMs": 20590,
+   "dDurationMs": 2929,
+   "wWinId": 1,
+   "aAppend": 1,
+   "segs": [
+    {
+     "utf8": "\n"
+    }
+   ]
+  },
+  {
+   "tStartMs": 20600,
+   "dDurationMs": 5160,
+   "wWinId": 1,
+   "segs": [
+    {
+     "utf8": "한때",
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 그거였어요.",
+     "tOffsetMs": 280,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 허수합이.어야",
+     "tOffsetMs": 1120,
+     "acAsrConf": 0
+    }
+   ]
+  },
+  {
+   "tStartMs": 23509,
+   "dDurationMs": 2251,
+   "wWinId": 1,
+   "aAppend": 1,
+   "segs": [
+    {
+     "utf8": "\n"
+    }
+   ]
+  },
+  {
+   "tStartMs": 23519,
+   "dDurationMs": 4121,
+   "wWinId": 1,
+   "segs": [
+    {
+     "utf8": "뭘",
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 대역을",
+     "tOffsetMs": 401,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 세워?",
+     "tOffsetMs": 801,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " AI",
+     "tOffsetMs": 1080,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 하면",
+     "tOffsetMs": 1401,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 되지.",
+     "tOffsetMs": 1600,
+     "acAsrConf": 0
+    }
+   ]
+  },
+  {
+   "tStartMs": 25750,
+   "dDurationMs": 1890,
+   "wWinId": 1,
+   "aAppend": 1,
+   "segs": [
+    {
+     "utf8": "\n"
+    }
+   ]
+  },
+  {
+   "tStartMs": 25760,
+   "dDurationMs": 3560,
+   "wWinId": 1,
+   "segs": [
+    {
+     "utf8": "그럼",
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 좀",
+     "tOffsetMs": 80,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 다른",
+     "tOffsetMs": 200,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 거",
+     "tOffsetMs": 439,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 같다고.",
+     "tOffsetMs": 599,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 항상이",
+     "tOffsetMs": 1480,
+     "acAsrConf": 0
+    }
+   ]
+  },
+  {
+   "tStartMs": 27630,
+   "dDurationMs": 1690,
+   "wWinId": 1,
+   "aAppend": 1,
+   "segs": [
+    {
+     "utf8": "\n"
+    }
+   ]
+  },
+  {
+   "tStartMs": 27640,
+   "dDurationMs": 3959,
+   "wWinId": 1,
+   "segs": [
+    {
+     "utf8": "김정은",
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 사진",
+     "tOffsetMs": 360,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 볼",
+     "tOffsetMs": 600,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 때마다",
+     "tOffsetMs": 760,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 얘기하면",
+     "tOffsetMs": 1320,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 뭘",
+     "tOffsetMs": 1600,
+     "acAsrConf": 0
+    }
+   ]
+  },
+  {
+   "tStartMs": 29310,
+   "dDurationMs": 2289,
+   "wWinId": 1,
+   "aAppend": 1,
+   "segs": [
+    {
+     "utf8": "\n"
+    }
+   ]
+  },
+  {
+   "tStartMs": 29320,
+   "dDurationMs": 4320,
+   "wWinId": 1,
+   "segs": [
+    {
+     "utf8": "적고",
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 있잖아요.",
+     "tOffsetMs": 320,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 그래서",
+     "tOffsetMs": 840,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 뭘",
+     "tOffsetMs": 1119,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 그걸",
+     "tOffsetMs": 1920,
+     "acAsrConf": 0
+    }
+   ]
+  },
+  {
+   "tStartMs": 31589,
+   "dDurationMs": 2051,
+   "wWinId": 1,
+   "aAppend": 1,
+   "segs": [
+    {
+     "utf8": "\n"
+    }
+   ]
+  },
+  {
+   "tStartMs": 31599,
+   "dDurationMs": 3881,
+   "wWinId": 1,
+   "segs": [
+    {
+     "utf8": "적어서",
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 뭐가",
+     "tOffsetMs": 881,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 되나라는",
+     "tOffsetMs": 1041,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 생각은",
+     "tOffsetMs": 1480,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 하긴",
+     "tOffsetMs": 1800,
+     "acAsrConf": 0
+    }
+   ]
+  },
+  {
+   "tStartMs": 33630,
+   "dDurationMs": 1850,
+   "wWinId": 1,
+   "aAppend": 1,
+   "segs": [
+    {
+     "utf8": "\n"
+    }
+   ]
+  },
+  {
+   "tStartMs": 33640,
+   "dDurationMs": 3200,
+   "wWinId": 1,
+   "segs": [
+    {
+     "utf8": "해.",
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 물론",
+     "tOffsetMs": 320,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 뭐",
+     "tOffsetMs": 640,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 죽기는",
+     "tOffsetMs": 759,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 싫겠지.",
+     "tOffsetMs": 1079,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 죽기는",
+     "tOffsetMs": 1520,
+     "acAsrConf": 0
+    }
+   ]
+  },
+  {
+   "tStartMs": 35470,
+   "dDurationMs": 1370,
+   "wWinId": 1,
+   "aAppend": 1,
+   "segs": [
+    {
+     "utf8": "\n"
+    }
+   ]
+  },
+  {
+   "tStartMs": 35480,
+   "dDurationMs": 3560,
+   "wWinId": 1,
+   "segs": [
+    {
+     "utf8": "싫으니까.",
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 여기",
+     "tOffsetMs": 360,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 적고",
+     "tOffsetMs": 599,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 있는",
+     "tOffsetMs": 880,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 건데",
+     "tOffsetMs": 1040,
+     "acAsrConf": 0
+    }
+   ]
+  },
+  {
+   "tStartMs": 36830,
+   "dDurationMs": 2210,
+   "wWinId": 1,
+   "aAppend": 1,
+   "segs": [
+    {
+     "utf8": "\n"
+    }
+   ]
+  },
+  {
+   "tStartMs": 36840,
+   "dDurationMs": 3960,
+   "wWinId": 1,
+   "segs": [
+    {
+     "utf8": "이렇게",
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 할아버지들",
+     "tOffsetMs": 600,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 다",
+     "tOffsetMs": 1200,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 적고",
+     "tOffsetMs": 1399,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 있잖아.",
+     "tOffsetMs": 1680,
+     "acAsrConf": 0
+    }
+   ]
+  },
+  {
+   "tStartMs": 39030,
+   "dDurationMs": 1770,
+   "wWinId": 1,
+   "aAppend": 1,
+   "segs": [
+    {
+     "utf8": "\n"
+    }
+   ]
+  },
+  {
+   "tStartMs": 39040,
+   "dDurationMs": 3839,
+   "wWinId": 1,
+   "segs": [
+    {
+     "utf8": "항상",
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 그렇더라고.",
+     "tOffsetMs": 199,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 음.",
+     "tOffsetMs": 960,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 하여튼",
+     "tOffsetMs": 1160,
+     "acAsrConf": 0
+    },
+    {
+     "utf8": " 뭐",
+     "tOffsetMs": 1560,
+     "acAsrConf": 0
+    }
+   ]
+  }
+ ]
+}

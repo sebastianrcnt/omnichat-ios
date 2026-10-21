@@ -182,6 +182,14 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
                                        "offset": .init(type: "integer", description: "Character offset into the page text to start from. Defaults to 0.")],
                           required: ["url"])))
 
+    static let videoTranscript = ToolDefinition(function: .init(
+        name: "video_transcript",
+        description: "Get a video's transcript from its captions (uploaded by the channel, or auto-generated), with [mm:ss] timestamps, and its title, channel and length. Use it to summarize a video, answer questions about it or quote it; web_fetch can't read what is said in a video. Only YouTube works for now: youtube.com and youtu.be links, Shorts and live streams. Long transcripts are returned in slices: when the result ends with a note that more is available, call again with the same url and the given offset to continue.",
+        parameters: .init(properties: ["url": .init(description: "The video's link, like https://www.youtube.com/watch?v=... or https://youtu.be/..."),
+                                       "lang": .init(description: "Optional. A language code like ko or en, for captions in that language. Leave it out for the video's original language."),
+                                       "offset": .init(type: "integer", description: "Character offset into the transcript to start from. Defaults to 0.")],
+                          required: ["url"])))
+
     /// Runs one of the site plugins the system prompt lists. Which plugins exist is never part of this definition, so
     /// adding or turning on a plugin leaves the tools (and the cached prefix up to the system prompt) unchanged.
     static let runPlugin = ToolDefinition(function: .init(
@@ -358,6 +366,7 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
         if groups.contains(.python) { out += images ? [runPython, viewImage] : [runPython] }
         if groups.contains(.browser) { out += Self.browser(images: images) }
         if groups.contains(.location) { out += [currentLocation] }
+        if groups.contains(.video) { out += [videoTranscript] }
         return out
     }
 }

@@ -24,7 +24,7 @@ struct ToolGroupTests {
 
     @Test func theLegacyListIsTheGroupsList() {
         #expect(ToolDefinition.available(python: true, images: true, browser: true, location: true)
-                == ToolDefinition.available(groups: Set(ToolGroup.allCases), images: true))
+                == ToolDefinition.available(groups: Set(ToolGroup.allCases).subtracting([.video]), images: true))
         #expect(ToolDefinition.available(python: false, images: false, browser: false, location: true)
                 == ToolDefinition.available(groups: [.web], images: false), "location only with the browser")
         let noWeb = ToolDefinition.available(groups: [.python], images: false).map(\.function.name)
@@ -74,6 +74,7 @@ struct ChatToolSwitchTests {
         connections.upsert(strata)
         let settings = AppSettings(defaults: defaults)
         settings.pythonEnabled = false
+        settings.videoTranscriptsEnabled = false
         settings.generateTitles = false
         let streamer = ProgrammableStreamer(plans)
         let controller = ChatController(connections: connections, settings: settings, streamer: streamer, tools: FakeTools())
@@ -173,6 +174,20 @@ struct ChatToolSwitchTests {
         #expect(users(second).last == "calculate", "its definition says it all: no note")
         await send(r, "again", chat)
         #expect(try toolsJSON(r.streamer.requests[2]) == toolsJSON(second))
+    }
+
+    @Test func videoTranscriptsComeWithTheirPromptLineAndStayOutOfOlderChats() async throws {
+        let r = try rig()
+        let old = newChat(r)
+        await send(r, "hi", old)
+        r.settings.videoTranscriptsEnabled = true
+        await send(r, "again", old)
+        #expect(!names(r.streamer.requests[1]).contains("video_transcript"), "a chat keeps the tools it started with")
+        let chat = newChat(r)
+        await send(r, "watch this", chat)
+        let request = r.streamer.requests[2]
+        #expect(names(request).last == "video_transcript" && system(request).contains(AppPrompt.video))
+        #expect(!system(r.streamer.requests[1]).contains(AppPrompt.video))
     }
 
     @Test func aNewChatStartsWithTheDefaultsAndOffGroupsAreNotOffered() async throws {

@@ -23,6 +23,7 @@ struct ProcessSegment: Codable, Hashable, Identifiable, Sendable {
         for call in searches { sites.formUnion(call.sourceIDs) }
         let pages = calls.filter { ToolNames.readsPage($0.name) && $0.fetchOffset == 0 }.count
         let continued = calls.contains { $0.name == ToolNames.webFetch && $0.fetchOffset > 0 }
+        let transcripts = calls.filter { ToolNames.readsTranscript($0.name) && $0.fetchOffset == 0 }.count
         var parts: [String] = []
         if !searches.isEmpty {
             parts.append(sites.isEmpty ? String(localized: "Searched the web")
@@ -33,6 +34,9 @@ struct ProcessSegment: Codable, Hashable, Identifiable, Sendable {
             parts.append(pages == 1 ? String(localized: "Read 1 page") : String(localized: "Read \(pages) pages"))
         } else if continued {
             parts.append(String(localized: "Read more"))
+        }
+        if transcripts > 0 {
+            parts.append(transcripts == 1 ? String(localized: "Read a transcript") : String(localized: "Read \(transcripts) transcripts"))
         }
         if calls.contains(where: { $0.name == ToolNames.runPython }) { parts.append(String(localized: "Ran Python")) }
         if calls.contains(where: { $0.name == ToolNames.viewImage }) { parts.append(String(localized: "Viewed an image")) }

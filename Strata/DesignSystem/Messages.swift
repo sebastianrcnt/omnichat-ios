@@ -434,6 +434,7 @@ struct AssistantMessage: View {
             case ToolNames.showPlaces: String(localized: "Mapping places")
             case ToolNames.showHTML: String(localized: "Making an artifact")
             case ToolNames.currentLocation: String(localized: "Finding your location")
+            case ToolNames.videoTranscript: String(localized: "Reading the transcript")
             default: String(localized: "Reading")
             }
         case .compacting: String(localized: "Summarizing conversation…")
