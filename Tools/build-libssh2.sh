@@ -79,7 +79,7 @@ xcodebuild -create-xcframework \
     -library "$WORK/ios-arm64-simulator/lib/libCLibSSH2.a" -headers "$WORK/ios-arm64-simulator/include" \
     -library "$WORK/macos-arm64/lib/libCLibSSH2.a" -headers "$WORK/macos-arm64/include" \
     -output "$OUT" >/dev/null
-cp "$WORK/ios-arm64/libssh2-$LIBSSH2_VERSION/COPYING" "$ROOT/Vendor/LICENSE-libssh2.txt"
-cp "$WORK/ios-arm64/openssl-$OPENSSL_VERSION/LICENSE.txt" "$ROOT/Vendor/LICENSE-OpenSSL.txt"
+cp "$WORK/ios-arm64/libssh2-$LIBSSH2_VERSION/COPYING" "$ROOT/Strata/Resources/Licenses/LICENSE-libssh2.txt"
+cp "$WORK/ios-arm64/openssl-$OPENSSL_VERSION/LICENSE.txt" "$ROOT/Strata/Resources/Licenses/LICENSE-OpenSSL.txt"
 echo "libssh2 $LIBSSH2_VERSION + OpenSSL $OPENSSL_VERSION" > "$ROOT/Vendor/CLibSSH2.VERSION"
 du -sh "$OUT"/*/libCLibSSH2.a
