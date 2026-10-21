@@ -21,6 +21,7 @@ struct SettingsView: View {
     @State private var showLicenses = false
     @State private var showAppearance = false
     @State private var showTools = false
+    @State private var showSSH = false
     @State private var showChats = false
     @State private var showAddConnection = false
 
@@ -56,6 +57,8 @@ struct SettingsView: View {
                                     showsChevron: true) { showAppearance = true }
                         SettingsRow(systemImage: "wrench.and.screwdriver", title: "Tools", subtitle: "Web, plugins, Python and the browser",
                                     showsChevron: true) { showTools = true }
+                        SettingsRow(systemImage: "terminal", title: "SSH", subtitle: "Servers, credentials and approvals",
+                                    showsChevron: true) { showSSH = true }
                         SettingsRow(systemImage: "bubble.left.and.text.bubble.right", title: "Chats",
                                     subtitle: "Answers, notifications, dictation and context", showsChevron: true) { showChats = true }
                     }
@@ -97,6 +100,7 @@ struct SettingsView: View {
             }
             .navigationDestination(isPresented: $showAppearance) { AppearanceSettingsView() }
             .navigationDestination(isPresented: $showTools) { ToolSettingsView() }
+            .navigationDestination(isPresented: $showSSH) { SSHSettingsView() }
             .navigationDestination(isPresented: $showChats) { ChatSettingsView() }
         }
         .presentationBackground(theme.background)

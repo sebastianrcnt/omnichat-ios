@@ -128,6 +128,8 @@ struct ActivityEntry: Identifiable, Equatable {
         case script(code: String, output: String)
         /// A call with nothing to show but a line (`load_skill`, ...). `summary`: an index tool's first result line.
         case note(tool: String, argument: String, summary: String? = nil)
+        /// An `ssh_` call: its arguments and result (`SSHCallDisplay`).
+        case ssh(tool: String, arguments: String, output: String)
     }
     let id: String
     var kind: Kind
@@ -157,6 +159,8 @@ struct ActivityEntry: Identifiable, Equatable {
             kind = .image(id: call.primaryArgument, image: call.viewedImage)
         } else if call.name == ToolNames.browserEval {
             kind = .script(code: call.primaryArgument, output: call.result)
+        } else if SSHToolNames.covers(call.name) {
+            kind = .ssh(tool: call.name, arguments: call.arguments, output: call.result)
         } else if ToolNote.covers(call.name) {
             kind = .note(tool: call.name, argument: call.primaryArgument,
                          summary: call.isError ? nil : BrowserActionLabel.summary(tool: call.name, result: call.result))
@@ -180,6 +184,8 @@ struct ActivityEntry: Identifiable, Equatable {
             kind = .image(id: pending.primaryArgument, image: nil)
         } else if pending.name == ToolNames.browserEval {
             kind = .script(code: pending.primaryArgument, output: "")
+        } else if SSHToolNames.covers(pending.name) {
+            kind = .ssh(tool: pending.name, arguments: pending.primaryArgument, output: "")
         } else if ToolNote.covers(pending.name) {
             kind = .note(tool: pending.name, argument: pending.primaryArgument)
         } else {
@@ -214,6 +220,8 @@ struct ActivityEntry: Identifiable, Equatable {
 /// One activity row: search (magnifier, quoted query, result count, source chips) or visit (globe, "Visited domain").
 struct ActivityRow: View {
     @Environment(\.theme) private var theme
+    /// Its chat, for the progress of its calls (`ToolProgress` keys).
+    @Environment(\.citations) private var citations
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let entry: ActivityEntry
     /// Show every source chip (timeline) instead of a single scrolling line.
@@ -257,7 +265,7 @@ struct ActivityRow: View {
             }
             .animation(reduceMotion ? nil : DS.Motion.enter, value: sources.count)
         case .visit(let url, let host):
-            let progress = ToolProgress.shared.value(for: entry.id)
+            let progress = ToolProgress.shared.value(for: entry.id, conversation: citations.conversationID)
             HStack(spacing: DS.Spacing.sm) {
                 icon(entry.isTranscript ? "captions.bubble" : "globe")
                 if wrapsChips, let u = URL(string: url) {
@@ -327,6 +335,9 @@ struct ActivityRow: View {
                 else if entry.isError && tool != ToolNames.saveSkill { Text("failed").font(DS.Typography.uiCaption).foregroundStyle(theme.warning) }
                 Spacer(minLength: 0)
             }
+        case .ssh(let tool, let arguments, let output):
+            SSHTimelineRow(call: SSHCallDisplay(tool: tool, arguments: arguments, output: output), callID: entry.id,
+                           isRunning: entry.isRunning, isError: entry.isError, showsDetail: wrapsChips)
         }
     }
 

@@ -34,15 +34,17 @@ private struct ChatLifecycle: ViewModifier {
                 let descriptor = FetchDescriptor<Conversation>(predicate: #Predicate { $0.id == id })
                 if let conversation = try? context.fetch(descriptor).first { selected = conversation }
             }
-            .onChange(of: selected?.id) { _, _ in
+            .onChange(of: selected?.id, initial: true) { _, id in
+                // Replies that end in another chat are marked unread and announced; opening a chat reads it.
+                controller.visibleConversationID = id
                 controller.forgetRenderStates(except: Set((selected?.messages ?? []).map(\.id)))
                 // The chat left behind loses its Python interpreter, unless its reply is still running.
-                PythonRuntime.shared.conversationDidChange(to: selected?.id, busy: controller.activeConversationID)
+                PythonRuntime.shared.conversationDidChange(to: id, busy: controller.runningConversationIDs)
             }
     }
 
     private func selectRecoveredConversation() {
-        guard selected == nil, let id = controller.activeConversationID,
+        guard selected == nil, let id = controller.runs.values.filter({ !$0.isQueued }).first?.conversationID,
               let conversations = try? context.fetch(FetchDescriptor<Conversation>()) else { return }
         selected = conversations.first { $0.id == id }
     }

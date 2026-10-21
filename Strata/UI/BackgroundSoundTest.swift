@@ -21,6 +21,7 @@ final class BackgroundSoundProbe {
     private var awaySince: Date?
     private var pages: [(title: String, view: HiddenWebView)] = []
     private var lease: ReplyBackgroundExecution?
+    private let leaseID = UUID()
     private var timer: Task<Void, Never>?
     private var observers: [NSObjectProtocol] = []
     static let duration: Duration = .seconds(150)
@@ -31,7 +32,7 @@ final class BackgroundSoundProbe {
         results = []
         awaySeconds = 0
         let lease = ReplyBackgroundExecution()
-        lease.begin()
+        lease.begin(leaseID)
         self.lease = lease
         BackgroundLoadingSound.shared.beginWebWork()
         let center = NotificationCenter.default
@@ -71,7 +72,7 @@ final class BackgroundSoundProbe {
             await read(pages)
             for page in pages { page.view.dispose() }
         }
-        lease?.end(success: true, title: String(localized: "Background sound test finished"))
+        lease?.end(leaseID, success: true, title: String(localized: "Background sound test finished"))
         lease = nil
     }
 

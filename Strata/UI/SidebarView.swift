@@ -103,6 +103,7 @@ struct SidebarView: View {
             close()
         }
         #if DEBUG
+        .task { await DebugHooks.multiChatDemo(context: context, controller: controller) }
         .task {
             guard DebugHooks.openSheet == "artifacts" else { return }
             if DebugHooks.value("StrataSeedArtifacts") != nil { DebugHooks.seedArtifacts(context: context) }
@@ -205,6 +206,7 @@ struct SidebarView: View {
                     }
                 }
                 Spacer(minLength: 0)
+                ChatRowMark(status: controller.status(of: conversation.id))
             }
             .padding(.horizontal, DS.Spacing.md)
             .padding(.vertical, DS.Spacing.md)
@@ -231,12 +233,12 @@ struct SidebarView: View {
     }
 }
 
-/// Deleting a chat, the same from every place that offers it: its running reply stops first, then its diagnostics,
-/// Python interpreter, figures and artifacts go with it.
+/// Deleting a chat, the same from every place that offers it: its running (or queued) reply stops first and writes
+/// nothing more, then its diagnostics, Python interpreter, figures and artifacts go with it. Other chats' replies go on.
 @MainActor
 enum ConversationDeletion {
     static func delete(_ conversation: Conversation, context: ModelContext, controller: ChatController) {
-        if controller.activeConversationID == conversation.id { controller.stop() }
+        controller.discardRun(for: conversation.id)
         Diagnostics.forget(conversation.id)
         PythonRuntime.shared.conversationDeleted(conversation.id)
         ArtifactStore.shared.removeAll(conversationID: conversation.id)

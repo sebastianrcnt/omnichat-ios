@@ -644,8 +644,8 @@ struct CompactionTurnTests {
     @Test func stopDuringCompactionLeavesTheHistoryAlone() async throws {
         let r = try rig([(toolRound(prompt: 950), .finish), ([], .hang)])
         r.controller.send(text: "hi", images: [], conversation: r.conversation, context: r.context)
-        for _ in 0..<100 where r.controller.phase != .compacting { try await Task.sleep(for: .milliseconds(20)) }
-        #expect(r.controller.phase == .compacting)
+        for _ in 0..<100 where (r.controller.soleRun?.phase ?? .idle) != .compacting { try await Task.sleep(for: .milliseconds(20)) }
+        #expect((r.controller.soleRun?.phase ?? .idle) == .compacting)
         let start = ContinuousClock.now
         r.controller.stop()
         await r.controller.waitUntilIdle()
@@ -671,10 +671,10 @@ struct CompactionTurnTests {
         r.controller.send(text: "hi", images: [], conversation: r.conversation, context: r.context)
         await r.controller.waitUntilIdle()
         r.controller.compactNow(conversation: r.conversation, context: r.context)
-        #expect(r.controller.isStreaming && r.controller.phase == .compacting)
-        #expect(r.controller.compactingConversationID == r.conversation.id)
+        #expect(r.controller.isStreaming && (r.controller.soleRun?.phase ?? .idle) == .compacting)
+        #expect(r.controller.isCompacting(r.conversation))
         await r.controller.waitUntilIdle()
-        #expect(!r.controller.isStreaming && r.controller.phase == .idle)
+        #expect(!r.controller.isStreaming && (r.controller.soleRun?.phase ?? .idle) == .idle)
         let leaf = try #require(r.conversation.leafMessage)
         let record = try #require(r.conversation.compactions.first)
         #expect(record.anchorMessageID == leaf.id && record.coversWholeMessage && !record.isAutomatic)
@@ -694,7 +694,7 @@ struct CompactionTurnTests {
         try await Task.sleep(for: .milliseconds(100))
         r.controller.stop()
         await r.controller.waitUntilIdle()
-        #expect(!r.controller.isStreaming && r.conversation.compactions.isEmpty && r.controller.compactionError == nil)
+        #expect(!r.controller.isStreaming && r.conversation.compactions.isEmpty && r.controller.compactionError(for: r.conversation) == nil)
     }
 
     @Test func aFailedSummarizeNowSaysWhy() async throws {
@@ -703,7 +703,7 @@ struct CompactionTurnTests {
         await r.controller.waitUntilIdle()
         r.controller.compactNow(conversation: r.conversation, context: r.context)
         await r.controller.waitUntilIdle()
-        #expect(r.controller.compactionError?.contains("Couldn't summarize") == true)
+        #expect(r.controller.compactionError(for: r.conversation)?.contains("Couldn't summarize") == true)
         #expect(r.conversation.compactions.isEmpty)
     }
 }

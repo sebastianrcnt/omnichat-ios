@@ -198,15 +198,20 @@ final class RobotCheckRequests {
     /// Shows the sheet for a request. Test seam; by default the chat's browser sheet.
     @ObservationIgnored var present: @MainActor (Request) async -> Bool = { request in
         await BrowserShowRequests.shared.ask(.init(reason: String(localized: "Solve the robot check on this page, then tap Done."),
-                                                   page: request.page))
+                                                   page: request.page, conversationID: request.conversationID))
     }
     /// Told when a card is posted while the app is not in front. Test seam; by default a local notification.
     @ObservationIgnored var notify: @MainActor (Request) -> Void = { request in
         ReplyBackgroundExecution.notifyRobotCheck(host: request.host, conversationID: request.conversationID, requestID: request.id)
     }
 
-    /// The cards to show, oldest first.
+    /// The cards to show, oldest first, from every chat.
     var pending: [Request] { queue.map(\.request) }
+
+    /// The chat's own cards (and any that belong to no chat): another chat's check waits in that chat's feed.
+    func pending(for conversationID: UUID?) -> [Request] {
+        queue.map(\.request).filter { $0.conversationID == nil || $0.conversationID == conversationID }
+    }
 
     /// Waits until the user is done with the page (Done in the sheet) or skips it. Closing the sheet without Done shows
     /// the card again.

@@ -344,7 +344,7 @@ struct PythonSessionLedgerTests {
         #expect(!ledger.shouldDispose(onSwitchTo: a))
         #expect(ledger.shouldDispose(onSwitchTo: b))
         #expect(ledger.shouldDispose(onSwitchTo: nil))
-        #expect(!ledger.shouldDispose(onSwitchTo: b, busy: a))
+        #expect(!ledger.shouldDispose(onSwitchTo: b, busy: [a]))
     }
 
 }

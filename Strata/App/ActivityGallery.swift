@@ -8,14 +8,19 @@ struct ActivityGallery: View {
     @Environment(\.theme) private var theme
 
     static var isRequested: Bool { UserDefaults.standard.integer(forKey: "StrataActivityGallery") > 0 }
-    /// `-StrataActivityGallery 2` starts at the second half (failed page, other tools).
+    /// `-StrataActivityGallery 2` starts at the second half (failed page, other tools); `3` shows SSH only.
     private var secondHalf: Bool { UserDefaults.standard.integer(forKey: "StrataActivityGallery") == 2 }
+    private var sshOnly: Bool { UserDefaults.standard.integer(forKey: "StrataActivityGallery") == 3 }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                if !secondHalf { firstHalf }
-                secondPart
+                if sshOnly {
+                    sshPart
+                } else {
+                    if !secondHalf { firstHalf }
+                    secondPart
+                }
             }
             .padding(.horizontal, DS.Spacing.page)
             .padding(.vertical, DS.Spacing.xl)
@@ -72,6 +77,36 @@ struct ActivityGallery: View {
                                  isStreaming: false, answerStarted: true)
                 BrowserRunView(run: BrowserRun(steps: Self.workingSteps.map { var c = $0; c.isRunning = false; return c }),
                                collapsed: true, onToggle: {}, onDetails: {})
+    }
+
+    @ViewBuilder private var sshPart: some View {
+                section("SSH: approval")
+                SSHLine(words: [("Running ", false), ("df -h /volume1", true), (" on nas…", false)], expanded: nil) { FeedSymbol(name: "terminal") }
+                SSHApprovalCard(approval: SSHApproval(target: "nas", server: "nas", action: .exec(command: "df -h /volume1")), onAnswer: { _ in })
+                    .padding(.leading, DS.Feed.textInset)
+                section("SSH: second factor")
+                SSHPromptCard(prompt: SSHPromptRequest(hop: "admin@nas", name: "", instruction: "",
+                                                       prompts: [.init(text: "Verification code: ", echo: false)]), onAnswer: { _ in })
+                    .padding(.leading, DS.Feed.textInset)
+                section("SSH: done")
+                ActivityFeedView(cards: ActivityFeed.cards(calls: Self.sshCalls, sources: [:]), isStreaming: true, answerStarted: false)
+                section("SSH: folded")
+                ActivityFeedView(cards: ActivityFeed.cards(calls: Self.sshCalls, sources: [:]), isStreaming: false, answerStarted: true)
+    }
+
+    static var sshCalls: [FeedCall] {
+        func call(_ id: String, _ tool: String, _ arguments: String, _ output: String, failed: Bool = false) -> FeedCall {
+            var c = FeedCall(record: ToolCallRecord(id: id, name: tool, arguments: arguments, result: output, isError: failed))
+            c.status = failed ? .failed : .done
+            return c
+        }
+        return [
+            call("s1", SSHToolNames.credentialSave, #"{"name":"nas-admin","password":"correct horse"}"#, "Saved credential nas-admin (Password)."),
+            call("s2", SSHToolNames.exec, #"{"server":"nas","command":"systemctl restart nginx","stdin":"correct horse"}"#,
+                 "Exit code 1 · nas · 0.4s\n<stdout></stdout>\n<stderr>\nJob for nginx.service failed because the control process exited with error code.\n</stderr>"),
+            call("s3", SSHToolNames.exec, #"{"server":"nas","command":"df -h /volume1 && uptime"}"#,
+                 "Exit code 0 · nas · 0.3s\n<stdout>\nFilesystem      Size  Used Avail Use% Mounted on\n/dev/md2         11T  7.9T  3.0T  73% /volume1\n 14:02:11 up 41 days,  3:12,  0 users,  load average: 0.31, 0.27, 0.22\n</stdout>"),
+        ]
     }
 
     private func section(_ title: String) -> some View {

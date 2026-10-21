@@ -20,6 +20,8 @@ import SwiftData
 ///   -StrataActivityGallery 1                       show the activity feed states instead of the app (`ActivityGallery`)
 ///   -StrataOpenUIGallery 1...6                     show sample interactive views instead of the app (`OpenUIGallery`)
 ///   -StrataVideoSelfTest 1                         real video_transcript calls, reported to stderr (`runVideoSelfTest`)
+///   -StrataMultiChatDemo 1                         sample chats shown replying / queued / with an unread reply, and
+///                                                  the "Reply ready" banner (`ChatController.debugMultiChatDemo`)
 /// Canned tool results so the UI can be exercised without the network.
 struct FakeWebTools: ToolExecuting {
     func execute(name: String, arguments: String) async -> ToolOutput {
@@ -320,6 +322,31 @@ enum DebugHooks {
             }
         }
         try? context.save()
+    }
+
+    /// `-StrataMultiChatDemo 1`: four sample chats (made once), two shown replying, one queued and one with a reply not
+    /// seen yet, for screenshots of the sidebar marks and the banner. Nothing is sent.
+    @MainActor
+    static func multiChatDemo(context: ModelContext, controller: ChatController) async {
+        guard value("StrataMultiChatDemo") != nil else { return }
+        let titles = ["Weekend trip to Busan", "Compare three laptops", "Learning Swift concurrency", "Budget planning"]
+        var chats = ((try? context.fetch(FetchDescriptor<Conversation>())) ?? []).filter { titles.contains($0.title) }
+        for title in titles where !chats.contains(where: { $0.title == title }) {
+            let chat = Conversation(title: title)
+            context.insert(chat)
+            chats.append(chat)
+        }
+        // At the top of the list, the unread one first.
+        for chat in chats {
+            let place = chat.title == titles[3] ? 0 : (titles.firstIndex(of: chat.title) ?? 0) + 1
+            chat.updatedAt = .now.addingTimeInterval(TimeInterval(-60 * place))
+        }
+        try? context.save()
+        let byTitle = Dictionary(chats.map { ($0.title, $0.id) }, uniquingKeysWith: { a, _ in a })
+        try? await Task.sleep(for: .seconds(1.5)) // after the chat on screen is known
+        guard let trip = byTitle[titles[0]], let laptops = byTitle[titles[1]], let swift = byTitle[titles[2]],
+              let budget = byTitle[titles[3]] else { return }
+        controller.debugMultiChatDemo(running: [trip, laptops], queued: swift, unread: budget, title: titles[3])
     }
 
     static var autoSend: String? { value("StrataAutoSend") }

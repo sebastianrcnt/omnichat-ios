@@ -91,6 +91,8 @@ struct MacSidebarView: View {
                     Text("Found in messages").font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .trailing) { ChatRowMark(status: controller.status(of: conversation.id)) }
         } icon: {
             Image(systemName: conversation.isPinned ? "pin" : "bubble.left")
         }

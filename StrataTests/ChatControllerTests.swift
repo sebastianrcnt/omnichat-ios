@@ -110,7 +110,7 @@ struct ChatControllerTests {
         let r = try rig([([toolDelta()], .finish)], tools: SlowTools())
         r.controller.send(text: "hi", images: [], conversation: r.conversation, context: r.context)
         try await Task.sleep(for: .milliseconds(150))
-        if case .tool = r.controller.phase {} else { Issue.record("expected tool phase, got \(r.controller.phase)") }
+        if case .tool = (r.controller.soleRun?.phase ?? .idle) {} else { Issue.record("expected tool phase, got \((r.controller.soleRun?.phase ?? .idle))") }
         let started = ContinuousClock.now
         r.controller.stop()
         await settle(r)
@@ -118,7 +118,7 @@ struct ChatControllerTests {
         let m = try #require(assistant(r))
         #expect(m.stoppedByUser)
         #expect(m.steps.isEmpty, "half-finished tool result is not recorded")
-        #expect(r.controller.pendingCalls.isEmpty)
+        #expect((r.controller.soleRun?.pendingCalls ?? []).isEmpty)
     }
 
     @Test func stopImmediatelyAfterSendEndsCleanlyAndAllowsANewSend() async throws {

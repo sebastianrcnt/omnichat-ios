@@ -11,7 +11,8 @@ final class InFlightLoads {
     private final class Entry {
         var task: Task<FetchedPage, Error>?
         var waiters = 0
-        var callIDs: Set<String> = []
+        /// The calls waiting on the load, with their chats (`ToolProgress` keys): two chats may read the same page.
+        var callIDs: Set<ToolProgress.Key> = []
         var latest = 0.0
     }
 
@@ -32,7 +33,7 @@ final class InFlightLoads {
                 let sink: @MainActor @Sendable (Double) -> Void = { value in
                     guard let created else { return }
                     created.latest = max(created.latest, value)
-                    for id in created.callIDs { ToolProgress.shared.report(id, value) }
+                    for key in created.callIDs { ToolProgress.shared.report(key.id, value, conversation: key.conversation) }
                 }
                 defer {
                     if let self, let created, self.entries[key] === created { self.entries[key] = nil }
@@ -43,7 +44,7 @@ final class InFlightLoads {
         }
         entry.waiters += 1
         if let callID {
-            entry.callIDs.insert(callID)
+            entry.callIDs.insert(ToolProgress.Key(conversation: ToolContext.conversationID, id: callID))
             if entry.latest > 0 { ToolProgress.shared.report(callID, entry.latest) }
         }
         guard let task = entry.task else { throw CancellationError() }

@@ -317,7 +317,8 @@ struct RunSkillScriptTool {
     }
 }
 
-/// The skills waiting for the user's answer: `save_skill` asks here, the chat shows `pending` as a sheet.
+/// The skills waiting for the user's answer: `save_skill` asks here, and the chat the request came from shows it as a
+/// sheet (`pending(for:)`); another chat's request waits until that chat is open.
 @MainActor
 @Observable
 final class SkillApprovals {
@@ -328,12 +329,19 @@ final class SkillApprovals {
         let skill: Skill
         /// The saved skill of the same name it would replace.
         let replaces: Skill?
+        /// The chat whose reply asked; nil shows in any chat.
+        var conversationID: UUID? = ToolContext.conversationID
     }
 
     private var queue: [(request: Request, answer: CheckedContinuation<Bool, Never>)] = []
 
-    /// The request shown now; the others wait their turn.
+    /// The oldest request, from any chat.
     var pending: Request? { queue.first?.request }
+
+    /// The request the chat shows now: its own oldest one (or one that belongs to no chat).
+    func pending(for conversationID: UUID?) -> Request? {
+        queue.first { $0.request.conversationID == nil || $0.request.conversationID == conversationID }?.request
+    }
 
     /// Waits for the user's answer. A cancelled turn counts as "no".
     func ask(_ request: Request) async -> Bool {

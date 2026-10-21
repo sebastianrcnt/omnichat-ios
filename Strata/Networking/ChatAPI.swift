@@ -366,6 +366,7 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
         if groups.contains(.python) { out += images ? [runPython, viewImage] : [runPython] }
         if groups.contains(.browser) { out += Self.browser(images: images) }
         if groups.contains(.location) { out += [currentLocation] }
+        if groups.contains(.ssh) { out += ssh }
         if groups.contains(.video) { out += [videoTranscript] }
         return out
     }

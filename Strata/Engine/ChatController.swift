@@ -14,12 +14,18 @@ struct PendingToolCall: Identifiable, Equatable {
     var plugin: String?
 }
 
-/// Drives generation for the app: persists messages, runs the turn, publishes live state for the UI.
+/// Drives generation for the app: persists messages, runs the turns, publishes live state for the UI.
+///
+/// Several chats can reply at once. Each running reply is a `ChatRun` in `runs`, keyed by its conversation; up to
+/// `maxConcurrentRuns` work at a time and later ones wait their turn (`Phase.queued`), oldest first. Switching chats
+/// never stops a run; deleting a chat discards its run first (`discardRun`).
 @MainActor
 @Observable
 final class ChatController {
     enum Phase: Equatable {
         case idle
+        /// Sent, but other chats hold every slot: it starts when one of them ends.
+        case queued
         case waiting
         case thinking
         case tool(name: String, argument: String)
@@ -28,35 +34,81 @@ final class ChatController {
         case compacting
     }
 
-    private(set) var activeConversationID: UUID?
-    private(set) var activeMessageID: UUID?
-    private(set) var phase: Phase = .idle
-    private(set) var pendingCalls: [PendingToolCall] = []
-    /// Calls that finished in the round still running, so the live feed keeps them before the round's step is saved.
-    private(set) var roundRecords: [ToolCallRecord] = []
-    /// Every call of the running round in request order (finished ones included), for the live tool rows.
-    private(set) var roundRequested: [PendingToolCall] = []
-    private(set) var turnStart: Date?
-    /// Sources of the running turn (conversation-wide ids), updated as tools finish.
-    private(set) var liveSources: [SourceInfo] = []
-    var isStreaming: Bool { activeMessageID != nil || compactingConversationID != nil }
-    /// Tool rounds finished in the running turn, and whether it is already an early answer (for the "Answer now" pill).
-    private(set) var completedToolRounds = 0
-    private(set) var activeIsEarly = false
-    /// Whether the running turn can still be cut short for an early answer (the pill still waits for its own timing).
-    var canAnswerNow: Bool {
-        activeMessageID != nil && !activeIsEarly && compactingConversationID == nil
+    /// How many chats generate at the same time; the next one waits.
+    static let maxConcurrentRuns = 3
+    /// `maxConcurrentRuns`; tests lower it.
+    @ObservationIgnored var maxConcurrentRuns = ChatController.maxConcurrentRuns
+
+    /// The running (or queued) reply of each chat that has one. Observed for the sidebar; a chat observes its own run.
+    private(set) var runs: [UUID: ChatRun] = [:]
+    /// Queued runs, oldest first.
+    @ObservationIgnored private var queue: [UUID] = []
+
+    /// Some chat is replying (or summarizing).
+    var isStreaming: Bool { !runs.isEmpty }
+    var runningConversationIDs: Set<UUID> { Set(runs.keys) }
+
+    func run(for conversation: Conversation?) -> ChatRun? {
+        conversation.flatMap { runs[$0.id] }
     }
-    @ObservationIgnored private var earlyAnswerRequested = false
-    /// The answer showing "Save as skill" (`SkillOffer`): set when a turn of hard-won web work finishes in this session,
-    /// cleared by the next turn, by tapping it or by closing it. Never persisted, so older answers don't offer it.
-    private(set) var skillOfferMessageID: UUID?
-    /// Set while "Summarize now" runs (an automatic compaction belongs to the turn that triggers it).
-    private(set) var compactingConversationID: UUID?
-    /// Why the last "Summarize now" failed, for the chat to show once.
-    var compactionError: String?
+
+    func run(for conversationID: UUID?) -> ChatRun? {
+        conversationID.flatMap { runs[$0] }
+    }
+
+    func isStreaming(_ conversation: Conversation) -> Bool { runs[conversation.id] != nil }
+    func isRunning(_ conversationID: UUID) -> Bool { runs[conversationID] != nil }
+    /// "Summarize now" is running in the chat.
+    func isCompacting(_ conversation: Conversation?) -> Bool { run(for: conversation)?.isCompaction == true }
+
+    /// The chat on screen (set by the root), so a reply that ends in another one is marked unread and announced.
+    var visibleConversationID: UUID? {
+        didSet {
+            indicators.opened(visibleConversationID)
+            if readyNotice?.conversationID == visibleConversationID { readyNotice = nil }
+        }
+    }
+    /// Unread marks for the sidebar.
+    private(set) var indicators = ChatIndicators()
+    /// The last reply that finished in a chat that wasn't on screen ("Reply ready · <chat>").
+    private(set) var readyNotice: ReadyNotice?
+
+    func status(of conversationID: UUID) -> ChatIndicators.Status {
+        indicators.status(conversationID, running: runs[conversationID] != nil)
+    }
+
+    func dismissReadyNotice(_ id: UUID) {
+        if readyNotice?.id == id { readyNotice = nil }
+    }
+
+    /// Each chat's answer showing "Save as skill" (`SkillOffer`): set when a turn of hard-won web work finishes in this
+    /// session, cleared by the chat's next turn, by tapping it or by closing it. Never persisted, so older answers
+    /// don't offer it.
+    private(set) var skillOffers: [UUID: UUID] = [:]
+
+    func skillOfferMessageID(for conversation: Conversation?) -> UUID? {
+        conversation.flatMap { skillOffers[$0.id] }
+    }
+
+    /// Why each chat's last "Summarize now" failed, for the chat to show once.
+    private(set) var compactionErrors: [UUID: String] = [:]
+
+    func compactionError(for conversation: Conversation?) -> String? {
+        conversation.flatMap { compactionErrors[$0.id] }
+    }
+
+    func clearCompactionError(for conversation: Conversation?) {
+        if let id = conversation?.id { compactionErrors[id] = nil }
+    }
+
     /// For the diagnostics panel.
     var backgroundStateDescription: String { background.stateDescription }
+    /// Runs holding the background lease (tests).
+    var backgroundHolderCount: Int { background.holderCount }
+    /// The running chats' ids, for the diagnostics panel.
+    var activeTurnsDescription: String? {
+        runs.isEmpty ? nil : runs.keys.map(\.uuidString).sorted().joined(separator: ",")
+    }
 
     /// On-device translation of finished answers.
     let translation = TranslationService()
@@ -65,15 +117,8 @@ final class ChatController {
     private let settings: AppSettings
     private let streamer: any ChatStreaming
     private let tools: any ToolExecuting
-    @ObservationIgnored private var task: Task<Void, Never>?
     /// Not observed: `renderState(for:)` inserts here while a view body runs.
     @ObservationIgnored private var renderStates: [UUID: MessageRenderState] = [:]
-    @ObservationIgnored private var sourceStore: SourceStore?
-    @ObservationIgnored private var activeMessage: Message?
-    @ObservationIgnored private var activeContext: ModelContext?
-    @ObservationIgnored private var activeEndpoint: Endpoint?
-    @ObservationIgnored private var persister: CheckpointPersister?
-    @ObservationIgnored private var persistedSourceCount = -1
     /// Bytes handed to the store by each checkpoint write (large half only when it changed). Instrumentation for tests.
     @ObservationIgnored var onCheckpointWrite: ((Int) -> Void)?
     /// Recent request bodies for the diagnostics panel.
@@ -95,12 +140,22 @@ final class ChatController {
         #endif
     }
 
-    /// Wait for the running turn to end (tests).
+    /// Wait until no chat is replying, queued runs included (tests).
     func waitUntilIdle() async {
-        // A turn can hand over to another (an early answer follows the run it cut short).
-        while let current = task {
-            await current.value
-            guard let next = task, next != current else { return }
+        // A run can hand over to another (an early answer follows the run it cut short), and a queued run starts when
+        // one ends: wait until there are none.
+        while !runs.isEmpty {
+            let tasks = runs.values.compactMap(\.task)
+            guard !tasks.isEmpty else { return } // only queued runs with nothing ahead of them: can't happen
+            for task in tasks { await task.value }
+        }
+    }
+
+    /// Wait until this chat's run (and an early answer it hands over to) has ended (tests).
+    func waitUntilIdle(_ conversation: Conversation) async {
+        let id = conversation.id
+        while let run = runs[id] {
+            if let task = run.task { await task.value } else { try? await Task.sleep(for: .milliseconds(5)) }
         }
     }
 
@@ -112,13 +167,19 @@ final class ChatController {
         return state
     }
 
-    /// Show everything received so far (user scrolled away or stopped).
-    func revealAllNow() {
-        if let id = activeMessageID { renderStates[id]?.revealAll() }
+    /// Show everything the chat's run received so far (user scrolled away or stopped).
+    func revealAllNow(_ conversation: Conversation) {
+        if let run = runs[conversation.id] { revealAll(run) }
     }
 
+    private func revealAll(_ run: ChatRun) {
+        if let id = run.messageID { renderStates[id]?.revealAll() }
+    }
+
+    /// Keeps the render states of `keep` and of every running answer.
     func forgetRenderStates(except keep: Set<UUID>) {
-        renderStates = renderStates.filter { keep.contains($0.key) || $0.key == activeMessageID }
+        let live = Set(runs.values.compactMap(\.messageID))
+        renderStates = renderStates.filter { keep.contains($0.key) || live.contains($0.key) }
     }
 
     /// A ChatGPT or OpenCode connection needs a sign-in (or, for OpenCode, a key); an OpenAI-compatible one may be
@@ -138,16 +199,12 @@ final class ChatController {
         }
     }
 
-    func isStreaming(_ conversation: Conversation) -> Bool {
-        isStreaming && activeConversationID == conversation.id
-    }
-
     // MARK: Entry points
 
     /// Sends a user message. With `editing`, the new message is a sibling of that one (same parent): the old branch stays
     /// and the leaf moves to the new message.
     func send(text: String, images: [Data], thumbnails: [Data?] = [], conversation: Conversation, context: ModelContext, editing: Message? = nil) {
-        guard !isStreaming else { return }
+        guard !isStreaming(conversation) else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !images.isEmpty else { return }
         ReplyBackgroundExecution.requestPermissionIfNeeded()
@@ -171,7 +228,7 @@ final class ChatController {
     }
 
     func regenerate(conversation: Conversation, context: ModelContext) {
-        guard !isStreaming else { return }
+        guard !isStreaming(conversation) else { return }
         conversation.ensureTree()
         guard let leaf = conversation.leafMessage else { return }
         guard leaf.role == .assistant else {
@@ -249,31 +306,79 @@ final class ChatController {
         }
     }
 
-    func stop() {
-        revealAllNow()
-        persister?.flush() // the cancel request needs the newest request id and cursor
-        if let message = activeMessage, let context = activeContext, let endpoint = activeEndpoint {
+    /// Stops the chat's reply (or its "Summarize now"). A queued reply is dropped before it starts, marked Stopped.
+    func stop(_ conversation: Conversation) {
+        stop(conversationID: conversation.id)
+    }
+
+    func stop(conversationID: UUID) {
+        guard let run = runs[conversationID] else { return }
+        if run.isQueued {
+            unqueue(run)
+            if let message = run.message, let context = run.context, let conversation = message.conversation {
+                message.stoppedByUser = true
+                finish(run, message: message, conversation: conversation, context: context, error: nil)
+            } else {
+                endRun(run)
+            }
+            return
+        }
+        revealAll(run)
+        run.persister?.flush() // the cancel request needs the newest request id and cursor
+        if let message = run.message, let context = run.context, let endpoint = run.endpoint {
             message.stoppedByUser = true
             message.cancelPending = message.resumeData != nil
             try? context.save()
             if message.cancelPending { cancelOnServer(message, endpoint: endpoint, context: context) }
         }
-        task?.cancel()
+        run.task?.cancel()
+    }
+
+    /// Stops every chat's reply.
+    func stop() {
+        for id in Array(runs.keys) { stop(conversationID: id) }
+    }
+
+    /// The chat is being deleted: its reply stops (the server is told, as for Stop) and nothing more is written to it.
+    func discardRun(for conversationID: UUID) {
+        indicators.opened(conversationID)
+        if readyNotice?.conversationID == conversationID { readyNotice = nil }
+        skillOffers[conversationID] = nil
+        compactionErrors[conversationID] = nil
+        guard let run = runs[conversationID] else { return }
+        if !run.isQueued, let message = run.message, let context = run.context, let endpoint = run.endpoint {
+            run.persister?.flush()
+            message.cancelPending = message.resumeData != nil
+            if message.cancelPending { cancelOnServer(message, endpoint: endpoint, context: context) }
+        }
+        run.discarded = true
+        run.task?.cancel()
+        unqueue(run)
+        KeptPages.shared.turnEnded(conversation: conversationID)
+        BrowserSessions.shared.turnEnded(conversation: conversationID)
+        if run.holdsLease {
+            run.holdsLease = false
+            background.end(conversationID, success: false)
+        }
+        run.message = nil
+        run.context = nil
+        endRun(run)
     }
 
     /// "Answer now": stops the running request the way Stop does (the gateway is told to cancel it too), keeps the
     /// tool results gathered so far and the reasoning written, drops the call that was still open, and then sends one
     /// continuation that asks for the answer without tools.
-    func answerNow() {
-        guard canAnswerNow, activeMessage != nil else { return }
-        earlyAnswerRequested = true
-        stop()
+    func answerNow(_ conversation: Conversation) {
+        guard let run = runs[conversation.id], run.canAnswerNow, run.message != nil else { return }
+        run.earlyAnswerRequested = true
+        stop(conversationID: conversation.id)
     }
 
     /// "Save as skill": a hidden instruction after the answer that offered it, and a turn that writes the skill.
     func saveAsSkill(conversation: Conversation, context: ModelContext) {
-        guard !isStreaming, toolSwitches(conversation).contains(.browser), let leaf = conversation.leafMessage, leaf.id == skillOfferMessageID else { return }
-        skillOfferMessageID = nil
+        guard !isStreaming(conversation), toolSwitches(conversation).contains(.browser), let leaf = conversation.leafMessage,
+              leaf.id == skillOffers[conversation.id] else { return }
+        skillOffers[conversation.id] = nil
         let instruction = Message(role: .user, text: SkillOffer.instruction, sortIndex: nextIndex(conversation))
         instruction.hiddenInstruction = true
         instruction.skillRequest = true
@@ -284,8 +389,8 @@ final class ChatController {
         generate(conversation: conversation, context: context, under: instruction)
     }
 
-    func dismissSkillOffer() {
-        skillOfferMessageID = nil
+    func dismissSkillOffer(_ conversation: Conversation) {
+        skillOffers[conversation.id] = nil
     }
 
     /// The hidden instruction goes on the path after the cut-short run; the answer follows it.
@@ -313,13 +418,16 @@ final class ChatController {
             try? context.save()
             return
         }
-        cancelTasks[message.id] = Task { @MainActor [weak self] in
+        let messageID = message.id
+        let createdAt = message.createdAt
+        cancelTasks[messageID] = Task { @MainActor [weak self] in
+            // The chat may be deleted while this retries (deleting a chat stops its reply): the server is still told,
+            // but nothing is written to a deleted message.
+            func alive() -> Bool { message.modelContext != nil && !message.isDeleted }
             let lookupDeadline = Date().addingTimeInterval(30)
             // Bounded: after this long the flag stays set and the next foreground retries (restorePending).
             let giveUp = Date().addingTimeInterval(Self.cancelRetryWindow)
             while !Task.isCancelled, Date() < giveUp {
-                // The chat may be deleted while this retries: never write to a deleted message.
-                guard message.modelContext != nil, !message.isDeleted else { break }
                 do {
                     var id = checkpoint.requestID
                     if id == nil, let key = checkpoint.idempotencyKey {
@@ -331,13 +439,13 @@ final class ChatController {
                         // The original POST may still be in gateway authentication/routing.
                         try await RecoverySignals.shared.wait(seconds: 0.5)
                         continue
-                    } else if Date().timeIntervalSince(message.createdAt) < Self.cancelLookupLifetime {
+                    } else if Date().timeIntervalSince(createdAt) < Self.cancelLookupLifetime {
                         // Still no request for the key: it may yet arrive (a slow upload). Nothing was cancelled, so
                         // the flag stays and the next foreground looks again (restorePending).
                         break
                     }
                     // A cancel went out, or the turn is too old for the server to still run it.
-                    guard message.modelContext != nil, !message.isDeleted else { break }
+                    guard alive() else { break }
                     message.cancelPending = false
                     message.clearResume()
                     try? context.save()
@@ -346,11 +454,12 @@ final class ChatController {
                     try? await RecoverySignals.shared.wait(seconds: 5)
                 }
             }
-            self?.cancelTasks[message.id] = nil
+            self?.cancelTasks[messageID] = nil
         }
     }
 
-    /// Called at launch and foreground. Existing live tasks reconnect themselves.
+    /// Called at launch and foreground. Live runs reconnect themselves; every other unfinished reply is picked up, each
+    /// in its own chat (later ones queue like any send).
     func restorePending(context: ModelContext) {
         let messages = Self.pendingMessages(context: context)
         for message in messages where message.cancelPending {
@@ -360,11 +469,12 @@ final class ChatController {
                 cancelOnServer(message, endpoint: endpoint, context: context)
             }
         }
-        guard !isStreaming else { return }
-        if let message = messages.sorted(by: { $0.createdAt < $1.createdAt }).first(where: {
-            $0.resumeData != nil && !$0.stoppedByUser && !$0.cancelPending
-        }), let conversation = message.conversation,
-           let checkpoint = message.resumeCheckpoint {
+        var claimed = Set(runs.keys)
+        for message in messages.sorted(by: { $0.createdAt < $1.createdAt })
+        where message.resumeData != nil && !message.stoppedByUser && !message.cancelPending {
+            guard let conversation = message.conversation, !claimed.contains(conversation.id),
+                  let checkpoint = message.resumeCheckpoint else { continue }
+            claimed.insert(conversation.id)
             generate(conversation: conversation, context: context, restoring: message, checkpoint: checkpoint)
         }
     }
@@ -383,6 +493,43 @@ final class ChatController {
         var descriptor = FetchDescriptor<Message>(predicate: #Predicate<Message> { $0.cancelPending || $0.hasResume })
         descriptor.fetchLimit = 20
         return (try? context.fetch(descriptor)) ?? []
+    }
+
+    // MARK: Slots
+
+    private var workingCount: Int { runs.values.filter { !$0.isQueued }.count }
+
+    /// Starts the run now, or queues it while every slot is taken.
+    private func admit(_ run: ChatRun) {
+        if workingCount - 1 < maxConcurrentRuns { // the run itself is counted until it is queued
+            run.start?()
+        } else {
+            run.phase = .queued
+            queue.append(run.conversationID)
+        }
+    }
+
+    /// A slot came free: the oldest queued run starts.
+    private func admitNext() {
+        while workingCount < maxConcurrentRuns, !queue.isEmpty {
+            let id = queue.removeFirst()
+            guard let run = runs[id], run.isQueued else { continue }
+            run.phase = .waiting
+            run.start?()
+        }
+    }
+
+    private func unqueue(_ run: ChatRun) {
+        queue.removeAll { $0 == run.conversationID }
+    }
+
+    /// Takes the run out of `runs` and gives back what it held. `handover`: an early answer takes its slot next.
+    private func endRun(_ run: ChatRun, handover: Bool = false) {
+        run.persister?.close()
+        run.persister = nil
+        run.start = nil
+        if runs[run.conversationID] === run { runs[run.conversationID] = nil }
+        if !handover { admitNext() }
     }
 
     // MARK: Generation
@@ -412,37 +559,52 @@ final class ChatController {
 
         let render = MessageRenderState(smoothing: settings.smoothStreaming)
         renderStates[assistant.id] = render
-        activeConversationID = conversation.id
-        activeMessageID = assistant.id
-        activeIsEarly = assistant.answeredEarly
-        skillOfferMessageID = nil
-        completedToolRounds = 0
-        earlyAnswerRequested = false
-        phase = .waiting
-        pendingCalls = []
-        turnStart = .now
-        liveSources = conversation.sources
+        let run = ChatRun(conversationID: conversation.id, kind: .turn, messageID: assistant.id)
+        run.isEarly = assistant.answeredEarly
+        run.liveSources = conversation.sources
+        run.message = assistant
+        run.context = context
+        skillOffers[conversation.id] = nil
+        indicators.opened(conversation.id)
+        runs[conversation.id] = run
 
-        let path = conversation.path(to: assistant.parentID).filter { $0.id != assistant.id }
         guard let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID,
                                                   sessionID: conversation.id.uuidString) else {
-            finish(assistant, conversation: conversation, context: context, error: APIError.missingModel)
+            finish(run, message: assistant, conversation: conversation, context: context, error: APIError.missingModel)
             return
         }
         if Self.needsKey(endpoint, connections: connections) {
-            finish(assistant, conversation: conversation, context: context,
+            finish(run, message: assistant, conversation: conversation, context: context,
                    error: Self.credentialError(endpoint))
             return
         }
-        activeMessage = assistant
-        activeContext = context
-        activeEndpoint = endpoint
-        persister?.close()
-        persistedSourceCount = -1
-        persister = endpoint.supportsResumable ? CheckpointPersister { [weak self] snapshot in
-            self?.persist(snapshot, message: assistant, conversation: conversation, context: context)
+        run.endpoint = endpoint
+        run.start = { [weak self, weak run] in
+            guard let self, let run else { return }
+            self.startTurn(run, assistant: assistant, conversation: conversation, context: context, endpoint: endpoint,
+                           render: render, restoring: restoring != nil, checkpoint: checkpoint)
+        }
+        admit(run)
+    }
+
+    /// The turn's work, once it has a slot: the request is built from the history as it is now.
+    private func startTurn(_ run: ChatRun, assistant: Message, conversation: Conversation, context: ModelContext,
+                           endpoint: Endpoint, render: MessageRenderState, restoring: Bool, checkpoint: TurnCheckpoint?) {
+        run.start = nil
+        run.phase = .waiting
+        run.turnStart = .now
+        run.completedToolRounds = 0
+        run.earlyAnswerRequested = false
+        run.pendingCalls = []
+
+        let path = conversation.path(to: assistant.parentID).filter { $0.id != assistant.id }
+        run.persistedSourceCount = -1
+        run.persister = endpoint.supportsResumable ? CheckpointPersister { [weak self, weak run] snapshot in
+            guard let self, let run, !run.discarded else { return }
+            self.persist(snapshot, run: run, message: assistant, conversation: conversation, context: context)
         } : nil
-        background.begin()
+        background.begin(run.conversationID)
+        run.holdsLease = true
         var runner = TurnRunner(streamer: streamer, tools: tools)
         runner.toolsDisabled = assistant.answeredEarly
         runner.continueOnEmptyAnswer = settings.continueOnEmptyAnswer
@@ -456,25 +618,26 @@ final class ChatController {
         }
         DiagnosticCounters.shared.beginTurn(conversation: conversation.id)
         let effort = conversation.effort
-        if restoring == nil, endpoint.model.supportsTools { applyToolSwitches(conversation, path: path) }
+        if !restoring, endpoint.model.supportsTools { applyToolSwitches(conversation, path: path) }
         let messages = apiHistory(path: path, conversation: conversation, endpoint: endpoint)
         runner.offered = endpoint.model.supportsTools ? offeredTools(conversation, freeze: true) : []
         runner.switches = ChatToolSwitches(conversation)
         runner.compaction = compactionSettings(conversation: conversation, endpoint: endpoint, messages: messages, path: path)
         let sourceStore = SourceStore(items: conversation.sources)
+        run.sourceStore = sourceStore
 
-        task = Task { @MainActor [weak self] in
+        run.task = Task { @MainActor [weak self] in
             guard let self else { return }
             let tracker = TurnTracker(message: assistant, conversation: conversation, render: render, checkpoint: checkpoint)
-            self.sourceStore = sourceStore
             do {
                 let outcome = try await ToolContext.$conversationID.withValue(conversationID) {
                     try await ToolContext.$readsImages.withValue(endpoint.model.supportsImages) {
                         try await runner.run(endpoint: endpoint, messages: messages, effort: effort, sources: sourceStore, checkpoint: checkpoint) { event in
-                            try self.handle(event, tracker: tracker, context: context)
+                            try self.handle(event, run: run, tracker: tracker, context: context)
                         }
                     }
                 }
+                guard !run.discarded else { return }
                 tracker.finishThinking()
                 conversation.sources = sourceStore.items
                 tracker.complete(finalText: outcome.finalContent)
@@ -483,10 +646,11 @@ final class ChatController {
                 ReplyBackgroundExecution.notifyCompletion(title: Self.notificationTitle(conversation, assistant: assistant),
                                                           body: Self.notificationBody(assistant.text),
                                                           conversationID: conversation.id)
-                self.finish(assistant, conversation: conversation, context: context, error: nil, tracker: tracker)
+                self.finish(run, message: assistant, conversation: conversation, context: context, error: nil, tracker: tracker)
             } catch where error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
+                guard !run.discarded else { return }
                 // Stop in any state (first byte, thinking, writing, tool): keep what is there, mark it Stopped.
-                let early = self.earlyAnswerRequested
+                let early = run.earlyAnswerRequested
                 if early { tracker.keepFinishedCallsOfOpenRound() }
                 tracker.finishThinking()
                 tracker.complete(finalText: nil)
@@ -494,61 +658,65 @@ final class ChatController {
                 assistant.stoppedByUser = true
                 assistant.cutForEarlyAnswer = early
                 assistant.steps = tracker.completedSteps
-                self.finish(assistant, conversation: conversation, context: context, error: nil, tracker: tracker)
+                self.finish(run, message: assistant, conversation: conversation, context: context, error: nil, tracker: tracker,
+                            handover: early)
                 if early { self.continueEarly(after: assistant, conversation: conversation, context: context) }
             } catch {
+                guard !run.discarded else { return }
                 tracker.finishThinking()
                 conversation.sources = sourceStore.items
                 tracker.complete(finalText: nil)
                 assistant.steps = tracker.completedSteps
-                self.finish(assistant, conversation: conversation, context: context, error: error, tracker: tracker)
+                self.finish(run, message: assistant, conversation: conversation, context: context, error: error, tracker: tracker)
             }
         }
     }
 
-    private func handle(_ event: TurnEvent, tracker: TurnTracker, context: ModelContext) throws {
+    private func handle(_ event: TurnEvent, run: ChatRun, tracker: TurnTracker, context: ModelContext) throws {
+        // A deleted chat's run writes nothing more, even a tool result that lands before the cancellation does.
+        if run.discarded { throw CancellationError() }
         background.advance()
         switch event {
         case .checkpoint(let checkpoint):
-            persister?.update(checkpoint)
+            run.persister?.update(checkpoint)
         case .roundStarted(let n):
-            completedToolRounds = n
+            run.completedToolRounds = n
             tracker.beginRound(n)
-            pendingCalls = []
-            roundRecords = []
-            roundRequested = []
-            phase = .waiting
+            run.pendingCalls = []
+            run.roundRecords = []
+            run.roundRequested = []
+            run.phase = .waiting
         case .reasoning(let r):
             tracker.addReasoning(r)
-            phase = .thinking
+            if run.phase != .thinking { run.phase = .thinking }
         case .content(let c):
             tracker.addContent(c)
-            phase = .writing
+            if run.phase != .writing { run.phase = .writing }
         case .toolsRequested(let calls):
             tracker.finishThinking()
             tracker.beginTools(calls)
-            pendingCalls = calls.map { PendingToolCall(id: $0.id, name: $0.name, primaryArgument: ToolCallRecord(id: $0.id, name: $0.name, arguments: $0.arguments, result: "", isError: false).primaryArgument, offset: ToolCallRecord.fetchOffset(in: $0.arguments),
-                                                    plugin: $0.name == ToolNames.runPlugin ? PluginCall.name(in: $0.arguments) : nil) }
-            roundRequested = pendingCalls
-            if let first = pendingCalls.first { phase = .tool(name: first.name, argument: first.primaryArgument) }
+            run.pendingCalls = calls.map { PendingToolCall(id: $0.id, name: $0.name, primaryArgument: ToolCallRecord(id: $0.id, name: $0.name, arguments: $0.arguments, result: "", isError: false).primaryArgument, offset: ToolCallRecord.fetchOffset(in: $0.arguments),
+                                                        plugin: $0.name == ToolNames.runPlugin ? PluginCall.name(in: $0.arguments) : nil) }
+            run.roundRequested = run.pendingCalls
+            if let first = run.pendingCalls.first { run.phase = .tool(name: first.name, argument: first.primaryArgument) }
         case .toolFinished(let record):
             tracker.completeTool(record)
-            if let store = sourceStore { liveSources = store.items }
-            roundRecords.append(record)
-            pendingCalls.removeAll { $0.id == record.id }
-            if let next = pendingCalls.first { phase = .tool(name: next.name, argument: next.primaryArgument) }
+            if let store = run.sourceStore { run.liveSources = store.items }
+            run.roundRecords.append(record)
+            run.pendingCalls.removeAll { $0.id == record.id }
+            if let next = run.pendingCalls.first { run.phase = .tool(name: next.name, argument: next.primaryArgument) }
         case .usage(let u):
             tracker.conversation.apply(u)
             tracker.conversation.lastUsageMessageID = tracker.message.id
         case .compactionStarted:
             tracker.finishThinking()
-            phase = .compacting
+            run.phase = .compacting
         case .compacted(let outcome, let steps, let preTurn):
             storeCompaction(outcome, conversation: tracker.conversation, anchor: preTurn
                             ? tracker.conversation.message(id: tracker.message.parentID)?.parentID : tracker.message.id,
                             anchorSteps: preTurn ? -1 : steps, automatic: true, context: context)
             tracker.conversation.lastUsageMessageID = tracker.message.id
-            phase = .waiting
+            run.phase = .waiting
         }
     }
 
@@ -607,7 +775,7 @@ final class ChatController {
         let skillIndex = !offered.contains(.browser) ? ""
             : freeze ? conversation.frozenSkillIndex(current: skills.index) : conversation.skillIndexSnapshot ?? skills.index
         let base = [AppPrompt.text(tools: tools, python: offered.contains(.python), browser: offered.contains(.browser),
-                                   skills: offered.contains(.browser), video: offered.contains(.video),
+                                   skills: offered.contains(.browser), video: offered.contains(.video), ssh: offered.contains(.ssh),
                                    views: offered.contains(.views)),
                     skillIndex,
                     AppPrompt.preferences(freeze ? conversation.frozenPreferences(current: settings.userPreferences)
@@ -666,51 +834,58 @@ final class ChatController {
         try? context.save()
     }
 
-    /// "Summarize now": compacts the conversation as it stands, without a turn.
+    /// "Summarize now": compacts the conversation as it stands, without a turn. It takes a slot like a reply.
     func compactNow(conversation: Conversation, context: ModelContext) {
-        guard !isStreaming else { return }
+        guard !isStreaming(conversation) else { return }
         conversation.ensureTree()
         let path = conversation.activePath
         guard let leaf = path.last,
               let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID,
                                                   sessionID: conversation.id.uuidString),
               !Self.needsKey(endpoint, connections: connections) else { return }
+        let conversationID = conversation.id
+        let run = ChatRun(conversationID: conversationID, kind: .compaction, messageID: nil)
+        compactionErrors[conversationID] = nil
+        runs[conversationID] = run
+        run.start = { [weak self, weak run] in
+            guard let self, let run else { return }
+            self.startCompaction(run, conversation: conversation, leaf: leaf, path: path, endpoint: endpoint, context: context)
+        }
+        admit(run)
+    }
+
+    private func startCompaction(_ run: ChatRun, conversation: Conversation, leaf: Message, path: [Message], endpoint: Endpoint,
+                                 context: ModelContext) {
+        run.start = nil
+        run.phase = .compacting
+        run.turnStart = .now
         let messages = apiHistory(path: path, conversation: conversation, endpoint: endpoint)
         let window = contextWindow(for: endpoint)
         var request = ChatRequest(model: endpoint.model.id, messages: messages)
         if endpoint.model.supportsEffort { request.reasoningEffort = conversation.effort.apiValue }
         if endpoint.model.supportsTools { request.tools = requestTools(endpoint, conversation: conversation) }
-        compactingConversationID = conversation.id
-        activeConversationID = conversation.id
-        phase = .compacting
-        turnStart = .now
-        compactionError = nil
         let streamer = streamer
         let ring = requestRing
         let conversationID = conversation.id
         let url = endpoint.requestURL.absoluteString
         let meter = ContextMeter.estimate(messages)
         let usable = conversation.lastUsage.flatMap { conversation.lastUsageMessageID == leaf.id ? $0 : nil }
-        task = Task { @MainActor [weak self] in
-            defer {
-                self?.compactingConversationID = nil
-                self?.activeConversationID = nil
-                self?.phase = .idle
-                self?.turnStart = nil
-                self?.task = nil
-            }
+        run.task = Task { @MainActor [weak self] in
+            defer { self?.endRun(run) }
             do {
                 let outcome = try await Compactor(streamer: streamer).compact(
                     endpoint: endpoint, base: request, meter: usable.map { ContextMeter(usage: $0) } ?? meter, window: window) { sent in
                     if let body = try? sent.encoded() { ring.record(conversationID: conversationID, url: url, body: body, id: UUID()) }
                 }
+                guard !run.discarded else { return }
                 self?.storeCompaction(outcome, conversation: conversation, anchor: leaf.id, anchorSteps: -1, automatic: false, context: context)
                 conversation.lastUsageMessageID = leaf.id
                 try? context.save()
             } catch is CancellationError {
                 // Stopped: nothing changed.
             } catch {
-                self?.compactionError = error.localizedDescription
+                guard !run.discarded else { return }
+                self?.compactionErrors[conversationID] = error.localizedDescription
             }
         }
     }
@@ -727,7 +902,7 @@ final class ChatController {
     }
 
     /// One throttled checkpoint write: the large half only when it changed, the small half always, together.
-    private func persist(_ snapshot: CheckpointPersister.Snapshot, message: Message, conversation: Conversation, context: ModelContext) {
+    private func persist(_ snapshot: CheckpointPersister.Snapshot, run: ChatRun, message: Message, conversation: Conversation, context: ModelContext) {
         if let data = snapshot.staticData { message.resumeData = data }
         if !message.hasResume { message.hasResume = true }
         message.resumeDynamicData = snapshot.dynamicData
@@ -736,8 +911,8 @@ final class ChatController {
                                                         dynamicBytes: snapshot.dynamicData.count)
         // Text and reasoning live in the dynamic half (the accumulator); they are copied into their columns when the
         // turn ends. Sources are written only when new ones arrived, so the sidebar's query is not invalidated.
-        if let items = sourceStore?.items, items.count != persistedSourceCount {
-            persistedSourceCount = items.count
+        if let items = run.sourceStore?.items, items.count != run.persistedSourceCount {
+            run.persistedSourceCount = items.count
             conversation.sources = items
         }
         try? context.save()
@@ -765,13 +940,14 @@ final class ChatController {
         return String(flat.prefix(limit)).trimmingCharacters(in: .whitespaces) + "…"
     }
 
-    private func finish(_ message: Message, conversation: Conversation, context: ModelContext,
-                        error: Error?, tracker: TurnTracker? = nil) {
-        persister?.close()
-        persister = nil
+    /// - Parameter handover: an early answer follows at once and takes this run's slot.
+    private func finish(_ run: ChatRun, message: Message, conversation: Conversation, context: ModelContext,
+                        error: Error?, tracker: TurnTracker? = nil, handover: Bool = false) {
+        run.persister?.close()
+        run.persister = nil
         // Pages kept for the user after a failed tool go a few minutes from now; Stop browsing applied to this reply.
-        KeptPages.shared.turnEnded()
-        BrowserSessions.shared.turnEnded()
+        KeptPages.shared.turnEnded(conversation: conversation.id)
+        BrowserSessions.shared.turnEnded(conversation: conversation.id)
         if let error {
             message.errorText = error.localizedDescription
             message.errorNeedsSettings = (error as? APIError)?.needsSettings ?? false
@@ -786,25 +962,27 @@ final class ChatController {
             let spoken = error.map { (($0 as? LocalizedError)?.errorDescription ?? $0.localizedDescription) } ?? String(localized: "Answer ready")
             AccessibilityNotification.Announcement(spoken).post()
         }
-        skillOfferMessageID = SkillOffer.isOffered(
+        skillOffers[conversation.id] = SkillOffer.isOffered(
             steps: message.steps,
-            browserAvailable: toolSwitches(conversation).contains(.browser) && activeEndpoint?.model.supportsTools == true,
+            browserAvailable: toolSwitches(conversation).contains(.browser) && run.endpoint?.model.supportsTools == true,
             finishedWithAnswer: error == nil && !message.stoppedByUser && !message.text.isEmpty) ? message.id : nil
-        background.end(success: error == nil,
-                       title: error != nil ? nil : stopped ? String(localized: "Reply stopped") : String(localized: "Reply ready"),
-                       subtitle: Self.notificationTitle(conversation, assistant: message))
-        activeMessage = nil
-        activeContext = nil
-        activeEndpoint = nil
+        if run.holdsLease {
+            run.holdsLease = false
+            background.end(run.conversationID, success: error == nil,
+                           title: error != nil ? nil : stopped ? String(localized: "Reply stopped") : String(localized: "Reply ready"),
+                           subtitle: Self.notificationTitle(conversation, assistant: message))
+        }
+        run.message = nil
+        run.context = nil
         conversation.updatedAt = .now
         try? context.save()
         #if DEBUG
         DebugHooks.recordResumeSmoke(message)
         #endif
-        phase = .idle
-        pendingCalls = []
-        roundRecords = []
-        roundRequested = []
+        run.phase = .idle
+        run.pendingCalls = []
+        run.roundRecords = []
+        run.roundRequested = []
         var autoNaming = true
         #if DEBUG
         autoNaming = DebugHooks.value("StrataNoAutoRename") == nil // keeps request-count smoke tests exact
@@ -815,15 +993,36 @@ final class ChatController {
                                              completedAnswers: conversation.completedAnswerCount) {
             autoRename(conversation: conversation, context: context, force: false)
         }
-        activeMessageID = nil
-        activeIsEarly = false
-        earlyAnswerRequested = false
-        activeConversationID = nil
-        turnStart = nil
-        sourceStore = nil
-        task = nil
+        // A reply that ended in a chat that isn't on screen: an unread mark, and "Reply ready" when there is one. A run
+        // the person stopped (or cut short for an early answer) is not news.
+        if !message.stoppedByUser, indicators.runEnded(conversation.id, visible: visibleConversationID), error == nil {
+            readyNotice = ReadyNotice(conversationID: conversation.id, title: Self.notificationTitle(conversation, assistant: message))
+        }
+        run.sourceStore = nil
+        endRun(run, handover: handover)
     }
 }
+
+#if DEBUG
+extension ChatController {
+    /// Screenshots of the sidebar marks and the "Reply ready" banner (`-StrataMultiChatDemo 1`): runs that do nothing
+    /// (one of them queued), a chat with a reply not seen yet, and the notice for it. Nothing is sent.
+    func debugMultiChatDemo(running: [UUID], queued: UUID?, unread: UUID, title: String) {
+        for id in running where runs[id] == nil {
+            let run = ChatRun(conversationID: id, kind: .turn, messageID: nil)
+            run.phase = .writing
+            runs[id] = run
+        }
+        if let queued, runs[queued] == nil {
+            let run = ChatRun(conversationID: queued, kind: .turn, messageID: nil)
+            run.phase = .queued
+            runs[queued] = run
+        }
+        indicators.runEnded(unread, visible: visibleConversationID)
+        readyNotice = ReadyNotice(conversationID: unread, title: title)
+    }
+}
+#endif
 
 /// Feeds streamed deltas into the render models and measures thinking time.
 /// Resumable turns checkpoint persisted fields at each applied SSE boundary.
