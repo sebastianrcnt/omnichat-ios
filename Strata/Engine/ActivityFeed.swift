@@ -235,6 +235,8 @@ struct FeedCard: Identifiable, Equatable, Sendable {
         case browser(url: String)
         /// One `browser_eval` call: the script it ran.
         case script(code: String)
+        /// One call of an index tool (`browser_click`, ...): the tool and its argument ("[12]").
+        case browserAction(tool: String, argument: String)
         /// A one-line card for a call with nothing to unfold (`load_skill`, ...): the tool and its argument.
         case note(tool: String, argument: String)
         /// One `show_places` call: the map and the place cards.
@@ -287,7 +289,7 @@ enum ActivityFeed {
         guard isStreaming, !answerStarted else { return nil }
         return cards.last { card in
             switch card.kind {
-            case .browser, .script: true
+            case .browser, .script, .browserAction: true
             default: false
             }
         }?.id
@@ -307,6 +309,7 @@ enum ActivityFeed {
                 case ToolNames.viewImage: .image(id: call.argument)
                 case ToolNames.showPlaces: .places
                 case ToolNames.showHTML: .artifact(title: call.argument)
+                case _ where ToolNames.isBrowserAction(tool): .browserAction(tool: tool, argument: call.argument)
                 default: .note(tool: tool, argument: call.argument)
                 }
                 var card = FeedCard(id: call.id, kind: kind, isRunning: call.status == .running, isError: call.status == .failed)

@@ -116,11 +116,21 @@ enum AppPrompt {
     - Don't offer for one-off questions, for tasks that worked on the first try, or again in a chat where the user declined. If a loaded skill was wrong or incomplete, offer to update it instead.
     """
 
-    /// The app prompt for a model with (or without) tools, with `run_python` offered or not, and with skills
-    /// (`save_skill`) offered or not.
-    static func text(tools: Bool, python: Bool, skills: Bool = false) -> String {
+    /// Driving the browser with the index tools; rules adapted from browser-use (MIT).
+    static let browser = """
+    - In the browser, act on pages with the index tools: browser_click, browser_type, browser_select and browser_scroll take an [index] from the latest page state, and each returns the new state. Use only indices from the latest state.
+    - Close pop-ups, cookie banners and overlays first if they cover the page.
+    - For a search box with suggestions, type, then click the suggestion marked *[n] instead of submitting.
+    - To find specific text, use browser_find rather than scrolling.
+    - Don't repeat an action that failed more than 2 or 3 times; try another way. If you're stuck, or a page needs a sign-in or the user's decision, use browser_show. Robot checks are handed to the user automatically; never say you solved one.
+    """
+
+    /// The app prompt for a model with (or without) tools, with `run_python` offered or not, with the browser's index
+    /// tools offered or not, and with skills (`save_skill`) offered or not.
+    static func text(tools: Bool, python: Bool, browser: Bool = false, skills: Bool = false) -> String {
         guard tools else { return base }
-        return base + "\n\n" + Self.tools + (python ? "\n" + Self.python : "") + (skills ? "\n" + Self.skillOffer : "")
+        return base + "\n\n" + Self.tools + (python ? "\n" + Self.python : "") + (browser ? "\n" + Self.browser : "")
+            + (skills ? "\n" + Self.skillOffer : "")
     }
 
     /// The user's preferences as a system-prompt section, or "" when they are blank. Followed in every reply, so

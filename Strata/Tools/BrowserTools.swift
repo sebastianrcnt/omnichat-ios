@@ -7,7 +7,30 @@ import Foundation
 
 /// What the browser tools need of a page, so they can be tested with a fake.
 @MainActor
-protocol BrowserPage: PluginPage {}
+protocol BrowserPage: PluginPage {
+    /// Runs a function body in the index tools' isolated content world (`BrowserAgentScript`), with `input` as its
+    /// `input` argument, and returns its string result.
+    func callAgent(_ body: String, input: String, timeout: Duration) async throws -> String
+    /// A navigation is under way.
+    var isLoading: Bool { get }
+    /// What the view shows, as a PNG at most `width` pixels wide.
+    func snapshotPNG(width: Int) async throws -> Data
+    /// For a moment, a link or script that opens a new window opens in this page instead (after a click).
+    func acceptPopups(for duration: Duration)
+    /// Takes the focus back from the page if a script focused a field in it while it is hidden (iOS would raise the
+    /// keyboard over the app and send the user's typing to the page).
+    func releaseFocus()
+}
+
+extension BrowserPage {
+    func callAgent(_ body: String, input: String, timeout: Duration) async throws -> String {
+        throw WebToolError.script("this page can't run the index tools.")
+    }
+    var isLoading: Bool { false }
+    func snapshotPNG(width: Int) async throws -> Data { throw WebToolError.script("this page can't take screenshots.") }
+    func acceptPopups(for duration: Duration) {}
+    func releaseFocus() {}
+}
 
 extension HiddenWebView: BrowserPage {}
 
@@ -175,6 +198,9 @@ final class BrowserSessions {
         let hold = HoldGate()
         /// The calls under way, to cancel on Stop browsing.
         fileprivate var running: [UUID: @MainActor () -> Void] = [:]
+        /// The last index the index tools handed out on this page: indices never repeat in a session, so one from an
+        /// earlier page can't land on an element of the next.
+        var agentIndex = 0
 
         init(page: any BrowserPage) { self.page = page }
     }
@@ -384,11 +410,16 @@ struct BrowserOpenTool {
                     session.hasPage = true
                     let out = await Task.detached(priority: .userInitiated) { BrowserText.capped(page.text, limit: limit) }.value
                     let title = page.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                    // The elements in view with their indices, so the model can act without asking for the state.
+                    let state = try? await BrowserAgentTool.observe(session, maxCharacters: BrowserAgentTool.openStateCharacters, markNew: false)
+                    let trailer = state.map { "Page state (act on an [index] with browser_click, browser_type, browser_select, browser_scroll):\nScroll: \($0.scroll)\n\n\($0.tree)" }
+                    let tail = trailer.map { "\n\n" + $0 } ?? ""
                     guard !out.text.isEmpty else {
-                        return ToolOutput(text: "Title: \(title)\nURL: \(page.url)\n\n[The page shows no text. It may need a moment more, or the content may be in images or frames; try browser_eval.]")
+                        return ToolOutput(text: "Title: \(title)\nURL: \(page.url)\n\n[The page shows no text. It may need a moment more, or the content may be in images or frames; try browser_eval.]" + tail)
                     }
-                    return ToolOutput(text: "Title: \(title)\nURL: \(page.url)\n\n" + out.text,
-                                      sources: [SourceCandidate(title: title.isEmpty ? page.url : title, url: page.url, content: out.text)])
+                    return ToolOutput(text: "Title: \(title)\nURL: \(page.url)\n\n" + out.text + tail,
+                                      sources: [SourceCandidate(title: title.isEmpty ? page.url : title, url: page.url, content: out.text)],
+                                      trailer: trailer)
                 }
             }
         } catch is BrowserStoppedError {
@@ -644,7 +675,7 @@ struct BrowserShowTool {
                     let done = await ask(BrowserShowRequests.Request(reason: reason, page: page))
                     let place = Self.place(page)
                     if done {
-                        return ToolOutput(text: "The user tapped Done. The page is now: \(place). Read it with browser_eval or open the next page with browser_open; a sign-in stays saved for later.")
+                        return ToolOutput(text: "The user tapped Done. The page is now: \(place). Read it with browser_state or browser_eval, or open the next page with browser_open; a sign-in stays saved for later.")
                     }
                     return ToolOutput(text: "The user closed the browser without tapping Done. The page is now: \(place). Don't show it again unless they ask.", isError: true)
                 }

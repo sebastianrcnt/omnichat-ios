@@ -24,6 +24,9 @@ struct ToolOutput: Sendable, Equatable {
     var places: PlaceCollection?
     /// The artifact a `show_html` call saved (for the chat's card; the model reads `text`).
     var artifact: ArtifactRef?
+    /// Text that follows the `<source>` blocks when `sources` replace `text` (`browser_open`'s page state). `text`
+    /// already ends with it.
+    var trailer: String?
 }
 
 /// A tool result that finished before the results ahead of it in the round, held (and checkpointed) until it can be
@@ -38,6 +41,7 @@ struct RawToolResult: Codable, Sendable, Equatable {
     var viewedImage: ToolImage?
     var places: PlaceCollection?
     var artifact: ArtifactRef?
+    var trailer: String?
 
     init(callID: String, output: ToolOutput) {
         self.callID = callID
@@ -49,11 +53,12 @@ struct RawToolResult: Codable, Sendable, Equatable {
         viewedImage = output.viewedImage
         places = output.places
         artifact = output.artifact
+        trailer = output.trailer
     }
 
     var output: ToolOutput {
         ToolOutput(text: text, isError: isError, sources: sources, engine: engine, figures: figures ?? [], viewedImage: viewedImage,
-                   places: places, artifact: artifact)
+                   places: places, artifact: artifact, trailer: trailer)
     }
 }
 
@@ -126,6 +131,18 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
         case "browser_open": return (obj["url"] as? String) ?? arguments
         case "browser_eval": return (obj["js"] as? String) ?? arguments
         case "browser_show": return (obj["reason"] as? String) ?? ""
+        case "browser_state", "browser_screenshot": return ""
+        case "browser_click": return BrowserAction.index(obj["index"]).map { "[\($0)]" } ?? ""
+        case "browser_type":
+            let text = (obj["text"] as? String).map { " \u{201C}\(BrowserAgentTool.short($0, 40))\u{201D}" } ?? ""
+            return (BrowserAction.index(obj["index"]).map { "[\($0)]" } ?? "") + text
+        case "browser_select":
+            let option = (obj["option"] as? String).map { " \u{201C}\(BrowserAgentTool.short($0, 40))\u{201D}" } ?? ""
+            return (BrowserAction.index(obj["index"]).map { "[\($0)]" } ?? "") + option
+        case "browser_scroll":
+            let target = BrowserAction.index(obj["index"]).map { "[\($0)] " } ?? ""
+            return target + ((obj["direction"] as? String)?.lowercased() == "up" ? "up" : "down")
+        case "browser_find": return (obj["text"] as? String) ?? ""
         case "load_skill", "save_skill": return (obj["name"] as? String) ?? arguments
         case "run_skill_script":
             return [obj["skill"] as? String, obj["script"] as? String].compactMap { $0 }.joined(separator: " · ")
@@ -159,7 +176,9 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
     /// A Python run and a browser script keep their output (the card shows it; it is capped like a page slice).
     var displayOnly: ToolCallRecord {
         let keepsResult = name == ToolNames.runPython || name == ToolNames.browserEval
-        var out = ToolCallRecord(id: id, name: name, arguments: arguments, result: keepsResult ? result : "",
+        // An index tool keeps its first line ("Clicked [12] Search"): its card's title. The page state is dropped.
+        let kept = keepsResult ? result : ToolNames.isBrowserAction(name) ? String(result.prefix { $0 != "\n" }.prefix(200)) : ""
+        var out = ToolCallRecord(id: id, name: name, arguments: arguments, result: kept,
                                  isError: isError, sourceIDs: sourceIDs)
         out.figures = figures
         out.viewedImage = viewedImage
@@ -231,6 +250,13 @@ enum ToolNames {
     static let browserOpen = "browser_open"
     static let browserEval = "browser_eval"
     static let browserShow = "browser_show"
+    static let browserState = "browser_state"
+    static let browserClick = "browser_click"
+    static let browserType = "browser_type"
+    static let browserSelect = "browser_select"
+    static let browserScroll = "browser_scroll"
+    static let browserFind = "browser_find"
+    static let browserScreenshot = "browser_screenshot"
     static let loadSkill = "load_skill"
     static let runSkillScript = "run_skill_script"
     static let saveSkill = "save_skill"
@@ -241,19 +267,22 @@ enum ToolNames {
     /// Tools safe to run a second time when the first run failed because the app went to the background: they only
     /// read. Python, page scripts, plugins and skill scripts may have done something already (a click, a POST).
     static func isSafeToRetry(_ name: String) -> Bool {
-        [webSearch, webFetch, browserOpen, loadSkill, currentLocation].contains(name)
+        [webSearch, webFetch, browserOpen, browserState, browserFind, browserScreenshot, loadSkill, currentLocation].contains(name)
     }
+
+    /// The index tools (`BrowserAction`): one card each, with the page live while the reply works.
+    static func isBrowserAction(_ name: String) -> Bool { BrowserAction.tools.contains(name) }
 
     /// Tools that load or script pages in hidden web views, which iOS stops while the app is in the background unless
     /// they play sound (`BackgroundLoadingSound`). `browser_show` puts its page on screen, so it is not one.
     static func usesWebPage(_ name: String) -> Bool {
-        [webSearch, webFetch, runPlugin, browserOpen, browserEval, runSkillScript].contains(name)
+        [webSearch, webFetch, runPlugin, browserOpen, browserEval, runSkillScript].contains(name) || isBrowserAction(name)
     }
 
     /// Tools shown in the feed as a card of their own (not a search card or a row of "Read pages").
     static func hasOwnCard(_ name: String) -> Bool {
         [runPython, viewImage, browserOpen, browserEval, browserShow, loadSkill, runSkillScript, saveSkill, showPlaces, currentLocation,
-         showHTML].contains(name)
+         showHTML].contains(name) || isBrowserAction(name)
     }
 
     /// Tools that read a page (and count as one in the summaries).

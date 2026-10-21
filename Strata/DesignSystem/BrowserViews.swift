@@ -29,6 +29,11 @@ struct BrowserFeedCard: View {
                     .padding(.horizontal, 14)
                     .padding(.bottom, 10)
             }
+            if case .browserAction = card.kind, !card.isRunning, let image = card.figures.first {
+                ToolImageThumbnail(image: image, height: 120)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 10)
+            }
             if case .script(let code) = card.kind, !collapsed {
                 BrowserScriptDetail(code: code, output: card.output, isRunning: card.isRunning, isError: card.isError)
                     .padding(.horizontal, 10)
@@ -60,10 +65,16 @@ struct BrowserFeedCard: View {
 
     private var isScript: Bool { if case .script = card.kind { true } else { false } }
 
+    private var actionTool: String? { if case .browserAction(let tool, _) = card.kind { tool } else { nil } }
+
     private var header: some View {
         let row = HStack(spacing: DS.Spacing.sm) {
             Group {
-                if !isScript, let url = pageURL {
+                if let tool = actionTool {
+                    Image(systemName: ToolNote.icon(tool))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(theme.textSecondary)
+                } else if !isScript, let url = pageURL {
                     FaviconView(host: ActivityEntry.host(of: url), size: DS.IconSize.feedFavicon, square: true)
                 } else {
                     Image(systemName: "curlybraces")
@@ -84,7 +95,9 @@ struct BrowserFeedCard: View {
         .padding(.horizontal, 14)
         .contentShape(Rectangle())
         return Group {
-            if isScript {
+            if actionTool != nil {
+                row.accessibilityElement(children: .combine)
+            } else if isScript {
                 Button(action: onToggle) { row }
                     .buttonStyle(.plain)
                     .accessibilityValue(Text(collapsed ? "Collapsed" : "Expanded"))
@@ -99,6 +112,9 @@ struct BrowserFeedCard: View {
 
     private var title: String {
         switch card.kind {
+        case .browserAction(let tool, let argument):
+            let summary = card.isRunning || card.isError ? nil : BrowserActionLabel.summary(tool: tool, result: card.output)
+            return ToolNote.title(tool: tool, argument: argument, running: card.isRunning, failed: card.isError, summary: summary)
         case .script:
             if card.isRunning { return String(localized: "Running a script…") }
             if let host { return String(localized: "Ran a script on \(host)") }
@@ -112,9 +128,9 @@ struct BrowserFeedCard: View {
     @ViewBuilder
     private var trailing: some View {
         if card.isRunning {
-            if isScript { ProgressView().controlSize(.mini) } else { ReadProgressRing(callID: card.id) }
+            if isScript || actionTool != nil { ProgressView().controlSize(.mini) } else { ReadProgressRing(callID: card.id) }
         } else if card.isError {
-            Text(isScript ? String(localized: "Error") : (card.pageFailure ?? .failed).label)
+            Text(isScript || actionTool != nil ? String(localized: "Error") : (card.pageFailure ?? .failed).label)
                 .font(DS.Typography.feedMeta).foregroundStyle(theme.textTertiary)
         } else if isScript {
             Image(systemName: "chevron.right")
@@ -287,10 +303,15 @@ struct BrowserScriptDetail: View {
     open.isRunning = false
     var script = FeedCard(id: "s", kind: .script(code: "const items = [...document.querySelectorAll('li')];\nreturn items.length;"))
     script.output = "URL: https://m.search.naver.com/search.naver\n\n12"
+    var click = FeedCard(id: "c", kind: .browserAction(tool: ToolNames.browserClick, argument: "[12]"))
+    click.output = "Clicked [12] Search"
+    let typing = FeedCard(id: "t", kind: .browserAction(tool: ToolNames.browserType, argument: "[5] \u{201C}seongsu cafe\u{201D}"), isRunning: true)
     return ScrollView {
         VStack(spacing: 10) {
             BrowserFeedCard(card: open, collapsed: true, onToggle: {}, onDetails: {})
             BrowserFeedCard(card: script, collapsed: false, onToggle: {}, onDetails: {})
+            BrowserFeedCard(card: click, collapsed: true, onToggle: {}, onDetails: {})
+            BrowserFeedCard(card: typing, collapsed: true, onToggle: {}, onDetails: {})
         }
         .padding()
     }
@@ -302,11 +323,18 @@ struct BrowserScriptDetail: View {
 enum ToolNote {
     static func covers(_ tool: String) -> Bool {
         [ToolNames.browserShow, ToolNames.loadSkill, ToolNames.runSkillScript, ToolNames.saveSkill, ToolNames.showPlaces, ToolNames.currentLocation,
-         ToolNames.showHTML].contains(tool)
+         ToolNames.showHTML].contains(tool) || ToolNames.isBrowserAction(tool)
     }
 
     static func icon(_ tool: String) -> String {
         switch tool {
+        case ToolNames.browserState: "list.bullet.rectangle"
+        case ToolNames.browserClick: "hand.tap"
+        case ToolNames.browserType: "keyboard"
+        case ToolNames.browserSelect: "filemenu.and.selection"
+        case ToolNames.browserScroll: "arrow.up.and.down"
+        case ToolNames.browserFind: "text.magnifyingglass"
+        case ToolNames.browserScreenshot: "camera.viewfinder"
         case ToolNames.browserShow: "hand.point.up.left"
         case ToolNames.loadSkill: "book.closed"
         case ToolNames.runSkillScript: "play.rectangle"
@@ -318,8 +346,12 @@ enum ToolNote {
         }
     }
 
-    static func title(tool: String, argument: String, running: Bool, failed: Bool = false) -> String {
-        switch tool {
+    /// `summary`: what a finished index tool did, from its result ("Clicked [12] Search"); the line when given.
+    static func title(tool: String, argument: String, running: Bool, failed: Bool = false, summary: String? = nil) -> String {
+        if ToolNames.isBrowserAction(tool) {
+            return BrowserActionLabel.title(tool: tool, argument: argument, running: running, failed: failed, summary: summary)
+        }
+        return switch tool {
         case ToolNames.browserShow:
             running ? String(localized: "Waiting for you in the browser…")
                 : failed ? String(localized: "You closed the browser") : String(localized: "You finished in the browser")
@@ -340,6 +372,41 @@ enum ToolNote {
                 : failed ? String(localized: "Couldn't show the artifact") : String(localized: "Showed \(argument)")
         default:
             running ? String(localized: "Running \(tool)…") : String(localized: "Ran \(tool)")
+        }
+    }
+}
+
+/// The lines of the index tools' cards: "Clicking [12]…", then what the result says it did ("Clicked [12] Search").
+enum BrowserActionLabel {
+    /// The first line of a finished call's result, when it says what was done (a state starts with its URL instead).
+    static func summary(tool: String, result: String) -> String? {
+        guard ToolNames.isBrowserAction(tool), tool != ToolNames.browserState else { return nil }
+        let line = String(result.prefix { $0 != "\n" }).trimmingCharacters(in: .whitespaces)
+        guard !line.isEmpty, !line.hasPrefix("URL:"), !line.hasPrefix("Error") else { return nil }
+        return line
+    }
+
+    static func title(tool: String, argument: String, running: Bool, failed: Bool, summary: String?) -> String {
+        if !running, !failed, let summary { return summary }
+        let arg = argument.isEmpty ? "" : " " + argument
+        switch tool {
+        case ToolNames.browserState:
+            return running ? String(localized: "Reading the page…") : failed ? String(localized: "Couldn't read the page") : String(localized: "Read the page")
+        case ToolNames.browserClick:
+            return running ? String(localized: "Clicking\(arg)…") : failed ? String(localized: "Couldn't click\(arg)") : String(localized: "Clicked\(arg)")
+        case ToolNames.browserType:
+            return running ? String(localized: "Typing into\(arg)…") : failed ? String(localized: "Couldn't type into\(arg)") : String(localized: "Typed into\(arg)")
+        case ToolNames.browserSelect:
+            return running ? String(localized: "Choosing\(arg)…") : failed ? String(localized: "Couldn't choose\(arg)") : String(localized: "Chose\(arg)")
+        case ToolNames.browserScroll:
+            return running ? String(localized: "Scrolling\(arg)…") : failed ? String(localized: "Couldn't scroll") : String(localized: "Scrolled\(arg)")
+        case ToolNames.browserFind:
+            return running ? String(localized: "Finding \u{201C}\(argument)\u{201D}…")
+                : failed ? String(localized: "Couldn't search the page") : String(localized: "Searched the page for \u{201C}\(argument)\u{201D}")
+        case ToolNames.browserScreenshot:
+            return running ? String(localized: "Taking a screenshot…") : failed ? String(localized: "Couldn't take a screenshot") : String(localized: "Took a screenshot")
+        default:
+            return running ? String(localized: "Running \(tool)…") : String(localized: "Ran \(tool)")
         }
     }
 }

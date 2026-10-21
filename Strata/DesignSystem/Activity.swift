@@ -126,8 +126,8 @@ struct ActivityEntry: Identifiable, Equatable {
         case image(id: String, image: ToolImage?)
         /// `browser_eval`: the script and what it returned.
         case script(code: String, output: String)
-        /// A call with nothing to show but a line (`load_skill`, ...).
-        case note(tool: String, argument: String)
+        /// A call with nothing to show but a line (`load_skill`, ...). `summary`: an index tool's first result line.
+        case note(tool: String, argument: String, summary: String? = nil)
     }
     let id: String
     var kind: Kind
@@ -156,7 +156,8 @@ struct ActivityEntry: Identifiable, Equatable {
         } else if call.name == ToolNames.browserEval {
             kind = .script(code: call.primaryArgument, output: call.result)
         } else if ToolNote.covers(call.name) {
-            kind = .note(tool: call.name, argument: call.primaryArgument)
+            kind = .note(tool: call.name, argument: call.primaryArgument,
+                         summary: call.isError ? nil : BrowserActionLabel.summary(tool: call.name, result: call.result))
         } else {
             kind = .visit(url: call.primaryArgument, host: Self.host(of: call.primaryArgument))
             isContinuation = call.fetchOffset > 0
@@ -313,10 +314,10 @@ struct ActivityRow: View {
                     BrowserScriptDetail(code: code, output: output, isRunning: entry.isRunning, isError: entry.isError)
                 }
             }
-        case .note(let tool, let argument):
+        case .note(let tool, let argument, let summary):
             HStack(spacing: DS.Spacing.sm) {
                 icon(ToolNote.icon(tool))
-                Text(ToolNote.title(tool: tool, argument: argument, running: entry.isRunning, failed: entry.isError))
+                Text(ToolNote.title(tool: tool, argument: argument, running: entry.isRunning, failed: entry.isError, summary: summary))
                     .font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary).lineLimit(1)
                 if entry.isRunning { ProgressView().controlSize(.mini) }
                 else if entry.isError && tool != ToolNames.saveSkill { Text("failed").font(DS.Typography.uiCaption).foregroundStyle(theme.warning) }

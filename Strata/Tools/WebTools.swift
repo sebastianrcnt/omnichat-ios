@@ -440,6 +440,11 @@ struct ToolRouter: ToolExecuting {
                 return ToolOutput(text: "Error: missing required argument \"js\".", isError: true)
             }
             return await BrowserEvalTool().run(code: js, conversation: ToolContext.conversationID)
+        case let tool where ToolNames.isBrowserAction(tool):
+            switch BrowserAction.parse(tool: tool, arguments: args) {
+            case .failure(let error): return error.output
+            case .success(let action): return await BrowserAgentTool().run(action, conversation: ToolContext.conversationID)
+            }
         case ToolNames.browserShow:
             return await BrowserShowTool().run(reason: args["reason"] as? String ?? "", page: args["page"] as? String,
                                                conversation: ToolContext.conversationID)

@@ -19,6 +19,8 @@ struct ToolImage: Codable, Hashable, Sendable {
 final class ToolImageStore: @unchecked Sendable {
     static let shared = ToolImageStore()
     static let figurePrefix = "figure-"
+    /// `browser_screenshot`'s images.
+    static let screenshotPrefix = "screenshot-"
 
     let root: URL
     private let lock = NSLock()
@@ -38,12 +40,17 @@ final class ToolImageStore: @unchecked Sendable {
 
     /// Stores a new figure and gives it the next free `figure-<n>` id of the conversation.
     func addFigure(png: Data, conversationID: UUID) -> ToolImage? {
+        addImage(png: png, conversationID: conversationID, prefix: Self.figurePrefix)
+    }
+
+    /// Stores a new image and gives it the next free `<prefix><n>` id of the conversation.
+    func addImage(png: Data, conversationID: UUID, prefix: String) -> ToolImage? {
         let size = Self.pngSize(png) ?? (0, 0)
         return lock.withLock {
             let dir = folder(conversationID)
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            let n = (Self.figureNumbers(in: dir).max() ?? 0) + 1
-            let id = Self.figurePrefix + String(n)
+            let n = (Self.numbers(in: dir, prefix: prefix).max() ?? 0) + 1
+            let id = prefix + String(n)
             let file = conversationID.uuidString + "/" + id + ".png"
             guard (try? png.write(to: root.appendingPathComponent(file), options: .atomic)) != nil else { return nil }
             return ToolImage(id: id, width: size.0, height: size.1, file: file)
@@ -53,7 +60,8 @@ final class ToolImageStore: @unchecked Sendable {
     /// The image with this id in the conversation, if it is stored.
     func image(id: String, conversationID: UUID) -> ToolImage? {
         let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard trimmed.hasPrefix(Self.figurePrefix), Int(trimmed.dropFirst(Self.figurePrefix.count)) != nil else { return nil }
+        guard let prefix = [Self.figurePrefix, Self.screenshotPrefix].first(where: { trimmed.hasPrefix($0) }),
+              Int(trimmed.dropFirst(prefix.count)) != nil else { return nil }
         let file = conversationID.uuidString + "/" + trimmed + ".png"
         guard let png = data(file: file) else { return nil }
         let size = Self.pngSize(png) ?? (0, 0)
@@ -85,11 +93,13 @@ final class ToolImageStore: @unchecked Sendable {
 
     func purgeCache() { dataURLs.removeAllObjects() }
 
-    private static func figureNumbers(in dir: URL) -> [Int] {
+    private static func figureNumbers(in dir: URL) -> [Int] { numbers(in: dir, prefix: figurePrefix) }
+
+    private static func numbers(in dir: URL, prefix: String) -> [Int] {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
         return names.compactMap { name in
-            guard name.hasPrefix(figurePrefix), name.hasSuffix(".png") else { return nil }
-            return Int(name.dropFirst(figurePrefix.count).dropLast(4))
+            guard name.hasPrefix(prefix), name.hasSuffix(".png") else { return nil }
+            return Int(name.dropFirst(prefix.count).dropLast(4))
         }
     }
 

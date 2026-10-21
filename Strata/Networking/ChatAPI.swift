@@ -205,13 +205,13 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
 
     static let browserOpen = ToolDefinition(function: .init(
         name: "browser_open",
-        description: "Open a web page in a hidden mobile browser on the user's device and return its visible text, final URL and title once it has rendered. Unlike web_fetch it keeps the page open, so browser_eval can then run JavaScript in it. Use it for sites that build their content with scripts, and as a skill instructs. The browser shares its cookies with web_search and web_fetch: a site the user signed in to with browser_show, or a robot check they solved, stays that way. It never has the user's Safari logins.",
+        description: "Open a web page in a hidden mobile browser on the user's device and return its visible text, final URL and title once it has rendered, followed by the page state: the elements in view with an [index] for browser_click, browser_type and the other index tools. Unlike web_fetch it keeps the page open. Use it for sites that build their content with scripts, to click through or fill in a site, and as a skill instructs. The browser shares its cookies with web_search and web_fetch: a site the user signed in to with browser_show, or a robot check they solved, stays that way. It never has the user's Safari logins.",
         parameters: .init(properties: ["url": .init(description: "The absolute http(s) URL to open.")],
                           required: ["url"])))
 
     static let browserEval = ToolDefinition(function: .init(
         name: "browser_eval",
-        description: "Run JavaScript in the page browser_open opened last in this chat, and return the result. The code is the body of an async function: use await if needed and return the value to send back (a string as is, anything else as JSON). Keep results small: return only the fields you need. The code runs in the page only and can change it (click, scroll, navigate).",
+        description: "Run JavaScript in the page browser_open opened last in this chat, and return the result. For clicking, typing and scrolling, prefer the index tools (browser_click, browser_type, ...); use this to extract data in bulk or for what they can't do. The code is the body of an async function: use await if needed and return the value to send back (a string as is, anything else as JSON). Keep results small: return only the fields you need. The code runs in the page only and can change it.",
         parameters: .init(properties: ["js": .init(description: "The JavaScript function body, ending with a return statement.")],
                           required: ["js"])))
 
@@ -221,6 +221,52 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
         parameters: .init(properties: ["reason": .init(description: "One short sentence, in the user's language, telling them what to do on the page, like \"Sign in to X, then tap Done.\""),
                                        "page": .init(description: "Optional. The id of a page a failed tool kept open, like page7, from its result. Leave it out for the page browser_open opened last.")],
                           required: ["reason"])))
+
+    static let browserState = ToolDefinition(function: .init(
+        name: "browser_state",
+        description: "Return the current page's state: URL, title, scroll position, and the elements in view as a tree. `[12]<button aria-label=Close />` is an element you can act on by its index; lines without an index are text; tabs show nesting; `*[n]` marks elements new since the last state (after typing, often suggestions); `|SCROLL|[n]` is a container that scrolls on its own. Indices are valid only for the latest state. Each index tool already returns the new state, so call this only to look again (after a wait, or after browser_eval).",
+        parameters: .init(properties: [:], required: [])))
+
+    static let browserClick = ToolDefinition(function: .init(
+        name: "browser_click",
+        description: "Click (tap) an element of the current page by its index from the latest state. Waits for what it causes (a new page, a menu, more content) and returns the new state.",
+        parameters: .init(properties: ["index": .init(type: "integer", description: "The element's index, like 12 for [12].")],
+                          required: ["index"])))
+
+    static let browserType = ToolDefinition(function: .init(
+        name: "browser_type",
+        description: "Type text into a text field (input, textarea or editable element) by its index, replacing what it holds, and return the new state. Suggestions that appear are marked *[n]: click the right one instead of submitting.",
+        parameters: .init(properties: ["index": .init(type: "integer", description: "The field's index."),
+                                       "text": .init(description: "The text to enter. An empty string clears the field."),
+                                       "submit": .init(type: "boolean", description: "Optional. Press Enter after typing (submits a search box or form). Defaults to false.")],
+                          required: ["index", "text"])))
+
+    static let browserSelect = ToolDefinition(function: .init(
+        name: "browser_select",
+        description: "Choose an option of a <select> element by its index and return the new state. For other dropdowns, click them and then click the option.",
+        parameters: .init(properties: ["index": .init(type: "integer", description: "The <select> element's index."),
+                                       "option": .init(description: "The option's visible text (or its value).")],
+                          required: ["index", "option"])))
+
+    static let browserScroll = ToolDefinition(function: .init(
+        name: "browser_scroll",
+        description: "Scroll the page, or a scrolling container by its index, and return the new state (it lists only what is in view).",
+        parameters: .init(properties: ["direction": .init(description: "Defaults to down.", choices: ["down", "up"]),
+                                       "pages": .init(type: "number", description: "Optional. How far, in screen heights (0.5 to 10). Defaults to 1."),
+                                       "index": .init(type: "integer", description: "Optional. A |SCROLL| container's index (or an element inside one) to scroll it instead of the page.")],
+                          required: [])))
+
+    static let browserFind = ToolDefinition(function: .init(
+        name: "browser_find",
+        description: "Find text anywhere on the current page, including parts out of view, and list the matches with where they are and the index of the element holding them. Cheap: prefer it to scrolling when looking for something specific.",
+        parameters: .init(properties: ["text": .init(description: "The text to look for (not case-sensitive)."),
+                                       "scroll_to": .init(type: "integer", description: "Optional. A match's number from an earlier result, to scroll it into view and return the new state.")],
+                          required: ["text"])))
+
+    static let browserScreenshot = ToolDefinition(function: .init(
+        name: "browser_screenshot",
+        description: "Look at the current page: a screenshot of what is in view, with a numbered box on each element of the state, is attached after the result. Use it when the state doesn't make the layout clear (icons without labels, images, maps, a page that looks wrong).",
+        parameters: .init(properties: [:], required: [])))
 
     /// Which skills exist is never part of this definition: the system prompt lists them.
     static let loadSkill = ToolDefinition(function: .init(
@@ -288,8 +334,12 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
     /// Tools that show the user something, always sent with the web tools (no setting: they only display).
     static let display: [ToolDefinition] = [showHTML]
 
-    /// The browser tools (Settings > Browser).
-    static let browser: [ToolDefinition] = [browserOpen, browserEval, browserShow, loadSkill, runSkillScript, saveSkill, showPlaces]
+    /// The browser tools (Settings > Browser). `browser_screenshot` needs a model that reads images.
+    static func browser(images: Bool) -> [ToolDefinition] {
+        [browserOpen, browserState, browserClick, browserType, browserSelect, browserScroll, browserFind]
+            + (images ? [browserScreenshot] : [])
+            + [browserEval, browserShow, loadSkill, runSkillScript, saveSkill, showPlaces]
+    }
 
     /// The tools of a request: fixed for a given setting and model, so the cached prefix never changes within a chat
     /// unless the setting or the model does. `view_image` needs a model that reads images.
@@ -298,7 +348,7 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
     static func available(python: Bool, images: Bool, browser: Bool = false, location: Bool = false) -> [ToolDefinition] {
         var out = standard + display
         if python { out += images ? [runPython, viewImage] : [runPython] }
-        if browser { out += Self.browser + (location ? [currentLocation] : []) }
+        if browser { out += Self.browser(images: images) + (location ? [currentLocation] : []) }
         return out
     }
 }
