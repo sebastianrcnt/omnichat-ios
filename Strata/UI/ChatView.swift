@@ -880,6 +880,7 @@ struct ChatView: View {
     }
     #endif
 
+    #if DEBUG
     /// `-StrataDebugBranch switch`: edits the first question and regenerates the answer, so the switchers show.
     /// `-StrataDebugBranch editbar`: puts the first question into the composer in edit mode.
     private func debugBranching() async {
@@ -897,6 +898,7 @@ struct ChatView: View {
         controller.regenerate(conversation: c, context: context)
         await settle()
     }
+    #endif
 
     private func debugActions() async {
         #if DEBUG
