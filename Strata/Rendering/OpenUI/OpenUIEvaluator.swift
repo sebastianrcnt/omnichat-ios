@@ -420,7 +420,14 @@ struct OUIEvaluator {
         case .object(let o): return o[field] ?? .null
         case .array(let a):
             if field == "length" { return .number(Double(a.count)) }
-            return .array(a.map { member($0, field) }) // pluck
+            // Pluck: the field of each element; a digit field of a list element is its index (`rows.0`).
+            return .array(a.map { element in
+                switch element {
+                case .object(let o): return o[field] ?? .null
+                case .array(let inner): return Int(field).flatMap { inner.indices.contains($0) ? inner[$0] : nil } ?? .null
+                default: return .null
+                }
+            })
         default: return .null
         }
     }

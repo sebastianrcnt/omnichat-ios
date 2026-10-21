@@ -13,8 +13,8 @@ enum OpenUIFence {
 
     static func isOpenUI(blockText: String) -> Bool { languages.contains(language(blockText: blockText)) }
 
-    /// `markdown` with every OpenUI block replaced by `replacement(source)`. Other fences are left alone, and so is
-    /// an OpenUI block that isn't closed yet when `replacement` returns nil.
+    /// `markdown` with every OpenUI block replaced by `replacement(source)`. Other fences are left alone;
+    /// an unclosed OpenUI block runs to the end.
     static func replacingBlocks(in markdown: String, with replacement: (String) -> String) -> String {
         guard markdown.contains("openui") else { return markdown }
         let lines = markdown.split(separator: "\n", omittingEmptySubsequences: false)
@@ -55,7 +55,7 @@ extension AppPrompt {
     Metric(label, value, change?, caption?) e.g. Metric("Revenue", "$1.2M", "+8%") · Progress(label, value, max?)
     BarChart|LineChart|AreaChart|HorizontalBarChart(labels, series, variant?, xLabel?, yLabel?) with Series(name, values) · PieChart(labels, values, variant?: "pie"|"donut")
     Tabs(items) with TabItem(value, label, children) · Accordion(items) with AccordionItem(value, title, children)
-    Button(label, action?, variant?: "primary"|"secondary"|"tertiary") · Buttons(buttons, direction?) · FollowUpBlock(items) with FollowUpItem(text)
+    Button(label, action?, variant?: "primary"|"secondary"|"tertiary") · Buttons(buttons, direction?) · Link(label, url) · FollowUpBlock(items) with FollowUpItem(text)
     Form(name, Buttons([...]), fields) with FormControl(label, input, hint?). Inputs, name first: Input(name, placeholder?, type?: "text"|"email"|"number"|"url", rules?) · TextArea(name, placeholder?, rows?) · Select(name, items, placeholder?) with SelectItem(value, label) · RadioGroup(name, items, defaultValue?) with RadioItem(label, description, value) · Chips(name, "single"|"multiple", items) with ChipItem(value, label) · CheckBoxGroup(name, items) with CheckBoxItem(label, description, name, defaultChecked?) · Slider(name, "continuous"|"discrete", min, max, step?, defaultValue?: [n]) · DatePicker(name)
     rules: {required: true, email: true, min: 1, max: 10, minLength: 2, maxLength: 80}
 
