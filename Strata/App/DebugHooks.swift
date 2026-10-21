@@ -12,6 +12,7 @@ import Foundation
 ///   -StrataOpenSheet usage|model|settings|connection|attach|details|diagnostics   open a sheet right after launch
 ///   -StrataDraft "text"                            put text in the composer after launch (expanded composer)
 ///   -StrataOpenMenu 2                              then open the n-th pull-down menu on screen (top to bottom)
+///   -StrataOpenSidebar 1                           open the chat list drawer after launch
 /// Canned tool results so the UI can be exercised without the network.
 struct FakeWebTools: ToolExecuting {
     func execute(name: String, arguments: String) async -> ToolOutput {

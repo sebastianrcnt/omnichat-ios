@@ -14,6 +14,8 @@ struct SidebarView: View {
     let close: () -> Void
 
     @State private var query = ""
+    @State private var searching = false
+    @FocusState private var searchFocused: Bool
     @State private var renaming: Conversation?
     @State private var renameText = ""
     @State private var deleting: Conversation?
@@ -28,14 +30,11 @@ struct SidebarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Strata")
-                .font(DS.Typography.largeTitle)
-                .foregroundStyle(theme.textPrimary)
-                .padding(.horizontal, DS.Spacing.lg)
-                .padding(.top, DS.Spacing.xl)
-            searchField
-                .padding(.horizontal, DS.Spacing.md)
-                .padding(.vertical, DS.Spacing.md)
+            titleBar
+                .padding(.leading, DS.Spacing.lg)
+                .padding(.trailing, DS.Spacing.md)
+                .padding(.top, DS.Spacing.sm)
+                .padding(.bottom, DS.Spacing.md)
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: DS.Spacing.xs) {
@@ -125,10 +124,39 @@ struct SidebarView: View {
         .buttonStyle(.plain)
     }
 
+    /// The app name with a search button; searching swaps the row for the field and Cancel.
+    @ViewBuilder
+    private var titleBar: some View {
+        if searching {
+            HStack(spacing: DS.Spacing.sm) {
+                searchField
+                Button("Cancel") {
+                    query = ""
+                    searching = false
+                }
+                .font(DS.Typography.ui)
+                .foregroundStyle(theme.accent)
+                .buttonStyle(.plain)
+            }
+            .onAppear { searchFocused = true }
+        } else {
+            HStack {
+                Text(verbatim: "OpenChat")
+                    .font(DS.Typography.largeTitle)
+                    .foregroundStyle(theme.textPrimary)
+                Spacer()
+                GlassIconButton(systemName: "magnifyingglass", label: "Search") {
+                    searching = true
+                }
+            }
+        }
+    }
+
     private var searchField: some View {
         HStack(spacing: DS.Spacing.sm) {
             Image(systemName: "magnifyingglass").foregroundStyle(theme.textTertiary)
             TextField("", text: $query, prompt: Text("Search").foregroundStyle(theme.textTertiary))
+                .focused($searchFocused)
                 .font(DS.Typography.ui)
                 .foregroundStyle(theme.textPrimary)
                 .plainTextInput()

@@ -46,6 +46,9 @@ struct RootView: View {
         .inAppLinks()
         .chatLifecycle(selected: $selected)
         .onChange(of: selected?.id) { old, new in chatKey.update(old: old, new: new, active: controller.activeConversationID) }
+        #if DEBUG
+        .task { if DebugHooks.value("StrataOpenSidebar") != nil { setSidebar(true) } }
+        #endif
     }
 
     private func openSettings() {
