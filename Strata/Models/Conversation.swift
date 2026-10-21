@@ -76,6 +76,39 @@ final class Conversation {
         return current
     }
 
+    /// The chat's tool switches (`ToolGroup` raw values): nil while it follows the defaults in Settings, that is until
+    /// the user flips one in the composer's "+" menu or the chat first sends.
+    var toolSwitchesRaw: String?
+    /// The tool groups offered at the first request, with their definitions and system prompt sections (`ToolGroup`).
+    /// Nil before it. Chats from before the field existed freeze what Settings offers at their next request, which is
+    /// what they were sending all along.
+    var offeredToolsRaw: String?
+    /// The switches as the model last heard of them: at the first request, or in a note on a user message.
+    var announcedToolsRaw: String?
+
+    var toolSwitches: Set<ToolGroup>? {
+        get { toolSwitchesRaw.map(ToolGroup.decode) }
+        set { toolSwitchesRaw = newValue.map(ToolGroup.encode) }
+    }
+
+    var offeredTools: Set<ToolGroup>? {
+        get { offeredToolsRaw.map(ToolGroup.decode) }
+        set { offeredToolsRaw = newValue.map(ToolGroup.encode) }
+    }
+
+    var announcedTools: Set<ToolGroup>? {
+        get { announcedToolsRaw.map(ToolGroup.decode) }
+        set { announcedToolsRaw = newValue.map(ToolGroup.encode) }
+    }
+
+    /// The offered groups, frozen to `current` at the first call, like `frozenPreferences`.
+    func frozenTools(current: Set<ToolGroup>) -> Set<ToolGroup> {
+        if let offeredTools { return offeredTools }
+        offeredTools = current
+        announcedTools = current
+        return current
+    }
+
     var effort: Effort {
         get { Effort(rawValue: effortRaw) ?? .default }
         set { effortRaw = newValue.rawValue }
@@ -234,6 +267,10 @@ final class Message {
     var cutForEarlyAnswer: Bool = false
     /// The answer written after "Answer now".
     var answeredEarly: Bool = false
+    /// Appended to this user message's text in requests only, never shown: the chat's tool switches that changed
+    /// before it was sent ("[Web search: off]", `ToolGroup.note`). Kept, so later requests repeat the message
+    /// byte for byte and the cached prefix holds.
+    var apiNote: String?
     @Attribute(.externalStorage) var stepsData: Data?
     /// Ordered process segments (thinking, preamble text, tool rounds). Nil on messages saved before they existed.
     @Attribute(.externalStorage) var segmentsData: Data?
@@ -300,7 +337,7 @@ final class Message {
     }
 
     var historyMessage: HistoryMessage {
-        HistoryMessage(role: role.rawValue, text: text,
+        HistoryMessage(role: role.rawValue, text: apiNote.map { text.isEmpty ? $0 : text + "\n\n" + $0 } ?? text,
                        imageDataURLs: sortedAttachments.map { a in ImageDataURLCache.shared.dataURL(id: a.id) { a.jpegData } },
                        steps: steps)
     }

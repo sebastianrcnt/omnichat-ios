@@ -217,7 +217,7 @@ final class ChatController {
             var base = ChatRequest(model: endpoint.model.id,
                                    messages: apiHistory(path: path, conversation: conversation, endpoint: endpoint))
             if endpoint.model.supportsEffort { base.reasoningEffort = conversation.effort.apiValue }
-            if endpoint.model.supportsTools { base.tools = requestTools(endpoint) }
+            if endpoint.model.supportsTools { base.tools = requestTools(endpoint, conversation: conversation) }
             followUp = AutoRename.followUp(base, replacing: force ? conversation.displayTitle : nil)
         }
         let streamer = streamer
@@ -272,7 +272,7 @@ final class ChatController {
 
     /// "Save as skill": a hidden instruction after the answer that offered it, and a turn that writes the skill.
     func saveAsSkill(conversation: Conversation, context: ModelContext) {
-        guard !isStreaming, settings.browserEnabled, let leaf = conversation.leafMessage, leaf.id == skillOfferMessageID else { return }
+        guard !isStreaming, toolSwitches(conversation).contains(.browser), let leaf = conversation.leafMessage, leaf.id == skillOfferMessageID else { return }
         skillOfferMessageID = nil
         let instruction = Message(role: .user, text: SkillOffer.instruction, sortIndex: nextIndex(conversation))
         instruction.hiddenInstruction = true
@@ -446,9 +446,6 @@ final class ChatController {
         var runner = TurnRunner(streamer: streamer, tools: tools)
         runner.toolsDisabled = assistant.answeredEarly
         runner.continueOnEmptyAnswer = settings.continueOnEmptyAnswer
-        runner.python = settings.pythonEnabled
-        runner.browser = settings.browserEnabled
-        runner.location = settings.locationEnabled
         let ring = requestRing
         let conversationID = conversation.id
         runner.requestLog = { event in
@@ -459,7 +456,10 @@ final class ChatController {
         }
         DiagnosticCounters.shared.beginTurn(conversation: conversation.id)
         let effort = conversation.effort
+        if restoring == nil, endpoint.model.supportsTools { applyToolSwitches(conversation, path: path) }
         let messages = apiHistory(path: path, conversation: conversation, endpoint: endpoint)
+        runner.offered = endpoint.model.supportsTools ? offeredTools(conversation, freeze: true) : []
+        runner.switches = ChatToolSwitches(conversation)
         runner.compaction = compactionSettings(conversation: conversation, endpoint: endpoint, messages: messages, path: path)
         let sourceStore = SourceStore(items: conversation.sources)
 
@@ -552,18 +552,62 @@ final class ChatController {
         }
     }
 
+    // MARK: Tool switches
+
+    /// The chat's tool switches: its own, or the defaults in Settings until it has any.
+    func toolSwitches(_ conversation: Conversation?) -> Set<ToolGroup> {
+        conversation?.toolSwitches ?? settings.defaultToolGroups
+    }
+
+    /// The composer's "+" menu: applies from the next message. A call to a group turned off is refused at once.
+    func setTool(_ group: ToolGroup, on: Bool, conversation: Conversation) {
+        var switches = toolSwitches(conversation)
+        if on { switches.insert(group) } else { switches.remove(group) }
+        conversation.toolSwitches = switches
+    }
+
+    /// The tool groups the chat's requests offer: frozen at its first request (`freeze`), its switches before that.
+    private func offeredTools(_ conversation: Conversation, freeze: Bool) -> Set<ToolGroup> {
+        if let offered = conversation.offeredTools { return offered }
+        let current = toolSwitches(conversation)
+        guard freeze else { return current }
+        if conversation.toolSwitches == nil { conversation.toolSwitches = current }
+        return conversation.frozenTools(current: current)
+    }
+
+    /// Before a turn's first request. Switches flipped since the model last heard of them are told in a note at the end
+    /// of the turn's user message (`Message.apiNote`: in requests only, kept so later requests repeat it). The tool
+    /// list and the system message stay as they were, so the cached prefix holds.
+    private func applyToolSwitches(_ conversation: Conversation, path: [Message]) {
+        let current = toolSwitches(conversation)
+        if conversation.toolSwitches == nil { conversation.toolSwitches = current }
+        guard let offered = conversation.offeredTools else { return } // the first request freezes them as they are
+        let announced = conversation.announcedTools ?? offered
+        let changed = Set(ToolGroup.allCases.filter { offered.contains($0) && current.contains($0) != announced.contains($0) })
+        if !changed.isEmpty, let user = path.last, user.role == .user {
+            // Sent again (Regenerate): the groups it named before keep their place, with their state now.
+            user.apiNote = ToolGroup.note(changed.union(ToolGroup.groups(inNote: user.apiNote)), enabled: current)
+        }
+        // A group turned on that the chat wasn't offered at its start joins the offered set: its tools and its system
+        // prompt section are added, which changes the request's prefix, so the provider's prompt cache is lost once.
+        // (Off at the start costs nothing: not offered, nothing cached yet.)
+        conversation.offeredTools = offered.union(current)
+        conversation.announcedTools = current
+    }
+
     // MARK: Compaction
 
     /// The messages to send for `path`: the conversation's latest compaction on it, then what follows its anchor.
-    /// `freeze` is false for display-only estimates, which must not pin the chat's preferences before it sends.
+    /// `freeze` is false for display-only estimates, which must not pin the chat's preferences or tools before it sends.
     private func apiHistory(path: [Message], conversation: Conversation, endpoint: Endpoint, freeze: Bool = true) -> [APIMessage] {
-        let plugins = endpoint.model.supportsTools ? PluginRegistry.bundled.promptSection(enabled: AppSettings.currentEnabledPlugins) : ""
         let tools = endpoint.model.supportsTools
+        let offered = tools ? offeredTools(conversation, freeze: freeze) : []
+        let plugins = offered.contains(.web) ? PluginRegistry.bundled.promptSection(enabled: AppSettings.currentEnabledPlugins) : ""
         // A chat keeps the skill list it first had with the browser on, like its preferences.
-        let skillIndex = !(tools && settings.browserEnabled) ? ""
+        let skillIndex = !offered.contains(.browser) ? ""
             : freeze ? conversation.frozenSkillIndex(current: skills.index) : conversation.skillIndexSnapshot ?? skills.index
-        let base = [AppPrompt.text(tools: tools, python: tools && settings.pythonEnabled, browser: tools && settings.browserEnabled,
-                                   skills: tools && settings.browserEnabled),
+        let base = [AppPrompt.text(tools: tools, python: offered.contains(.python), browser: offered.contains(.browser),
+                                   skills: offered.contains(.browser)),
                     skillIndex,
                     AppPrompt.preferences(freeze ? conversation.frozenPreferences(current: settings.userPreferences)
                                                   : conversation.preferencesSnapshot ?? settings.userPreferences)]
@@ -577,10 +621,9 @@ final class ChatController {
         return MessageAssembler.apiMessages(from: history, systemPrompt: system, readsImages: endpoint.model.supportsImages)
     }
 
-    /// The tools a turn sends (see `ToolDefinition.available`).
-    private func requestTools(_ endpoint: Endpoint) -> [ToolDefinition] {
-        ToolDefinition.available(python: settings.pythonEnabled, images: endpoint.model.supportsImages, browser: settings.browserEnabled,
-                                 location: settings.locationEnabled)
+    /// The tools the chat's requests send (see `ToolDefinition.available`).
+    private func requestTools(_ endpoint: Endpoint, conversation: Conversation) -> [ToolDefinition] {
+        ToolDefinition.available(groups: offeredTools(conversation, freeze: false), images: endpoint.model.supportsImages)
     }
 
     /// The window, the room for an answer and the context size before this turn's own message.
@@ -635,7 +678,7 @@ final class ChatController {
         let window = contextWindow(for: endpoint)
         var request = ChatRequest(model: endpoint.model.id, messages: messages)
         if endpoint.model.supportsEffort { request.reasoningEffort = conversation.effort.apiValue }
-        if endpoint.model.supportsTools { request.tools = requestTools(endpoint) }
+        if endpoint.model.supportsTools { request.tools = requestTools(endpoint, conversation: conversation) }
         compactingConversationID = conversation.id
         activeConversationID = conversation.id
         phase = .compacting
@@ -678,7 +721,7 @@ final class ChatController {
                                                   sessionID: conversation.id.uuidString)
         else { return nil }
         let messages = apiHistory(path: conversation.activePath, conversation: conversation, endpoint: endpoint, freeze: false)
-        return ContextEstimator.split(messages: messages, tools: endpoint.model.supportsTools ? requestTools(endpoint) : nil,
+        return ContextEstimator.split(messages: messages, tools: endpoint.model.supportsTools ? requestTools(endpoint, conversation: conversation) : nil,
                                       total: total)
     }
 
@@ -744,7 +787,7 @@ final class ChatController {
         }
         skillOfferMessageID = SkillOffer.isOffered(
             steps: message.steps,
-            browserAvailable: settings.browserEnabled && activeEndpoint?.model.supportsTools == true,
+            browserAvailable: toolSwitches(conversation).contains(.browser) && activeEndpoint?.model.supportsTools == true,
             finishedWithAnswer: error == nil && !message.stoppedByUser && !message.text.isEmpty) ? message.id : nil
         background.end(success: error == nil,
                        title: error != nil ? nil : stopped ? String(localized: "Reply stopped") : String(localized: "Reply ready"),

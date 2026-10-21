@@ -31,6 +31,8 @@ struct ChatView: View {
     /// re-evaluate this view.
     @State private var pin = PinLayout()
     @State private var showAttach = false
+    /// The "+" menu's tool switches of a new chat before its first message creates it (nil: the defaults in Settings).
+    @State private var newChatTools: Set<ToolGroup>?
     #if os(macOS)
     @State private var showNoImageSupport = false
     #endif
@@ -278,6 +280,7 @@ struct ChatView: View {
             }
             .task(id: conversation?.id) { // opening a chat: link one saved before branching; leaving one ends an edit
                 cancelEdit()
+                if conversation == nil { newChatTools = nil } // a new chat starts from the defaults
                 conversation?.ensureTree()
                 #if os(macOS)
                 try? await Task.sleep(for: .milliseconds(250)) // the window has to exist before it can focus anything
@@ -649,6 +652,8 @@ struct ChatView: View {
             onShowBusy: showBusyChat,
             plusDimmed: !(selectedModel?.supportsImages ?? false),
             onAttach: attach,
+            toolSwitches: toolSwitchItems,
+            onToolSwitch: setTool,
             onSend: { send() },
             onStop: { controller.stop() },
             onCancelEdit: editing == nil ? nil : { withAnimation(DS.Motion.snappy) { cancelEdit() } },
@@ -659,6 +664,27 @@ struct ChatView: View {
         .readingColumn()
         #endif
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { composerHeight = $0 }
+    }
+
+    /// The "+" menu's toggles: this chat's switches, or a new chat's (the defaults until changed). None for a model
+    /// without tools.
+    private var toolSwitchItems: [ComposerToolSwitch] {
+        guard selectedModel?.supportsTools ?? true else { return [] }
+        let on = conversation.map { controller.toolSwitches($0) } ?? newChatTools ?? settings.defaultToolGroups
+        return ToolGroup.allCases.map { ComposerToolSwitch(id: $0.rawValue, title: $0.title, systemImage: $0.systemImage, isOn: on.contains($0)) }
+    }
+
+    /// Applies from the next message.
+    private func setTool(_ item: ComposerToolSwitch, on: Bool) {
+        guard let group = ToolGroup(rawValue: item.id) else { return }
+        if let conversation {
+            controller.setTool(group, on: on, conversation: conversation)
+            try? context.save()
+        } else {
+            var tools = newChatTools ?? settings.defaultToolGroups
+            if on { tools.insert(group) } else { tools.remove(group) }
+            newChatTools = tools
+        }
     }
 
     /// "Answer now", floating just above the composer while this chat's turn runs tool rounds. An overlay, so feed
@@ -785,6 +811,8 @@ struct ChatView: View {
             }
         } else {
             target = Conversation(connectionID: sel.connectionID, modelID: sel.modelID, effort: sel.effort)
+            target.toolSwitches = newChatTools
+            newChatTools = nil
             context.insert(target)
             conversation = target
         }
@@ -1008,6 +1036,8 @@ private struct ComposerHost<Accessory: View>: View {
     let onShowBusy: () -> Void
     let plusDimmed: Bool
     let onAttach: () -> Void
+    var toolSwitches: [ComposerToolSwitch] = []
+    var onToolSwitch: (ComposerToolSwitch, Bool) -> Void = { _, _ in }
     let onSend: () -> Void
     let onStop: () -> Void
     var onCancelEdit: (() -> Void)?
@@ -1028,6 +1058,8 @@ private struct ComposerHost<Accessory: View>: View {
             canSend: draft.canSend && !isBusy,
             plusDimmed: plusDimmed,
             onAttach: onAttach,
+            toolSwitches: toolSwitches,
+            onToolSwitch: onToolSwitch,
             onRemoveAttachment: { id in draft.attachments.removeAll { $0.id == id } },
             onCancelEdit: onCancelEdit,
             onPasteImages: onPasteImages,
