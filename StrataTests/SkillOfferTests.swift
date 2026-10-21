@@ -130,23 +130,23 @@ struct SkillOfferTurnTests {
         await r.controller.waitUntilIdle()
         let answer = try #require(r.conversation.leafMessage)
         #expect(answer.text == "Found it.")
-        #expect(r.controller.skillOfferMessageID == answer.id)
+        #expect(r.controller.skillOfferMessageID(for: r.conversation) == answer.id)
     }
 
     @Test func anEasyTurnDoesNot() async throws {
         let r = try rig([([call("c1", ToolNames.browserOpen, "open")], .finish), ([ChatDelta(content: "Done.")], .finish)])
         r.controller.send(text: "find it", images: [], conversation: r.conversation, context: r.context)
         await r.controller.waitUntilIdle()
-        #expect(r.controller.skillOfferMessageID == nil)
+        #expect(r.controller.skillOfferMessageID(for: r.conversation) == nil)
     }
 
     @Test func tappingSendsTheHiddenInstructionWithToolsStillOn() async throws {
         let r = try rig(hardWonTurn + [([ChatDelta(content: "Saved the skill.")], .finish)])
         r.controller.send(text: "find it", images: [], conversation: r.conversation, context: r.context)
         await r.controller.waitUntilIdle()
-        let offered = try #require(r.controller.skillOfferMessageID)
+        let offered = try #require(r.controller.skillOfferMessageID(for: r.conversation))
         r.controller.saveAsSkill(conversation: r.conversation, context: r.context)
-        #expect(r.controller.skillOfferMessageID == nil) // gone as soon as it is used
+        #expect(r.controller.skillOfferMessageID(for: r.conversation) == nil) // gone as soon as it is used
         await r.controller.waitUntilIdle()
         let path = r.conversation.activePath
         #expect(path.map(\.role) == [.user, .assistant, .user, .assistant])
@@ -158,7 +158,7 @@ struct SkillOfferTurnTests {
         let request = try #require(r.streamer.requests.last)
         #expect(request.messages.last == .user(SkillOffer.instruction))
         #expect(request.toolChoice == nil && !(request.tools ?? []).isEmpty)
-        #expect(r.controller.skillOfferMessageID == nil)
+        #expect(r.controller.skillOfferMessageID(for: r.conversation) == nil)
         #expect(!r.conversation.transcript.contains("save_skill"))
     }
 
@@ -166,19 +166,19 @@ struct SkillOfferTurnTests {
         let r = try rig(hardWonTurn + hardWonTurn + [([ChatDelta(content: "Sure.")], .finish)])
         r.controller.send(text: "find it", images: [], conversation: r.conversation, context: r.context)
         await r.controller.waitUntilIdle()
-        #expect(r.controller.skillOfferMessageID != nil)
-        r.controller.dismissSkillOffer()
-        #expect(r.controller.skillOfferMessageID == nil)
+        #expect(r.controller.skillOfferMessageID(for: r.conversation) != nil)
+        r.controller.dismissSkillOffer(r.conversation)
+        #expect(r.controller.skillOfferMessageID(for: r.conversation) == nil)
         r.controller.saveAsSkill(conversation: r.conversation, context: r.context) // nothing to save once closed
         #expect(!r.controller.isStreaming)
 
         r.controller.send(text: "again", images: [], conversation: r.conversation, context: r.context)
         await r.controller.waitUntilIdle()
-        #expect(r.controller.skillOfferMessageID == r.conversation.leafMessage?.id)
+        #expect(r.controller.skillOfferMessageID(for: r.conversation) == r.conversation.leafMessage?.id)
         r.controller.send(text: "thanks", images: [], conversation: r.conversation, context: r.context)
-        #expect(r.controller.skillOfferMessageID == nil) // cleared when the next turn starts
+        #expect(r.controller.skillOfferMessageID(for: r.conversation) == nil) // cleared when the next turn starts
         await r.controller.waitUntilIdle()
-        #expect(r.controller.skillOfferMessageID == nil)
+        #expect(r.controller.skillOfferMessageID(for: r.conversation) == nil)
     }
 
     @Test func notWhenTheBrowserIsOff() async throws {
@@ -186,6 +186,6 @@ struct SkillOfferTurnTests {
         r.settings.browserEnabled = false
         r.controller.send(text: "find it", images: [], conversation: r.conversation, context: r.context)
         await r.controller.waitUntilIdle()
-        #expect(r.controller.skillOfferMessageID == nil)
+        #expect(r.controller.skillOfferMessageID(for: r.conversation) == nil)
     }
 }

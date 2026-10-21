@@ -273,7 +273,7 @@ struct SSHApprovalTests {
         let task = Task { await requests.askApproval(approval, conversation: chat, callID: "c1") }
         while requests.all.isEmpty { await Task.yield() }
         #expect(requests.pending(conversation: chat).count == 1 && requests.pending(conversation: UUID()).isEmpty)
-        let request = try! #require(requests.request(forCall: "c1"))
+        let request = try! #require(requests.request(forCall: "c1", conversation: chat))
         requests.answer(request.id, .approval(.always))
         #expect(await task.value == .always && requests.all.isEmpty)
 
@@ -281,6 +281,37 @@ struct SSHApprovalTests {
         while requests.all.isEmpty { await Task.yield() }
         cancelled.cancel()
         #expect(await cancelled.value == nil, "a stopped reply gives up the prompt")
+    }
+
+    /// Servers without call ids send `call_0` in every chat: each chat's feed finds only its own card.
+    @MainActor
+    @Test func twoChatsWithTheSameCallIDSeeTheirOwnCards() async throws {
+        let requests = SSHRequests()
+        let chatA = UUID(), chatB = UUID()
+        let approval = SSHApproval(target: "nas", server: "nas", action: .exec(command: "uptime"))
+        let prompt = SSHPromptRequest(hop: "u@b", name: "", instruction: "", prompts: [.init(text: "Code:", echo: false)])
+        let a = Task { await requests.askApproval(approval, conversation: chatA, callID: "call_0") }
+        let b = Task {
+            await ToolContext.$conversationID.withValue(chatB) {
+                await ToolContext.$callID.withValue("call_0") {
+                    await requests.ask(SSHRequests.Request(kind: .prompt(prompt)))
+                }
+            }
+        }
+        while requests.all.count < 2 { await Task.yield() }
+
+        let inA = try #require(requests.request(forCall: "call_0", conversation: chatA))
+        let inB = try #require(requests.request(forCall: "call_0", conversation: chatB))
+        #expect(inA.kind == .approval(approval))
+        #expect(inB.kind == .prompt(prompt), "the request takes its chat and call from the tool context")
+        #expect(requests.request(forCall: "call_0", conversation: UUID()) == nil)
+        #expect(requests.request(forCall: "call_0", conversation: nil) == nil)
+
+        requests.answer(inB.id, .prompt(["123456"]))
+        #expect(await b.value == .prompt(["123456"]))
+        #expect(requests.request(forCall: "call_0", conversation: chatA) == inA, "answering one chat leaves the other waiting")
+        requests.answer(inA.id, .approval(.run))
+        #expect(await a.value == .run && requests.all.isEmpty)
     }
 }
 

@@ -93,13 +93,13 @@ struct AnswerNowTurnTests {
             ([ChatDelta(content: "Here is the answer.")], .finish),
         ])
         r.controller.send(text: "question", images: [], conversation: r.conversation, context: r.context)
-        await waitFor { r.streamer.requests.count == 2 && r.controller.phase == .thinking }
+        await waitFor { r.streamer.requests.count == 2 && (r.controller.soleRun?.phase ?? .idle) == .thinking }
         return r
     }
 
     @Test func theContinuationIsOneRequestWithTheSamePrefixAndNoTools() async throws {
         let r = try await thinkingAfterOneRound()
-        r.controller.answerNow()
+        r.controller.answerNow(r.conversation)
         await r.controller.waitUntilIdle()
         let requests = r.streamer.requests
         try #require(requests.count == 3)
@@ -119,7 +119,7 @@ struct AnswerNowTurnTests {
 
     @Test func theCompletedResultIsKeptAndThePartialReasoningToo() async throws {
         let r = try await thinkingAfterOneRound()
-        r.controller.answerNow()
+        r.controller.answerNow(r.conversation)
         await r.controller.waitUntilIdle()
         let path = r.conversation.activePath
         #expect(path.map(\.role) == [.user, .assistant, .user, .assistant])
@@ -137,7 +137,7 @@ struct AnswerNowTurnTests {
 
     @Test func theAnswerFollowsTheHiddenInstructionAndSaysItCameEarly() async throws {
         let r = try await thinkingAfterOneRound()
-        r.controller.answerNow()
+        r.controller.answerNow(r.conversation)
         await r.controller.waitUntilIdle()
         let path = r.conversation.activePath
         let instruction = path[2], answer = path[3]
@@ -150,7 +150,7 @@ struct AnswerNowTurnTests {
 
     @Test func theInstructionStaysOnThePathForLaterTurnsButNotInTheTranscript() async throws {
         let r = try await thinkingAfterOneRound()
-        r.controller.answerNow()
+        r.controller.answerNow(r.conversation)
         await r.controller.waitUntilIdle()
         r.controller.send(text: "thanks, and one more thing", images: [], conversation: r.conversation, context: r.context)
         await r.controller.waitUntilIdle()
@@ -173,8 +173,8 @@ struct AnswerNowTurnTests {
             ([ChatDelta(content: "From what I know.")], .finish),
         ])
         r.controller.send(text: "question", images: [], conversation: r.conversation, context: r.context)
-        await waitFor { if case .tool = r.controller.phase { true } else { false } }
-        r.controller.answerNow()
+        await waitFor { if case .tool = (r.controller.soleRun?.phase ?? .idle) { true } else { false } }
+        r.controller.answerNow(r.conversation)
         await r.controller.waitUntilIdle()
         let requests = r.streamer.requests
         try #require(requests.count == 2)
@@ -191,9 +191,9 @@ struct AnswerNowTurnTests {
             ([ChatDelta(content: "Answer from the fast one.")], .finish),
         ])
         r.controller.send(text: "question", images: [], conversation: r.conversation, context: r.context)
-        await waitFor { r.controller.roundRecords.count == 1 }
-        #expect(r.controller.roundRecords.map(\.id) == ["c1"])
-        r.controller.answerNow()
+        await waitFor { (r.controller.soleRun?.roundRecords ?? []).count == 1 }
+        #expect((r.controller.soleRun?.roundRecords ?? []).map(\.id) == ["c1"])
+        r.controller.answerNow(r.conversation)
         await r.controller.waitUntilIdle()
         let cut = r.conversation.activePath[1]
         #expect(cut.steps.count == 1 && cut.steps[0].calls.map(\.id) == ["c1"])
@@ -208,7 +208,7 @@ struct AnswerNowTurnTests {
         let r = try rig([([], .hang), ([ChatDelta(content: "Quick answer.")], .finish)])
         r.controller.send(text: "question", images: [], conversation: r.conversation, context: r.context)
         await waitFor { r.streamer.requests.count == 1 }
-        r.controller.answerNow()
+        r.controller.answerNow(r.conversation)
         await r.controller.waitUntilIdle()
         let path = r.conversation.activePath
         #expect(path.map(\.role) == [.user, .assistant, .user, .assistant])
@@ -225,11 +225,11 @@ struct AnswerNowTurnTests {
         ])
         r.controller.send(text: "question", images: [], conversation: r.conversation, context: r.context)
         await waitFor { r.streamer.requests.count == 1 }
-        r.controller.answerNow()
-        await waitFor { r.controller.activeIsEarly }
-        #expect(r.controller.activeIsEarly)
-        #expect(!r.controller.canAnswerNow)
-        r.controller.answerNow() // ignored
+        r.controller.answerNow(r.conversation)
+        await waitFor { (r.controller.soleRun?.isEarly ?? false) }
+        #expect((r.controller.soleRun?.isEarly ?? false))
+        #expect(!(r.controller.soleRun?.canAnswerNow ?? false))
+        r.controller.answerNow(r.conversation) // ignored
         r.controller.stop()
         await r.controller.waitUntilIdle()
         #expect(r.streamer.requests.count == 2)
@@ -241,8 +241,8 @@ struct AnswerNowTurnTests {
             ([ChatDelta(content: "Done.", toolCalls: [call(0, "x1", "again")])], .finish),
         ])
         r.controller.send(text: "question", images: [], conversation: r.conversation, context: r.context)
-        await waitFor { r.controller.phase == .thinking }
-        r.controller.answerNow()
+        await waitFor { (r.controller.soleRun?.phase ?? .idle) == .thinking }
+        r.controller.answerNow(r.conversation)
         await r.controller.waitUntilIdle()
         #expect(r.streamer.requests.count == 2) // no third request for a tool round
         let answer = try #require(r.conversation.activePath.last)
@@ -251,7 +251,7 @@ struct AnswerNowTurnTests {
 
     @Test func regeneratingAnEarlyAnswerStaysEarly() async throws {
         let r = try await thinkingAfterOneRound()
-        r.controller.answerNow()
+        r.controller.answerNow(r.conversation)
         await r.controller.waitUntilIdle()
         r.controller.regenerate(conversation: r.conversation, context: r.context)
         await r.controller.waitUntilIdle()

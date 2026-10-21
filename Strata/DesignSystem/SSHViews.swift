@@ -108,6 +108,7 @@ struct SSHCallDisplay: Equatable {
 struct SSHFeedCard: View {
     @Environment(\.theme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.citations) private var citations
     let card: FeedCard
     let collapsed: Bool
     let onToggle: () -> Void
@@ -120,7 +121,7 @@ struct SSHFeedCard: View {
 
     var body: some View {
         let call = call
-        let request = SSHRequests.shared.request(forCall: card.id)
+        let request = SSHRequests.shared.request(forCall: card.id, conversation: citations.conversationID)
         VStack(alignment: .leading, spacing: 0) {
             Button(action: onToggle) {
                 SSHLine(words: call.title(running: card.isRunning, failed: card.isError),
@@ -155,6 +156,7 @@ struct SSHFeedCard: View {
 
 /// The Timeline's row for an SSH call: the line, and the detail when the Timeline shows details.
 struct SSHTimelineRow: View {
+    @Environment(\.citations) private var citations
     let call: SSHCallDisplay
     let callID: String
     let isRunning: Bool
@@ -166,7 +168,7 @@ struct SSHTimelineRow: View {
             SSHLine(words: call.title(running: isRunning, failed: isError), meta: call.meta(running: isRunning, failed: isError), expanded: nil) {
                 if isRunning { FeedSpinner() } else { FeedSymbol(name: "terminal") }
             }
-            if let request = SSHRequests.shared.request(forCall: callID) {
+            if let request = SSHRequests.shared.request(forCall: callID, conversation: citations.conversationID) {
                 SSHRequestCard(request: request)
             } else if showsDetail {
                 SSHCallDetail(call: call, isRunning: isRunning, isError: isError)

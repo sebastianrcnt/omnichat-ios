@@ -330,6 +330,8 @@ struct AssistantContent: Equatable {
     var roundFinished: [ToolCallRecord] = []
     var isStreaming = false
     var phase: ChatController.Phase = .idle
+    /// A running call waits for what another chat is using (the browser, Python).
+    var waiting: ToolWaits.Reason?
     var turnStart: Date?
     var errorText: String?
     var errorNeedsSettings = false
@@ -412,13 +414,23 @@ struct AssistantMessage: View {
         return out
     }
 
-    /// A tool is running: the live line says what it does, not the thought from before the call.
+    /// A tool is running: the live line says what it does, not the thought from before the call. So does a reply waiting
+    /// for its turn.
     private var toolRunning: Bool {
         if case .tool = content.phase { return true }
+        if content.phase == .queued { return true }
         return !content.pending.isEmpty
     }
 
     private var phaseLabel: String {
+        if let waiting = content.waiting { return waiting.label }
+        switch content.phase {
+        case .queued: return String(localized: "Waiting for another chat to finish")
+        default: return toolPhaseLabel
+        }
+    }
+
+    private var toolPhaseLabel: String {
         switch content.phase {
         case .tool(let name, _):
             switch name {

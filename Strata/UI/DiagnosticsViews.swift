@@ -149,7 +149,7 @@ struct ConversationDetailsSheet: View {
     }
 
     private func saveBundle(_ d: ConversationDiagnostics, options: DebugRedaction.Options) async throws -> URL {
-        let app = await AppDiagnostics.collect(activeTurn: controller.activeConversationID?.uuidString, backgroundLease: controller.backgroundStateDescription)
+        let app = await AppDiagnostics.collect(activeTurn: controller.activeTurnsDescription, backgroundLease: controller.backgroundStateDescription)
         return try DebugBundle.write(app: app, conversations: [d], requestConversations: [conversation.id], options: options)
     }
 }
@@ -207,7 +207,7 @@ struct AppDiagnosticsView: View {
         .task {
             // Measured only while this screen is open.
             while !Task.isCancelled {
-                app = await AppDiagnostics.collect(activeTurn: controller.activeConversationID?.uuidString,
+                app = await AppDiagnostics.collect(activeTurn: controller.activeTurnsDescription,
                                                    backgroundLease: controller.backgroundStateDescription)
                 try? await Task.sleep(for: .seconds(5))
             }
@@ -239,7 +239,7 @@ struct AppDiagnosticsView: View {
         }
         GroupedSection(header: "Live") {
             SettingsRow(title: "Hidden web views", value: "\(a.live.hiddenWebViews)")
-            SettingsRow(title: "Active turn", value: a.live.activeTurn.map { String($0.prefix(8)).lowercased() } ?? "none")
+            SettingsRow(title: "Active turn", value: a.live.activeTurn.map { $0.split(separator: ",").map { String($0.prefix(8)).lowercased() }.joined(separator: ", ") } ?? "none")
             SettingsRow(title: "Recovery loops", value: "\(a.live.recoveryLoops)")
             SettingsRow(title: "Background lease", value: a.live.backgroundLease)
             SettingsRow(title: "Background identifiers", value: "\(a.live.registeredBackgroundIdentifiers) registered")
@@ -253,7 +253,7 @@ struct AppDiagnosticsView: View {
     }
 
     private func saveBundle(options: DebugRedaction.Options) async throws -> URL {
-        let app = await AppDiagnostics.collect(activeTurn: controller.activeConversationID?.uuidString,
+        let app = await AppDiagnostics.collect(activeTurn: controller.activeTurnsDescription,
                                                backgroundLease: controller.backgroundStateDescription)
         let ids = RequestRing.shared.conversationIDs
         let conversations = (try? context.fetch(FetchDescriptor<Conversation>(predicate: #Predicate { ids.contains($0.id) }))) ?? []

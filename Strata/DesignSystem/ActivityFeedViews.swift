@@ -198,6 +198,8 @@ struct FeedSpinner: View {
 /// `FeedCollapse`; a tap opens or folds a line in place.
 struct ActivityFeedView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Its chat: the robot checks shown are that chat's own.
+    @Environment(\.citations) private var citations
     let cards: [FeedCard]
     let isStreaming: Bool
     let answerStarted: Bool
@@ -241,9 +243,9 @@ struct ActivityFeedView: View {
                 }
                 .modifier(StaggerIn(animates: isStreaming && !reduceMotion, clock: stagger))
             }
-            // A tool of this reply stopped at a robot check (only one reply works at a time).
+            // A tool of this reply stopped at a robot check (another chat's check waits in that chat).
             if working {
-                ForEach(RobotCheckRequests.shared.pending) { request in
+                ForEach(RobotCheckRequests.shared.pending(for: citations.conversationID)) { request in
                     RobotCheckPromptCard(request: request)
                         .transition(.opacity)
                 }
@@ -545,11 +547,12 @@ struct ReadStatusMark: View {
 struct ReadProgressRing: View {
     @Environment(\.theme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.citations) private var citations
     let callID: String
     @State private var spin = false
 
     var body: some View {
-        let progress = ToolProgress.shared.value(for: callID)
+        let progress = ToolProgress.shared.value(for: callID, conversation: citations.conversationID)
         ZStack {
             Circle().stroke(theme.textTertiary.opacity(0.35), lineWidth: 2)
             Circle()

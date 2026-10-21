@@ -39,6 +39,8 @@ final class KeptPages {
         let page: any KeepablePage
         let owned: Bool
         var callIDs: Set<String>
+        /// The chat whose reply kept it (its turn's end starts the clock).
+        let conversationID: UUID?
         let keptAt: ContinuousClock.Instant
         /// Set when the reply that kept it ended.
         var expires: ContinuousClock.Instant?
@@ -50,14 +52,15 @@ final class KeptPages {
     var count: Int { entries.filter(\.owned).count }
 
     /// Keeps `page` (failed in the call `callID`). Over `maxKept`, the oldest kept page not on screen is torn down.
-    func keep(_ page: any KeepablePage, callID: String?, owned: Bool = true, now: ContinuousClock.Instant = .now) {
+    func keep(_ page: any KeepablePage, callID: String?, owned: Bool = true, conversationID: UUID? = ToolContext.conversationID,
+              now: ContinuousClock.Instant = .now) {
         prune()
         if let i = entries.firstIndex(where: { $0.page === page }) {
             if let callID { entries[i].callIDs.insert(callID) }
             entries[i].expires = nil
             return
         }
-        entries.append(Entry(page: page, owned: owned, callIDs: callID.map { [$0] } ?? [], keptAt: now))
+        entries.append(Entry(page: page, owned: owned, callIDs: callID.map { [$0] } ?? [], conversationID: conversationID, keptAt: now))
         evict()
     }
 
@@ -66,15 +69,21 @@ final class KeptPages {
         return entries.first { $0.page.pageID == trimmed && !$0.page.isDisposed }?.page
     }
 
-    /// The page kept for a failed call, for the "Open this page" button on its row.
-    func page(forCall callID: String) -> (any KeepablePage)? {
-        entries.last { $0.callIDs.contains(callID) && !$0.page.isDisposed }?.page
+    /// The page kept for a failed call, for the "Open this page" button on its row. Given the call's chat, only a page
+    /// that chat's reply kept (call ids repeat across chats).
+    func page(forCall callID: String, conversation: UUID? = nil) -> (any KeepablePage)? {
+        entries.last { entry in
+            entry.callIDs.contains(callID) && !entry.page.isDisposed
+                && (conversation == nil || entry.conversationID == nil || entry.conversationID == conversation)
+        }?.page
     }
 
-    /// The reply ended: its pages go after `lingering` (one on screen then waits until it is put away), frozen meanwhile
-    /// (a browser session's page is its session's to freeze).
-    func turnEnded(now: ContinuousClock.Instant = .now) {
-        for i in entries.indices where entries[i].expires == nil {
+    /// The reply of `conversation` ended: its pages go after `lingering` (one on screen then waits until it is put
+    /// away), frozen meanwhile (a browser session's page is its session's to freeze). Pages another chat's running reply
+    /// kept stay. Nil: every reply ended.
+    func turnEnded(conversation: UUID? = nil, now: ContinuousClock.Instant = .now) {
+        for i in entries.indices where entries[i].expires == nil
+            && (conversation == nil || entries[i].conversationID == nil || entries[i].conversationID == conversation) {
             entries[i].expires = now + lingering
             if entries[i].owned { entries[i].page.freeze() }
         }
@@ -107,8 +116,8 @@ final class KeptPages {
     }
 
     /// The note for the kept page of `callID`, with a leading space; empty when nothing was kept.
-    func note(forCall callID: String?) -> String {
-        guard let callID, let page = page(forCall: callID) else { return "" }
+    func note(forCall callID: String?, conversation: UUID? = ToolContext.conversationID) -> String {
+        guard let callID, let page = page(forCall: callID, conversation: conversation) else { return "" }
         return " " + Self.note(pageID: page.pageID)
     }
 

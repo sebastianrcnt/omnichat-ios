@@ -135,7 +135,7 @@ struct ChatView: View {
     }
 
     private var citationContext: CitationContext {
-        let list = (conversation.map { controller.isStreaming($0) } ?? false) ? controller.liveSources : (conversation?.sources ?? [])
+        let list = run.map(\.liveSources) ?? conversation?.sources ?? []
         return CitationContext(sources: Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) }), conversationID: conversation?.id)
     }
 
@@ -153,9 +153,10 @@ struct ChatView: View {
         return ids.compactMap { byID[$0] }
     }
 
-    private var isStreamingHere: Bool {
-        conversation.map { controller.isStreaming($0) } ?? false
-    }
+    /// This chat's running (or queued) reply. Other chats' runs are theirs: this view never reads them.
+    private var run: ChatRun? { controller.run(for: conversation) }
+
+    private var isStreamingHere: Bool { run != nil }
 
     // MARK: Body
 
@@ -198,12 +199,12 @@ struct ChatView: View {
             #if os(iOS)
             .sheet(isPresented: $showChatSettings) { chatSettings }
             #endif
-            .sheet(item: Binding(get: { SkillApprovals.shared.pending }, set: { _ in })) { request in
+            .sheet(item: Binding(get: { SkillApprovals.shared.pending(for: conversation?.id) }, set: { _ in })) { request in
                 SkillApprovalSheet(request: request) { SkillApprovals.shared.answer(request.id, approved: $0) }
                     .environment(\.theme, theme)
             }
-            .sheet(item: Binding(get: { BrowserShowRequests.shared.pending },
-                                 set: { if $0 == nil, let open = BrowserShowRequests.shared.pending { BrowserShowRequests.shared.answer(open.id, done: false) } })) { request in
+            .sheet(item: Binding(get: { BrowserShowRequests.shared.pending(for: conversation?.id) },
+                                 set: { if $0 == nil, let open = BrowserShowRequests.shared.pending(for: conversation?.id) { BrowserShowRequests.shared.answer(open.id, done: false) } })) { request in
                 BrowserShowSheet(request: request) { BrowserShowRequests.shared.answer(request.id, done: $0) }
                     .environment(\.theme, theme)
             }
@@ -225,25 +226,26 @@ struct ChatView: View {
             }
             .sheet(item: $timeline) { request in
                 let message = request.message
-                let active = controller.activeMessageID == message.id
+                let active = run?.messageID == message.id
                 TimelineSheet(reasoning: controller.renderState(for: message).reasoning,
                               steps: message.steps,
-                              pending: active ? controller.pendingCalls : [],
+                              pending: active ? run?.pendingCalls ?? [] : [],
                               sources: citationContext.sources,
                               isLive: active,
                               seconds: message.thinkingSeconds,
                               showsTools: request.showsTools)
                     .environment(\.theme, theme)
+                    .environment(\.citations, citationContext)
             }
             .sheet(item: $compactionNotes) { record in
                 CompactionNotesSheet(notes: record.notes, tokensBefore: record.tokensBefore, tokensAfter: record.tokensAfter,
                                      date: record.createdAt, isAutomatic: record.isAutomatic)
                     .environment(\.theme, theme)
             }
-            .alert("Couldn't summarize", isPresented: Binding(get: { controller.compactionError != nil },
-                                                               set: { if !$0 { controller.compactionError = nil } })) {
+            .alert("Couldn't summarize", isPresented: Binding(get: { controller.compactionError(for: conversation) != nil },
+                                                               set: { if !$0 { controller.clearCompactionError(for: conversation) } })) {
                 Button("OK", role: .cancel) {}
-            } message: { Text(controller.compactionError ?? "") }
+            } message: { Text(controller.compactionError(for: conversation) ?? "") }
             .sheet(item: $citationItem) { item in
                 SourcesSheet(title: item.sources.count == 1 ? "Source" : "Sources", sources: item.sources)
             }
@@ -300,12 +302,12 @@ struct ChatView: View {
             }
             #if DEBUG
             // The view is recreated when the first chat is created, so timeline debugging runs from the live view.
-            .task(id: controller.activeMessageID) { await debugTimeline() }
+            .task(id: run?.messageID) { await debugTimeline() }
             #endif
             .onChange(of: connections.allModels.count) { _, _ in persistAutoSelection() }
             #if os(macOS)
             .onChange(of: conversation?.activePath.last?.id, initial: true) { _, _ in installMenuActions() }
-            .onChange(of: controller.isStreaming) { _, _ in installMenuActions() }
+            .onChange(of: isStreamingHere) { _, _ in installMenuActions() }
             #endif
     }
 
@@ -379,7 +381,7 @@ struct ChatView: View {
             Button("Summarize now", systemImage: "text.line.first.and.arrowtriangle.forward") {
                 controller.compactNow(conversation: c, context: context)
             }
-            .disabled(controller.isStreaming || c.activePath.isEmpty) // one reply runs at a time, in any chat
+            .disabled(controller.isStreaming(c) || c.activePath.isEmpty)
             Button("Conversation details", systemImage: "info.circle") { showDetails = true }
             Button("Delete", systemImage: "trash", role: .destructive) { confirmDelete = true }
             Divider()
@@ -396,6 +398,29 @@ struct ChatView: View {
                     NoConnectionState { composerFocused = false; showAddConnection = true }
                 }
             }
+            .overlay(alignment: .top) { readyBanner }
+    }
+
+    /// "Reply ready · <chat>" when a reply finishes in a chat that isn't this one.
+    @ViewBuilder
+    private var readyBanner: some View {
+        Group {
+            if let notice = controller.readyNotice, notice.conversationID != conversation?.id {
+                ReplyReadyBanner(title: notice.title) {
+                    controller.dismissReadyNotice(notice.id)
+                    open(notice.conversationID)
+                }
+                .padding(.horizontal, DS.Spacing.page)
+                .padding(.top, DS.Spacing.sm)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .task(id: notice.id) {
+                    try? await Task.sleep(for: ReplyReadyBanner.lifetime)
+                    guard !Task.isCancelled else { return }
+                    withAnimation(DS.Motion.snappy) { controller.dismissReadyNotice(notice.id) }
+                }
+            }
+        }
+        .animation(DS.Motion.spring, value: controller.readyNotice?.id)
     }
 
     private var messageList: some View {
@@ -414,8 +439,8 @@ struct ChatView: View {
                                 CompactionDivider { compactionNotes = record }
                             }
                         }
-                        if controller.compactingConversationID == conversation.id {
-                            CompactionStatusRow(start: controller.turnStart ?? .now)
+                        if let run, run.isCompaction {
+                            CompactionStatusRow(start: run.turnStart ?? .now)
                         }
                     }
                 }
@@ -488,36 +513,38 @@ struct ChatView: View {
         switch message.role {
         case .user:
             MessageBubble(text: message.text, images: ThumbnailBackfill.thumbnails(for: message),
-                          branch: branch, branchEnabled: !controller.isStreaming,
+                          branch: branch, branchEnabled: !isStreamingHere,
                           onSwitchBranch: { switchBranch(message, by: $0) },
                           onCopy: { Pasteboard.copy(message.text) },
-                          onEdit: controller.isStreaming ? nil : { beginEdit(message) },
+                          onEdit: isStreamingHere ? nil : { beginEdit(message) },
                           isEditing: editing?.id == message.id)
                 .modifier(SendFlyIn(active: message.id == flyingID))
         case .assistant:
-            let active = controller.activeMessageID == message.id
+            let live = run.flatMap { $0.messageID == message.id ? $0 : nil }
+            let active = live != nil
             let translation = controller.translation.ui(for: message, isStreaming: active)
             let shownText = translation.showing ? (translation.translatedText ?? message.text) : message.text
             let segments = message.segments // decoded once per stored value
             AssistantMessage(
                 content: AssistantContent(
                     thinkingSeconds: message.thinkingSeconds,
-                    calls: Self.liveCalls(segments.flatMap(\.calls), inRound: active ? controller.roundRecords : []),
+                    calls: Self.liveCalls(segments.flatMap(\.calls), inRound: live?.roundRecords ?? []),
                     segments: segments,
-                    pending: active ? controller.pendingCalls : [],
-                    roundRequested: active ? controller.roundRequested : [],
-                    roundFinished: active ? controller.roundRecords : [],
+                    pending: live?.pendingCalls ?? [],
+                    roundRequested: live?.roundRequested ?? [],
+                    roundFinished: live?.roundRecords ?? [],
                     isStreaming: active,
-                    phase: active ? controller.phase : .idle,
-                    turnStart: active ? controller.turnStart : nil,
+                    phase: live?.phase ?? .idle,
+                    waiting: live.flatMap { ToolWaits.shared.reason(among: $0.pendingCalls.map(\.id), conversation: $0.conversationID) },
+                    turnStart: live?.turnStart,
                     errorText: message.errorText,
                     errorNeedsSettings: message.errorNeedsSettings,
                     stopped: message.stoppedByUser,
-                    canRegenerate: isLast && !controller.isStreaming,
+                    canRegenerate: isLast && !isStreamingHere,
                     translation: translation,
                     cutForEarlyAnswer: message.cutForEarlyAnswer,
                     answeredEarly: message.answeredEarly,
-                    offersSkill: isLast && controller.skillOfferMessageID == message.id),
+                    offersSkill: isLast && controller.skillOfferMessageID(for: conversation) == message.id),
                 render: controller.renderState(for: message),
                 onOpenTimeline: { timeline = TimelineRequest(message: message, showsTools: true) },
                 onOpenReasoning: { timeline = TimelineRequest(message: message, showsTools: true) },
@@ -532,12 +559,12 @@ struct ChatView: View {
                 onTranslate: { controller.translation.translate(message, context: context, isStreaming: active) },
                 onToggleTranslation: { controller.translation.toggle(message, context: context) },
                 branch: branch,
-                branchEnabled: !controller.isStreaming,
+                branchEnabled: !isStreamingHere,
                 onSwitchBranch: { switchBranch(message, by: $0) },
                 onSaveSkill: {
                     if let c = conversation { controller.saveAsSkill(conversation: c, context: context) }
                 },
-                onDismissSkillOffer: { controller.dismissSkillOffer() })
+                onDismissSkillOffer: { if let c = conversation { controller.dismissSkillOffer(c) } })
             .modifier(AfterSendFlyIn(active: message.parentID != nil && message.parentID == flyingID))
         }
     }
@@ -557,14 +584,14 @@ struct ChatView: View {
     // MARK: Branches and editing
 
     private func switchBranch(_ message: Message, by offset: Int) {
-        guard !controller.isStreaming, let conversation else { return }
+        guard !isStreamingHere, let conversation else { return }
         cancelEdit()
         if conversation.switchBranch(of: message, by: offset) { try? context.save() }
     }
 
     /// Puts a sent message back into the composer; sending creates a sibling and leaves the old branch in place.
     private func beginEdit(_ message: Message) {
-        guard !controller.isStreaming else { return }
+        guard !isStreamingHere else { return }
         if editing == nil { savedDraft = (draft.text, draft.attachments) }
         editing = message
         draft.text = message.text
@@ -585,8 +612,7 @@ struct ChatView: View {
 
     /// "Answer now" can appear for this chat's running turn: the end of the chat leaves it room.
     private var reservesAnswerNowRoom: Bool {
-        guard let conversation else { return false }
-        return controller.canAnswerNow && controller.activeConversationID == conversation.id
+        run?.canAnswerNow ?? false
     }
 
     private var jumpButton: some View {
@@ -649,27 +675,24 @@ struct ChatView: View {
 
     // MARK: Composer
 
-    /// Opens the chat whose reply is running (Send waits for it).
-    private func showBusyChat() {
-        guard let id = controller.activeConversationID else { return }
+    /// Opens another chat (the "Reply ready" banner).
+    private func open(_ id: UUID) {
         let descriptor = FetchDescriptor<Conversation>(predicate: #Predicate { $0.id == id })
-        if let busy = try? context.fetch(descriptor).first { conversation = busy }
+        if let other = try? context.fetch(descriptor).first { conversation = other }
     }
 
     private var composer: some View {
         ComposerHost(
             draft: draft,
             isStreaming: isStreamingHere,
-            isBusy: controller.isStreaming || loadingModels,
-            busyElsewhere: controller.isStreaming && !isStreamingHere,
+            isBusy: isStreamingHere || loadingModels,
             loadingModels: loadingModels,
-            onShowBusy: showBusyChat,
             plusDimmed: !(selectedModel?.supportsImages ?? false),
             onAttach: attach,
             toolSwitches: toolSwitchItems,
             onToolSwitch: setTool,
             onSend: { send() },
-            onStop: { controller.stop() },
+            onStop: { if let c = conversation { controller.stop(c) } },
             onCancelEdit: editing == nil ? nil : { withAnimation(DS.Motion.snappy) { cancelEdit() } },
             onPasteImages: pasteHandler,
             accessory: { settingsButton },
@@ -705,12 +728,12 @@ struct ChatView: View {
     /// cards arriving never move it.
     @ViewBuilder
     private var answerNowCapsule: some View {
-        if let conversation, controller.canAnswerNow, controller.activeConversationID == conversation.id,
-           let message = conversation.messages.first(where: { $0.id == controller.activeMessageID }) {
+        if let conversation, let run, run.canAnswerNow,
+           let message = conversation.messages.first(where: { $0.id == run.messageID }) {
             let saved = message.segments.flatMap(\.calls).filter { $0.name == ToolNames.webSearch }.count
-            let running = controller.roundRequested.filter { $0.name == ToolNames.webSearch }.count
-            AnswerNowCapsule(start: controller.turnStart ?? .now, completedToolRounds: controller.completedToolRounds,
-                             searches: saved + running, phase: controller.phase) { controller.answerNow() }
+            let running = run.roundRequested.filter { $0.name == ToolNames.webSearch }.count
+            AnswerNowCapsule(start: run.turnStart ?? .now, completedToolRounds: run.completedToolRounds,
+                             searches: saved + running, phase: run.phase) { controller.answerNow(conversation) }
         }
     }
 
@@ -779,7 +802,7 @@ struct ChatView: View {
             return
         }
         WindowActions.shared.regenerate = { [controller, context] in
-            guard !controller.isStreaming else { return }
+            guard !controller.isStreaming(c) else { return }
             controller.regenerate(conversation: c, context: context)
         }
         WindowActions.shared.copyLastAnswer = { Pasteboard.copy(MarkdownPlain.text(from: last.text)) }
@@ -797,8 +820,9 @@ struct ChatView: View {
     }
 
     private func send(afterFetch: Bool = false) {
-        // Nothing is cleared or created unless the controller will take it: another chat's reply may still be running.
-        guard !controller.isStreaming, !loadingModels, draft.canSend else { return }
+        // Nothing is cleared or created unless the controller will take it. Other chats' replies don't matter: with
+        // every slot taken, this one waits its turn.
+        guard !isStreamingHere, !loadingModels, draft.canSend else { return }
         // Fetch the model list first, then send: the draft stays in the composer meanwhile. If no model comes, the
         // send goes on and the chat says what's missing.
         if !afterFetch, needsModelList {
@@ -854,7 +878,7 @@ struct ChatView: View {
     #if DEBUG
     private func debugTimeline() async {
         if DebugHooks.value("StrataDebugBranch") != nil {
-            if controller.activeMessageID == nil, !branchDebugDone, conversation?.leafMessage?.role == .assistant {
+            if run == nil, !branchDebugDone, conversation?.leafMessage?.role == .assistant {
                 branchDebugDone = true
                 Task { await debugBranching() } // not tied to this task: it is cancelled when the turn starts
             }
@@ -862,32 +886,32 @@ struct ChatView: View {
         }
         guard let sheet = DebugHooks.openSheet, sheet.hasPrefix("timeline") || ["usage", "context", "rename", "selecttext", "regentitle", "artifact", "details", "compaction", "summarize", "translate"].contains(sheet) else { return }
         if sheet == "translate" { // translates the first answer once it is in
-            if controller.activeMessageID == nil, !branchDebugDone, let m = conversation?.leafMessage, m.role == .assistant {
+            if run == nil, !branchDebugDone, let m = conversation?.leafMessage, m.role == .assistant {
                 branchDebugDone = true
                 controller.translation.translate(m, context: context)
             }
             return
         }
         if sheet == "compaction" {
-            if controller.activeMessageID == nil, let r = conversation?.sortedCompactions.last { compactionNotes = r }
+            if run == nil, let r = conversation?.sortedCompactions.last { compactionNotes = r }
             return
         }
         if sheet == "summarize" { // "Summarize now" once the first answer is in
-            if controller.activeMessageID == nil, !branchDebugDone, let c = conversation, c.leafMessage?.role == .assistant {
+            if run == nil, !branchDebugDone, let c = conversation, c.leafMessage?.role == .assistant {
                 branchDebugDone = true
                 controller.compactNow(conversation: c, context: context)
             }
             return
         }
         if sheet == "rename" {
-            if controller.activeMessageID == nil, let c = conversation, c.messages.contains(where: { $0.role == .assistant }) {
+            if run == nil, let c = conversation, c.messages.contains(where: { $0.role == .assistant }) {
                 renameText = "score가 NULL인 행은 어떻게 처리되는지 SQL 집계 함수 동작 정리"
                 showRename = true
             }
             return
         }
         if sheet == "regentitle" { // "Regenerate title" once the first answer is named
-            if controller.activeMessageID == nil, !branchDebugDone, let c = conversation, c.leafMessage?.role == .assistant {
+            if run == nil, !branchDebugDone, let c = conversation, c.leafMessage?.role == .assistant {
                 branchDebugDone = true
                 try? await Task.sleep(for: .seconds(3)) // past the automatic title
                 guard !controller.isTitling(c.id) else { return }
@@ -896,31 +920,31 @@ struct ChatView: View {
             return
         }
         if sheet == "artifact" { // the chat's newest artifact, once the answer is in
-            if controller.activeMessageID == nil, debugArtifact == nil, let c = conversation,
+            if run == nil, debugArtifact == nil, let c = conversation,
                let a = ArtifactStore.shared.artifacts(conversationID: c.id).max(by: { $0.updated < $1.updated }) {
                 debugArtifact = ArtifactRef(conversationID: c.id, id: a.id, title: a.title, version: a.version)
             }
             return
         }
         if sheet == "selecttext" {
-            if controller.activeMessageID == nil, debugSelection == nil, let m = conversation?.leafMessage, m.role == .assistant {
+            if run == nil, debugSelection == nil, let m = conversation?.leafMessage, m.role == .assistant {
                 debugSelection = MarkdownPlain.text(from: m.text)
             }
             return
         }
         if sheet == "details" {
-            if controller.activeMessageID == nil, conversation != nil { showDetails = true }
+            if run == nil, conversation != nil { showDetails = true }
             return
         }
         if sheet == "usage" || sheet == "context" {
-            if controller.activeMessageID == nil, conversation?.messages.contains(where: { $0.role == .assistant }) == true { showContext = true }
+            if run == nil, conversation?.messages.contains(where: { $0.role == .assistant }) == true { showContext = true }
             return
         }
         if sheet == "timelinelive" {
-            guard let id = controller.activeMessageID else { return }
+            guard let id = run?.messageID else { return }
             try? await Task.sleep(for: .seconds(2.5))
             timeline = conversation?.messages.first { $0.id == id }.map { TimelineRequest(message: $0, showsTools: true) }
-        } else if controller.activeMessageID == nil {
+        } else if run == nil {
             timeline = conversation?.messages.filter { $0.role == .assistant }.max { $0.sortIndex < $1.sortIndex }
                 .map { TimelineRequest(message: $0, showsTools: sheet != "timelinereasoning") }
         }
@@ -936,7 +960,7 @@ struct ChatView: View {
         func settle() async {
             for _ in 0..<200 {
                 try? await Task.sleep(for: .milliseconds(200))
-                if !controller.isStreaming { break }
+                if !isStreamingHere { break }
             }
         }
         if mode == "editbar" { beginEdit(first); return }
@@ -975,7 +999,7 @@ struct ChatView: View {
                 send()
                 for _ in 0..<200 {
                     try? await Task.sleep(for: .milliseconds(200))
-                    if !controller.isStreaming { break }
+                    if !isStreamingHere { break }
                 }
                 try? await Task.sleep(for: .seconds(1))
             }
@@ -1044,10 +1068,8 @@ private struct ComposerHost<Accessory: View>: View {
     @Bindable var draft: ComposerDraft
     let isStreaming: Bool
     let isBusy: Bool
-    let busyElsewhere: Bool
     /// The model list is being fetched before a send (`ChatView.send`).
     var loadingModels = false
-    let onShowBusy: () -> Void
     let plusDimmed: Bool
     let onAttach: () -> Void
     var toolSwitches: [ComposerToolSwitch] = []
@@ -1077,8 +1099,7 @@ private struct ComposerHost<Accessory: View>: View {
             onRemoveAttachment: { id in draft.attachments.removeAll { $0.id == id } },
             onCancelEdit: onCancelEdit,
             onPasteImages: onPasteImages,
-            notice: loadingModels ? "Loading models…" : busyElsewhere && draft.canSend ? "Another chat is still answering" : nil,
-            onNotice: onShowBusy,
+            notice: loadingModels ? "Loading models…" : nil,
             onSend: onSend,
             onStop: onStop,
             accessory: accessory,

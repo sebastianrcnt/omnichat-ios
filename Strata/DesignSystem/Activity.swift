@@ -220,6 +220,8 @@ struct ActivityEntry: Identifiable, Equatable {
 /// One activity row: search (magnifier, quoted query, result count, source chips) or visit (globe, "Visited domain").
 struct ActivityRow: View {
     @Environment(\.theme) private var theme
+    /// Its chat, for the progress of its calls (`ToolProgress` keys).
+    @Environment(\.citations) private var citations
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let entry: ActivityEntry
     /// Show every source chip (timeline) instead of a single scrolling line.
@@ -263,7 +265,7 @@ struct ActivityRow: View {
             }
             .animation(reduceMotion ? nil : DS.Motion.enter, value: sources.count)
         case .visit(let url, let host):
-            let progress = ToolProgress.shared.value(for: entry.id)
+            let progress = ToolProgress.shared.value(for: entry.id, conversation: citations.conversationID)
             HStack(spacing: DS.Spacing.sm) {
                 icon(entry.isTranscript ? "captions.bubble" : "globe")
                 if wrapsChips, let u = URL(string: url) {

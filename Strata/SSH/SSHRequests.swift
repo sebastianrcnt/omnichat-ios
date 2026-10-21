@@ -63,8 +63,9 @@ final class SSHRequests {
 
     struct Request: Identifiable, Equatable {
         let id = UUID()
-        var conversationID: UUID?
-        var callID: String?
+        var conversationID: UUID? = ToolContext.conversationID
+        /// Call ids repeat across chats (`call_0` from servers without ids), so a call is found by chat and id.
+        var callID: String? = ToolContext.callID
         var kind: Kind
     }
 
@@ -74,8 +75,10 @@ final class SSHRequests {
 
     func pending(conversation: UUID?) -> [Request] { queue.map(\.request).filter { $0.conversationID == conversation } }
 
-    /// The request of a tool call, shown under its line in the feed.
-    func request(forCall callID: String) -> Request? { queue.first { $0.request.callID == callID }?.request }
+    /// The request of a tool call in a chat, shown under its line in that chat's feed.
+    func request(forCall callID: String, conversation: UUID?) -> Request? {
+        queue.first { $0.request.callID == callID && $0.request.conversationID == conversation }?.request
+    }
 
     /// Waits for the answer. A cancelled turn denies (or gives up the prompt).
     func ask(_ request: Request) async -> Answer {
