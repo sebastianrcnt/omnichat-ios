@@ -29,8 +29,17 @@ final class WebViewPool {
         return HiddenWebView(guardNavigations: guardNavigations, resolver: resolver, injectsReader: reader)
     }
 
-    /// Returns a view after use. A view that failed or timed out is torn down: its state cannot be trusted.
-    func release(_ view: HiddenWebView, reusable: Bool) {
+    /// Returns a view after use. A view that failed or timed out is not used again: its state cannot be trusted. With
+    /// `keep` it stays as it is for the user (`KeptPages`), with its page still loading if it was; otherwise it is torn
+    /// down.
+    func release(_ view: HiddenWebView, reusable: Bool, keep: Bool = false) {
+        if !reusable && keep && view.currentURL?.scheme?.hasPrefix("http") == true {
+            view.abandonLoad()
+            view.onProgress = nil
+            BackgroundLoadingSound.shared.unregister(view) // nothing runs in it now
+            KeptPages.shared.keep(view, callID: ToolContext.callID)
+            return
+        }
         view.stop()
         view.onProgress = nil
         guard reusable, idle.count < maxIdle else {

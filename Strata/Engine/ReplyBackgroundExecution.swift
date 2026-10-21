@@ -130,6 +130,19 @@ final class ReplyBackgroundExecution {
 
     /// Tells the person their reply is ready: the chat's title, then the start of the answer. Tapping it opens the chat.
     static func notifyCompletion(title: String, body: String, conversationID: UUID) {
+        post(title: title.isEmpty ? String(localized: "Reply ready") : title,
+             body: body.isEmpty ? String(localized: "Your Strata reply is ready.") : body,
+             conversationID: conversationID)
+    }
+
+    /// A tool stopped at a robot check while the app is not in front. Tapping it opens the chat and the page.
+    static func notifyRobotCheck(host: String, conversationID: UUID?, requestID: UUID) {
+        post(title: "Strata", body: String(localized: "\(host) wants a robot check. Tap to open the page."),
+             conversationID: conversationID, extra: [ReplyNotificationRouter.robotCheckKey: requestID.uuidString])
+    }
+
+    /// Posts when the setting is on, the app is not in front and the person allowed notifications.
+    private static func post(title: String, body: String, conversationID: UUID?, extra: [String: String] = [:]) {
         #if DEBUG
         if DebugHooks.value("StrataNoNotifications") != nil { return }
         #endif
@@ -143,11 +156,15 @@ final class ReplyBackgroundExecution {
             guard status == .authorized || status == .provisional else { return }
             #endif
             let content = UNMutableNotificationContent()
-            content.title = title.isEmpty ? String(localized: "Reply ready") : title
-            content.body = body.isEmpty ? String(localized: "Your Strata reply is ready.") : body
+            content.title = title
+            content.body = body
             content.sound = .default
-            content.threadIdentifier = conversationID.uuidString
-            content.userInfo = [ReplyNotificationRouter.conversationKey: conversationID.uuidString]
+            var info = extra
+            if let conversationID {
+                content.threadIdentifier = conversationID.uuidString
+                info[ReplyNotificationRouter.conversationKey] = conversationID.uuidString
+            }
+            content.userInfo = info
             try? await center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
         }
     }
@@ -159,6 +176,8 @@ final class ReplyBackgroundExecution {
 @Observable
 final class ReplyNotificationRouter: NSObject, @preconcurrency UNUserNotificationCenterDelegate {
     nonisolated static let conversationKey = "conversation"
+    /// A robot-check notification's request (`RobotCheckRequests`): tapping it opens the page as Open page would.
+    nonisolated static let robotCheckKey = "robotCheck"
     static var shared: ReplyNotificationRouter?
     var pending: UUID?
 
@@ -168,8 +187,11 @@ final class ReplyNotificationRouter: NSObject, @preconcurrency UNUserNotificatio
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
-        guard let raw = response.notification.request.content.userInfo[Self.conversationKey] as? String,
-              let id = UUID(uuidString: raw) else { return }
+        let info = response.notification.request.content.userInfo
+        if let raw = info[Self.robotCheckKey] as? String, let request = UUID(uuidString: raw) {
+            RobotCheckRequests.shared.answer(request, .open)
+        }
+        guard let raw = info[Self.conversationKey] as? String, let id = UUID(uuidString: raw) else { return }
         pending = id
     }
 

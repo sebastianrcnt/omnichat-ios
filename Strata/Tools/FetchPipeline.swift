@@ -23,9 +23,12 @@ enum FetchPipeline {
     struct Extracted: Decodable, Sendable { var title: String; var text: String }
 
     /// - Parameter progress: called with a value that only goes up, at most about ten times a second, ending with 1.
+    /// - Parameter check: runs once the page has settled, before it is read (the robot-check gate, which may wait for
+    ///   the user and leave a different page in the view).
     @MainActor
     static func fetch(_ url: URL, page: some FetchablePage, timeouts: FetchTimeouts = .standard,
-                      progress: @escaping @MainActor (Double) -> Void = { _ in }) async throws -> FetchedPage {
+                      progress: @escaping @MainActor (Double) -> Void = { _ in },
+                      check: @MainActor () async throws -> Void = {}) async throws -> FetchedPage {
         let tracker = ProgressTracker(progress)
         tracker.report(0)
         page.onProgress = { tracker.report(FetchProgress.loading($0)) }
@@ -43,6 +46,7 @@ enum FetchPipeline {
 
         try await Task.sleep(for: timeouts.settle) // client-side rendering
         tracker.report(FetchProgress.settled)
+        try await check()
 
         tracker.report(FetchProgress.extracting)
         let json = try await page.evaluate(WebFetchTool.extractionScript(maxCharacters: maxPageCharacters), timeout: timeouts.script)

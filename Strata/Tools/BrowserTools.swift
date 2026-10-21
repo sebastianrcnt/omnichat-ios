@@ -1,7 +1,7 @@
 import Foundation
 
 // `browser_open` and `browser_eval`: a hidden browser the model drives itself. One page per conversation, in a web view
-// with the shared non-persistent data store (no cookies or logins of the user's), guarded navigations like a fetch, a
+// on the app's own browser store (`BrowserData`; never Safari's cookies), guarded navigations like a fetch, a
 // mobile Safari user agent, and no script message handlers: model JavaScript runs in the page and can reach nothing of
 // the app's.
 
@@ -144,8 +144,10 @@ enum BrowserScript {
 }
 
 /// One browser page per conversation. Calls on it run one at a time (a round may ask for several), and a page left
-/// alone for a while is torn down.
+/// alone for a while is torn down. While a reply runs, the user can watch the page (`BrowserWatch`), stop the browser
+/// for the rest of the reply, or take the page over: calls wait until they hand it back.
 @MainActor
+@Observable
 final class BrowserSessions {
     static let shared: BrowserSessions = {
         let sessions = BrowserSessions()
@@ -153,9 +155,9 @@ final class BrowserSessions {
         return sessions
     }()
 
-    var idleLifetime: Duration = .seconds(600)
+    @ObservationIgnored var idleLifetime: Duration = .seconds(600)
     /// Makes the page of a new session. Test seam; by default a hidden web view.
-    var makePage: @MainActor () -> any BrowserPage = { HiddenWebView(guardNavigations: true, store: BrowserData.store) }
+    @ObservationIgnored var makePage: @MainActor () -> any BrowserPage = { HiddenWebView(guardNavigations: true, store: BrowserData.store) }
 
     @MainActor
     final class Session {
@@ -167,12 +169,20 @@ final class BrowserSessions {
         var hasPage = false
         /// Calls running now; the idle sweep leaves a busy session alone (`browser_show` can wait minutes for the user).
         var busy = 0
+        /// The user tapped Stop browsing: the reply's further calls return at once. Cleared when the reply ends.
+        fileprivate(set) var stopped = false
+        /// The user took the page over (Take over): calls wait until they tap Done.
+        let hold = HoldGate()
+        /// The calls under way, to cancel on Stop browsing.
+        fileprivate var running: [UUID: @MainActor () -> Void] = [:]
 
         init(page: any BrowserPage) { self.page = page }
     }
 
-    private var sessions: [UUID: Session] = [:]
-    private var sweeper: Task<Void, Never>?
+    @ObservationIgnored private var sessions: [UUID: Session] = [:]
+    @ObservationIgnored private var sweeper: Task<Void, Never>?
+    /// The session each browser call ran in, by call id: the feed finds the page of a running call's card here.
+    private var callSessions: [String: UUID] = [:]
     /// Calls without a conversation (tests, the debug hooks) share one session.
     static let defaultKey = UUID(uuidString: "00000000-0000-0000-0000-00000000B0B0")!
 
@@ -187,36 +197,94 @@ final class BrowserSessions {
         return created
     }
 
-    /// Runs `operation` on the conversation's page once the calls before it are done.
+    /// The page a browser call used (nil once its session is closed).
+    func page(forCall callID: String) -> HiddenWebView? {
+        callSessions[callID].flatMap { sessions[$0]?.page as? HiddenWebView }
+    }
+
+    /// The conversation whose session a browser call used.
+    func conversation(forCall callID: String) -> UUID? { callSessions[callID] }
+
+    /// The session showing `page`, if it is one's.
+    func conversation(showing page: HiddenWebView) -> UUID? {
+        sessions.first { $0.value.page === page }?.key
+    }
+
+    func existingSession(_ conversation: UUID) -> Session? { sessions[conversation] }
+
+    /// Runs `operation` on the conversation's page once the calls before it are done, and once the user handed the
+    /// page back if they took it over. After Stop browsing it throws `BrowserStoppedError` instead.
     func run<T: Sendable>(conversation: UUID?, _ operation: @escaping @MainActor @Sendable (Session) async throws -> T) async throws -> T {
+        let key = conversation ?? Self.defaultKey
         let session = session(for: conversation)
+        if let callID = ToolContext.callID { callSessions[callID] = key }
         let previous = session.tail
+        let id = UUID()
         let task = Task { @MainActor () -> Result<T, Error> in
             await previous?.value
+            do {
+                guard !session.stopped else { throw BrowserStoppedError() }
+                try await session.hold.wait()
+                guard !session.stopped else { throw BrowserStoppedError() }
+            } catch {
+                return .failure(error)
+            }
             session.busy += 1
             defer { session.busy -= 1; session.lastUsed = .now }
             do { return .success(try await operation(session)) } catch { return .failure(error) }
         }
+        session.running[id] = { task.cancel() }
         session.tail = Task { @MainActor in _ = await task.value }
         let result = await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
+        session.running[id] = nil
         session.lastUsed = .now
+        // A call Stop browsing cut short says so, whatever error the cut caused inside it.
+        if case .failure = result, session.stopped { throw BrowserStoppedError() }
         return try result.get()
+    }
+
+    /// Stop browsing: cancels the session's calls under way and makes the rest of the reply's calls return at once,
+    /// each with `BrowserStoppedError`. The reply itself goes on.
+    func stopBrowsing(_ conversation: UUID) {
+        guard let session = sessions[conversation] else { return }
+        session.stopped = true
+        session.hold.open()
+        for cancel in session.running.values { cancel() }
+        session.page.stop()
+    }
+
+    /// Take over: the user has the page; calls wait until `handBack`.
+    func takeOver(_ conversation: UUID) {
+        sessions[conversation]?.hold.close()
+    }
+
+    func handBack(_ conversation: UUID) {
+        sessions[conversation]?.hold.open()
+    }
+
+    /// The reply ended: Stop browsing applied to it only.
+    func turnEnded() {
+        for session in sessions.values { session.stopped = false }
+        callSessions = callSessions.filter { sessions[$0.value] != nil }
     }
 
     func close(_ conversation: UUID) {
         guard let session = sessions.removeValue(forKey: conversation) else { return }
+        callSessions = callSessions.filter { $0.value != conversation }
         dispose(session)
     }
 
     func closeAll() {
         for session in sessions.values { dispose(session) }
         sessions.removeAll()
+        callSessions.removeAll()
         sweeper?.cancel()
         sweeper = nil
     }
 
     private func dispose(_ session: Session) {
         session.tail?.cancel()
+        session.hold.open()
         session.page.stop()
         (session.page as? HiddenWebView)?.dispose()
     }
@@ -228,9 +296,50 @@ final class BrowserSessions {
                 try? await Task.sleep(for: .seconds(60))
                 guard !Task.isCancelled else { return }
                 let now = ContinuousClock.now
-                for (key, session) in self.sessions where session.busy == 0 && now - session.lastUsed >= self.idleLifetime { self.close(key) }
+                for (key, session) in self.sessions where session.busy == 0 && !session.hold.isClosed
+                    && !((session.page as? HiddenWebView)?.isOnScreen ?? false) && now - session.lastUsed >= self.idleLifetime {
+                    self.close(key)
+                }
             }
             self?.sweeper = nil
+        }
+    }
+}
+
+/// What a browser call returns after the user tapped Stop browsing.
+struct BrowserStoppedError: Error, LocalizedError, Equatable {
+    static let message = "The user stopped the browser. Don't use the browser tools again in this reply; answer with what you have."
+    var errorDescription: String? { Self.message }
+    static var output: ToolOutput { ToolOutput(text: message, isError: true) }
+}
+
+/// Holds calls back while the user has the page (Take over). Waiting can be cancelled.
+@MainActor
+final class HoldGate {
+    private(set) var isClosed = false
+    private var waiters: [UUID: CheckedContinuation<Void, Error>] = [:]
+
+    func close() { isClosed = true }
+
+    func open() {
+        isClosed = false
+        let all = waiters
+        waiters.removeAll()
+        for waiter in all.values { waiter.resume() }
+    }
+
+    /// Returns at once while open.
+    func wait() async throws {
+        guard isClosed else { return }
+        let id = UUID()
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+                if Task.isCancelled { cont.resume(throwing: CancellationError()); return }
+                if !isClosed { cont.resume(); return }
+                waiters[id] = cont
+            }
+        } onCancel: {
+            Task { @MainActor in self.waiters.removeValue(forKey: id)?.resume(throwing: CancellationError()) }
         }
     }
 }
@@ -244,6 +353,8 @@ struct BrowserOpenTool {
     var timeouts = FetchTimeouts.current
     var settleLimit = BrowserSettle.limit
     var sessions: BrowserSessions?
+    /// Looks for a robot check once the page has rendered. Test seam; by default `RobotCheckGate` for a hidden view.
+    var robotCheck: (@MainActor (any BrowserPage, FetchTimeouts) async throws -> Bool)?
 
     @MainActor
     func run(urlString: String, conversation: UUID?) async -> ToolOutput {
@@ -263,10 +374,13 @@ struct BrowserOpenTool {
         let settleLimit = min(settleLimit, timeouts.load)
         let limit = limit
         let timeouts = timeouts
+        let check = robotCheck ?? BrowserRobotCheck.gate
+        let sessions = sessions ?? .shared
         do {
-            return try await (sessions ?? .shared).run(conversation: conversation) { session in
+            return try await sessions.run(conversation: conversation) { session in
                 try await Deadline.run(overall, onAbort: { session.page.stop() }) {
-                    let page = try await Self.open(url, page: session.page, settleLimit: settleLimit, timeouts: timeouts, progress: report)
+                    let page = try await Self.open(url, page: session.page, settleLimit: settleLimit, timeouts: timeouts, progress: report,
+                                                   check: { _ = try await check(session.page, timeouts) })
                     session.hasPage = true
                     let out = await Task.detached(priority: .userInitiated) { BrowserText.capped(page.text, limit: limit) }.value
                     let title = page.title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -277,13 +391,15 @@ struct BrowserOpenTool {
                                       sources: [SourceCandidate(title: title.isEmpty ? page.url : title, url: page.url, content: out.text)])
                 }
             }
+        } catch is BrowserStoppedError {
+            return BrowserStoppedError.output
         } catch is CancellationError {
             return ToolOutput(text: "Error: cancelled.", isError: true)
         } catch WebToolError.timeout {
             let text = WebToolError.timeoutMessage(after: ContinuousClock.now - started, limit: overall, what: "opening the page")
-            return ToolOutput(text: "Error: \(text)", isError: true)
+            return sessions.failure(text, conversation: conversation, error: WebToolError.timeout)
         } catch {
-            return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true)
+            return sessions.failure(error.localizedDescription, conversation: conversation, error: error)
         }
     }
 
@@ -294,7 +410,8 @@ struct BrowserOpenTool {
     /// finishes loading is read once it is there at all.
     @MainActor
     static func open(_ url: URL, page: some BrowserPage, settleLimit: Duration, timeouts: FetchTimeouts,
-                     progress: @escaping @MainActor (Double) -> Void = { _ in }) async throws -> FetchedPage {
+                     progress: @escaping @MainActor (Double) -> Void = { _ in },
+                     check: @MainActor () async throws -> Void = {}) async throws -> FetchedPage {
         let state = LoadState()
         progress(0)
         if page.currentURL != nil { _ = try? await page.evaluate(BrowserSettle.markStale, timeout: timeouts.probe) }
@@ -322,13 +439,46 @@ struct BrowserOpenTool {
             }
             try await Task.sleep(for: BrowserSettle.pollInterval)
         }
+        try await check()
         progress(FetchProgress.extracting)
+        let fetched = try await read(page, timeouts: timeouts, fallbackURL: url)
+        progress(FetchProgress.done)
+        return fetched
+    }
+
+    /// The page's visible text, title and URL as it is now.
+    @MainActor
+    static func read(_ page: some FetchablePage, timeouts: FetchTimeouts, fallbackURL: URL? = nil) async throws -> FetchedPage {
         let json = try await page.evaluate(BrowserSettle.extraction(maxCharacters: FetchPipeline.maxPageCharacters), timeout: timeouts.script)
         guard let e = try? JSONDecoder().decode(BrowserSettle.Extracted.self, from: Data(json.utf8)) else {
             throw WebToolError.script("could not read the page.")
         }
-        progress(FetchProgress.done)
-        return FetchedPage(title: e.title, url: e.url.isEmpty ? (page.currentURL?.absoluteString ?? url.absoluteString) : e.url, text: e.text)
+        return FetchedPage(title: e.title, url: e.url.isEmpty ? (page.currentURL ?? fallbackURL)?.absoluteString ?? "" : e.url, text: e.text)
+    }
+}
+
+/// The robot-check gate of the model's browser: only a real hidden view can be handed to the user.
+@MainActor
+enum BrowserRobotCheck {
+    static let gate: @MainActor (any BrowserPage, FetchTimeouts) async throws -> Bool = { page, timeouts in
+        guard let view = page as? HiddenWebView else { return false }
+        return try await RobotCheckGate.pass(view, timeouts: timeouts)
+    }
+}
+
+extension BrowserSessions {
+    /// A failed call's result. The page stays open, and the result names it so `browser_show` can hand it to the user
+    /// (it is listed in `KeptPages` for the failed row's "Open this page" too).
+    func failure(_ message: String, conversation: UUID?, error: Error) -> ToolOutput {
+        var text = "Error: " + message
+        if KeptPages.shouldKeep(after: error), let page = existingSession(conversation ?? Self.defaultKey)?.page as? HiddenWebView,
+           page.currentURL?.scheme?.hasPrefix("http") == true {
+            KeptPages.shared.keep(page, callID: ToolContext.callID, owned: false)
+            if !(error is RobotCheckError) {
+                text += " The page stays open as page \"\(page.pageID)\": browser_show can hand it to the user (to pass a check, sign in or close a pop-up)."
+            }
+        }
+        return ToolOutput(text: text, isError: true)
     }
 }
 
@@ -339,6 +489,8 @@ struct BrowserEvalTool {
     /// Scripts may click and wait for what appears.
     var timeout: Duration = .seconds(20)
     var sessions: BrowserSessions?
+    /// Looks for a robot check after the script (it may have navigated). Test seam, as for `BrowserOpenTool`.
+    var robotCheck: (@MainActor (any BrowserPage, FetchTimeouts) async throws -> Bool)?
 
     static let maxCodeCharacters = 20_000
 
@@ -351,39 +503,62 @@ struct BrowserEvalTool {
         }
         let limit = limit
         let timeout = timeout
+        let check = robotCheck ?? BrowserRobotCheck.gate
+        let sessions = sessions ?? .shared
         do {
-            return try await (sessions ?? .shared).run(conversation: conversation) { session in
+            return try await sessions.run(conversation: conversation) { session in
                 guard session.hasPage, let current = session.page.currentURL, current.scheme?.hasPrefix("http") == true else {
                     return ToolOutput(text: "Error: no page is open. Call browser_open first.", isError: true)
                 }
                 let json = try await session.page.callAsync(BrowserScript.invocation(trimmed, maxCharacters: FetchPipeline.maxPageCharacters),
                                                             timeout: timeout)
-                return await Task.detached(priority: .userInitiated) { BrowserScript.format(json: json, limit: limit) }.value
+                var out = await Task.detached(priority: .userInitiated) { BrowserScript.format(json: json, limit: limit) }.value
+                if try await check(session.page, .current) {
+                    let now = session.page.currentURL?.absoluteString ?? ""
+                    out.text += "\n\n[A robot check appeared on the page after the script, and the user solved it. The page is now \(now); run the script again if its result came from the check.]"
+                }
+                return out
             }
+        } catch is BrowserStoppedError {
+            return BrowserStoppedError.output
         } catch is CancellationError {
             return ToolOutput(text: "Error: cancelled.", isError: true)
         } catch WebToolError.timeout {
-            return ToolOutput(text: "Error: the script did not finish within \(FetchTimeouts.seconds(timeout)).", isError: true)
+            return sessions.failure("the script did not finish within \(FetchTimeouts.seconds(timeout)).", conversation: conversation,
+                                    error: WebToolError.timeout)
         } catch {
-            return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true)
+            return sessions.failure(error.localizedDescription, conversation: conversation, error: error)
         }
     }
 }
 
-/// Pages the model asked the user to use (`browser_show`): the chat shows `pending` as a sheet with the page in it.
+/// The browser sheet's requests: a page handed to the user (`browser_show`, a robot check, a failed row's "Open this
+/// page"), or the model's page to watch while it works. The chat shows `pending` as a sheet with that same web view.
 @MainActor
 @Observable
 final class BrowserShowRequests {
     static let shared = BrowserShowRequests()
+
+    enum Mode: Equatable {
+        /// The user works on the page; Done or Close.
+        case handover
+        /// The user watches the model's page (`browser_open` session of `conversation`), read-only, with Stop browsing
+        /// and Take over.
+        case watch(conversation: UUID)
+        /// The user has the model's page (a failed row's "Open this page" while the reply runs): its calls wait until
+        /// the sheet closes.
+        case takenOver(conversation: UUID)
+    }
 
     struct Request: Identifiable {
         let id = UUID()
         /// Why the model wants the user there, in its words ("Sign in to X so I can read your feed").
         let reason: String
         let page: HiddenWebView
+        var mode: Mode = .handover
     }
 
-    private var queue: [(request: Request, answer: CheckedContinuation<Bool, Never>)] = []
+    private var queue: [(request: Request, answer: CheckedContinuation<Bool, Never>?)] = []
 
     var pending: Request? { queue.first?.request }
 
@@ -399,38 +574,90 @@ final class BrowserShowRequests {
         }
     }
 
+    /// Shows a page nothing waits for (watching, or a failed row's page). One already showing that page isn't added
+    /// again.
+    func present(_ request: Request) {
+        guard !queue.contains(where: { $0.request.page === request.page }) else { return }
+        queue.append((request, nil))
+    }
+
     func answer(_ id: UUID, done: Bool) {
         guard let i = queue.firstIndex(where: { $0.request.id == id }) else { return }
-        queue.remove(at: i).answer.resume(returning: done)
+        queue.remove(at: i).answer?.resume(returning: done)
     }
 }
 
-/// `browser_show(reason)`: shows the page `browser_open` opened to the user, so they can sign in, pass a check or do a
-/// step only they should do, and returns where the page is when they are done. Cookies from a sign-in are kept
+/// `browser_show(reason, page)`: shows a page to the user, so they can sign in, pass a check or do a step only they
+/// should do, and returns where the page is when they are done. The page is the one `browser_open` opened last, or one
+/// a failed tool kept (`page`, from its result; `KeptPages`), which is read again after Done. Cookies are kept
 /// (`BrowserData`).
 struct BrowserShowTool {
     var sessions: BrowserSessions?
+    /// Pages failed tools kept; nil uses the shared list.
+    var kept: KeptPages?
     var ask: @MainActor (BrowserShowRequests.Request) async -> Bool = { await BrowserShowRequests.shared.ask($0) }
+    var limit: Int = AppSettings.currentFetchLength
+
+    enum Target {
+        case session
+        case kept(HiddenWebView)
+        case missing(String)
+    }
+
+    /// Which page a call means: none named, or the session's own, is the session's page.
+    @MainActor
+    static func target(pageID raw: String?, session: BrowserSessions.Session, kept: KeptPages) -> Target {
+        let id = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+        if id.isEmpty || id == (session.page as? HiddenWebView)?.pageID { return .session }
+        if let page = kept.page(id: id) as? HiddenWebView { return .kept(page) }
+        return .missing(id)
+    }
 
     @MainActor
-    func run(reason: String, conversation: UUID?) async -> ToolOutput {
+    func run(reason: String, page pageID: String? = nil, conversation: UUID?) async -> ToolOutput {
         let reason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
         let ask = ask
+        let kept = kept ?? .shared
+        let limit = limit
         do {
             return try await (sessions ?? .shared).run(conversation: conversation) { session in
-                guard session.hasPage, let page = session.page as? HiddenWebView else {
-                    return ToolOutput(text: "Error: no page is open. Open it with browser_open first, then call browser_show.", isError: true)
+                switch Self.target(pageID: pageID, session: session, kept: kept) {
+                case .missing(let id):
+                    return ToolOutput(text: "Error: no page \"\(id)\" is open. Pages a failed tool kept close a few minutes after the reply that kept them; open the URL again instead.", isError: true)
+                case .kept(let page):
+                    let done = await ask(BrowserShowRequests.Request(reason: reason, page: page))
+                    let place = Self.place(page)
+                    guard done else {
+                        return ToolOutput(text: "The user closed the page without tapping Done. It is now: \(place). Don't show it again unless they ask; use other sources.", isError: true)
+                    }
+                    guard let read = try? await BrowserOpenTool.read(page, timeouts: .current) else {
+                        return ToolOutput(text: "The user tapped Done. The page is now: \(place), but its text could not be read.")
+                    }
+                    let out = await Task.detached(priority: .userInitiated) { BrowserText.capped(read.text, limit: limit) }.value
+                    let title = read.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                    return ToolOutput(text: "The user tapped Done. The page is now:\nTitle: \(title)\nURL: \(read.url)\n\n" + out.text,
+                                      sources: out.text.isEmpty ? [] : [SourceCandidate(title: title.isEmpty ? read.url : title, url: read.url, content: out.text)])
+                case .session:
+                    guard session.hasPage, let page = session.page as? HiddenWebView else {
+                        return ToolOutput(text: "Error: no page is open. Open it with browser_open first, then call browser_show.", isError: true)
+                    }
+                    let done = await ask(BrowserShowRequests.Request(reason: reason, page: page))
+                    let place = Self.place(page)
+                    if done {
+                        return ToolOutput(text: "The user tapped Done. The page is now: \(place). Read it with browser_eval or open the next page with browser_open; a sign-in stays saved for later.")
+                    }
+                    return ToolOutput(text: "The user closed the browser without tapping Done. The page is now: \(place). Don't show it again unless they ask.", isError: true)
                 }
-                let done = await ask(BrowserShowRequests.Request(reason: reason, page: page))
-                let place = [page.webView.title, page.webView.url?.absoluteString].compactMap { $0 }.filter { !$0.isEmpty }
-                    .joined(separator: " — ")
-                if done {
-                    return ToolOutput(text: "The user tapped Done. The page is now: \(place). Read it with browser_eval or open the next page with browser_open; a sign-in stays saved for later.")
-                }
-                return ToolOutput(text: "The user closed the browser without tapping Done. The page is now: \(place). Don't show it again unless they ask.", isError: true)
             }
+        } catch is BrowserStoppedError {
+            return BrowserStoppedError.output
         } catch {
             return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true)
         }
+    }
+
+    @MainActor
+    private static func place(_ page: HiddenWebView) -> String {
+        [page.webView.title, page.webView.url?.absoluteString].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " — ")
     }
 }
