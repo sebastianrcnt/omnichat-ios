@@ -39,6 +39,8 @@ targets:
         buildPhase: resources
     dependencies:
       - package: MarkdownUI
+      - framework: Vendor/CLibSSH2.xcframework # libssh2 + OpenSSL libcrypto, static (Tools/build-libssh2.sh)
+        embed: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cc.coolservices.strata
@@ -56,6 +58,7 @@ targets:
         INFOPLIST_KEY_NSMicrophoneUsageDescription: OpenChat uses the microphone when you dictate a message.
         INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: OpenChat turns your dictation into text on this device.
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: OpenChat uses your approximate location when you ask the assistant to find places near you.
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: OpenChat connects to servers on your local network when the assistant runs commands over SSH.
         INFOPLIST_KEY_UIUserInterfaceStyle: Automatic
         SWIFT_EMIT_LOC_STRINGS: YES
     info:
@@ -106,6 +109,8 @@ targets:
         buildPhase: resources
     dependencies:
       - package: MarkdownUI
+      - framework: Vendor/CLibSSH2.xcframework # libssh2 + OpenSSL libcrypto, static (Tools/build-libssh2.sh)
+        embed: false
     entitlements:
       path: StrataMac/Strata.entitlements
       properties:
@@ -131,6 +136,7 @@ targets:
         INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: OpenChat turns your dictation into text on this Mac.
         INFOPLIST_KEY_NSLocationUsageDescription: OpenChat uses your approximate location when you ask the assistant to find places near you.
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: OpenChat uses your approximate location when you ask the assistant to find places near you.
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: OpenChat connects to servers on your local network when the assistant runs commands over SSH.
         SWIFT_EMIT_LOC_STRINGS: YES
     info:
       path: StrataMac/Info.plist
