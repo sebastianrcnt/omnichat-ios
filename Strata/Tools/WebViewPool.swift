@@ -1,5 +1,4 @@
 import Foundation
-import Foundation
 
 /// Hidden web views kept for the next fetch instead of being torn down: creating a WKWebView and its web content
 /// process is the slow part of a short fetch. A few idle views are kept for a minute; a memory warning drops them.
@@ -24,6 +23,7 @@ final class WebViewPool {
         if let i = idle.lastIndex(where: { $0.view.injectsReader == reader }) {
             let view = idle.remove(at: i).view
             view.reset(resolver: resolver, guardNavigations: guardNavigations)
+            BackgroundLoadingSound.shared.register(view)
             return view
         }
         return HiddenWebView(guardNavigations: guardNavigations, resolver: resolver, injectsReader: reader)
@@ -37,6 +37,7 @@ final class WebViewPool {
             view.dispose()
             return
         }
+        BackgroundLoadingSound.shared.unregister(view) // an idle view's process may sleep
         idle.append((view, .now))
         scheduleSweep()
     }

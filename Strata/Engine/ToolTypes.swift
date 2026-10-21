@@ -244,6 +244,12 @@ enum ToolNames {
         [webSearch, webFetch, browserOpen, loadSkill, currentLocation].contains(name)
     }
 
+    /// Tools that load or script pages in hidden web views, which iOS stops while the app is in the background unless
+    /// they play sound (`BackgroundLoadingSound`). `browser_show` puts its page on screen, so it is not one.
+    static func usesWebPage(_ name: String) -> Bool {
+        [webSearch, webFetch, runPlugin, browserOpen, browserEval, runSkillScript].contains(name)
+    }
+
     /// Tools shown in the feed as a card of their own (not a search card or a row of "Read pages").
     static func hasOwnCard(_ name: String) -> Bool {
         [runPython, viewImage, browserOpen, browserEval, browserShow, loadSkill, runSkillScript, saveSkill, showPlaces, currentLocation,

@@ -48,6 +48,9 @@ final class ChatController {
         activeMessageID != nil && !activeIsEarly && compactingConversationID == nil
     }
     @ObservationIgnored private var earlyAnswerRequested = false
+    /// The answer showing "Save as skill" (`SkillOffer`): set when a turn of hard-won web work finishes in this session,
+    /// cleared by the next turn, by tapping it or by closing it. Never persisted, so older answers don't offer it.
+    private(set) var skillOfferMessageID: UUID?
     /// Set while "Summarize now" runs (an automatic compaction belongs to the turn that triggers it).
     private(set) var compactingConversationID: UUID?
     /// Why the last "Summarize now" failed, for the chat to show once.
@@ -267,6 +270,24 @@ final class ChatController {
         stop()
     }
 
+    /// "Save as skill": a hidden instruction after the answer that offered it, and a turn that writes the skill.
+    func saveAsSkill(conversation: Conversation, context: ModelContext) {
+        guard !isStreaming, settings.browserEnabled, let leaf = conversation.leafMessage, leaf.id == skillOfferMessageID else { return }
+        skillOfferMessageID = nil
+        let instruction = Message(role: .user, text: SkillOffer.instruction, sortIndex: nextIndex(conversation))
+        instruction.hiddenInstruction = true
+        instruction.skillRequest = true
+        context.insert(instruction)
+        conversation.attach(instruction, parent: leaf)
+        conversation.updatedAt = .now
+        try? context.save()
+        generate(conversation: conversation, context: context, under: instruction)
+    }
+
+    func dismissSkillOffer() {
+        skillOfferMessageID = nil
+    }
+
     /// The hidden instruction goes on the path after the cut-short run; the answer follows it.
     private func continueEarly(after cut: Message, conversation: Conversation, context: ModelContext) {
         let instruction = Message(role: .user, text: AnswerNow.instruction, sortIndex: nextIndex(conversation))
@@ -378,7 +399,8 @@ final class ChatController {
         let assistant = restoring ?? Message(role: .assistant, sortIndex: nextIndex(conversation))
         if restoring == nil {
             // After the hidden instruction: an early answer (also when it is regenerated).
-            assistant.answeredEarly = (parent ?? conversation.leafMessage)?.hiddenInstruction == true
+            let above = parent ?? conversation.leafMessage
+            assistant.answeredEarly = above?.hiddenInstruction == true && above?.skillRequest != true
             context.insert(assistant)
             conversation.attach(assistant, parent: parent ?? conversation.leafMessage)
         } else {
@@ -393,6 +415,7 @@ final class ChatController {
         activeConversationID = conversation.id
         activeMessageID = assistant.id
         activeIsEarly = assistant.answeredEarly
+        skillOfferMessageID = nil
         completedToolRounds = 0
         earlyAnswerRequested = false
         phase = .waiting
@@ -715,6 +738,10 @@ final class ChatController {
             let spoken = error.map { (($0 as? LocalizedError)?.errorDescription ?? $0.localizedDescription) } ?? String(localized: "Answer ready")
             AccessibilityNotification.Announcement(spoken).post()
         }
+        skillOfferMessageID = SkillOffer.isOffered(
+            steps: message.steps,
+            browserAvailable: settings.browserEnabled && activeEndpoint?.model.supportsTools == true,
+            finishedWithAnswer: error == nil && !message.stoppedByUser && !message.text.isEmpty) ? message.id : nil
         background.end(success: error == nil,
                        title: error != nil ? nil : stopped ? String(localized: "Reply stopped") : String(localized: "Reply ready"),
                        subtitle: Self.notificationTitle(conversation, assistant: message))

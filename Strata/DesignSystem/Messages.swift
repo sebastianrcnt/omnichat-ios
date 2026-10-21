@@ -339,6 +339,8 @@ struct AssistantContent: Equatable {
     /// The run an early answer cut short, and the answer written after it.
     var cutForEarlyAnswer = false
     var answeredEarly = false
+    /// "Save as skill" under the answer (`SkillOffer`).
+    var offersSkill = false
 }
 
 struct AssistantMessage: View {
@@ -363,6 +365,8 @@ struct AssistantMessage: View {
     var branch: BranchPosition?
     var branchEnabled = true
     var onSwitchBranch: (Int) -> Void = { _ in }
+    var onSaveSkill: () -> Void = {}
+    var onDismissSkillOffer: () -> Void = {}
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -559,7 +563,12 @@ struct AssistantMessage: View {
                                  branch: branch, branchEnabled: branchEnabled, onSwitchBranch: onSwitchBranch,
                                  textForSelection: textForSelection)
             }
+            if content.offersSkill && !content.isStreaming {
+                SkillOfferChip(onSave: onSaveSkill, onDismiss: onDismissSkillOffer)
+                    .transition(.opacity)
+            }
         }
+        .animation(reduceMotion ? nil : DS.Motion.enter, value: content.offersSkill)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -669,5 +678,41 @@ private extension View {
     /// An action-bar icon with a 44pt touch target; the bar's icons sit at their old spacing (16pt between glyphs).
     func actionTarget() -> some View {
         frame(width: 40, height: 40).contentShape(Rectangle())
+    }
+}
+
+/// "Save as skill" under an answer that took hard-won web work (`SkillOffer`), with a button to close it.
+struct SkillOfferChip: View {
+    @Environment(\.theme) private var theme
+    let onSave: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Button(action: onSave) {
+                Label("Save as skill", systemImage: "wand.and.sparkles")
+                    .font(DS.Typography.uiCaption)
+                    .foregroundStyle(theme.textSecondary)
+                    .padding(.leading, DS.Spacing.sm + 2)
+                    .padding(.trailing, DS.Spacing.xs)
+                    .padding(.vertical, DS.Spacing.xs)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Asks the model to save what worked here as a skill. You approve it before it is saved.")
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(DS.Typography.uiCaption.weight(.semibold))
+                    .foregroundStyle(theme.textTertiary)
+                    .padding(.leading, DS.Spacing.xs)
+                    .padding(.trailing, DS.Spacing.sm)
+                    .padding(.vertical, DS.Spacing.xs)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Don't save as skill")
+        }
+        .background(theme.chipFill, in: Capsule())
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

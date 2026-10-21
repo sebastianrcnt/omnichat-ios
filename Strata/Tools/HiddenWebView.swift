@@ -141,6 +141,9 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage {
     private var progressObservation: NSKeyValueObservation?
     /// Page-load estimate (0...1), as the web view reports it.
     var onProgress: (@MainActor (Double) -> Void)?
+    /// Plays the background loading sound while it is on (`BackgroundLoadingSound`). Off only for the developer test's
+    /// control page.
+    var playsLoadingSound = true
 
     init(guardNavigations: Bool = true, resolver: any HostResolving = SystemHostResolver(), injectsReader: Bool = false,
          store: WKWebsiteDataStore? = nil) {
@@ -163,6 +166,7 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage {
         super.init()
         DiagnosticCounters.shared.webViewCreated()
         webView.navigationDelegate = self
+        BackgroundLoadingSound.shared.register(self)
         progressObservation = webView.observe(\.estimatedProgress, options: [.new]) { [weak self] view, _ in
             let value = view.estimatedProgress
             // KVO for a web view fires on the main thread.
@@ -222,6 +226,7 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage {
     /// Tears the view down for good.
     func dispose() {
         if !disposed { disposed = true; DiagnosticCounters.shared.webViewDisposed() }
+        BackgroundLoadingSound.shared.unregister(self)
         progressObservation = nil
         onProgress = nil
         webView.stopLoading()
@@ -345,6 +350,10 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage {
 
     /// A callback for the navigation being waited for (or any, when none is tracked).
     private func isCurrent(_ navigation: WKNavigation?) -> Bool { activeNavigation == nil || navigation === activeNavigation }
+
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        BackgroundLoadingSound.shared.pageDidCommit(self)
+    }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         if isCurrent(navigation) { finish(.success(())) }

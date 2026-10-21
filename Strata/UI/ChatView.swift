@@ -499,7 +499,8 @@ struct ChatView: View {
                     canRegenerate: isLast && !controller.isStreaming,
                     translation: translation,
                     cutForEarlyAnswer: message.cutForEarlyAnswer,
-                    answeredEarly: message.answeredEarly),
+                    answeredEarly: message.answeredEarly,
+                    offersSkill: isLast && controller.skillOfferMessageID == message.id),
                 render: controller.renderState(for: message),
                 onOpenTimeline: { timeline = TimelineRequest(message: message, showsTools: true) },
                 onOpenReasoning: { timeline = TimelineRequest(message: message, showsTools: true) },
@@ -515,7 +516,11 @@ struct ChatView: View {
                 onToggleTranslation: { controller.translation.toggle(message, context: context) },
                 branch: branch,
                 branchEnabled: !controller.isStreaming,
-                onSwitchBranch: { switchBranch(message, by: $0) })
+                onSwitchBranch: { switchBranch(message, by: $0) },
+                onSaveSkill: {
+                    if let c = conversation { controller.saveAsSkill(conversation: c, context: context) }
+                },
+                onDismissSkillOffer: { controller.dismissSkillOffer() })
             .modifier(AfterSendFlyIn(active: message.parentID != nil && message.parentID == flyingID))
         }
     }
@@ -906,7 +911,7 @@ struct ChatView: View {
             switch DebugHooks.openSheet {
             case "usage" where conversation != nil: showContext = true
             case "model", "chatsettings": showChatSettings = true
-            case "settings", "diagnostics", "licenses", "connection", "bgwebtest": onOpenSettings()
+            case "settings", "diagnostics", "licenses", "connection", "bgsoundtest": onOpenSettings()
             case "attach": showAttach = true
             case "code": debugViewer = true
             default: break
