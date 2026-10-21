@@ -81,18 +81,18 @@ struct ChatSettingsTests {
     @Test func visibilityFlagPersistsAndSurvivesOldData() throws {
         let defaults = freshDefaults()
         let store = ConnectionStore(defaults: defaults, keys: InMemoryKeyStore())
-        var strata = try #require(store.connection(Connection.strataID))
+        var strata = store.testGateway()
         strata.models = [ModelInfo(id: "m1"), ModelInfo(id: "m2")]
         store.upsert(strata)
-        store.setModelShownInPicker(false, connectionID: Connection.strataID, modelID: "m2")
+        store.setModelShownInPicker(false, connectionID: Connection.testID, modelID: "m2")
 
         let reloaded = ConnectionStore(defaults: defaults, keys: InMemoryKeyStore())
-        let c = try #require(reloaded.connection(Connection.strataID))
+        let c = try #require(reloaded.connection(Connection.testID))
         #expect(c.showsInPicker("m1"))
         #expect(!c.showsInPicker("m2"))
 
-        reloaded.setModelShownInPicker(true, connectionID: Connection.strataID, modelID: "m2")
-        #expect(ConnectionStore(defaults: defaults, keys: InMemoryKeyStore()).connection(Connection.strataID)?.showsInPicker("m2") == true)
+        reloaded.setModelShownInPicker(true, connectionID: Connection.testID, modelID: "m2")
+        #expect(ConnectionStore(defaults: defaults, keys: InMemoryKeyStore()).connection(Connection.testID)?.showsInPicker("m2") == true)
 
         // Connections saved before the flag existed decode with every model shown.
         let old = #"{"id":"\#(UUID().uuidString)","name":"Old","baseURL":"http://x/v1","models":[{"id":"x"}]}"#

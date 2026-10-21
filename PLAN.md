@@ -7,7 +7,7 @@ UI reference: `reference/claude-ios-2026-10-11/`. The README there has per-scree
 - **Platform**: SwiftUI, iOS 26+, Liquid Glass (`glassEffect`, `.buttonStyle(.glass)`, `GlassEffectContainer`). Glass goes on controls only; body text never sits on glass.
 - **Branding**: no logo. The accent color is user-selectable (presets plus a custom ColorPicker); the default is purple.
 - **Language**: English only, localization-ready. Every user-facing string goes through a String Catalog (`Localizable.xcstrings`). No Korean (or other) translations yet.
-- **Backend**: the existing OpenAI-compatible gateway (`llm-api`) with a pasted API key, stored in the Keychain.
+- **Backend**: any OpenAI-compatible server the user adds, with a pasted API key stored in the Keychain (none is built in).
 - **History**: stored on device only (SwiftData).
 - **Web search**: on device, **DuckDuckGo only** for now (the html.duckduckgo.com lite page, in a hidden WKWebView).
   - Engines are data-driven: a URL template plus XPath selectors copied from SearXNG's engine files, with tiny JS for special cases (DDG challenge-form detection).
@@ -37,9 +37,9 @@ UI reference: `reference/claude-ios-2026-10-11/`. The README there has per-scree
 ### Multiple OpenAI-compatible connections
 - Settings has a "Connections" list. Each connection has a name, base URL, API key (Keychain, one item per connection), optional custom headers, and a model list fetched from `/models` (manual model entry as fallback).
 - Per model: context length, supports images, supports reasoning effort (whether `reasoning_effort` is sent), supports tools (default on).
-- A default "Strata" connection preset (`https://llm-api.coolservices.cc/v1`) ships with the app.
+- No connection ships with the app. First run shows "Add a connection" with presets (OpenAI, OpenRouter, Groq, Ollama, LM Studio, ChatGPT, OpenCode, other server); `openchat://add-connection?name=…&url=…` links add one after a confirmation. The connection that used to be built in stays as an ordinary one on existing installs.
 - The model picker is back: the composer chip shows model + effort. Tapping it opens a sheet with models grouped by connection, an Effort row (only when the model supports effort), and a checkmark on the current model.
-- Each conversation remembers its model. The Usage sheet's Balance section applies only to the Strata connection.
+- Each conversation remembers its model. The Usage sheet's Balance section has no provider yet.
 - web_search / web_fetch are sent to any model whose "supports tools" flag is on; the definitions stay byte-identical.
 - Plain OpenAI chat-completions only, with no provider-specific code. Both `reasoning_content` and `reasoning` delta fields are treated as thinking.
 

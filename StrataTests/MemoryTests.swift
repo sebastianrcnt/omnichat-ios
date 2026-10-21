@@ -144,8 +144,8 @@ struct LongSessionTests {
         let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
         let keys = InMemoryKeyStore()
         let connections = ConnectionStore(defaults: defaults, keys: keys)
-        try connections.setAPIKey("k", for: Connection.strataID)
-        var strata = connections.connection(Connection.strataID)!
+        try connections.setAPIKey("k", for: Connection.testID)
+        var strata = connections.testGateway()
         // Reads images, so the six attached below are sent with every request (a text-only model gets notes instead).
         strata.models = [ModelInfo(id: "m", supportsImages: true, supportsTools: true)]
         connections.upsert(strata)
@@ -157,7 +157,7 @@ struct LongSessionTests {
         let plans: [([ChatDelta], ProgrammableStreamer.End)] = (0..<turns).flatMap { _ in [([call], .finish), (answer, .finish)] }
         let streamer = ProgrammableStreamer(plans)
         let controller = ChatController(connections: connections, settings: AppSettings(defaults: defaults), streamer: streamer, tools: LongResultTools())
-        let conversation = Conversation(connectionID: Connection.strataID, modelID: "m", effort: .medium)
+        let conversation = Conversation(connectionID: Connection.testID, modelID: "m", effort: .medium)
         context.insert(conversation)
 
         var written = 0

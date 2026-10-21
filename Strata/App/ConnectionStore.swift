@@ -33,16 +33,32 @@ final class ConnectionStore {
                 // One entry this version can't read must not cost the others: decode them one by one, and keep the
                 // original blob aside so nothing is lost for good when the list is saved again.
                 defaults.set(data, forKey: storageKey + ".unreadable")
-                struct Lenient: Decodable { var value: Connection?
-                    init(from decoder: Decoder) throws { value = try? Connection(from: decoder) } }
-                connections = ((try? JSONDecoder().decode([Lenient].self, from: data)) ?? []).compactMap(\.value)
+                connections = ((try? JSONDecoder().decode([Lenient<Connection>].self, from: data)) ?? []).compactMap(\.value)
             }
             migrateSystemPrompts(data)
         }
-        if !connections.contains(where: { $0.isStrata }) {
-            connections.insert(.strataPreset(), at: 0)
-            save()
-        }
+        migrateBuiltInConnection(defaults.data(forKey: storageKey))
+    }
+
+    /// Set once the connection that used to ship with the app has become an ordinary one.
+    static let builtInMigrationKey = "connections.builtInMigrated"
+
+    /// The app once shipped with a built-in connection (this id), which it re-added when missing and treated specially:
+    /// new models read images and took reasoning effort, and replies were resumable unless turned off. It stays as an
+    /// ordinary connection the user can edit or delete, with its name, address, key, models and chats, and with what it
+    /// did frozen into its own settings, so nothing changes after the update. Runs once; never adds or removes one.
+    private func migrateBuiltInConnection(_ data: Data?) {
+        guard !defaults.bool(forKey: Self.builtInMigrationKey) else { return }
+        defaults.set(true, forKey: Self.builtInMigrationKey)
+        guard let i = connections.firstIndex(where: { $0.id == LegacyBuiltInConnection.id }) else { return }
+        connections[i].imagesByDefault = true
+        connections[i].effortByDefault = true
+        // Saved before the toggle existed: it was on for this connection.
+        struct Saved: Decodable { var id: UUID; var supportsResumable: Bool? }
+        let saved = data.flatMap { try? JSONDecoder().decode([Lenient<Saved>].self, from: $0) }?
+            .compactMap(\.value).first { $0.id == LegacyBuiltInConnection.id }
+        if let saved, saved.supportsResumable == nil { connections[i].supportsResumable = true }
+        save()
     }
 
     /// Connections once had their own system prompt. The first one a user wrote becomes their preferences (unless
@@ -74,7 +90,6 @@ final class ConnectionStore {
     }
 
     func delete(_ id: UUID) {
-        guard id != Connection.strataID else { return }
         connections.removeAll { $0.id == id }
         try? keys.setKey(nil, for: id)
         chatGPT.store.removeAll(id)
@@ -86,7 +101,7 @@ final class ConnectionStore {
     /// "Add" that was backed out of doesn't leave a "New connection" in the list.
     func removeUnconfigured() {
         let empty = connections.filter { c in
-            guard c.id != Connection.strataID, c.kind == .openAICompatible, c.models.isEmpty, keys.key(for: c.id) == nil else { return false }
+            guard c.kind == .openAICompatible, c.models.isEmpty, keys.key(for: c.id) == nil else { return false }
             let url = c.baseURL.trimmingCharacters(in: .whitespaces).lowercased()
             return url.isEmpty || url == "https://" || url == "http://"
         }
@@ -143,7 +158,7 @@ final class ConnectionStore {
         // replays Chat Completions streams only).
         let api = conn.chatAPI(forModel: modelID)
         let connectionID = conn.id
-        let route = ChatAPIRoute(api: api, automatic: conn.modelAPIOverrides[modelID] == nil) { [weak self] detected in
+        let route = ChatAPIRoute(api: api, automatic: conn.pickedAPI(forModel: modelID) == nil) { [weak self] detected in
             Task { @MainActor in self?.recordDetectedAPI(detected, connectionID: connectionID, modelID: modelID) }
         }
         return Endpoint(connectionID: conn.id, connectionName: conn.name, baseURL: base,
@@ -153,7 +168,7 @@ final class ConnectionStore {
 
     /// Remembers that a model answered only through `api` (found by `ResponsesFallback`), unless the user picked one.
     func recordDetectedAPI(_ api: ChatAPI, connectionID: UUID, modelID: String) {
-        guard var c = connection(connectionID), c.kind == .openAICompatible, c.modelAPIOverrides[modelID] == nil,
+        guard var c = connection(connectionID), c.kind == .openAICompatible, c.pickedAPI(forModel: modelID) == nil,
               c.detectedModelAPIs[modelID] != api else { return }
         c.detectedModelAPIs[modelID] = api
         upsert(c)
@@ -246,12 +261,13 @@ final class ConnectionStore {
             if var existing = conn.models.first(where: { $0.id == entry.id }) {
                 existing.fetchedContextLength = entry.contextLength ?? existing.fetchedContextLength
                 existing.maxOutputTokens = entry.maxOutputTokens ?? existing.maxOutputTokens
-                if !existing.supportsImagesUserSet, let images = entry.supportsImages ?? (conn.isStrata ? true : nil) {
-                    existing.supportsImages = images
-                }
+                // What the server says about a model replaces what it said before, never what the user set.
+                if !existing.supportsImagesUserSet, let images = entry.supportsImages { existing.supportsImages = images }
+                if !existing.supportsEffortUserSet, let effort = entry.supportsEffort { existing.supportsEffort = effort }
                 return existing
             }
-            return conn.defaultModel(id: entry.id, fetchedContextLength: entry.contextLength, fetchedImages: entry.supportsImages)
+            return conn.defaultModel(id: entry.id, fetchedContextLength: entry.contextLength, fetchedImages: entry.supportsImages,
+                                     fetchedEffort: entry.supportsEffort)
         }
         merged.append(contentsOf: manual)
         updated.models = merged
@@ -301,6 +317,18 @@ final class ConnectionStore {
         upsert(updated)
         return (fetched.supported.count, fetched.unsupported.count)
     }
+}
+
+/// One entry of a saved list that this version may not be able to read: nil instead of failing the whole list.
+private struct Lenient<Value: Decodable>: Decodable {
+    var value: Value?
+    init(from decoder: Decoder) throws { value = try? Value(from: decoder) }
+}
+
+/// The id of the connection that used to be built in (see `ConnectionStore.migrateBuiltInConnection`). Only the
+/// migration knows it; nothing else treats that connection differently.
+enum LegacyBuiltInConnection {
+    static let id = UUID(uuidString: "5712A7A0-0000-4000-8000-000000000001")!
 }
 
 extension ConnectionStore.ModelFetch {

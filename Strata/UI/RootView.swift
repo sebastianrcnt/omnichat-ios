@@ -43,6 +43,7 @@ struct RootView: View {
         .background(theme.background.ignoresSafeArea())
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .sheet(isPresented: $showSettings) { SettingsView().inAppLinks() }
+        .connectionLinks(closing: $showSettings)
         .inAppLinks()
         .chatLifecycle(selected: $selected)
         .onChange(of: selected?.id) { old, new in chatKey.update(old: old, new: new, active: controller.activeConversationID) }

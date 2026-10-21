@@ -44,28 +44,30 @@ struct ModelAliasTests {
 
     @Test func emptyAliasResets() {
         let store = ConnectionStore(defaults: freshDefaults(), keys: InMemoryKeyStore())
-        store.setModelAlias("Flash", connectionID: Connection.strataID, modelID: "m")
-        #expect(store.displayName(connectionID: Connection.strataID, modelID: "m") == "Flash")
-        store.setModelAlias("   ", connectionID: Connection.strataID, modelID: "m")
-        #expect(store.displayName(connectionID: Connection.strataID, modelID: "m") == "m")
-        #expect(store.connection(Connection.strataID)?.modelAliases.isEmpty == true)
-        store.setModelAlias("Flash", connectionID: Connection.strataID, modelID: "m")
-        store.setModelAlias(nil, connectionID: Connection.strataID, modelID: "m")
-        #expect(store.connection(Connection.strataID)?.alias(forModel: "m") == nil)
-        #expect(store.displayName(connectionID: Connection.strataID, modelID: nil) == nil)
+        store.testGateway()
+        store.setModelAlias("Flash", connectionID: Connection.testID, modelID: "m")
+        #expect(store.displayName(connectionID: Connection.testID, modelID: "m") == "Flash")
+        store.setModelAlias("   ", connectionID: Connection.testID, modelID: "m")
+        #expect(store.displayName(connectionID: Connection.testID, modelID: "m") == "m")
+        #expect(store.connection(Connection.testID)?.modelAliases.isEmpty == true)
+        store.setModelAlias("Flash", connectionID: Connection.testID, modelID: "m")
+        store.setModelAlias(nil, connectionID: Connection.testID, modelID: "m")
+        #expect(store.connection(Connection.testID)?.alias(forModel: "m") == nil)
+        #expect(store.displayName(connectionID: Connection.testID, modelID: nil) == nil)
     }
 
     @Test func aliasesPersistAcrossRelaunchPerConnection() throws {
         let defaults = freshDefaults()
         let keys = InMemoryKeyStore()
         let store = ConnectionStore(defaults: defaults, keys: keys)
+        store.testGateway()
         let other = Connection(name: "Other", baseURL: "http://localhost/v1", models: [ModelInfo(id: "m")])
         store.upsert(other)
-        store.setModelAlias("Strata M", connectionID: Connection.strataID, modelID: "m")
+        store.setModelAlias("Strata M", connectionID: Connection.testID, modelID: "m")
         store.setModelAlias("Other M", connectionID: other.id, modelID: "m")
 
         let reloaded = ConnectionStore(defaults: defaults, keys: keys)
-        #expect(reloaded.displayName(connectionID: Connection.strataID, modelID: "m") == "Strata M")
+        #expect(reloaded.displayName(connectionID: Connection.testID, modelID: "m") == "Strata M")
         #expect(reloaded.displayName(connectionID: other.id, modelID: "m") == "Other M")
     }
 
@@ -101,11 +103,11 @@ struct ModelAliasTests {
 
     @Test func endpointKeepsTheRealModelID() throws {
         let store = ConnectionStore(defaults: freshDefaults(), keys: InMemoryKeyStore())
-        var strata = try #require(store.connection(Connection.strataID))
+        var strata = store.testGateway()
         strata.models = [ModelInfo(id: "qwen3.8-flash-next")]
         store.upsert(strata)
-        store.setModelAlias("Flash", connectionID: Connection.strataID, modelID: "qwen3.8-flash-next")
-        let endpoint = try #require(store.endpoint(connectionID: Connection.strataID, modelID: "qwen3.8-flash-next"))
+        store.setModelAlias("Flash", connectionID: Connection.testID, modelID: "qwen3.8-flash-next")
+        let endpoint = try #require(store.endpoint(connectionID: Connection.testID, modelID: "qwen3.8-flash-next"))
         #expect(endpoint.model.id == "qwen3.8-flash-next")
     }
 
@@ -116,15 +118,15 @@ struct ModelAliasTests {
         let context = container.mainContext
         let defaults = freshDefaults()
         let connections = ConnectionStore(defaults: defaults, keys: InMemoryKeyStore())
-        try connections.setAPIKey("k", for: Connection.strataID)
-        var strata = try #require(connections.connection(Connection.strataID))
+        try connections.setAPIKey("k", for: Connection.testID)
+        var strata = connections.testGateway()
         strata.models = [ModelInfo(id: "qwen3.8-flash-next", supportsTools: true)]
         connections.upsert(strata)
-        connections.setModelAlias(alias, connectionID: Connection.strataID, modelID: "qwen3.8-flash-next")
+        connections.setModelAlias(alias, connectionID: Connection.testID, modelID: "qwen3.8-flash-next")
         let streamer = ProgrammableStreamer([([ChatDelta(content: "ok")], .finish)])
         let controller = ChatController(connections: connections, settings: AppSettings(defaults: defaults),
                                         streamer: streamer, tools: FakeTools())
-        let conversation = Conversation(connectionID: Connection.strataID, modelID: "qwen3.8-flash-next", effort: .medium)
+        let conversation = Conversation(connectionID: Connection.testID, modelID: "qwen3.8-flash-next", effort: .medium)
         context.insert(conversation)
         controller.send(text: "hi", images: [], conversation: conversation, context: context)
         await controller.waitUntilIdle()

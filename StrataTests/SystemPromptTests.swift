@@ -35,7 +35,7 @@ struct SystemPromptMigrationTests {
     private func defaults(prompts: [String?]) throws -> UserDefaults {
         let d = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
         let list: [[String: Any]] = prompts.enumerated().map { i, p in
-            var c: [String: Any] = ["id": i == 0 ? Connection.strataID.uuidString : UUID().uuidString,
+            var c: [String: Any] = ["id": i == 0 ? Connection.testID.uuidString : UUID().uuidString,
                                     "name": "c\(i)", "baseURL": "https://h/v1"]
             if let p { c["systemPrompt"] = p }
             return c
@@ -87,8 +87,8 @@ struct ConversationPreferencesTests {
                                            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
         let connections = ConnectionStore(defaults: defaults, keys: InMemoryKeyStore())
-        try connections.setAPIKey("k", for: Connection.strataID)
-        var strata = connections.connection(Connection.strataID)!
+        try connections.setAPIKey("k", for: Connection.testID)
+        var strata = connections.testGateway()
         strata.models = [ModelInfo(id: "m", supportsTools: true)]
         connections.upsert(strata)
         let settings = AppSettings(defaults: defaults)
@@ -106,7 +106,7 @@ struct ConversationPreferencesTests {
     }
 
     private func newChat(_ r: Rig) -> Conversation {
-        let c = Conversation(connectionID: Connection.strataID, modelID: "m", effort: .medium)
+        let c = Conversation(connectionID: Connection.testID, modelID: "m", effort: .medium)
         r.context.insert(c)
         return c
     }

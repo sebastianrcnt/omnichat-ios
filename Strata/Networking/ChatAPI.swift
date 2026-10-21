@@ -429,7 +429,7 @@ enum APIError: Error, LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .invalidBaseURL: String(localized: "The base URL is not valid.")
-        case .missingModel: String(localized: "No model available. Add an API key in Settings so models can be fetched, then pick one.")
+        case .missingModel: String(localized: "No model available. Add a connection in Settings, or fetch its models, then pick one.")
         case .missingAPIKey(let name): String(localized: "Add an API key for \(name) in Settings.")
         case .chatGPTSignInRequired(let name): String(localized: "Sign in with ChatGPT for \(name) in Settings.")
         case .openCodeSignInRequired(let name): String(localized: "Sign in with OpenCode, or enter a valid API key, for \(name) in Settings.")

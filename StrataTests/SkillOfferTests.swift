@@ -98,14 +98,14 @@ struct SkillOfferTurnTests {
         let context = container.mainContext
         let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
         let connections = ConnectionStore(defaults: defaults, keys: InMemoryKeyStore())
-        try connections.setAPIKey("k", for: Connection.strataID)
-        var strata = connections.connection(Connection.strataID)!
+        try connections.setAPIKey("k", for: Connection.testID)
+        var strata = connections.testGateway()
         strata.models = [ModelInfo(id: "m", supportsTools: true)]
         connections.upsert(strata)
         let streamer = ProgrammableStreamer(plans)
         let settings = AppSettings(defaults: defaults)
         let controller = ChatController(connections: connections, settings: settings, streamer: streamer, tools: FlakyTools())
-        let conversation = Conversation(connectionID: Connection.strataID, modelID: "m", effort: .medium)
+        let conversation = Conversation(connectionID: Connection.testID, modelID: "m", effort: .medium)
         conversation.titleIsUserSet = true
         conversation.autoRenameDone = true
         context.insert(conversation)

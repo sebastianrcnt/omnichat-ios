@@ -79,6 +79,10 @@ targets:
         LSApplicationQueriesSchemes:
           - nmap
         LSSupportsOpeningDocumentsInPlace: true
+        CFBundleURLTypes:
+          - CFBundleURLName: OpenChat add-connection links
+            CFBundleURLSchemes:
+              - openchat
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
   StrataMac:
@@ -131,6 +135,10 @@ targets:
     info:
       path: StrataMac/Info.plist
       properties:
+        CFBundleURLTypes:
+          - CFBundleURLName: OpenChat add-connection links
+            CFBundleURLSchemes:
+              - openchat
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
   StrataTests:

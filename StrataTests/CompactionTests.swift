@@ -526,14 +526,14 @@ struct CompactionTurnTests {
         let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
         let keys = InMemoryKeyStore()
         let connections = ConnectionStore(defaults: defaults, keys: keys)
-        try connections.setAPIKey("k", for: Connection.strataID)
-        var strata = connections.connection(Connection.strataID)!
+        try connections.setAPIKey("k", for: Connection.testID)
+        var strata = connections.testGateway()
         strata.models = [ModelInfo(id: "m", contextLength: window, supportsTools: true)]
         connections.upsert(strata)
         let streamer = ProgrammableStreamer(plans)
         let controller = ChatController(connections: connections, settings: AppSettings(defaults: defaults),
                                         streamer: streamer, tools: FakeTools())
-        let conversation = Conversation(connectionID: Connection.strataID, modelID: "m", effort: .medium)
+        let conversation = Conversation(connectionID: Connection.testID, modelID: "m", effort: .medium)
         conversation.titleIsUserSet = true // no automatic naming request among the scripted ones
         conversation.autoRenameDone = true
         context.insert(conversation)
