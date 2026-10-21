@@ -20,6 +20,13 @@ protocol BrowserPage: PluginPage {
     /// Takes the focus back from the page if a script focused a field in it while it is hidden (iOS would raise the
     /// keyboard over the app and send the user's typing to the page).
     func releaseFocus()
+    /// Shown in a sheet or a card now.
+    var isOnScreen: Bool { get }
+    /// Parked out of the window after a reply, so WebKit suspends the page (`HiddenWebView.freeze`).
+    var isFrozen: Bool { get }
+    func freeze()
+    /// Back in the window before the page is used.
+    func thaw()
 }
 
 extension BrowserPage {
@@ -30,6 +37,10 @@ extension BrowserPage {
     func snapshotPNG(width: Int) async throws -> Data { throw WebToolError.script("this page can't take screenshots.") }
     func acceptPopups(for duration: Duration) {}
     func releaseFocus() {}
+    var isOnScreen: Bool { false }
+    var isFrozen: Bool { false }
+    func freeze() {}
+    func thaw() {}
 }
 
 extension HiddenWebView: BrowserPage {}
@@ -166,9 +177,14 @@ enum BrowserScript {
     }
 }
 
-/// One browser page per conversation. Calls on it run one at a time (a round may ask for several), and a page left
-/// alone for a while is torn down. While a reply runs, the user can watch the page (`BrowserWatch`), stop the browser
-/// for the rest of the reply, or take the page over: calls wait until they hand it back.
+/// One browser page per conversation. Calls on it run one at a time (a round may ask for several). While a reply runs,
+/// the user can watch the page (`BrowserWatch`), stop the browser for the rest of the reply, or take the page over:
+/// calls wait until they hand it back.
+///
+/// When the reply ends the page is kept, frozen (`HiddenWebView.freeze`: out of the window, so WebKit suspends it), for
+/// the next reply and for the feed's "Open page"; the next call thaws it. A page left alone for `idleLifetime` is torn
+/// down, at most `maxSessions` conversations keep one (a new one closes the least recently used), and a memory warning
+/// closes them all. A closed page's last URL is remembered for "Reopen" (in memory only).
 @MainActor
 @Observable
 final class BrowserSessions {
@@ -178,7 +194,11 @@ final class BrowserSessions {
         return sessions
     }()
 
-    @ObservationIgnored var idleLifetime: Duration = .seconds(600)
+    @ObservationIgnored var idleLifetime: Duration = .seconds(1800)
+    /// The most conversations that keep a page.
+    @ObservationIgnored var maxSessions = 3
+    /// The idle sweep's and the LRU's clock. Test seam.
+    @ObservationIgnored var clock: @MainActor () -> ContinuousClock.Instant = { .now }
     /// Makes the page of a new session. Test seam; by default a hidden web view.
     @ObservationIgnored var makePage: @MainActor () -> any BrowserPage = { HiddenWebView(guardNavigations: true, store: BrowserData.store) }
 
@@ -209,6 +229,12 @@ final class BrowserSessions {
     @ObservationIgnored private var sweeper: Task<Void, Never>?
     /// The session each browser call ran in, by call id: the feed finds the page of a running call's card here.
     private var callSessions: [String: UUID] = [:]
+    /// The conversations that have a page now (observed, for the feed's "Open page").
+    private(set) var openConversations: Set<UUID> = []
+    /// Each conversation's latest browser call: the feed offers its page on the run holding it.
+    private(set) var lastCalls: [UUID: String] = [:]
+    /// Where each closed page was, for "Reopen".
+    private(set) var closedURLs: [UUID: URL] = [:]
     /// Calls without a conversation (tests, the debug hooks) share one session.
     static let defaultKey = UUID(uuidString: "00000000-0000-0000-0000-00000000B0B0")!
 
@@ -216,11 +242,59 @@ final class BrowserSessions {
 
     func session(for conversation: UUID?) -> Session {
         let key = conversation ?? Self.defaultKey
-        if let existing = sessions[key] { existing.lastUsed = .now; return existing }
+        if let existing = sessions[key] { existing.lastUsed = clock(); return existing }
+        makeRoom()
         let created = Session(page: makePage())
+        created.lastUsed = clock()
         sessions[key] = created
+        openConversations.insert(key)
+        closedURLs[key] = nil
         scheduleSweep()
         return created
+    }
+
+    /// Before a new page: over `maxSessions`, the least recently used one that isn't in use or on screen closes.
+    private func makeRoom() {
+        while sessions.count >= maxSessions,
+              let oldest = sessions.filter({ isIdle($0.value) }).min(by: { $0.value.lastUsed < $1.value.lastUsed })?.key {
+            close(oldest)
+        }
+    }
+
+    /// No call runs or waits on it and nobody is looking at it.
+    private func isIdle(_ session: Session) -> Bool {
+        session.busy == 0 && session.tail == nil && !session.hold.isClosed && !session.page.isOnScreen
+    }
+
+    /// The conversation whose latest browser call is one of `callIDs` (a run of the feed).
+    func conversation(lastCallIn callIDs: [String]) -> UUID? {
+        lastCalls.first { callIDs.contains($0.value) }?.key
+    }
+
+    /// The conversation's page, while it has one.
+    func page(of conversation: UUID) -> HiddenWebView? {
+        openConversations.contains(conversation) ? sessions[conversation]?.page as? HiddenWebView : nil
+    }
+
+    /// Where the conversation's closed page was.
+    func closedURL(_ conversation: UUID) -> URL? {
+        openConversations.contains(conversation) ? nil : closedURLs[conversation]
+    }
+
+    /// "Reopen": the conversation's last page, loaded fresh in a new session. Nil when it has a page or none was closed.
+    func reopen(_ conversation: UUID) -> (any BrowserPage)? {
+        guard !openConversations.contains(conversation), let url = closedURLs[conversation] else { return nil }
+        let session = session(for: conversation)
+        session.hasPage = true
+        let page = session.page
+        Task { @MainActor in try? await page.load(url, timeout: FetchTimeouts.current.load) }
+        return page
+    }
+
+    /// The reply's page came back from the user (Open page, Reopen): frozen again unless a reply is using it.
+    func pageReturned(_ conversation: UUID) {
+        guard let session = sessions[conversation], session.busy == 0, session.tail == nil else { return }
+        session.page.freeze()
     }
 
     /// The page a browser call used (nil once its session is closed).
@@ -243,7 +317,10 @@ final class BrowserSessions {
     func run<T: Sendable>(conversation: UUID?, _ operation: @escaping @MainActor @Sendable (Session) async throws -> T) async throws -> T {
         let key = conversation ?? Self.defaultKey
         let session = session(for: conversation)
-        if let callID = ToolContext.callID { callSessions[callID] = key }
+        if let callID = ToolContext.callID {
+            callSessions[callID] = key
+            lastCalls[key] = callID
+        }
         let previous = session.tail
         let id = UUID()
         let task = Task { @MainActor () -> Result<T, Error> in
@@ -256,14 +333,17 @@ final class BrowserSessions {
                 return .failure(error)
             }
             session.busy += 1
-            defer { session.busy -= 1; session.lastUsed = .now }
+            defer { session.busy -= 1; session.lastUsed = self.clock() }
+            session.page.thaw()
             do { return .success(try await operation(session)) } catch { return .failure(error) }
         }
         session.running[id] = { task.cancel() }
-        session.tail = Task { @MainActor in _ = await task.value }
+        let tail = Task { @MainActor in _ = await task.value }
+        session.tail = tail
         let result = await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
         session.running[id] = nil
-        session.lastUsed = .now
+        if session.tail == tail { session.tail = nil } // the last call is done: nothing to wait for
+        session.lastUsed = clock()
         // A call Stop browsing cut short says so, whatever error the cut caused inside it.
         if case .failure = result, session.stopped { throw BrowserStoppedError() }
         return try result.get()
@@ -288,24 +368,47 @@ final class BrowserSessions {
         sessions[conversation]?.hold.open()
     }
 
-    /// The reply ended: Stop browsing applied to it only.
+    /// The reply ended: Stop browsing applied to it only, and the pages are frozen until the next call.
     func turnEnded() {
-        for session in sessions.values { session.stopped = false }
+        for session in sessions.values {
+            session.stopped = false
+            if session.busy == 0 { session.page.freeze() }
+        }
         callSessions = callSessions.filter { sessions[$0.value] != nil }
     }
 
     func close(_ conversation: UUID) {
         guard let session = sessions.removeValue(forKey: conversation) else { return }
         callSessions = callSessions.filter { $0.value != conversation }
+        remember(session, conversation)
         dispose(session)
     }
 
     func closeAll() {
-        for session in sessions.values { dispose(session) }
+        for (key, session) in sessions {
+            remember(session, key)
+            dispose(session)
+        }
         sessions.removeAll()
+        openConversations.removeAll()
         callSessions.removeAll()
         sweeper?.cancel()
         sweeper = nil
+    }
+
+    /// Tears down the pages left alone for `idleLifetime` (by the clock), unless in use or on screen.
+    func sweep() {
+        let now = clock()
+        for (key, session) in sessions where isIdle(session) && now - session.lastUsed >= idleLifetime {
+            close(key)
+        }
+    }
+
+    private func remember(_ session: Session, _ conversation: UUID) {
+        openConversations.remove(conversation)
+        if session.hasPage, let url = session.page.currentURL, url.scheme?.hasPrefix("http") == true {
+            closedURLs[conversation] = url
+        }
     }
 
     private func dispose(_ session: Session) {
@@ -321,11 +424,7 @@ final class BrowserSessions {
             while let self, !Task.isCancelled, !self.sessions.isEmpty {
                 try? await Task.sleep(for: .seconds(60))
                 guard !Task.isCancelled else { return }
-                let now = ContinuousClock.now
-                for (key, session) in self.sessions where session.busy == 0 && !session.hold.isClosed
-                    && !((session.page as? HiddenWebView)?.isOnScreen ?? false) && now - session.lastUsed >= self.idleLifetime {
-                    self.close(key)
-                }
+                self.sweep()
             }
             self?.sweeper = nil
         }
@@ -579,6 +678,9 @@ final class BrowserShowRequests {
         /// The user has the model's page (a failed row's "Open this page" while the reply runs): its calls wait until
         /// the sheet closes.
         case takenOver(conversation: UUID)
+        /// The user browses the model's page after its reply (the feed's "Open page", "Reopen"): touch on, Done or
+        /// Close. Calls of a new reply wait meanwhile; closing freezes the page again.
+        case browse(conversation: UUID)
     }
 
     struct Request: Identifiable {
@@ -656,6 +758,7 @@ struct BrowserShowTool {
                 case .missing(let id):
                     return ToolOutput(text: "Error: no page \"\(id)\" is open. Pages a failed tool kept close a few minutes after the reply that kept them; open the URL again instead.", isError: true)
                 case .kept(let page):
+                    page.thaw() // a page kept by an earlier reply is frozen; it is read after Done
                     let done = await ask(BrowserShowRequests.Request(reason: reason, page: page))
                     let place = Self.place(page)
                     guard done else {

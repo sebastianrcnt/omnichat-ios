@@ -341,14 +341,23 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
             + [browserEval, browserShow, loadSkill, runSkillScript, saveSkill, showPlaces]
     }
 
-    /// The tools of a request: fixed for a given setting and model, so the cached prefix never changes within a chat
-    /// unless the setting or the model does. `view_image` needs a model that reads images.
-    /// `current_location` comes with the browser tools when Settings > Browser > Location is on. The tools without a
-    /// setting come first, so turning one on or off keeps the rest of the prefix.
+    /// The tools for the given switches, web search on (`available(groups:images:)`). `view_image` needs a model that
+    /// reads images; `current_location` comes only with the browser tools here, as in Settings.
     static func available(python: Bool, images: Bool, browser: Bool = false, location: Bool = false) -> [ToolDefinition] {
-        var out = standard + display
-        if python { out += images ? [runPython, viewImage] : [runPython] }
-        if browser { out += Self.browser(images: images) + (location ? [currentLocation] : []) }
+        var groups: Set<ToolGroup> = [.web]
+        if python { groups.insert(.python) }
+        if browser { groups.insert(.browser) }
+        if browser && location { groups.insert(.location) }
+        return available(groups: groups, images: images)
+    }
+
+    /// The tools of a chat's offered groups (`ToolGroup`), always in the same order: the same groups give the same
+    /// bytes, so a chat's cached prefix holds.
+    static func available(groups: Set<ToolGroup>, images: Bool) -> [ToolDefinition] {
+        var out = (groups.contains(.web) ? standard : []) + display
+        if groups.contains(.python) { out += images ? [runPython, viewImage] : [runPython] }
+        if groups.contains(.browser) { out += Self.browser(images: images) }
+        if groups.contains(.location) { out += [currentLocation] }
         return out
     }
 }

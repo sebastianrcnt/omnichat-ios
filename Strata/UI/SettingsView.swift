@@ -443,16 +443,16 @@ private struct ModelAPISection: View {
     }
 }
 
-/// Settings > Browser: the browser tools on or off, and whether they include `current_location`.
+/// Settings > Browser: whether new chats start with the browser tools, and with `current_location`.
 struct BrowserSettingsSection: View {
     @Environment(\.appSettings) private var settings
 
     var body: some View {
         @Bindable var settings = settings
-        GroupedSection(header: "Browser", footer: "The model can open pages in a hidden browser on this device with browser_open, click, type and scroll in them, and run JavaScript with browser_eval. It can't reach your local network. When the model needs you to sign in, it shows you the page; the sign-in is kept for later. Skills teach the model tasks like finding places on Naver; it saves new ones only when you approve.") {
-            SettingsToggleRow(title: "Browser", subtitle: "Let the model browse sites and read data from them.", isOn: $settings.browserEnabled)
+        GroupedSection(header: "Browser", footer: "The model can open pages in a hidden browser on this device with browser_open, click, type and scroll in them, and run JavaScript with browser_eval. It can't reach your local network. When the model needs you to sign in, it shows you the page; the sign-in is kept for later. Skills teach the model tasks like finding places on Naver; it saves new ones only when you approve. These are the defaults for new chats; turn tools on or off in a chat from the + menu.") {
+            SettingsToggleRow(title: "Browser in new chats", subtitle: "Let the model browse sites and read data from them.", isOn: $settings.browserEnabled)
             if settings.browserEnabled {
-                SettingsToggleRow(title: "Location", subtitle: "Let the model ask for your approximate location to find places near you.",
+                SettingsToggleRow(title: "Location in new chats", subtitle: "Let the model ask for your approximate location to find places near you.",
                                   isOn: $settings.locationEnabled)
             }
             NavigationLink { SkillsSettingsView() } label: {
@@ -460,7 +460,6 @@ struct BrowserSettingsSection: View {
             }
             .buttonStyle(.plain)
         }
-        .onChange(of: settings.browserEnabled) { _, on in if !on { BrowserSessions.shared.closeAll() } }
     }
 }
 
@@ -498,7 +497,7 @@ struct BrowsingDataSection: View {
     }
 }
 
-/// Settings > Python: on/off, the time limit of one run, and the packages downloaded so far.
+/// Settings > Python: on in new chats or not, the time limit of one run, and the packages downloaded so far.
 struct PythonSettingsSection: View {
     @Environment(\.theme) private var theme
     @Environment(\.appSettings) private var settings
@@ -506,21 +505,19 @@ struct PythonSettingsSection: View {
 
     var body: some View {
         @Bindable var settings = settings
-        GroupedSection(header: "Python", footer: "The model can run Python code on this device with run_python (Pyodide \(Pyodide.version)). Packages such as numpy, sympy and pandas are downloaded the first time they are used and kept for later.") {
-            SettingsToggleRow(title: "Python", subtitle: "Let the model run code and make charts.", isOn: $settings.pythonEnabled)
-            if settings.pythonEnabled {
-                HStack {
-                    Text("Python time limit").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
-                    Spacer()
-                    Picker("Python time limit", selection: $settings.pythonTimeLimit) {
-                        ForEach(PythonSettings.timeLimitOptions, id: \.self) { Text(PythonSettings.label(seconds: $0)).tag($0) }
-                    }
-                    .labelsHidden()
-                    .tint(theme.textSecondary)
+        GroupedSection(header: "Python", footer: "The model can run Python code on this device with run_python (Pyodide \(Pyodide.version)). Packages such as numpy, sympy and pandas are downloaded the first time they are used and kept for later. A chat can turn Python on or off from the + menu.") {
+            SettingsToggleRow(title: "Python in new chats", subtitle: "Let the model run code and make charts.", isOn: $settings.pythonEnabled)
+            HStack {
+                Text("Python time limit").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
+                Spacer()
+                Picker("Python time limit", selection: $settings.pythonTimeLimit) {
+                    ForEach(PythonSettings.timeLimitOptions, id: \.self) { Text(PythonSettings.label(seconds: $0)).tag($0) }
                 }
-                .padding(.horizontal, DS.Spacing.lg)
-                .padding(.vertical, DS.Spacing.sm)
+                .labelsHidden()
+                .tint(theme.textSecondary)
             }
+            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.vertical, DS.Spacing.sm)
             HStack {
                 VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                     Text("Downloaded packages").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
@@ -535,7 +532,6 @@ struct PythonSettingsSection: View {
             .padding(.horizontal, DS.Spacing.lg)
             .padding(.vertical, DS.Spacing.sm)
         }
-        .onChange(of: settings.pythonEnabled) { _, on in if !on { PythonRuntime.shared.dispose() } }
         .task { await measure() }
     }
 
@@ -677,7 +673,9 @@ private struct ToolSettingsView: View {
         @Bindable var settings = settings
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                GroupedSection(header: "Web tools", footer: "Auto searches Naver for Korean queries and Bing otherwise. If the engine fails or finds nothing, the next one is tried. web_fetch returns up to the fetch length per call; longer pages continue in further calls.") {
+                GroupedSection(header: "Web tools", footer: "Auto searches Naver for Korean queries and Bing otherwise. If the engine fails or finds nothing, the next one is tried. web_fetch returns up to the fetch length per call; longer pages continue in further calls. A chat can turn web search on or off from the + menu.") {
+                    SettingsToggleRow(title: "Web search in new chats", subtitle: "Let the model search the web and read pages.",
+                                      isOn: $settings.webSearchEnabled)
                     HStack {
                         Text("Search engine").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
                         Spacer()

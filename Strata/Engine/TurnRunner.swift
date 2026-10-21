@@ -69,12 +69,21 @@ struct TurnRunner: Sendable {
     var continueOnEmptyAnswer = false
     /// Told about each request actually sent (not the replay of one restored from a checkpoint).
     var requestLog: (@MainActor @Sendable (RequestLogEvent) -> Void)?
-    /// Offer `run_python` (and `view_image` to a model that reads images). Settings > Python; off in tests by default.
-    var python = false
-    /// Offer the browser tools and skills. Settings > Browser; off in tests by default.
-    var browser = false
-    /// Offer `current_location` with the browser tools.
-    var location = false
+    /// The tool groups the requests offer (the chat's frozen set, `Conversation.offeredTools`). Web search only by
+    /// default in tests.
+    var offered: Set<ToolGroup> = [.web]
+    /// The chat's groups turned off now: calls to their tools are refused (`OfferedTools`), though they stay offered.
+    var switches: ChatToolSwitches?
+    /// Offer `run_python` (and `view_image` to a model that reads images).
+    var python: Bool {
+        get { offered.contains(.python) }
+        set { if newValue { offered.insert(.python) } else { offered.remove(.python) } }
+    }
+    /// Offer the browser tools and skills.
+    var browser: Bool {
+        get { offered.contains(.browser) }
+        set { if newValue { offered.insert(.browser) } else { offered.remove(.browser) } }
+    }
 
     /// - Parameter messages: the API history up to and including the new user message.
     @MainActor
@@ -95,7 +104,7 @@ struct TurnRunner: Sendable {
         var finalReasoning = ""
         let toolsEnabled = endpoint.model.supportsTools
         let readsImages = endpoint.model.supportsImages
-        let toolList = ToolDefinition.available(python: python, images: readsImages, browser: browser, location: location)
+        let toolList = ToolDefinition.available(groups: offered, images: readsImages)
 
         var meter = compaction?.meter ?? ContextMeter()
         if restored != nil { meter = .estimate(messages) }
@@ -272,7 +281,7 @@ struct TurnRunner: Sendable {
 
             try Task.checkCancellation()
             try appendReady() // results restored from a checkpoint
-            let offered = OfferedTools(base: tools, names: Set(toolList.map(\.function.name)))
+            let offered = OfferedTools(base: tools, names: Set(toolList.map(\.function.name)), switches: switches)
             try await ToolRound.execute(calls, indices: toRun, tools: offered, limit: maxConcurrentTools) { index, out in
                 finished[index] = out
                 checkpoint.pendingResults = (checkpoint.pendingResults ?? []) + [RawToolResult(callID: calls[index].id, output: out)]
@@ -297,16 +306,22 @@ struct TurnRunner: Sendable {
     }
 }
 
-/// Runs only the tools the request offered. A model can name a tool that is off (Python, the browser or location
-/// turned off in Settings) anyway; the setting has to hold at execution, not only in the tool list.
+/// Runs only the tools the request offered and the chat has on. A model can name a tool that is not offered anyway,
+/// and a group the user turned off in the chat stays offered (for the cached prefix): the switch has to hold at
+/// execution, not only in the tool list. Skills (`load_skill`, `run_skill_script`, `save_skill`) are browser tools,
+/// plugins (`run_plugin`) are web search's.
 struct OfferedTools: ToolExecuting {
     let base: any ToolExecuting
     let names: Set<String>
+    var switches: ChatToolSwitches?
     var usesWebKit: Bool { base.usesWebKit }
 
     func execute(name: String, arguments: String) async -> ToolOutput {
         guard names.contains(name) else {
             return ToolOutput(text: "Error: the tool \(name) is not available in this chat.", isError: true)
+        }
+        if let switches, let group = ToolGroup.group(of: name), await switches.off.contains(group) {
+            return ToolOutput(text: group.refusal, isError: true)
         }
         return await base.execute(name: name, arguments: arguments)
     }

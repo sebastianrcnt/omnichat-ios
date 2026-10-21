@@ -21,7 +21,7 @@ struct BrowserShowSheet: View {
     private var session: UUID? {
         switch request.mode {
         case .handover: nil
-        case .watch(let conversation), .takenOver(let conversation): conversation
+        case .watch(let conversation), .takenOver(let conversation), .browse(let conversation): conversation
         }
     }
 
@@ -35,7 +35,7 @@ struct BrowserShowSheet: View {
         switch request.mode {
         case .handover: false
         case .watch: tookOver
-        case .takenOver: true
+        case .takenOver, .browse: true
         }
     }
 
@@ -90,7 +90,10 @@ struct BrowserShowSheet: View {
             }
         }
         // However the sheet goes, the model gets its page back.
-        .onDisappear { if holdsSession, let session { BrowserSessions.shared.handBack(session) } }
+        .onDisappear {
+            if holdsSession, let session { BrowserSessions.shared.handBack(session) }
+            if case .browse(let conversation) = request.mode { BrowserSessions.shared.pageReturned(conversation) }
+        }
         // A swipe down would tell the model "not done" in the middle of a sign-in: closing is the X, finishing is Done.
         .interactiveDismissDisabled(!watching)
         #if os(macOS)
@@ -100,6 +103,7 @@ struct BrowserShowSheet: View {
 
     /// What the user is asked to do, above the page.
     private var note: String? {
+        if case .browse = request.mode { return nil }
         if holdsSession { return String(localized: "Strata waits while you use the page. Tap Done to hand it back.") }
         return request.reason.isEmpty ? nil : request.reason
     }
@@ -154,6 +158,18 @@ enum PageHandover {
     /// The Watch sheet for the model's page of `conversation`.
     static func watch(_ page: HiddenWebView, conversation: UUID) {
         BrowserShowRequests.shared.present(.init(reason: "", page: page, mode: .watch(conversation: conversation)))
+    }
+
+    /// The feed's "Open page" after a reply: the conversation's (frozen) page, to browse; Done freezes it again.
+    static func browse(_ page: HiddenWebView, conversation: UUID) {
+        BrowserSessions.shared.takeOver(conversation)
+        BrowserShowRequests.shared.present(.init(reason: "", page: page, mode: .browse(conversation: conversation)))
+    }
+
+    /// "Page closed · Reopen": the conversation's last URL, loaded fresh in a new session, to browse.
+    static func reopen(_ conversation: UUID) {
+        guard let page = BrowserSessions.shared.reopen(conversation) as? HiddenWebView else { return }
+        browse(page, conversation: conversation)
     }
 
     /// A failed row's "Open this page". Nothing waits for it; a model's page is taken over while it is open, so the

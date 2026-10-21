@@ -86,6 +86,7 @@ final class AppSettings {
     nonisolated static let userPreferencesKey = "userPreferences"
     nonisolated static let browserEnabledKey = "browserTools"
     nonisolated static let locationEnabledKey = "locationTool"
+    nonisolated static let webSearchEnabledKey = "webSearchTool"
 
     private let defaults: UserDefaults
 
@@ -132,13 +133,16 @@ final class AppSettings {
     var userPreferences: String { didSet { defaults.set(userPreferences, forKey: Self.userPreferencesKey) } }
     /// Site plugins the model may run (all off until turned on).
     var enabledPlugins: Set<String> { didSet { defaults.set(enabledPlugins.sorted(), forKey: Self.enabledPluginsKey) } }
-    /// Offer `run_python` (on by default). `PythonSettings.isEnabled` reads the same key.
+    /// The tool switches below are the defaults for new chats; each chat has its own (`ToolGroup`, the composer's "+"
+    /// menu). Web search (`web_search`, `web_fetch`, plugins) on by default.
+    var webSearchEnabled: Bool { didSet { defaults.set(webSearchEnabled, forKey: Self.webSearchEnabledKey) } }
+    /// `run_python` in new chats (on by default).
     var pythonEnabled: Bool { didSet { defaults.set(pythonEnabled, forKey: PythonSettings.enabledKey) } }
     /// Seconds one Python run may take (`PythonSettings.timeLimitSeconds` reads the same key).
     var pythonTimeLimit: Int { didSet { defaults.set(pythonTimeLimit, forKey: PythonSettings.timeLimitKey) } }
-    /// Offer the browser tools (`browser_open`, `browser_eval`) and skills (on by default).
+    /// The browser tools (`browser_open`, `browser_eval`) and skills in new chats (on by default).
     var browserEnabled: Bool { didSet { defaults.set(browserEnabled, forKey: Self.browserEnabledKey) } }
-    /// Offer `current_location` with the browser tools (on by default; the system asks for permission on first use).
+    /// `current_location` in new chats, with the browser tools (on by default; the system asks for permission on first use).
     var locationEnabled: Bool { didSet { defaults.set(locationEnabled, forKey: Self.locationEnabledKey) } }
     /// A soft sound while web tools run in the background, which keeps their pages running (`BackgroundLoadingSound`
     /// reads the key). On by default.
@@ -174,6 +178,7 @@ final class AppSettings {
         thinkingLines = Self.thinkingLineOptions.contains(lines) ? lines : Self.defaultThinkingLines
         translateThinking = defaults.bool(forKey: "translateThinking")
         notifyReplies = defaults.object(forKey: "notifyReplies") as? Bool ?? true
+        webSearchEnabled = defaults.object(forKey: Self.webSearchEnabledKey) == nil ? true : defaults.bool(forKey: Self.webSearchEnabledKey)
         pythonEnabled = defaults.object(forKey: PythonSettings.enabledKey) == nil ? true : defaults.bool(forKey: PythonSettings.enabledKey)
         let limit = defaults.integer(forKey: PythonSettings.timeLimitKey)
         pythonTimeLimit = PythonSettings.timeLimitOptions.contains(limit) ? limit : PythonSettings.defaultTimeLimit
@@ -194,6 +199,16 @@ final class AppSettings {
     var accent: Color {
         get { Color(hex: accentHex) }
         set { accentHex = newValue.hexString }
+    }
+
+    /// The tool switches a new chat starts with. Location comes with the browser, as Settings shows it.
+    var defaultToolGroups: Set<ToolGroup> {
+        var groups: Set<ToolGroup> = []
+        if webSearchEnabled { groups.insert(.web) }
+        if pythonEnabled { groups.insert(.python) }
+        if browserEnabled { groups.insert(.browser) }
+        if browserEnabled && locationEnabled { groups.insert(.location) }
+        return groups
     }
 
     var lastEffort: Effort {

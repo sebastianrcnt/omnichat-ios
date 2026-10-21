@@ -164,6 +164,14 @@ struct ComposerAttachment: Identifiable, Equatable {
     var thumbnail: Data?
 }
 
+/// A tool switch in the composer's "+" menu (the chat's own, or a new chat's defaults).
+struct ComposerToolSwitch: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let systemImage: String
+    var isOn: Bool
+}
+
 /// Floating glass composer. Idle (empty, not focused) it is a one-line pill: plus, the placeholder, and the microphone
 /// (stop while a reply runs). Focused or holding a draft it grows to two rows: the text on top, then plus, the settings
 /// accessory (the model and effort gauge), the microphone and send. On a Mac it always shows both rows: there is room,
@@ -181,6 +189,9 @@ struct ComposerBar<Accessory: View>: View {
     var canSend: Bool
     var plusDimmed = false
     var onAttach: () -> Void
+    /// With switches, plus is a menu: Add photos, then a toggle per tool group. Without, it adds photos at once.
+    var toolSwitches: [ComposerToolSwitch] = []
+    var onToolSwitch: (ComposerToolSwitch, Bool) -> Void = { _, _ in }
     var onRemoveAttachment: (UUID) -> Void = { _ in }
     /// Set while a sent message is being edited: shows the "Editing message" bar.
     var onCancelEdit: (() -> Void)?
@@ -489,11 +500,46 @@ struct ComposerBar<Accessory: View>: View {
         #endif
     }
 
+    @ViewBuilder
     private var plusButton: some View {
-        GlassIconButton(systemName: "plus", label: "Add photo", diameter: DS.IconSize.compactControlDiameter,
-                        iconSize: DS.IconSize.composerIcon, flat: true, action: onAttach)
-            .opacity(plusDimmed ? 0.45 : 1)
-            .matchedGeometryEffect(id: "plus", in: controls)
+        if toolSwitches.isEmpty {
+            GlassIconButton(systemName: "plus", label: "Add photo", diameter: DS.IconSize.compactControlDiameter,
+                            iconSize: DS.IconSize.composerIcon, flat: true, action: onAttach)
+                .opacity(plusDimmed ? 0.45 : 1)
+                .matchedGeometryEffect(id: "plus", in: controls)
+        } else {
+            plusMenu.matchedGeometryEffect(id: "plus", in: controls)
+        }
+    }
+
+    /// Add photos, then the chat's tools as toggles; a toggle leaves the menu open, so several can be flipped.
+    private var plusMenu: some View {
+        let d = DS.IconSize.compactControlDiameter
+        return Menu {
+            Button("Add photos", systemImage: "photo.on.rectangle", action: onAttach)
+            Section("Tools in this chat") {
+                ForEach(toolSwitches) { item in
+                    Toggle(isOn: Binding(get: { item.isOn }, set: { onToolSwitch(item, $0) })) {
+                        Label(item.title, systemImage: item.systemImage)
+                    }
+                    #if os(iOS)
+                    .menuActionDismissBehavior(.disabled)
+                    #endif
+                }
+            }
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: DS.IconSize.composerIcon, weight: .medium))
+                .frame(width: d, height: d)
+                .modifier(ControlSurface(flat: true))
+                .contentShape(Circle().inset(by: -max(0, (DS.IconSize.minHitTarget - d) / 2)))
+        }
+        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Add photos and tools"))
+        #if os(macOS)
+        .help(Text("Add photos, or turn tools on or off for this chat"))
+        #endif
     }
 
     @ViewBuilder
@@ -545,7 +591,9 @@ private struct ComposerPreview: View {
     var body: some View {
         VStack {
             Spacer()
-            ComposerBar(text: $text, isStreaming: streaming, canSend: true, onAttach: {}, onSend: {}, onStop: {},
+            ComposerBar(text: $text, isStreaming: streaming, canSend: true, onAttach: {},
+                        toolSwitches: ToolGroup.allCases.map { ComposerToolSwitch(id: $0.rawValue, title: $0.title, systemImage: $0.systemImage, isOn: $0 != .python) },
+                        onSend: {}, onStop: {},
                         accessory: {
                             ModelSettingsButton(effortFraction: 0.6, valueDescription: "Medium", action: {}) {
                                 Button("Low") {}
