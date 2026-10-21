@@ -13,6 +13,7 @@ struct StrataMacApp: App {
         #if DEBUG
         DebugHooks.runKeychainSelfTest()
         DebugHooks.runWebSelfTest()
+        DebugHooks.runVideoSelfTest()
         MacKeyTest.runIfRequested()
         #endif
         MemoryPurge.install()

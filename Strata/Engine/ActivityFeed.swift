@@ -76,6 +76,8 @@ struct FeedCall: Equatable, Sendable {
     var failure: FetchFailure?
     /// The plugin a `run_plugin` call ran (its row is the plugin's page, titled with the plugin's name).
     var plugin: String?
+    /// A `video_transcript` call: a read whose row is the video, in a "Read transcript" card.
+    var transcript = false
     /// The tool, when it is not a search or a page read: `run_python` (its own card with code and output),
     /// `view_image`, or a browser tool (`ToolNames.hasOwnCard`).
     var tool: String?
@@ -105,6 +107,7 @@ struct FeedCall: Equatable, Sendable {
                   thin: record.name == ToolNames.webFetch && record.isThinPage)
         if record.isError { failure = FetchFailure(errorText: record.result) }
         if record.name == ToolNames.runPlugin { plugin = PluginCall.name(in: record.arguments) }
+        transcript = ToolNames.readsTranscript(record.name)
         if ToolNames.hasOwnCard(record.name) {
             tool = record.name
             output = record.result
@@ -118,6 +121,7 @@ struct FeedCall: Equatable, Sendable {
     init(pending: PendingToolCall) {
         self.init(id: pending.id, isSearch: pending.name == ToolNames.webSearch, argument: pending.primaryArgument, status: .running)
         plugin = pending.plugin
+        transcript = ToolNames.readsTranscript(pending.name)
         if ToolNames.hasOwnCard(pending.name) { tool = pending.name }
     }
 
@@ -199,11 +203,12 @@ enum PythonFailure: Equatable, Sendable {
 
 /// Why a page could not be read, from the tool's error text, for a short label on the row.
 enum FetchFailure: Equatable, Sendable {
-    case timedOut, blocked, certificate, noText, failed
+    case timedOut, blocked, certificate, noText, noCaptions, failed
 
     init(errorText: String) {
         let t = errorText.lowercased()
-        if t.contains("timed out") || t.contains("took too long") { self = .timedOut }
+        if t.contains("has no captions") { self = .noCaptions }
+        else if t.contains("timed out") || t.contains("took too long") { self = .timedOut }
         else if t.contains("certificate") { self = .certificate }
         else if t.contains("no readable text") { self = .noText }
         else if ["blocked", "not allowed", "challenge", "captcha", "robot check", "403", "forbidden", "denied", "private"].contains(where: t.contains) {
@@ -217,6 +222,7 @@ enum FetchFailure: Equatable, Sendable {
         case .blocked: String(localized: "Blocked")
         case .certificate: String(localized: "Bad certificate")
         case .noText: String(localized: "No text")
+        case .noCaptions: String(localized: "No captions")
         case .failed: String(localized: "Failed")
         }
     }
@@ -227,6 +233,8 @@ struct FeedCard: Identifiable, Equatable, Sendable {
         case search(query: String)
         /// Pages read: one card per run of consecutive reads, wherever the links came from.
         case pages
+        /// Video transcripts read (`video_transcript`), like `.pages`: a run of consecutive ones, a row per video.
+        case transcripts
         /// One `run_python` call.
         case python(code: String)
         /// One `view_image` call.
@@ -252,7 +260,7 @@ struct FeedCard: Identifiable, Equatable, Sendable {
     var isRunning = false
     var isError = false
     var results: [FeedRow] = []
-    /// The pages of a `.pages` card.
+    /// The pages of a `.pages` card (the videos of a `.transcripts` one).
     var extras: [FeedRow] = []
     /// A `.python` card's output and figures, a `.image` card's image, and why either failed.
     var output = ""
@@ -298,10 +306,10 @@ enum ActivityFeed {
     /// The cards for a turn's calls, in call order.
     static func cards(calls: [FeedCall], sources: [Int: SourceInfo]) -> [FeedCard] {
         var cards: [FeedCard] = []
-        var readRun = false // the previous call was a read
+        var readRun: FeedCard.Kind? // the previous call was a read of this kind
         for (order, call) in calls.enumerated() {
             if let tool = call.tool {
-                readRun = false
+                readRun = nil
                 let kind: FeedCard.Kind = switch tool {
                 case ToolNames.runPython: .python(code: call.argument)
                 case ToolNames.browserOpen: .browser(url: call.argument)
@@ -323,7 +331,7 @@ enum ActivityFeed {
                 }
                 cards.append(card)
             } else if call.isSearch {
-                readRun = false
+                readRun = nil
                 var card = FeedCard(id: call.id, kind: .search(query: call.argument), engine: call.engine,
                                     isRunning: call.status == .running, isError: call.status == .failed)
                 var seen = Set<String>()
@@ -335,8 +343,9 @@ enum ActivityFeed {
                 }
                 cards.append(card)
             } else {
-                attach(fetch: call, order: order, to: &cards, continuingRun: readRun, sources: sources)
-                readRun = true
+                let kind: FeedCard.Kind = call.transcript ? .transcripts : .pages
+                attach(fetch: call, kind: kind, order: order, to: &cards, continuingRun: readRun == kind, sources: sources)
+                readRun = kind
             }
         }
         return cards
@@ -350,16 +359,16 @@ enum ActivityFeed {
         }
     }
 
-    /// Adds a read to the feed's "Read pages" card: one card per run of consecutive reads (a parallel batch is one run),
-    /// in call order, so the feed only grows at the bottom and search cards never change. Reading the same page again
-    /// within the run (a retry, or reading on) updates its row.
-    private static func attach(fetch call: FeedCall, order: Int, to cards: inout [FeedCard], continuingRun: Bool,
+    /// Adds a read to the feed's "Read pages" card (`kind`; "Read transcript" for videos): one card per run of
+    /// consecutive reads (a parallel batch is one run), in call order, so the feed only grows at the bottom and search
+    /// cards never change. Reading the same page again within the run (a retry, or reading on) updates its row.
+    private static func attach(fetch call: FeedCall, kind: FeedCard.Kind, order: Int, to cards: inout [FeedCard], continuingRun: Bool,
                                sources: [Int: SourceInfo]) {
         let page = call.sourceIDs.first.flatMap { sources[$0] }
         var keys = [FeedURL.key(call.argument)]
         if let page { keys.append(FeedURL.key(page.url)) } // the page's own URL, after redirects
         let state = readState(call)
-        if continuingRun, let c = cards.indices.last, cards[c].kind == .pages,
+        if continuingRun, let c = cards.indices.last, cards[c].kind == kind,
            let r = cards[c].extras.firstIndex(where: { keys.contains($0.id) }) {
             cards[c].extras[r].read = cards[c].extras[r].read.map { $0.merged(with: state) } ?? state
             cards[c].extras[r].failure = cards[c].extras[r].read == .failed ? call.failure : nil
@@ -374,7 +383,9 @@ enum ActivityFeed {
         if let plugin = call.plugin, !plugin.isEmpty { title = page.map { $0.title.isEmpty || $0.title == plugin ? plugin : plugin + " · " + $0.title } ?? plugin }
         let row = FeedRow(id: keys[0], title: title, host: host, url: url,
                           read: state, readOrder: order, failure: state == .failed ? call.failure : nil, callID: call.id)
-        if !continuingRun || cards.last?.kind != .pages { cards.append(FeedCard(id: "pages-" + call.id, kind: .pages)) }
+        if !continuingRun || cards.last?.kind != kind {
+            cards.append(FeedCard(id: (kind == .transcripts ? "transcripts-" : "pages-") + call.id, kind: kind))
+        }
         cards[cards.count - 1].extras.append(row)
     }
 }
