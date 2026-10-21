@@ -38,6 +38,7 @@ flows through `DSTheme(accent:)`; `accentOnTint` is the accent re-balanced to re
 | `CompactionViews.swift` | `CompactionDivider`, `CompactionStatusRow`, `CompactionNotesSheet` |
 | `Messages.swift` (translation) | `TranslationBanner` ("Translated · Show original"), translate action in `MessageActionBar`, long-press menu on translatable answers; logic in `Translation/` |
 | `Sheets.swift` | `SheetScaffold`, `GroupedSection`, `SettingsRow`, `SettingsToggleRow`, `SettingsFieldRow`, `UsageCard` |
+| `ArtifactGalleryViews.swift` | `ArtifactThumbnail` (cached page snapshot, placeholder while rendering), `ArtifactGridCard`, `ArtifactListRow`; thumbnails come from `Tools/ArtifactThumbnails.swift`, the screen is `UI/ArtifactsView.swift` |
 
 Streaming Markdown rendering lives in `Rendering/StreamingMarkdown` (see its README); the design system
 only styles it.

@@ -98,12 +98,17 @@ struct SidebarView: View {
             try? context.save()
             renaming = nil
         }
-        .sheet(isPresented: $showArtifacts) {
-            ArtifactsView { chat in
-                selected = chat
-                close()
-            }
+        .artifactGallery(isPresented: $showArtifacts) { chat in
+            selected = chat
+            close()
         }
+        #if DEBUG
+        .task {
+            guard DebugHooks.openSheet == "artifacts" else { return }
+            if DebugHooks.value("StrataSeedArtifacts") != nil { DebugHooks.seedArtifacts(context: context) }
+            showArtifacts = true
+        }
+        #endif
     }
 
     /// Opens the list of every chat's artifacts.

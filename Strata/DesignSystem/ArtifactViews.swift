@@ -94,13 +94,24 @@ struct ArtifactBadge: View {
 // MARK: - Viewer
 
 /// An artifact full screen (a sheet on a Mac): its title, Share, Done, and the page. It always shows the newest version.
-/// Opened from the list of all artifacts, it also offers to go to the chat that made it.
+/// Opened from the gallery of all artifacts, it also offers to go to the chat that made it, and a swipe across its bar
+/// (or ⌘[ and ⌘]) moves to the artifact before or after it in the gallery.
 struct ArtifactViewer: View {
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
     let ref: ArtifactRef
     var store: ArtifactStore = .shared
     var onGoToChat: (() -> Void)?
+    var paging: Paging?
+
+    /// Where the artifact is in the gallery's order, and how to move from it.
+    struct Paging {
+        /// 1-based.
+        var position: Int
+        var count: Int
+        var previous: (() -> Void)?
+        var next: (() -> Void)?
+    }
 
     private enum Content { case loading, page(Artifact, String, WKContentRuleList), missing, unsafe }
     @State private var content = Content.loading
@@ -135,6 +146,17 @@ struct ArtifactViewer: View {
         .frame(minWidth: 640, idealWidth: 900, minHeight: 520, idealHeight: 720)
         .background { Button("Close") { dismiss() }.keyboardShortcut(.cancelAction).opacity(0).accessibilityHidden(true) }
         #endif
+        .background {
+            if let paging {
+                Group {
+                    Button("Previous Artifact") { paging.previous?() }.keyboardShortcut("[", modifiers: .command)
+                        .disabled(paging.previous == nil)
+                    Button("Next Artifact") { paging.next?() }.keyboardShortcut("]", modifiers: .command)
+                        .disabled(paging.next == nil)
+                }
+                .opacity(0).accessibilityHidden(true)
+            }
+        }
         .inAppLinks()
     }
 
@@ -150,6 +172,10 @@ struct ArtifactViewer: View {
                     let version = artifact?.version ?? ref.version
                     if version > 1 {
                         Text("Version \(version)").font(DS.Typography.uiCaption).foregroundStyle(theme.textSecondary)
+                    }
+                    if let paging {
+                        Text("\(paging.position) of \(paging.count)").font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
+                            .monospacedDigit()
                     }
                 }
             }
@@ -178,6 +204,17 @@ struct ArtifactViewer: View {
         }
         .padding(.horizontal, DS.Spacing.lg)
         .padding(.vertical, DS.Spacing.md)
+        .contentShape(Rectangle())
+        // Only the bar pages: the page below keeps every gesture of its own (sliders, canvases, horizontal scrolling).
+        .gesture(DragGesture(minimumDistance: 20).onEnded { drag in
+            guard let paging, abs(drag.translation.width) > 50, abs(drag.translation.width) > abs(drag.translation.height) * 1.5
+            else { return }
+            if drag.translation.width < 0 { paging.next?() } else { paging.previous?() }
+        }, isEnabled: paging != nil)
+        .accessibilityActions {
+            if let next = paging?.next { Button("Next Artifact", action: next) }
+            if let previous = paging?.previous { Button("Previous Artifact", action: previous) }
+        }
     }
 
     private func notice(_ text: LocalizedStringKey) -> some View {
@@ -193,14 +230,29 @@ struct ArtifactViewer: View {
 /// The artifact as an `.html` file named after its title, for Share.
 struct ArtifactFile: Transferable {
     let title: String
-    let html: String
+    /// The page, read when it is shared (so a menu can offer Share without reading every artifact up front).
+    private let load: @Sendable () -> String?
+
+    init(title: String, html: String) {
+        self.title = title
+        load = { html }
+    }
+
+    /// The stored artifact, read from `store` when shared.
+    init(entry: ArtifactStore.Entry, store: ArtifactStore = .shared) {
+        title = entry.artifact.title
+        load = { store.html(id: entry.artifact.id, conversationID: entry.conversationID) }
+    }
+
+    var html: String? { load() }
 
     static var transferRepresentation: some TransferRepresentation {
         FileRepresentation(exportedContentType: .html) { file in
+            guard let html = file.html else { throw CocoaError(.fileNoSuchFile) }
             let dir = FileManager.default.temporaryDirectory.appendingPathComponent("artifacts", isDirectory: true)
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             let url = dir.appendingPathComponent(file.fileName)
-            try file.html.write(to: url, atomically: true, encoding: .utf8)
+            try html.write(to: url, atomically: true, encoding: .utf8)
             return SentTransferredFile(url)
         }
     }
