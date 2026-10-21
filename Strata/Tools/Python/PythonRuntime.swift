@@ -198,9 +198,9 @@ struct PythonSessionLedger: Sendable, Equatable {
     }
 
     /// Switching chats disposes the interpreter of the one left, unless that chat's reply is still running (`busy`).
-    func shouldDispose(onSwitchTo conversation: UUID?, busy: UUID? = nil) -> Bool {
+    func shouldDispose(onSwitchTo conversation: UUID?, busy: Set<UUID> = []) -> Bool {
         guard let owner else { return false }
-        return owner != conversation && owner != busy
+        return owner != conversation && !busy.contains(owner)
     }
 }
 
@@ -373,8 +373,9 @@ final class PythonRuntime {
 
     private var host: PythonWebHost?
     private(set) var ledger = PythonSessionLedger()
-    private var running = false
-    private var waiters: [(id: UUID, continuation: CheckedContinuation<Bool, Never>)] = []
+    /// One run at a time, from every chat, in order of arrival.
+    private let lock = FairSlots(capacity: 1)
+    private var running: Bool { !lock.holderKeys.isEmpty }
     /// Bumped as each run ends, so a reset scheduled by a cancelled run can't hit the run after it.
     private var runGeneration = 0
     private var idleTimer: Task<Void, Never>?
@@ -407,11 +408,15 @@ final class PythonRuntime {
     var testHost: PythonWebHost? { host }
     var hasInterpreter: Bool { host != nil && ledger.owner != nil }
 
-    /// Runs `code` in the conversation's interpreter.
+    /// Runs `code` in the conversation's interpreter, after the runs ahead of it (other chats' too) are done.
     func run(code: String, conversationID: UUID, limits: PythonLimits = .current, outputLimit: Int = AppSettings.currentFetchLength,
              canView: Bool) async -> ToolOutput {
-        guard await acquire() else { return ToolOutput(text: "Error: cancelled.", isError: true) }
-        defer { release() }
+        await serialized {
+            await self.runNow(code: code, conversationID: conversationID, limits: limits, outputLimit: outputLimit, canView: canView)
+        } ?? ToolOutput(text: "Error: cancelled.", isError: true)
+    }
+
+    private func runNow(code: String, conversationID: UUID, limits: PythonLimits, outputLimit: Int, canView: Bool) async -> ToolOutput {
         if Task.isCancelled { return ToolOutput(text: "Error: cancelled.", isError: true) }
         let generation = runGeneration
         if ledger.claim(conversationID, now: .now) { disposeHost() }
@@ -497,8 +502,9 @@ final class PythonRuntime {
         idleTimer = nil
     }
 
-    /// The chat on screen changed. `busy`: the conversation whose reply is running (its interpreter stays).
-    func conversationDidChange(to conversation: UUID?, busy: UUID? = nil) {
+    /// The chat on screen changed. `busy`: the conversations whose replies are running (the interpreter of one of them
+    /// stays).
+    func conversationDidChange(to conversation: UUID?, busy: Set<UUID> = []) {
         if ledger.shouldDispose(onSwitchTo: conversation, busy: busy) { dispose() }
     }
 
@@ -536,24 +542,19 @@ final class PythonRuntime {
 
     // MARK: One run at a time
 
-    /// Waits for the lock. False when the waiting task was cancelled (a stopped turn doesn't wait out the run ahead).
-    private func acquire() async -> Bool {
-        if !running { running = true; return true }
-        let id = UUID()
-        return await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                if Task.isCancelled { continuation.resume(returning: false) } else { waiters.append((id, continuation)) }
-            }
-        } onCancel: {
-            Task { @MainActor [weak self] in
-                guard let self, let i = self.waiters.firstIndex(where: { $0.id == id }) else { return }
-                self.waiters.remove(at: i).continuation.resume(returning: false)
-            }
+    /// Runs `body` once the runs ahead of it are done, in order of arrival; nil when the waiting task was cancelled (a
+    /// stopped turn doesn't wait out the run ahead). While it waits, its chat says so (`ToolWaits`).
+    func serialized<T>(_ body: () async -> T) async -> T? {
+        let key = UUID()
+        let callID = ToolContext.callID
+        if !lock.admitsNow(key) { ToolWaits.shared.begin(callID, .python) }
+        let admitted = await lock.acquire(key)
+        ToolWaits.shared.end(callID)
+        guard admitted else { return nil }
+        defer {
+            runGeneration += 1
+            lock.release(key)
         }
-    }
-
-    private func release() {
-        runGeneration += 1
-        if waiters.isEmpty { running = false } else { waiters.removeFirst().continuation.resume(returning: true) }
+        return await body()
     }
 }

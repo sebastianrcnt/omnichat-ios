@@ -32,7 +32,7 @@ struct MacRootView: View {
                 .background(theme.background)
         }
         .frame(minWidth: 760, minHeight: 520)
-        .onChange(of: selected?.id) { old, new in chatKey.update(old: old, new: new, active: controller.activeConversationID) }
+        .onChange(of: selected?.id) { old, new in chatKey.update(old: old, new: new, active: new.flatMap { controller.isRunning($0) ? $0 : nil }) }
         .chatLifecycle(selected: $selected)
         .connectionLinks(closing: .constant(false))
         .onAppear {

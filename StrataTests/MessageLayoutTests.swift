@@ -136,21 +136,21 @@ struct MessageLayoutControllerTests {
         context.insert(conversation)
         controller.send(text: "hi", images: [], conversation: conversation, context: context)
 
-        for _ in 0..<400 where controller.pendingCalls.isEmpty { try await Task.sleep(for: .milliseconds(5)) }
+        for _ in 0..<400 where (controller.soleRun?.pendingCalls ?? []).isEmpty { try await Task.sleep(for: .milliseconds(5)) }
         let assistant = try #require(conversation.sortedMessages.last { $0.role == .assistant })
         let render = controller.renderState(for: assistant)
         // The preamble has been folded into a segment and the round's text view is empty: no duplicate.
         #expect(assistant.segments.map(\.kind) == [.text])
         #expect(assistant.segments.first?.text == "Let me search.")
         #expect(!render.markdown.hasContent)
-        #expect(!MessageLayout.answerStarted(isStreaming: controller.isStreaming, pendingCount: controller.pendingCalls.count,
+        #expect(!MessageLayout.answerStarted(isStreaming: controller.isStreaming, pendingCount: (controller.soleRun?.pendingCalls ?? []).count,
                                              hasRoundText: render.markdown.hasContent), "a preamble round is still working")
-        #expect(controller.roundRequested.map(\.id) == ["c1"])
-        let running = FeedCall.ordered(finished: assistant.segments.flatMap(\.calls), requested: controller.roundRequested,
-                                       roundFinished: controller.roundRecords)
+        #expect((controller.soleRun?.roundRequested ?? []).map(\.id) == ["c1"])
+        let running = FeedCall.ordered(finished: assistant.segments.flatMap(\.calls), requested: (controller.soleRun?.roundRequested ?? []),
+                                       roundFinished: (controller.soleRun?.roundRecords ?? []))
         #expect(running.map(\.status) == [.running], "the running search has its card")
         // The preamble stays on screen, as a note above the running round's feed.
-        let liveParts = MessageLayout.parts(segments: assistant.segments, hasLiveCalls: !controller.roundRequested.isEmpty)
+        let liveParts = MessageLayout.parts(segments: assistant.segments, hasLiveCalls: !(controller.soleRun?.roundRequested ?? []).isEmpty)
         #expect(MessageLayout.items(hasThought: false, parts: liveParts, isStreaming: true, isWorking: true, hasAnswer: false)
                 == [.note(0), .feed(0), .working])
 

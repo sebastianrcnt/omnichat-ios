@@ -197,6 +197,14 @@ final class BrowserSessions {
     @ObservationIgnored var idleLifetime: Duration = .seconds(1800)
     /// The most conversations that keep a page.
     @ObservationIgnored var maxSessions = 3
+    /// The most conversations whose browser calls run at once; another chat's call waits for one of them to finish
+    /// (in order of arrival). Below `maxSessions`, so a new page can always close an idle one to make room.
+    static let maxActiveConversations = 2
+    var maxActiveConversations: Int {
+        get { slots.capacity }
+        set { slots.capacity = newValue }
+    }
+    private let slots = FairSlots(capacity: BrowserSessions.maxActiveConversations)
     /// The idle sweep's and the LRU's clock. Test seam.
     @ObservationIgnored var clock: @MainActor () -> ContinuousClock.Instant = { .now }
     /// Makes the page of a new session. Test seam; by default a hidden web view.
@@ -312,8 +320,13 @@ final class BrowserSessions {
 
     func existingSession(_ conversation: UUID) -> Session? { sessions[conversation] }
 
-    /// Runs `operation` on the conversation's page once the calls before it are done, and once the user handed the
-    /// page back if they took it over. After Stop browsing it throws `BrowserStoppedError` instead.
+    /// The conversations whose browser calls run now, and the ones waiting for a slot (tests, diagnostics).
+    var activeConversations: Set<UUID> { slots.holderKeys }
+    var waitingConversations: [UUID] { slots.waitingKeys }
+
+    /// Runs `operation` on the conversation's page once the calls before it are done, once the user handed the page
+    /// back if they took it over, and once a browser slot is free (`maxActiveConversations`). After Stop browsing it
+    /// throws `BrowserStoppedError` instead.
     func run<T: Sendable>(conversation: UUID?, _ operation: @escaping @MainActor @Sendable (Session) async throws -> T) async throws -> T {
         let key = conversation ?? Self.defaultKey
         let session = session(for: conversation)
@@ -323,6 +336,8 @@ final class BrowserSessions {
         }
         let previous = session.tail
         let id = UUID()
+        let slots = slots
+        let callID = ToolContext.callID
         let task = Task { @MainActor () -> Result<T, Error> in
             await previous?.value
             do {
@@ -332,6 +347,13 @@ final class BrowserSessions {
             } catch {
                 return .failure(error)
             }
+            // Two other chats are browsing: wait for one of them, and say so on this chat's live line.
+            if !slots.admitsNow(key) { ToolWaits.shared.begin(callID, .browser) }
+            let admitted = await slots.acquire(key)
+            ToolWaits.shared.end(callID)
+            guard admitted else { return .failure(session.stopped ? BrowserStoppedError() : CancellationError()) }
+            defer { slots.release(key) }
+            guard !session.stopped else { return .failure(BrowserStoppedError()) }
             session.busy += 1
             defer { session.busy -= 1; session.lastUsed = self.clock() }
             session.page.thaw()
@@ -368,9 +390,10 @@ final class BrowserSessions {
         sessions[conversation]?.hold.open()
     }
 
-    /// The reply ended: Stop browsing applied to it only, and the pages are frozen until the next call.
-    func turnEnded() {
-        for session in sessions.values {
+    /// The reply of `conversation` ended: Stop browsing applied to it only, and its page is frozen until the next call.
+    /// Other chats' replies keep their pages as they are. Nil: every reply ended.
+    func turnEnded(conversation: UUID? = nil) {
+        for (key, session) in sessions where conversation == nil || key == conversation {
             session.stopped = false
             if session.busy == 0 { session.page.freeze() }
         }
@@ -689,11 +712,28 @@ final class BrowserShowRequests {
         let reason: String
         let page: HiddenWebView
         var mode: Mode = .handover
+        /// The chat whose reply asked (`browser_show`, a robot check); nil for one the user opened from a chat's feed.
+        var conversationID: UUID? = ToolContext.conversationID
+
+        /// The chat the sheet belongs to: the one that asked, or the one whose page it shows.
+        var owner: UUID? {
+            switch mode {
+            case .handover: conversationID
+            case .watch(let conversation), .takenOver(let conversation), .browse(let conversation): conversation
+            }
+        }
     }
 
     private var queue: [(request: Request, answer: CheckedContinuation<Bool, Never>?)] = []
 
+    /// The oldest request, from any chat.
     var pending: Request? { queue.first?.request }
+
+    /// The sheet the chat shows now: its own oldest request (or one that belongs to no chat). Another chat's request
+    /// waits until that chat is open.
+    func pending(for conversationID: UUID?) -> Request? {
+        queue.first { $0.request.owner == nil || $0.request.owner == conversationID }?.request
+    }
 
     /// Waits until the user taps Done (true) or closes the sheet (false). A cancelled turn closes it.
     func ask(_ request: Request) async -> Bool {
@@ -759,7 +799,7 @@ struct BrowserShowTool {
                     return ToolOutput(text: "Error: no page \"\(id)\" is open. Pages a failed tool kept close a few minutes after the reply that kept them; open the URL again instead.", isError: true)
                 case .kept(let page):
                     page.thaw() // a page kept by an earlier reply is frozen; it is read after Done
-                    let done = await ask(BrowserShowRequests.Request(reason: reason, page: page))
+                    let done = await ask(BrowserShowRequests.Request(reason: reason, page: page, conversationID: conversation))
                     let place = Self.place(page)
                     guard done else {
                         return ToolOutput(text: "The user closed the page without tapping Done. It is now: \(place). Don't show it again unless they ask; use other sources.", isError: true)
@@ -775,7 +815,7 @@ struct BrowserShowTool {
                     guard session.hasPage, let page = session.page as? HiddenWebView else {
                         return ToolOutput(text: "Error: no page is open. Open it with browser_open first, then call browser_show.", isError: true)
                     }
-                    let done = await ask(BrowserShowRequests.Request(reason: reason, page: page))
+                    let done = await ask(BrowserShowRequests.Request(reason: reason, page: page, conversationID: conversation))
                     let place = Self.place(page)
                     if done {
                         return ToolOutput(text: "The user tapped Done. The page is now: \(place). Read it with browser_state or browser_eval, or open the next page with browser_open; a sign-in stays saved for later.")

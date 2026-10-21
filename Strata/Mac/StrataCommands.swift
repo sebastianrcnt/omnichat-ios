@@ -15,12 +15,13 @@ struct StrataCommands: Commands {
                 .keyboardShortcut("f", modifiers: .command)
         }
         CommandMenu("Chat") {
-            Button("Stop Generating") { controller.stop() }
+            // The chat on screen: other chats' replies go on.
+            Button("Stop Generating") { controller.visibleConversationID.map { controller.stop(conversationID: $0) } }
                 .keyboardShortcut(".", modifiers: .command)
-                .disabled(!controller.isStreaming)
+                .disabled(!(controller.visibleConversationID.map(controller.isRunning) ?? false))
             Button("Regenerate Response") { WindowActions.shared.regenerate?() }
                 .keyboardShortcut("r", modifiers: .command)
-                .disabled(controller.isStreaming)
+                .disabled(controller.visibleConversationID.map(controller.isRunning) ?? false)
             Button("Copy Last Answer") { WindowActions.shared.copyLastAnswer?() }
                 .keyboardShortcut("c", modifiers: [.command, .shift])
             Divider()

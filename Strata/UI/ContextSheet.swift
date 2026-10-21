@@ -112,7 +112,7 @@ struct ContextSheet: View {
 
     @ViewBuilder
     private var summarizeButton: some View {
-        let busy = conversation.map { controller.compactingConversationID == $0.id } ?? false
+        let busy = controller.isCompacting(conversation)
         Button {
             if let c = conversation { controller.compactNow(conversation: c, context: context) }
         } label: {
@@ -122,7 +122,7 @@ struct ContextSheet: View {
                 .frame(height: DS.IconSize.controlDiameter)
         }
         .buttonStyle(.glass)
-        .disabled(conversation == nil || controller.isStreaming || (conversation?.activePath.isEmpty ?? true))
+        .disabled(conversation.map { controller.isStreaming($0) } ?? true || (conversation?.activePath.isEmpty ?? true))
     }
 
     private func computeSplit() {
