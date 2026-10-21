@@ -18,6 +18,7 @@ import SwiftData
 ///   -StrataSeedArtifacts 1                         with it: first add three sample chats with artifacts (once)
 ///   -StrataGalleryOpen 1                           with it: open the gallery's second artifact in the viewer
 ///   -StrataActivityGallery 1                       show the activity feed states instead of the app (`ActivityGallery`)
+///   -StrataOpenUIGallery 1...6                     show sample interactive views instead of the app (`OpenUIGallery`)
 ///   -StrataVideoSelfTest 1                         real video_transcript calls, reported to stderr (`runVideoSelfTest`)
 ///   -StrataMultiChatDemo 1                         sample chats shown replying / queued / with an unread reply, and
 ///                                                  the "Reply ready" banner (`ChatController.debugMultiChatDemo`)

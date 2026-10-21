@@ -110,6 +110,8 @@ struct MarkdownBlockView: View, Equatable {
             }
         } else if block.usesInlineRenderer {
             InlineBlockView(block: block, spans: [], isOpen: false)
+        } else if block.kind == .code, OpenUIFence.isOpenUI(blockText: block.text) {
+            OpenUIBlockView(blockText: block.text, blockID: block.id, isClosed: block.isClosed)
         } else if block.kind == .code {
             CodeBlockView(content: CodeBlockContent(blockText: block.text)).equatable()
         } else if block.kind == .thematicBreak {
@@ -341,6 +343,9 @@ struct OpenBlockView: View {
 
     var body: some View {
         switch block.kind {
+        case .code where OpenUIFence.isOpenUI(blockText: block.text):
+            // An interactive view builds up line by line (`OpenUIBlockView`).
+            OpenUIBlockView(blockText: block.text, blockID: block.id, isClosed: block.isClosed)
         case .code:
             // Streaming: capped height, follows its own bottom; the full block (collapse, header) appears once the fence closes.
             CodeBlockView(content: CodeBlockContent.streaming(blockText: block.text), isStreaming: true)

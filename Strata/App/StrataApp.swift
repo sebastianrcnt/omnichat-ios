@@ -24,7 +24,13 @@ struct StrataApp: App {
         WindowGroup {
             Group {
                 #if DEBUG
-                if ActivityGallery.isRequested { ActivityGallery() } else { RootView() }
+                if ActivityGallery.isRequested {
+                    ActivityGallery()
+                } else if OpenUIGallery.isRequested {
+                    OpenUIGallery()
+                } else {
+                    RootView()
+                }
                 #else
                 RootView()
                 #endif

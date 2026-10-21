@@ -169,6 +169,8 @@ enum TildeEscaper {
 /// Plain text for the "Copy" action: Markdown markers removed, line structure kept.
 enum MarkdownPlain {
     static func text(from markdown: String) -> String {
+        // Interactive views copy as what they show, not as their program (`OUIPlainText`).
+        let markdown = OpenUIFence.replacingBlocks(in: markdown) { OUIPlainText.text(source: $0) }
         let prepared = LenientEmphasis.normalize(TildeEscaper.escape(markdown))
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         guard let attributed = try? AttributedString(markdown: prepared, options: options) else { return markdown }

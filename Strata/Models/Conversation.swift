@@ -274,6 +274,8 @@ final class Message {
     @Attribute(.externalStorage) var stepsData: Data?
     /// Ordered process segments (thinking, preamble text, tool rounds). Nil on messages saved before they existed.
     @Attribute(.externalStorage) var segmentsData: Data?
+    /// What the person did in the answer's interactive views, by block (`openUIStates`). Nil until they act.
+    var openUIStateData: Data?
     var conversation: Conversation?
     @Relationship(deleteRule: .cascade, inverse: \Attachment.message)
     var attachments: [Attachment] = []
