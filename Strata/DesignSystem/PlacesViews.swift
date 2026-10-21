@@ -224,21 +224,17 @@ struct PlacesFeedCard: View {
                             }
                     }
                     .buttonStyle(.plain)
-                    .padding(.horizontal, 10)
+                    .padding(.leading, DS.Feed.textInset)
+                    .padding(.top, DS.Spacing.xs)
                     .accessibilityLabel(Text("Map of \(places.count) places"))
                     .accessibilityHint(Text("Opens the map full screen"))
                 }
                 PlaceCardStrip(places: places) { detail = $0 }
-                    .contentMargins(.horizontal, 10, for: .scrollContent)
-                    .padding(.vertical, 10)
+                    .contentMargins(.leading, DS.Feed.textInset, for: .scrollContent)
+                    .padding(.vertical, DS.Spacing.sm)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous).strokeBorder(theme.separator, lineWidth: 1)
-        }
         .contextMenu {
             Button("Show Timeline", systemImage: "list.bullet.below.rectangle", action: onDetails)
         }
@@ -255,26 +251,12 @@ struct PlacesFeedCard: View {
     }
 
     private var header: some View {
-        HStack(spacing: DS.Spacing.sm) {
-            Image(systemName: "map")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(theme.textSecondary)
-                .frame(width: 18)
-            Text(title)
-                .font(DS.Typography.feedEmphasis)
-                .foregroundStyle(theme.textPrimary)
-                .lineLimit(1)
-            Spacer(minLength: DS.Spacing.sm)
-            if card.isRunning {
-                ProgressView().controlSize(.mini)
-            } else if let places = card.places?.places, places.count > 1 {
-                Text(places.count == 1 ? String(localized: "1 place") : String(localized: "\(places.count) places"))
-                    .font(DS.Typography.feedMeta).foregroundStyle(theme.textTertiary)
-                    .opacity(card.places?.title == nil ? 0 : 1)
-            }
+        let count = card.places?.places.count ?? 0
+        return FeedLine(title: title,
+                        meta: !card.isRunning && count > 1 && card.places?.title != nil ? String(localized: "\(count) places") : nil) {
+            if card.isRunning { FeedSpinner() } else { FeedSymbol(name: "map") }
         }
-        .padding(.vertical, 11)
-        .padding(.horizontal, 14)
+        .accessibilityElement(children: .combine)
     }
 }
 

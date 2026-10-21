@@ -1,59 +1,240 @@
 import SwiftUI
 
-// The feed cards of the browser tools: one per call. `browser_open` is a single line with the page's site and a progress
-// ring; `browser_eval` opens to the script and what it returned.
+// The browser's part of the feed, in the quiet style (reference/mockups activity.html, variant A): a run of browser calls
+// is one summary line ("Browsing map.naver.com ›") with its steps under it, then the live view as a small portrait
+// thumbnail with text links beside it. Robot checks and failed pages are a line and text links too. Monochrome: the
+// warning triangle and the live dot are the only colors, and every text starts at `DS.Feed.textInset`.
 
-/// "Opened m.place.naver.com" or "Ran a script on m.place.naver.com" in the feed.
-struct BrowserFeedCard: View {
+/// Consecutive browser calls of a feed (and the one-line notes among them, like "Loaded skill naver-places"), shown as
+/// one block. Pure, built from the feed's cards on every render.
+struct BrowserRun: Identifiable, Equatable {
+    var steps: [FeedCard]
+    var id: String { "run-" + (steps.first?.id ?? "") }
+
+    enum Item: Identifiable, Equatable {
+        case card(FeedCard)
+        case run(BrowserRun)
+        var id: String {
+            switch self {
+            case .card(let card): card.id
+            case .run(let run): run.id
+            }
+        }
+    }
+
+    static func isBrowser(_ card: FeedCard) -> Bool {
+        switch card.kind {
+        case .browser, .script, .browserAction: true
+        default: false
+        }
+    }
+
+    /// The feed's cards with each run of browser calls (notes may sit among them) folded into one item. A run of notes
+    /// alone stays as single lines.
+    static func items(_ cards: [FeedCard]) -> [Item] {
+        var items: [Item] = []
+        var pending: [FeedCard] = []
+        func flush() {
+            if pending.contains(where: isBrowser) { items.append(.run(BrowserRun(steps: pending))) }
+            else { items += pending.map(Item.card) }
+            pending = []
+        }
+        for card in cards {
+            switch card.kind {
+            case .browser, .script, .browserAction, .note: pending.append(card)
+            default: flush(); items.append(.card(card))
+            }
+        }
+        flush()
+        return items
+    }
+
+    /// The site the run is on: the newest page a browser call names.
+    var host: String? {
+        for card in steps.reversed() {
+            if let url = BrowserStep.pageURL(card) { return DomainFormatter.short(ActivityEntry.host(of: url)) }
+        }
+        return nil
+    }
+
+    var isRunning: Bool { steps.contains(where: \.isRunning) }
+}
+
+/// "Browsing map.naver.com ›", then the steps (finished ones dim with a check, the current one in the primary color),
+/// then the live view while the reply works. A tap on the line folds the steps.
+struct BrowserRunView: View {
     @Environment(\.theme) private var theme
-    @Environment(\.openURL) private var openURL
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    let card: FeedCard
+    let run: BrowserRun
     let collapsed: Bool
-    /// The newest browser card of a reply at work: it shows the model's page live (`BrowserLivePreview`).
-    var live = false
+    /// The step showing the model's page live (`ActivityFeed.liveBrowserCard`), when it is in this run.
+    var live: String?
+    /// Whether a script step's code is folded, and a tap on it.
+    var stepCollapsed: (FeedCard) -> Bool = { _ in true }
+    var onToggleStep: (FeedCard) -> Void = { _ in }
     let onToggle: () -> Void
     var onDetails: () -> Void
+    @State private var showEarlier = false
+
+    /// More steps than this and the older ones hide behind "N earlier steps".
+    static let visibleSteps = 5
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header
-            if live {
-                BrowserLivePreview(callID: card.id)
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, 10)
-                    .transition(.opacity)
+            Button(action: onToggle) {
+                FeedLine(title: title, meta: collapsed ? stepCount : nil, expanded: !collapsed) {
+                    if active { FeedSpinner() } else { FeedSymbol(name: "globe") }
+                }
             }
-            if card.isError && !card.isRunning {
-                KeptPageButton(callID: card.id)
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 10)
+            .buttonStyle(.plain)
+            .accessibilityValue(Text(collapsed ? "Collapsed" : "Expanded"))
+            .accessibilityHint(Text(collapsed ? "Shows the steps" : "Hides the steps"))
+            VStack(alignment: .leading, spacing: 0) {
+                if !collapsed {
+                    steps.transition(.opacity)
+                } else {
+                    // Folded, a failed page that was kept can still be opened.
+                    ForEach(run.steps.filter { $0.isError && !$0.isRunning && KeptPageLink.hasPage($0.id) }) { card in
+                        BrowserStep(card: card, current: false)
+                    }
+                }
+                if let live {
+                    BrowserLivePreview(callID: live)
+                        .padding(.top, DS.Spacing.sm)
+                        .transition(.opacity)
+                }
             }
-            if case .browserAction = card.kind, !card.isRunning, let image = card.figures.first {
-                ToolImageThumbnail(image: image, height: 120)
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 10)
-            }
-            if case .script(let code) = card.kind, !collapsed {
-                BrowserScriptDetail(code: code, output: card.output, isRunning: card.isRunning, isError: card.isError)
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, 10)
-                    .transition(.opacity)
-            }
+            .padding(.leading, DS.Feed.textInset)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous).strokeBorder(theme.separator, lineWidth: 1)
-        }
         .animation(reduceMotion ? nil : ActivityFeedView.fold, value: collapsed)
         .contextMenu {
             Button("Show Timeline", systemImage: "list.bullet.below.rectangle", action: onDetails)
         }
     }
 
-    private var pageURL: String? {
+    private var active: Bool { live != nil || run.isRunning }
+
+    private var title: String {
+        switch (active, run.host) {
+        case (true, let host?): String(localized: "Browsing \(host)")
+        case (false, let host?): String(localized: "Browsed \(host)")
+        case (true, nil): String(localized: "Using the browser")
+        case (false, nil): String(localized: "Used the browser")
+        }
+    }
+
+    private var stepCount: String {
+        run.steps.count == 1 ? String(localized: "1 step") : String(localized: "\(run.steps.count) steps")
+    }
+
+    private var steps: some View {
+        let hidden = showEarlier ? 0 : max(0, run.steps.count - (Self.visibleSteps - 1))
+        let shown = run.steps.count > Self.visibleSteps ? Array(run.steps.dropFirst(hidden)) : run.steps
+        let current = run.steps.last { $0.isRunning }?.id
+        return VStack(alignment: .leading, spacing: DS.Feed.stepSpacing) {
+            if run.steps.count > Self.visibleSteps {
+                Button {
+                    withAnimation(reduceMotion ? nil : ActivityFeedView.fold) { showEarlier.toggle() }
+                } label: {
+                    Text(showEarlier ? String(localized: "Show fewer steps")
+                         : hidden == 1 ? String(localized: "1 earlier step") : String(localized: "\(hidden) earlier steps"))
+                }
+                .buttonStyle(.quietLink(.secondary))
+                .padding(.vertical, -(DS.IconSize.minHitTarget - DS.Feed.lineHeight) / 2)
+            }
+            ForEach(shown) { card in
+                BrowserStep(card: card, current: card.id == current, collapsed: stepCollapsed(card),
+                            onToggle: { onToggleStep(card) })
+            }
+        }
+        .padding(.top, DS.Spacing.xxs)
+    }
+}
+
+/// One step of a browser run: a check (or the current step's dot, or a failure mark) in a narrow column, then the line.
+/// A script step unfolds to its code; a failed page that was kept offers "Open this page ›".
+struct BrowserStep: View {
+    @Environment(\.theme) private var theme
+    @Environment(\.openURL) private var openURL
+    let card: FeedCard
+    let current: Bool
+    var collapsed = true
+    var onToggle: () -> Void = {}
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            line
+            if !card.isRunning, card.isError, KeptPageLink.hasPage(card.id) {
+                KeptPageLink(callID: card.id)
+                    .padding(.leading, DS.Feed.markColumn + DS.Spacing.xs)
+            }
+            if case .browserAction = card.kind, !card.isRunning, let image = card.figures.first {
+                ToolImageThumbnail(image: image, height: DS.Feed.liveHeight * 0.8)
+                    .padding(.leading, DS.Feed.markColumn + DS.Spacing.xs)
+            }
+            if case .script(let code) = card.kind, !collapsed {
+                BrowserScriptDetail(code: code, output: card.output, isRunning: card.isRunning, isError: card.isError)
+                    .padding(.vertical, DS.Spacing.xs)
+                    .transition(.opacity)
+            }
+        }
+    }
+
+    private var isScript: Bool { if case .script = card.kind { true } else { false } }
+
+    @ViewBuilder
+    private var line: some View {
+        let row = HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.xs) {
+            mark.frame(width: DS.Feed.markColumn, alignment: .leading)
+            Text(title)
+                .font(DS.Typography.feed)
+                .foregroundStyle(current ? theme.textPrimary : theme.textSecondary)
+                .lineLimit(2)
+                .truncationMode(.middle)
+                .fixedSize(horizontal: false, vertical: true)
+            if isScript {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: DS.Feed.mark - 1, weight: .semibold))
+                    .foregroundStyle(theme.textTertiary)
+                    .rotationEffect(.degrees(collapsed ? 0 : 90))
+            }
+            Spacer(minLength: 0)
+        }
+        .contentShape(Rectangle())
+        if isScript {
+            Button(action: onToggle) { row }
+                .buttonStyle(.plain)
+                .accessibilityValue(Text(collapsed ? "Collapsed" : "Expanded"))
+                .accessibilityHint(Text(collapsed ? "Shows the script and its result" : "Hides the script and its result"))
+        } else if case .browser = card.kind, let url = Self.pageURL(card).flatMap(URL.init(string:)) {
+            Button { openURL(url) } label: { row }
+                .buttonStyle(.plain)
+                .accessibilityHint(Text("Opens the page"))
+        } else {
+            row.accessibilityElement(children: .combine)
+        }
+    }
+
+    @ViewBuilder
+    private var mark: some View {
+        if card.isRunning || current {
+            Circle().fill(theme.textPrimary).frame(width: DS.Spacing.xs + 1, height: DS.Spacing.xs + 1)
+                .accessibilityLabel(Text("Now"))
+        } else if card.isError {
+            Image(systemName: "exclamationmark.circle")
+                .font(.system(size: DS.Feed.mark + 1, weight: .medium))
+                .foregroundStyle(theme.textTertiary)
+                .accessibilityLabel(Text("Failed"))
+        } else {
+            Image(systemName: "checkmark")
+                .font(.system(size: DS.Feed.mark, weight: .semibold))
+                .foregroundStyle(theme.textTertiary)
+                .accessibilityLabel(Text("Done"))
+        }
+    }
+
+    static func pageURL(_ card: FeedCard) -> String? {
         switch card.kind {
         case .browser(let url): url
         case .script: BrowserScript.url(inResult: card.output)
@@ -61,211 +242,153 @@ struct BrowserFeedCard: View {
         }
     }
 
-    private var host: String? { pageURL.map { DomainFormatter.short(ActivityEntry.host(of: $0)) } }
-
-    private var isScript: Bool { if case .script = card.kind { true } else { false } }
-
-    private var actionTool: String? { if case .browserAction(let tool, _) = card.kind { tool } else { nil } }
-
-    private var header: some View {
-        let row = HStack(spacing: DS.Spacing.sm) {
-            Group {
-                if let tool = actionTool {
-                    Image(systemName: ToolNote.icon(tool))
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(theme.textSecondary)
-                } else if !isScript, let url = pageURL {
-                    FaviconView(host: ActivityEntry.host(of: url), size: DS.IconSize.feedFavicon, square: true)
-                } else {
-                    Image(systemName: "curlybraces")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(theme.textSecondary)
-                }
-            }
-            .frame(width: 18)
-            Text(title)
-                .font(DS.Typography.feedEmphasis)
-                .foregroundStyle(theme.textPrimary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            Spacer(minLength: DS.Spacing.sm)
-            trailing.fixedSize()
-        }
-        .padding(.vertical, 11)
-        .padding(.horizontal, 14)
-        .contentShape(Rectangle())
-        return Group {
-            if actionTool != nil {
-                row.accessibilityElement(children: .combine)
-            } else if isScript {
-                Button(action: onToggle) { row }
-                    .buttonStyle(.plain)
-                    .accessibilityValue(Text(collapsed ? "Collapsed" : "Expanded"))
-                    .accessibilityHint(Text(collapsed ? "Shows the script and its result" : "Hides the script and its result"))
-            } else {
-                Button { if let url = pageURL.flatMap(URL.init(string:)) { openURL(url) } } label: { row }
-                    .buttonStyle(.plain)
-                    .accessibilityHint(Text("Opens the page"))
-            }
-        }
-    }
+    private var host: String? { Self.pageURL(card).map { DomainFormatter.short(ActivityEntry.host(of: $0)) } }
 
     private var title: String {
         switch card.kind {
         case .browserAction(let tool, let argument):
             let summary = card.isRunning || card.isError ? nil : BrowserActionLabel.summary(tool: tool, result: card.output)
             return ToolNote.title(tool: tool, argument: argument, running: card.isRunning, failed: card.isError, summary: summary)
+        case .note(let tool, let argument):
+            return ToolNote.title(tool: tool, argument: argument, running: card.isRunning, failed: card.isError)
         case .script:
             if card.isRunning { return String(localized: "Running a script…") }
-            if let host { return String(localized: "Ran a script on \(host)") }
-            return String(localized: "Ran a script")
+            let base = host.map { String(localized: "Ran a script on \($0)") } ?? String(localized: "Ran a script")
+            return card.isError ? base + " · " + String(localized: "Error") : base
         default:
             let site = host ?? ""
-            return card.isRunning ? String(localized: "Opening \(site)…") : String(localized: "Opened \(site)")
-        }
-    }
-
-    @ViewBuilder
-    private var trailing: some View {
-        if card.isRunning {
-            if isScript || actionTool != nil { ProgressView().controlSize(.mini) } else { ReadProgressRing(callID: card.id) }
-        } else if card.isError {
-            Text(isScript || actionTool != nil ? String(localized: "Error") : (card.pageFailure ?? .failed).label)
-                .font(DS.Typography.feedMeta).foregroundStyle(theme.textTertiary)
-        } else if isScript {
-            Image(systemName: "chevron.right")
-                .font(.system(size: 10, weight: .semibold)).foregroundStyle(theme.textTertiary)
-                .rotationEffect(.degrees(collapsed ? 0 : 90))
+            if card.isRunning { return String(localized: "Opening \(site)…") }
+            if card.isError { return site + " · " + (card.pageFailure ?? .failed).label }
+            return String(localized: "Opened \(site)")
         }
     }
 }
 
-/// The model's page, live in its card while the reply works: the browser's own web view, laid out at phone size and
-/// drawn at the card's width (`WebStage` preview), never touched. A tap opens the Watch sheet. It goes back off screen
-/// when the card scrolls away or the reply stops working.
+/// The model's page, live while the reply works: the browser's own web view as a portrait thumbnail (`WebStage`
+/// preview, never touched; a tap watches), and beside it "● LIVE", Watch, Take over and Stop browsing as text links.
+/// It goes back off screen when the run scrolls away or the reply stops working.
 struct BrowserLivePreview: View {
     @Environment(\.theme) private var theme
     let callID: String
 
-    static let height: CGFloat = 150
-
     var body: some View {
         let sessions = BrowserSessions.shared
         if let page = sessions.page(forCall: callID), let conversation = sessions.conversation(forCall: callID) {
-            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                Button { PageHandover.watch(page, conversation: conversation) } label: {
-                    ZStack {
-                        theme.background
-                        // Seen only while the sheet has the page.
-                        Text("Showing in the browser").font(DS.Typography.feedMeta).foregroundStyle(theme.textTertiary)
-                        WebStage(page: page, kind: .preview, interactive: false)
-                            .allowsHitTesting(false)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: Self.height)
-                    .overlay(alignment: .topLeading) { badge(live: true) }
-                    .overlay(alignment: .bottomTrailing) { badge(live: false) }
-                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous).strokeBorder(theme.separator, lineWidth: 1)
-                    }
-                    .contentShape(Rectangle())
+            BrowserLiveStrip(onWatch: { PageHandover.watch(page, conversation: conversation) },
+                             onTakeOver: { PageHandover.open(page) },
+                             onStop: { sessions.stopBrowsing(conversation) }) {
+                ZStack {
+                    theme.background
+                    // Seen only while the sheet has the page.
+                    Text("Showing in the browser")
+                        .font(DS.Typography.feedMeta).foregroundStyle(theme.textTertiary)
+                        .multilineTextAlignment(.center).padding(DS.Spacing.sm)
+                    WebStage(page: page, kind: .preview, interactive: false)
+                        .allowsHitTesting(false)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Text("Live view of the page"))
-                .accessibilityHint(Text("Opens the page to watch"))
-                HStack(spacing: DS.Spacing.sm) {
-                    Button("Watch", systemImage: "eye") { PageHandover.watch(page, conversation: conversation) }
-                        .buttonStyle(.glass)
-                    Button("Stop browsing", systemImage: "stop.fill", role: .destructive) { sessions.stopBrowsing(conversation) }
-                        .buttonStyle(.glass)
-                        .tint(theme.destructive)
-                    Spacer(minLength: 0)
-                }
-                .font(DS.Typography.uiSmall)
-                .controlSize(.small)
             }
         }
     }
+}
 
-    private func badge(live: Bool) -> some View {
-        HStack(spacing: 4) {
-            if live { Circle().fill(Color.red).frame(width: 6, height: 6) }
-            Text(live ? "LIVE" : "Tap to watch").font(.system(size: 10, weight: .semibold))
+/// The live view's layout, apart from where the page comes from (so previews and the debug gallery can show it).
+struct BrowserLiveStrip<Thumbnail: View>: View {
+    @Environment(\.theme) private var theme
+    let onWatch: () -> Void
+    let onTakeOver: () -> Void
+    let onStop: () -> Void
+    @ViewBuilder let thumbnail: () -> Thumbnail
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: DS.Spacing.md) {
+            Button(action: onWatch) {
+                thumbnail()
+                    .frame(width: DS.Feed.liveWidth, height: DS.Feed.liveHeight)
+                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.thumbnail, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: DS.Radius.thumbnail, style: .continuous)
+                            .strokeBorder(theme.separator, lineWidth: 1)
+                    }
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("Live view of the page"))
+            .accessibilityHint(Text("Opens the page to watch"))
+            VStack(alignment: .leading, spacing: 0) {
+                Label {
+                    Text("LIVE").font(DS.Typography.feedCaption).tracking(0.6).foregroundStyle(theme.textSecondary)
+                } icon: {
+                    Circle().fill(theme.live).frame(width: DS.Feed.liveDot, height: DS.Feed.liveDot)
+                }
+                .labelStyle(QuietLinkLabelStyle())
+                .accessibilityLabel(Text("Live"))
+                Button("Watch", systemImage: "eye", action: onWatch)
+                    .buttonStyle(.quietLink)
+                Button("Take over", systemImage: "hand.point.up.left", action: onTakeOver)
+                    .buttonStyle(.quietLink)
+                    .accessibilityHint(Text("Lets you use the page; the model waits until you're done"))
+                Button("Stop browsing", systemImage: "stop", action: onStop)
+                    .buttonStyle(.quietLink(.secondary))
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
         }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
-        .background(Color.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-        .padding(6)
-        .accessibilityHidden(true)
     }
 }
 
-/// "Open this page" under a failed call whose page was kept (`KeptPages`): hands that same page to the user.
-struct KeptPageButton: View {
+/// "Open this page ›" under a failed call whose page was kept (`KeptPages`): hands that same page to the user.
+struct KeptPageLink: View {
     let callID: String
+
+    static func hasPage(_ callID: String) -> Bool { KeptPages.shared.page(forCall: callID) is HiddenWebView }
 
     var body: some View {
         if let page = KeptPages.shared.page(forCall: callID) as? HiddenWebView {
-            Button("Open this page", systemImage: "hand.point.up.left") { PageHandover.open(page) }
-                .buttonStyle(.glass)
-                .controlSize(.small)
-                .font(DS.Typography.uiSmall)
+            Button("Open this page") { PageHandover.open(page) }
+                .buttonStyle(.quietLink(.primary, chevron: true))
                 .accessibilityHint(Text("Shows the page the tool stopped on"))
         }
     }
 }
 
-/// A tool stopped at a robot check: "<host> wants a robot check", the page small, Open page / Skip. Open hands the
-/// same web view to the browser sheet; the tool goes on in it after Done.
+/// A tool stopped at a robot check: the warning triangle and "<host> wants a robot check", what to do, then Open page
+/// and Skip as text links. Open hands the same web view to the browser sheet; the tool goes on in it after Done.
 struct RobotCheckPromptCard: View {
-    @Environment(\.theme) private var theme
     let request: RobotCheckRequests.Request
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-            HStack(spacing: DS.Spacing.sm) {
-                Image(systemName: "hand.raised.fill")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(theme.warning)
-                Text("\(request.host) wants a robot check")
-                    .font(DS.Typography.feedEmphasis)
-                    .foregroundStyle(theme.textPrimary)
-                    .lineLimit(2)
+        RobotCheckPrompt(host: request.host,
+                         onOpen: { RobotCheckRequests.shared.answer(request.id, .open) },
+                         onSkip: { RobotCheckRequests.shared.answer(request.id, .skip) })
+    }
+}
+
+/// The robot check prompt's layout (previews and the debug gallery use it without a request).
+struct RobotCheckPrompt: View {
+    @Environment(\.theme) private var theme
+    let host: String
+    let onOpen: () -> Void
+    let onSkip: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            FeedLine(title: String(localized: "\(host) wants a robot check"), color: theme.textPrimary, lineLimit: 2) {
+                FeedSymbol(name: "exclamationmark.triangle", color: theme.warning)
             }
-            Text("Solve it on the page and Strata continues from there. A solved check is kept for later searches.")
-                .font(DS.Typography.uiSmall)
-                .foregroundStyle(theme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-            ZStack {
-                theme.background
-                WebStage(page: request.page, kind: .preview, interactive: false)
-                    .allowsHitTesting(false)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Solve it on the page and Strata picks up where it stopped. A solved check is kept for later searches.")
+                    .font(DS.Typography.feed)
+                    .foregroundStyle(theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: DS.Spacing.lg) {
+                    Button("Open page", action: onOpen).buttonStyle(.quietLink(.accent))
+                    Button("Skip", action: onSkip).buttonStyle(.quietLink(.secondary))
+                }
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 120)
-            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous).strokeBorder(theme.separator, lineWidth: 1)
-            }
-            .accessibilityHidden(true)
-            HStack(spacing: DS.Spacing.sm) {
-                Button("Open page") { RobotCheckRequests.shared.answer(request.id, .open) }
-                    .buttonStyle(.glassProminent)
-                    .tint(theme.accent)
-                Button("Skip") { RobotCheckRequests.shared.answer(request.id, .skip) }
-                    .buttonStyle(.glass)
-                Spacer(minLength: 0)
-            }
-            .font(DS.Typography.uiSmall)
+            .padding(.leading, DS.Feed.textInset)
         }
-        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.warning.opacity(0.1), in: RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous).strokeBorder(theme.warning.opacity(0.5), lineWidth: 1)
-        }
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -299,19 +422,21 @@ struct BrowserScriptDetail: View {
 #Preview("Dark · Orange") { browserPreview.previewStyle(.dark, accent: Color(hex: "#F97316")) }
 
 @MainActor private var browserPreview: some View {
-    var open = FeedCard(id: "o", kind: .browser(url: "https://m.search.naver.com/search.naver?query=%EC%84%B1%EC%88%98"))
-    open.isRunning = false
-    var script = FeedCard(id: "s", kind: .script(code: "const items = [...document.querySelectorAll('li')];\nreturn items.length;"))
-    script.output = "URL: https://m.search.naver.com/search.naver\n\n12"
+    var skill = FeedCard(id: "k", kind: .note(tool: ToolNames.loadSkill, argument: "naver-places"))
+    skill.isRunning = false
+    let open = FeedCard(id: "o", kind: .browser(url: "https://map.naver.com/p/search/%EC%84%B1%EC%88%98"))
     var click = FeedCard(id: "c", kind: .browserAction(tool: ToolNames.browserClick, argument: "[12]"))
     click.output = "Clicked [12] Search"
     let typing = FeedCard(id: "t", kind: .browserAction(tool: ToolNames.browserType, argument: "[5] \u{201C}seongsu cafe\u{201D}"), isRunning: true)
+    var failed = FeedCard(id: "f", kind: .browser(url: "https://www.letskorail.com/"), isError: true)
+    failed.pageFailure = .blocked
     return ScrollView {
-        VStack(spacing: 10) {
-            BrowserFeedCard(card: open, collapsed: true, onToggle: {}, onDetails: {})
-            BrowserFeedCard(card: script, collapsed: false, onToggle: {}, onDetails: {})
-            BrowserFeedCard(card: click, collapsed: true, onToggle: {}, onDetails: {})
-            BrowserFeedCard(card: typing, collapsed: true, onToggle: {}, onDetails: {})
+        VStack(alignment: .leading, spacing: DS.Spacing.lg) {
+            BrowserRunView(run: BrowserRun(steps: [skill, open, click, typing]), collapsed: false, onToggle: {}, onDetails: {})
+            BrowserLiveStrip(onWatch: {}, onTakeOver: {}, onStop: {}) { Color.gray.opacity(0.2) }
+                .padding(.leading, DS.Feed.textInset)
+            RobotCheckPrompt(host: "blog.naver.com", onOpen: {}, onSkip: {})
+            BrowserRunView(run: BrowserRun(steps: [open, failed]), collapsed: true, onToggle: {}, onDetails: {})
         }
         .padding()
     }
@@ -411,7 +536,7 @@ enum BrowserActionLabel {
     }
 }
 
-/// "Loaded skill naver-places" in the feed.
+/// "Loaded skill naver-places" in the feed, on its own (among browser calls it is a step of the run).
 struct ToolNoteFeedCard: View {
     @Environment(\.theme) private var theme
     let card: FeedCard
@@ -419,29 +544,9 @@ struct ToolNoteFeedCard: View {
 
     var body: some View {
         if case .note(let tool, let argument) = card.kind {
-            HStack(spacing: DS.Spacing.sm) {
-                Image(systemName: ToolNote.icon(tool))
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(theme.textSecondary)
-                    .frame(width: 18)
-                Text(ToolNote.title(tool: tool, argument: argument, running: card.isRunning, failed: card.isError))
-                    .font(DS.Typography.feedEmphasis)
-                    .foregroundStyle(theme.textPrimary)
-                    .lineLimit(1)
-                Spacer(minLength: DS.Spacing.sm)
-                if card.isRunning {
-                    ProgressView().controlSize(.mini)
-                } else if card.isError && tool != ToolNames.saveSkill {
-                    Text("Failed").font(DS.Typography.feedMeta).foregroundStyle(theme.textTertiary)
-                }
-            }
-            .padding(.vertical, 11)
-            .padding(.horizontal, 14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(theme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous).strokeBorder(theme.separator, lineWidth: 1)
+            FeedLine(title: ToolNote.title(tool: tool, argument: argument, running: card.isRunning, failed: card.isError),
+                     meta: card.isError && !card.isRunning && tool != ToolNames.saveSkill ? String(localized: "Failed") : nil) {
+                if card.isRunning { FeedSpinner() } else { FeedSymbol(name: ToolNote.icon(tool)) }
             }
             .accessibilityElement(children: .combine)
             .contextMenu {

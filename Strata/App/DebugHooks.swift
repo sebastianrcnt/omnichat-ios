@@ -17,6 +17,7 @@ import SwiftData
 ///   -StrataOpenSheet artifacts                     open the Artifacts gallery after launch
 ///   -StrataSeedArtifacts 1                         with it: first add three sample chats with artifacts (once)
 ///   -StrataGalleryOpen 1                           with it: open the gallery's second artifact in the viewer
+///   -StrataActivityGallery 1                       show the activity feed states instead of the app (`ActivityGallery`)
 /// Canned tool results so the UI can be exercised without the network.
 struct FakeWebTools: ToolExecuting {
     func execute(name: String, arguments: String) async -> ToolOutput {

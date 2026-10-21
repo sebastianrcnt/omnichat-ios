@@ -22,7 +22,13 @@ struct StrataApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            Group {
+                #if DEBUG
+                if ActivityGallery.isRequested { ActivityGallery() } else { RootView() }
+                #else
+                RootView()
+                #endif
+            }
                 .environment(\.appSettings, settings)
                 .environment(\.connectionStore, connections)
                 .environment(\.chatController, controller)

@@ -16,8 +16,9 @@ use inline sample data, never the network.
 | `DS.Radius` | `sm 8`, `md 14`, `lg 20`, `xl 28`, `bubble 22`, `thumbnail 12`, `composer 26` |
 | `DS.IconSize` | `sm 14`, `md 18`, `lg 22`, `controlDiameter 44`, `headerIcon 17`, `compactControlDiameter 36`, `composerIcon 16`, `minHitTarget 44`, `ring 22`, `ringStroke 3`, `favicon 16`, `thumbnail 64`, `cameraTile 112` |
 | `DS.Typography` | `answer` / `answerEmphasis` (serif), `answerLineSpacing 3`, `ui`, `uiEmphasis`, `uiSmall`, `uiCaption`, `chip`, `monogram`, `sectionHeader`, `title`, `largeTitle`, `mono`, `monoSmall` |
+| `DS.Feed` | `iconColumn 18`, `iconGap 8`, `textInset 26`, `icon 13`, `mark 10`, `markColumn 12`, `lineHeight 28`, `stepSpacing 6`, `liveWidth 116`, `liveHeight 150`, `liveDot 6` |
 | `DS.Motion` | `fast 0.15`, `standard 0.25`, `slow 0.4`, `spring`, `snappy`, `ease`, `indicatorPulse` |
-| `DSTheme` (environment `\.theme`) | accent roles `accent`, `accentMuted`, `accentStrong`, `accentOnTint`; surfaces `background`, `surface`, `surfaceRaised`, `bubble`, `separator`, `chipFill`, `fillTertiary`; text `textPrimary`, `textSecondary`, `textTertiary`; status `destructive`, `warning`; fixed `onAccent`, `photoBadgeBackdrop`, `faviconBackdrop` |
+| `DSTheme` (environment `\.theme`) | accent roles `accent`, `accentMuted`, `accentStrong`, `accentOnTint`; surfaces `background`, `surface`, `surfaceRaised`, `bubble`, `separator`, `chipFill`, `fillTertiary`; text `textPrimary`, `textSecondary`, `textTertiary`; status `destructive`, `warning`, `live` (the feed's LIVE dot); fixed `onAccent`, `photoBadgeBackdrop`, `faviconBackdrop` |
 
 Colors adapt to light and dark through `Color(light:dark:)`. The accent is user-selected (Settings) and
 flows through `DSTheme(accent:)`; `accentOnTint` is the accent re-balanced to read on `accentMuted`.
@@ -27,11 +28,13 @@ flows through `DSTheme(accent:)`; `accentOnTint` is the accent re-balanced to re
 
 | File | Components |
 | --- | --- |
-| `Buttons.swift` | `GlassIconButton`, `GlassIconMenu`, `GlassIconMenuPlain`, `StreamingIndicator`, `ContextRing`, `ContextRingButton`, `AttachmentThumbnail` |
+| `Buttons.swift` | `GlassIconButton`, `GlassIconMenu`, `GlassIconMenuPlain`, `StreamingIndicator`, `ContextRing`, `ContextRingButton`, `AttachmentThumbnail`, `QuietLinkButtonStyle` (`.quietLink`, `.quietLink(.accent)`: text links with no chrome and a 44 pt hit target) |
 | `Composer.swift` | `ComposerBar` (idle pill or two rows: text field, attach, settings accessory, mic, send/stop; dictation in place), `ModelSettingsButton` and `EffortGaugeIcon` (the effort dial), `ComposerAttachment` |
 | `Dictation.swift` | `DictationWaveform` (static with Reduce Motion), `DictationElapsed`, `DictationLiveLine`, `DictationStatusLine` (preparing, failures with a Settings link), `DictationConfirmButton`; the state machine and on-device engine live in `Dictation/` |
 | `Messages.swift` | `MessageBubble`, `AssistantMessage` (+ `AssistantContent`), `MessageActionBar`, the MarkdownUI `Theme` for tables and complex blocks |
 | `ProcessSegments.swift` | `ThinkingCard`, `ActivityCard`, `LiveThinkingTail`, `LiveToolsTail`, `ProcessDivider` |
+| `ActivityFeedViews.swift` | `ThoughtLine`, `FeedLine` / `FeedSymbol` / `FeedSpinner` (the feed's quiet line: icon in `DS.Feed.iconColumn`, text at `DS.Feed.textInset`), `ActivityFeedView`, `FeedCardView`, `FeedRowView` |
+| `BrowserViews.swift` | `BrowserRun` (grouping), `BrowserRunView` ("Browsing host ›" + steps), `BrowserStep`, `BrowserLivePreview` / `BrowserLiveStrip` (portrait live view + Watch / Take over / Stop browsing links), `KeptPageLink`, `RobotCheckPrompt` |
 | `Activity.swift` | `SourceChip`, `FaviconView`, `ActivityRow`, `ActivityStatusLine`, `ActivitySummaryRow`, `TimelineSheet`, `SourcesRow`, `SourceCard`, `SourcesSheet`, `FlowLayout`, `TrailingFade` |
 | `CodeBlocks.swift` | `CodeBlockView` (collapse, copy, expand), `CodeViewer` (full screen, pinch zoom, wrap, share) |
 | `SyntaxText.swift` | `DSTheme.syntax(_:)`, `HighlightedCode`, `SyntaxText.build`, `HighlightService` (highlight.js runs off the main thread; palette in `Syntax/SyntaxTokens.swift`) |

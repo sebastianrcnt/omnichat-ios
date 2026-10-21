@@ -44,13 +44,13 @@ struct ThoughtLine: View {
         Button(action: action) {
             // Live and done share one geometry (the mark's slot, the text's width, the chevron's room), so when the
             // live line becomes a round's line its words stay where they were.
-            HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.sm) {
+            HStack(alignment: .firstTextBaseline, spacing: DS.Feed.iconGap) {
                 ZStack {
                     Text(verbatim: "✦").font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
                         .opacity(isWorking ? 0 : 1)
                     if isWorking { PulsingDot() }
                 }
-                .frame(width: 12)
+                .frame(width: DS.Feed.iconColumn)
                 if isWorking {
                     // A new preview per state: after a tool, the slot starts from the placeholder, not the old thought.
                     ReasoningLinePreview(model: reasoning, font: DS.Typography.thought, color: theme.textSecondary,
@@ -117,7 +117,83 @@ struct PulsingDot: View {
 
 // MARK: - Feed
 
-/// The cards of one message. Folding follows `FeedCollapse`; a tap opens or folds a card in place.
+// MARK: - Quiet lines
+
+/// One quiet line of the feed: an icon in the shared column, the title (secondary, like Claude's "Searched the web ›"),
+/// small print, and a chevron right after the text that turns down while the line is open (`expanded` nil: none).
+struct FeedLine<Icon: View>: View {
+    @Environment(\.theme) private var theme
+    let title: String
+    var meta: String?
+    var color: Color?
+    var expanded: Bool?
+    var lineLimit = 1
+    @ViewBuilder let icon: () -> Icon
+    /// From the title's baseline up to the middle of its lowercase letters: the icon centers there, on the first line.
+    @ScaledMetric(relativeTo: .subheadline) private var midline: CGFloat = 5
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: DS.Feed.iconGap) {
+            icon()
+                .frame(width: DS.Feed.iconColumn, height: DS.Feed.iconColumn)
+                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + midline }
+            HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.xs + DS.Spacing.xxs) {
+                Text(title)
+                    .font(DS.Typography.thought)
+                    .foregroundStyle(color ?? theme.textSecondary)
+                    .lineLimit(lineLimit)
+                    .truncationMode(.tail)
+                    .fixedSize(horizontal: false, vertical: lineLimit > 1)
+                if let meta, !meta.isEmpty {
+                    Text(meta)
+                        .font(DS.Typography.feedMeta)
+                        .foregroundStyle(theme.textTertiary)
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+                if let expanded {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: DS.Feed.mark, weight: .semibold))
+                        .foregroundStyle(theme.textTertiary)
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                        .accessibilityHidden(true)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, DS.Spacing.xs)
+        .frame(minHeight: DS.Feed.lineHeight)
+        .contentShape(Rectangle())
+    }
+}
+
+/// A line's SF Symbol, in the secondary color unless told otherwise (the robot check's warning).
+struct FeedSymbol: View {
+    @Environment(\.theme) private var theme
+    let name: String
+    var color: Color?
+
+    var body: some View {
+        Image(systemName: name)
+            .font(.system(size: DS.Feed.icon, weight: .medium))
+            .foregroundStyle(color ?? theme.textSecondary)
+            .accessibilityHidden(true)
+    }
+}
+
+/// The small spinner a working line has in its icon column.
+struct FeedSpinner: View {
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        ProgressView().controlSize(.mini).tint(theme.textSecondary)
+    }
+}
+
+// MARK: - Feed
+
+/// The cards of one message, as quiet lines; a run of browser calls is one block (`BrowserRun`). Folding follows
+/// `FeedCollapse`; a tap opens or folds a line in place.
 struct ActivityFeedView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let cards: [FeedCard]
@@ -131,42 +207,40 @@ struct ActivityFeedView: View {
     var body: some View {
         let epoch = FeedCollapse.epoch(cardCount: cards.count, isStreaming: isStreaming, answerStarted: answerStarted)
         let live = ActivityFeed.liveBrowserCard(cards, isStreaming: isStreaming, answerStarted: answerStarted)
-        VStack(alignment: .leading, spacing: 10) {
-            ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
-                let auto = FeedCollapse.autoCollapsed(index: index, cards: cards, isStreaming: isStreaming, answerStarted: answerStarted)
-                let collapsed = FeedCollapse.isCollapsed(auto: auto, override: overrides[card.id], epoch: epoch)
-                let toggle = {
-                    withAnimation(reduceMotion ? nil : Self.fold) {
-                        overrides[card.id] = FeedCollapse.toggled(auto: auto, current: collapsed, epoch: epoch)
-                    }
-                }
+        let items = BrowserRun.items(cards)
+        let indices = Dictionary(cards.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let working = isStreaming && !answerStarted
+        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            ForEach(Array(items.enumerated()), id: \.element.id) { position, item in
                 Group {
-                    switch card.kind {
-                    case .python, .image:
-                        PythonFeedCard(card: card, collapsed: collapsed, onToggle: toggle, onDetails: onDetails)
-                    case .browser, .script, .browserAction:
-                        BrowserFeedCard(card: card, collapsed: collapsed, live: card.id == live, onToggle: toggle, onDetails: onDetails)
-                    case .note:
-                        ToolNoteFeedCard(card: card, onDetails: onDetails)
-                    case .places:
-                        PlacesFeedCard(card: card, onDetails: onDetails)
-                    case .artifact:
-                        ArtifactFeedCard(card: card, onDetails: onDetails)
-                    case .search, .pages:
-                        FeedCardView(card: card, collapsed: collapsed, showAll: showingAll.contains(card.id), staggerRows: isStreaming,
-                                     onToggle: toggle,
-                                     onShowAll: { // toggles: "+N more" expands, "Show less" folds back
-                                         withAnimation(reduceMotion ? nil : Self.fold) {
-                                             if showingAll.remove(card.id) == nil { showingAll.insert(card.id) }
-                                         }
-                                     },
-                                     onDetails: onDetails)
+                    switch item {
+                    case .run(let run):
+                        // Open while it is the newest thing the reply does; folded otherwise.
+                        let auto = !(working && position == items.count - 1)
+                        let collapsed = FeedCollapse.isCollapsed(auto: auto, override: overrides[run.id], epoch: epoch)
+                        BrowserRunView(run: run, collapsed: collapsed,
+                                       live: run.steps.contains { $0.id == live } ? live : nil,
+                                       stepCollapsed: { FeedCollapse.isCollapsed(auto: true, override: overrides[$0.id], epoch: epoch) },
+                                       onToggleStep: { step in
+                                           let current = FeedCollapse.isCollapsed(auto: true, override: overrides[step.id], epoch: epoch)
+                                           withAnimation(reduceMotion ? nil : Self.fold) {
+                                               overrides[step.id] = FeedCollapse.toggled(auto: true, current: current, epoch: epoch)
+                                           }
+                                       },
+                                       onToggle: { toggle(run.id, auto: auto, current: collapsed, epoch: epoch) },
+                                       onDetails: onDetails)
+                    case .card(let card):
+                        let auto = FeedCollapse.autoCollapsed(index: indices[card.id] ?? 0, cards: cards, isStreaming: isStreaming,
+                                                              answerStarted: answerStarted)
+                        let collapsed = FeedCollapse.isCollapsed(auto: auto, override: overrides[card.id], epoch: epoch)
+                        cardView(card, collapsed: collapsed,
+                                 toggle: { toggle(card.id, auto: auto, current: collapsed, epoch: epoch) })
                     }
                 }
                 .modifier(StaggerIn(animates: isStreaming && !reduceMotion, clock: stagger))
             }
             // A tool of this reply stopped at a robot check (only one reply works at a time).
-            if isStreaming && !answerStarted {
+            if working {
                 ForEach(RobotCheckRequests.shared.pending) { request in
                     RobotCheckPromptCard(request: request)
                         .transition(.opacity)
@@ -174,6 +248,38 @@ struct ActivityFeedView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func toggle(_ id: String, auto: Bool, current: Bool, epoch: Int) {
+        withAnimation(reduceMotion ? nil : Self.fold) {
+            overrides[id] = FeedCollapse.toggled(auto: auto, current: current, epoch: epoch)
+        }
+    }
+
+    @ViewBuilder
+    private func cardView(_ card: FeedCard, collapsed: Bool, toggle: @escaping () -> Void) -> some View {
+        switch card.kind {
+        case .python, .image:
+            PythonFeedCard(card: card, collapsed: collapsed, onToggle: toggle, onDetails: onDetails)
+        case .browser, .script, .browserAction:
+            // Always inside a run; kept for completeness.
+            BrowserRunView(run: BrowserRun(steps: [card]), collapsed: collapsed, onToggle: toggle, onDetails: onDetails)
+        case .note:
+            ToolNoteFeedCard(card: card, onDetails: onDetails)
+        case .places:
+            PlacesFeedCard(card: card, onDetails: onDetails)
+        case .artifact:
+            ArtifactFeedCard(card: card, onDetails: onDetails)
+        case .search, .pages:
+            FeedCardView(card: card, collapsed: collapsed, showAll: showingAll.contains(card.id), staggerRows: isStreaming,
+                         onToggle: toggle,
+                         onShowAll: { // toggles: "+N more" expands, "Show less" folds back
+                             withAnimation(reduceMotion ? nil : Self.fold) {
+                                 if showingAll.remove(card.id) == nil { showingAll.insert(card.id) }
+                             }
+                         },
+                         onDetails: onDetails)
+        }
     }
 
     /// Height change when a card opens or folds (the mockup's 0.45 s ease-out).
@@ -213,22 +319,13 @@ struct FeedCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-            if card.isError && !card.isRunning {
-                KeptPageButton(callID: card.id)
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 10)
-            }
             if !collapsed && !card.rows.isEmpty {
                 rowList
+                    .padding(.leading, DS.Feed.textInset)
                     .transition(.opacity)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous).strokeBorder(theme.separator, lineWidth: 1)
-        }
         .animation(reduceMotion ? nil : ActivityFeedView.fold, value: collapsed)
         .contextMenu {
             Button("Show Timeline", systemImage: "list.bullet.below.rectangle", action: onDetails)
@@ -240,22 +337,10 @@ struct FeedCardView: View {
 
     private var header: some View {
         Button(action: onToggle) {
-            HStack(spacing: DS.Spacing.sm) {
-                Image(systemName: card.kind == .pages ? "doc.text" : "magnifyingglass")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(theme.textSecondary)
-                    .frame(width: 18)
-                Text(title)
-                    .font(DS.Typography.feedEmphasis)
-                    .foregroundStyle(theme.textPrimary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                Spacer(minLength: DS.Spacing.sm)
-                trailing.fixedSize()
+            FeedLine(title: title, meta: summary, expanded: card.isRunning || card.isError ? nil : !collapsed) {
+                if card.isRunning || (collapsed && card.hasLoadingRow) { FeedSpinner() }
+                else { FeedSymbol(name: card.kind == .pages ? "doc.text" : "magnifyingglass") }
             }
-            .padding(.vertical, 11)
-            .padding(.horizontal, 14)
-            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(accessibilityTitle))
@@ -286,39 +371,10 @@ struct FeedCardView: View {
         }
     }
 
-    @ViewBuilder
-    private var trailing: some View {
-        if card.isRunning {
-            ProgressView().controlSize(.mini)
-        } else if card.isError {
-            Text("Failed").font(DS.Typography.feedMeta).foregroundStyle(theme.textTertiary)
-        } else {
-            HStack(spacing: DS.Spacing.xs + 2) {
-                if collapsed {
-                    if card.hasLoadingRow { ProgressView().controlSize(.mini) }
-                    Text(summary).font(DS.Typography.feedMeta).foregroundStyle(theme.textTertiary).lineLimit(1)
-                } else if let engine = card.engine {
-                    engineBadge(engine)
-                }
-                // Points right when folded and down when open, turning with the fold.
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .semibold)).foregroundStyle(theme.textTertiary)
-                    .rotationEffect(.degrees(collapsed ? 0 : 90))
-            }
-        }
-    }
-
-    private func engineBadge(_ engine: String) -> some View {
-        Text(engine)
-            .font(DS.Typography.feedBadge)
-            .foregroundStyle(theme.textTertiary)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 1)
-            .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(theme.separator, lineWidth: 1) }
-    }
-
     /// "Bing · 8 results"; for pages, "1 failed" (the title already counts them).
     private var summary: String {
+        if card.isError && !card.isRunning { return String(localized: "Failed") }
+        if card.isRunning { return "" }
         switch card.kind {
         case .pages:
             return card.failedCount > 0 ? String(localized: "\(card.failedCount) failed") : ""
@@ -345,14 +401,9 @@ struct FeedCardView: View {
             if (hidden > 0 || foldable) && visible >= results.count {
                 Button(action: onShowAll) {
                     Text(foldable ? "Show less" : "+\(hidden) more")
-                        .font(DS.Typography.feed)
-                        .foregroundStyle(theme.textTertiary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, DS.Spacing.xs)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.quietLink(.secondary))
+                .padding(.vertical, -(DS.IconSize.minHitTarget - DS.Feed.lineHeight) / 2)
                 .transition(.opacity)
             }
             // A "Read pages" card's rows; a failed one whose page was kept can open it.
@@ -360,16 +411,15 @@ struct FeedCardView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     FeedRowView(row: row)
                     if row.read == .failed, let callID = row.callID {
-                        KeptPageButton(callID: callID)
-                            .padding(.leading, 33)
-                            .padding(.bottom, DS.Spacing.xs)
+                        KeptPageLink(callID: callID)
+                            .padding(.leading, FeedRowView.textInset)
+                            .padding(.vertical, -(DS.IconSize.minHitTarget - DS.Feed.lineHeight) / 2)
                     }
                 }
                 .transition(rowTransition)
             }
         }
-        .padding(.horizontal, 6)
-        .padding(.bottom, DS.Spacing.sm)
+        .padding(.bottom, DS.Spacing.xs)
     }
 
     private var rowTransition: AnyTransition {
@@ -396,14 +446,19 @@ struct FeedRowView: View {
     @Environment(\.openURL) private var openURL
     let row: FeedRow
 
+    static let favicon: CGFloat = DS.IconSize.sm
+    static let gap: CGFloat = DS.Spacing.sm
+    /// Where a row's title starts, from the row's leading edge.
+    static let textInset: CGFloat = favicon + gap
+
     var body: some View {
         let read = row.read == .read || row.read == .thin
         let failed = row.read == .failed
         Button {
             if let url = URL(string: row.url) { openURL(url) }
         } label: {
-            HStack(spacing: 9) {
-                FaviconView(host: row.host, size: DS.IconSize.feedFavicon, square: true)
+            HStack(spacing: Self.gap) {
+                FaviconView(host: row.host, size: Self.favicon, square: true)
                     .opacity(read ? 1 : 0.6)
                 Text(row.title)
                     .font(DS.Typography.feed)
@@ -423,8 +478,7 @@ struct FeedRowView: View {
                 if let mark = row.read, !mark.isFinished || failed { ReadStatusMark(read: mark) }
             }
             .opacity(failed ? 0.7 : 1)
-            .padding(.vertical, 7)
-            .padding(.horizontal, 8)
+            .padding(.vertical, DS.Spacing.xs + DS.Spacing.xxs)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

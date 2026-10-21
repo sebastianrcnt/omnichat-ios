@@ -114,6 +114,11 @@ enum DS {
         static let feedEmphasis = pretendard(13.5, relativeTo: .footnote, weight: .semibold)
         static let feedMeta = pretendard(11.5, relativeTo: .caption2)
         static let feedBadge = pretendard(11, relativeTo: .caption2)
+        /// Text-link buttons in the feed (`QuietLinkButtonStyle`), and the accent one ("Open page").
+        static let feedLink = pretendard(13.5, relativeTo: .footnote, weight: .medium)
+        static let feedLinkEmphasis = pretendard(13.5, relativeTo: .footnote, weight: .semibold)
+        /// "LIVE" next to the live view.
+        static let feedCaption = pretendard(10.5, relativeTo: .caption2, weight: .semibold)
         /// Source line under a block quote.
         static let quoteSource = pretendard(12.5, relativeTo: .caption)
         /// Headings inside an answer.
@@ -203,6 +208,31 @@ enum DS {
     /// Space between blocks of an answer (paragraphs, lists, code): clearly more than the gap between lines, so a new
     /// paragraph reads as one.
     static let blockSpacing: CGFloat = 20
+
+    /// The activity feed's quiet layout (reference/mockups activity.html, variant A): every line's icon sits in one
+    /// fixed column and all text, nested steps and links start at `textInset`, one shared leading edge.
+    enum Feed {
+        /// The leading icon column (a site icon, a symbol, the spinner).
+        static let iconColumn: CGFloat = IconSize.feedFavicon
+        static let iconGap: CGFloat = Spacing.sm
+        /// Where the text of every line, and everything nested under a line, starts.
+        static let textInset: CGFloat = iconColumn + iconGap
+        /// Point size of a line's SF Symbol.
+        static let icon: CGFloat = 13
+        /// A small mark before a nested line (a step's check, a link's chevron).
+        static let mark: CGFloat = 10
+        /// The column of a step's mark, so step texts line up.
+        static let markColumn: CGFloat = Spacing.md
+        /// A summary line's height, so lines with and without a spinner sit alike.
+        static let lineHeight: CGFloat = 28
+        /// Between the steps of a browser run.
+        static let stepSpacing: CGFloat = Spacing.xs + Spacing.xxs
+        /// The live view: a portrait thumbnail of the phone-sized page.
+        static let liveWidth: CGFloat = 116
+        static let liveHeight: CGFloat = 150
+        /// The live dot.
+        static let liveDot: CGFloat = 6
+    }
 
     // MARK: Motion
     enum Motion {
@@ -300,6 +330,8 @@ struct DSTheme: Equatable {
     var destructive: Color { Color(light: 0xD92D20, dark: 0xF16A60) }
     var warning: Color { Color(light: 0xB54708, dark: 0xF5A524) }
     var success: Color { Color(light: 0x0F766E, dark: 0x5EEAD4) }
+    /// The "LIVE" dot next to the model's page: the only green in the feed.
+    var live: Color { Color(light: 0x16A34A, dark: 0x4ADE80) }
 
     // Activity feed and quotes
     /// A result row the model read.
