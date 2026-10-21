@@ -18,6 +18,7 @@ import SwiftData
 ///   -StrataSeedArtifacts 1                         with it: first add three sample chats with artifacts (once)
 ///   -StrataGalleryOpen 1                           with it: open the gallery's second artifact in the viewer
 ///   -StrataActivityGallery 1                       show the activity feed states instead of the app (`ActivityGallery`)
+///   -StrataOpenUIGallery 1...6                     show sample interactive views instead of the app (`OpenUIGallery`)
 ///   -StrataVideoSelfTest 1                         real video_transcript calls, reported to stderr (`runVideoSelfTest`)
 /// Canned tool results so the UI can be exercised without the network.
 struct FakeWebTools: ToolExecuting {
