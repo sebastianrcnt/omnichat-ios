@@ -233,3 +233,71 @@ struct GlassIconMenuPlain<Content: View>: View {
         .accessibilityLabel(Text(label))
     }
 }
+
+// MARK: - Text links
+
+/// A plain text link for actions inside content (the activity feed's "Watch", "Open page", "Skip"): no background or
+/// border, the feed's link font, an optional SF Symbol in a fixed slot so stacked links line up, and a hit target at
+/// least 44 pt tall without any visible chrome. Pressed, it dims.
+struct QuietLinkButtonStyle: ButtonStyle {
+    enum Tone { case primary, secondary, accent }
+    var tone: Tone = .primary
+    /// A small "›" after the title, for links that open something ("Open this page ›").
+    var chevron = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        QuietLinkBody(configuration: configuration, tone: tone, chevron: chevron)
+    }
+}
+
+private struct QuietLinkBody: View {
+    @Environment(\.theme) private var theme
+    @Environment(\.isEnabled) private var isEnabled
+    let configuration: ButtonStyleConfiguration
+    let tone: QuietLinkButtonStyle.Tone
+    let chevron: Bool
+
+    var body: some View {
+        HStack(spacing: DS.Spacing.xs) {
+            configuration.label.labelStyle(QuietLinkLabelStyle())
+            if chevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: DS.Feed.mark, weight: .semibold))
+                    .accessibilityHidden(true)
+            }
+        }
+        .font(tone == .accent ? DS.Typography.feedLinkEmphasis : DS.Typography.feedLink)
+        .foregroundStyle(color)
+        .opacity(configuration.isPressed ? 0.45 : isEnabled ? 1 : 0.4)
+        .frame(minHeight: DS.IconSize.minHitTarget)
+        .contentShape(Rectangle())
+        .animation(.easeOut(duration: DS.Motion.fast), value: configuration.isPressed)
+    }
+
+    private var color: Color {
+        switch tone {
+        case .primary: theme.textPrimary
+        case .secondary: theme.textSecondary
+        case .accent: theme.accent
+        }
+    }
+}
+
+/// Icon in a fixed slot, then the title: links stacked in a column share one text edge.
+struct QuietLinkLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: DS.Spacing.xs + DS.Spacing.xxs) {
+            configuration.icon
+                .font(.system(size: DS.Feed.icon, weight: .medium))
+                .frame(width: DS.Feed.iconColumn)
+            configuration.title
+        }
+    }
+}
+
+extension ButtonStyle where Self == QuietLinkButtonStyle {
+    static var quietLink: QuietLinkButtonStyle { QuietLinkButtonStyle() }
+    static func quietLink(_ tone: QuietLinkButtonStyle.Tone, chevron: Bool = false) -> QuietLinkButtonStyle {
+        QuietLinkButtonStyle(tone: tone, chevron: chevron)
+    }
+}

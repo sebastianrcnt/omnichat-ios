@@ -315,17 +315,17 @@ struct PythonFeedCard: View {
             if case .python(let code) = card.kind, !collapsed {
                 PythonRunDetail(code: code, output: card.output, figures: card.figures, isRunning: card.isRunning,
                                 isError: card.isError)
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, 10)
+                    .padding(.leading, DS.Feed.textInset)
+                    .padding(.vertical, DS.Spacing.xs)
                     .transition(.opacity)
+            }
+            if isImage, !card.isRunning, let image = card.figures.first {
+                ToolImageThumbnail(image: image, height: DS.IconSize.thumbnail)
+                    .padding(.leading, DS.Feed.textInset)
+                    .padding(.vertical, DS.Spacing.xs)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous).strokeBorder(theme.separator, lineWidth: 1)
-        }
         .animation(reduceMotion ? nil : ActivityFeedView.fold, value: collapsed)
         .contextMenu {
             Button("Show Timeline", systemImage: "list.bullet.below.rectangle", action: onDetails)
@@ -335,26 +335,15 @@ struct PythonFeedCard: View {
     private var isImage: Bool { if case .image = card.kind { true } else { false } }
 
     private var header: some View {
-        let row = HStack(spacing: DS.Spacing.sm) {
-            Image(systemName: isImage ? "photo" : "chevron.left.forwardslash.chevron.right")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(theme.textSecondary)
-                .frame(width: 18)
-            Text(title)
-                .font(DS.Typography.feedEmphasis)
-                .foregroundStyle(theme.textPrimary)
-                .lineLimit(1)
-            Spacer(minLength: DS.Spacing.sm)
-            trailing.fixedSize()
+        let line = FeedLine(title: title, meta: meta, expanded: isImage || card.isRunning ? nil : !collapsed) {
+            if card.isRunning { FeedSpinner() }
+            else { FeedSymbol(name: isImage ? "photo" : "chevron.left.forwardslash.chevron.right") }
         }
-        .padding(.vertical, 11)
-        .padding(.horizontal, 14)
-        .contentShape(Rectangle())
         return Group {
             if isImage {
-                row.accessibilityElement(children: .combine)
+                line.accessibilityElement(children: .combine)
             } else {
-                Button(action: onToggle) { row }
+                Button(action: onToggle) { line }
                     .buttonStyle(.plain)
                     .accessibilityValue(Text(collapsed ? "Collapsed" : "Expanded"))
                     .accessibilityHint(Text(collapsed ? "Shows the code and output" : "Hides the code and output"))
@@ -362,31 +351,19 @@ struct PythonFeedCard: View {
         }
     }
 
+    private var meta: String? {
+        if card.isRunning { return nil }
+        if card.isError { return (card.pythonFailure ?? .failed).label }
+        if !isImage, collapsed, !card.figures.isEmpty {
+            return card.figures.count == 1 ? String(localized: "1 figure") : String(localized: "\(card.figures.count) figures")
+        }
+        return nil
+    }
+
     private var title: String {
         switch card.kind {
         case .image(let id): card.isRunning ? String(localized: "Viewing \(id)…") : String(localized: "Viewed \(id)")
         default: card.isRunning ? String(localized: "Running Python…") : String(localized: "Ran Python")
-        }
-    }
-
-    @ViewBuilder
-    private var trailing: some View {
-        if card.isRunning {
-            ProgressView().controlSize(.mini)
-        } else if card.isError {
-            Text((card.pythonFailure ?? .failed).label).font(DS.Typography.feedMeta).foregroundStyle(theme.textTertiary)
-        } else if isImage, let image = card.figures.first {
-            ToolImageThumbnail(image: image, height: 28)
-        } else {
-            HStack(spacing: DS.Spacing.xs + 2) {
-                if collapsed, !card.figures.isEmpty {
-                    Text(card.figures.count == 1 ? String(localized: "1 figure") : String(localized: "\(card.figures.count) figures"))
-                        .font(DS.Typography.feedMeta).foregroundStyle(theme.textTertiary)
-                }
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .semibold)).foregroundStyle(theme.textTertiary)
-                    .rotationEffect(.degrees(collapsed ? 0 : 90))
-            }
         }
     }
 }

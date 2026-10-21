@@ -17,31 +17,13 @@ struct ArtifactFeedCard: View {
 
     var body: some View {
         Button { if card.artifact != nil { showing = true } } label: {
-            HStack(spacing: DS.Spacing.sm) {
-                Image(systemName: Self.icon)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(theme.textSecondary)
-                    .frame(width: 18)
-                Text(title)
-                    .font(DS.Typography.feedEmphasis)
-                    .foregroundStyle(theme.textPrimary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                Spacer(minLength: DS.Spacing.sm)
-                trailing.fixedSize()
+            FeedLine(title: title, meta: meta, expanded: card.artifact == nil || card.isRunning ? nil : false) {
+                if card.isRunning { FeedSpinner() } else { FeedSymbol(name: Self.icon) }
             }
-            .padding(.vertical, 11)
-            .padding(.horizontal, 14)
-            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityHint(Text(card.artifact == nil ? "" : "Opens the artifact"))
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous).strokeBorder(theme.separator, lineWidth: 1)
-        }
         .contextMenu {
             Button("Show Timeline", systemImage: "list.bullet.below.rectangle", action: onDetails)
         }
@@ -58,22 +40,11 @@ struct ArtifactFeedCard: View {
         return String(localized: "Artifact")
     }
 
-    @ViewBuilder
-    private var trailing: some View {
-        if card.isRunning {
-            ProgressView().controlSize(.mini)
-        } else if card.isError {
-            Text("Failed").font(DS.Typography.feedMeta).foregroundStyle(theme.textTertiary)
-        } else {
-            HStack(spacing: DS.Spacing.xs + 2) {
-                if let version = card.artifact?.version, version > 1 {
-                    Text("v\(version)").font(DS.Typography.feedMeta).foregroundStyle(theme.textTertiary)
-                }
-                ArtifactBadge()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .semibold)).foregroundStyle(theme.textTertiary)
-            }
-        }
+    private var meta: String? {
+        if card.isRunning { return nil }
+        if card.isError { return String(localized: "Failed") }
+        if let version = card.artifact?.version, version > 1 { return "HTML · v\(version)" }
+        return card.artifact == nil ? nil : "HTML"
     }
 }
 
