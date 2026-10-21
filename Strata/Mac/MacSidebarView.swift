@@ -79,9 +79,7 @@ struct MacSidebarView: View {
                 deleting = nil
             }
         }
-        .sheet(isPresented: $showArtifacts) {
-            ArtifactsView { chat in selected = chat }
-        }
+        .artifactGallery(isPresented: $showArtifacts) { chat in selected = chat }
     }
 
     private func row(_ conversation: Conversation) -> some View {

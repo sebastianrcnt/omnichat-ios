@@ -1,5 +1,6 @@
 #if DEBUG
 import Foundation
+import SwiftData
 
 /// Debug-only launch arguments used for simulator smoke runs against a local mock server.
 ///   -StrataMockBaseURL http://127.0.0.1:8765/v1   point the Strata connection at the mock
@@ -13,6 +14,9 @@ import Foundation
 ///   -StrataDraft "text"                            put text in the composer after launch (expanded composer)
 ///   -StrataOpenMenu 2                              then open the n-th pull-down menu on screen (top to bottom)
 ///   -StrataOpenSidebar 1                           open the chat list drawer after launch
+///   -StrataOpenSheet artifacts                     open the Artifacts gallery after launch
+///   -StrataSeedArtifacts 1                         with it: first add three sample chats with artifacts (once)
+///   -StrataGalleryOpen 1                           with it: open the gallery's second artifact in the viewer
 /// Canned tool results so the UI can be exercised without the network.
 struct FakeWebTools: ToolExecuting {
     func execute(name: String, arguments: String) async -> ToolOutput {
@@ -224,6 +228,40 @@ enum DebugHooks {
         if let data = try? JSONSerialization.data(withJSONObject: fields, options: [.sortedKeys]) {
             try? data.write(to: directory.appendingPathComponent(name), options: .atomic)
         }
+    }
+
+    /// Three sample chats with a few artifacts each, for gallery screenshots. Runs once: skipped when the first chat exists.
+    @MainActor
+    static func seedArtifacts(context: ModelContext) {
+        let samples: [(chat: String, pages: [(String, String, String)])] = [
+            ("Budget planning", [("Mortgage calculator", "#4f46e5", "Monthly payment"), ("Savings tracker", "#0f766e", "Saved this year")]),
+            ("Weekend trip to Busan", [("Trip itinerary", "#e08e1b", "Day 1 · Haeundae"), ("Packing checklist", "#9b5df0", "12 of 18 packed"),
+                                       ("Weather chart", "#1fa987", "Sat 24° · Sun 22°")]),
+            ("Learning Swift", [("Concurrency quiz", "#d92d20", "Question 3 of 10")]),
+        ]
+        let existing = (try? context.fetch(FetchDescriptor<Conversation>())) ?? []
+        guard !existing.contains(where: { $0.title == samples[0].chat }) else { return }
+        var day = 0
+        for sample in samples {
+            let chat = Conversation(title: sample.chat)
+            chat.updatedAt = .now.addingTimeInterval(TimeInterval(-86_400 * day))
+            context.insert(chat)
+            for (title, color, line) in sample.pages {
+                day += 1
+                let html = """
+                <!doctype html><html><head><meta name="color-scheme" content="light dark"><style>
+                body{font:16px -apple-system,sans-serif;margin:0;padding:24px;background:Canvas;color:CanvasText}
+                .hero{background:\(color);color:#fff;border-radius:18px;padding:22px}
+                h1{margin:0 0 6px;font-size:26px} .bar{height:12px;border-radius:6px;background:\(color);opacity:.35;margin:14px 0}
+                </style></head><body><div class="hero"><h1>\(title)</h1><div>\(line)</div></div>
+                <div class="bar" style="width:80%"></div><div class="bar" style="width:55%"></div><div class="bar" style="width:68%"></div>
+                </body></html>
+                """
+                try? ArtifactStore.shared.save(title: title, html: html, conversationID: chat.id,
+                                               now: .now.addingTimeInterval(TimeInterval(-3_600 * 7 * day)))
+            }
+        }
+        try? context.save()
     }
 
     static var autoSend: String? { value("StrataAutoSend") }
