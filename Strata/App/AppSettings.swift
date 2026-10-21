@@ -86,6 +86,7 @@ final class AppSettings {
     nonisolated static let userPreferencesKey = "userPreferences"
     nonisolated static let browserEnabledKey = "browserTools"
     nonisolated static let locationEnabledKey = "locationTool"
+    nonisolated static let sshEnabledKey = "sshEnabled"
     nonisolated static let webSearchEnabledKey = "webSearchTool"
 
     private let defaults: UserDefaults
@@ -144,6 +145,8 @@ final class AppSettings {
     var browserEnabled: Bool { didSet { defaults.set(browserEnabled, forKey: Self.browserEnabledKey) } }
     /// `current_location` in new chats, with the browser tools (on by default; the system asks for permission on first use).
     var locationEnabled: Bool { didSet { defaults.set(locationEnabled, forKey: Self.locationEnabledKey) } }
+    /// The SSH tools in new chats (off by default: a chat turns them on from the + menu).
+    var sshEnabled: Bool { didSet { defaults.set(sshEnabled, forKey: Self.sshEnabledKey) } }
     /// A soft sound while web tools run in the background, which keeps their pages running (`BackgroundLoadingSound`
     /// reads the key). On by default.
     var backgroundLoadingSound: Bool { didSet { defaults.set(backgroundLoadingSound, forKey: BackgroundLoadingSound.enabledKey) } }
@@ -184,6 +187,7 @@ final class AppSettings {
         pythonTimeLimit = PythonSettings.timeLimitOptions.contains(limit) ? limit : PythonSettings.defaultTimeLimit
         browserEnabled = defaults.object(forKey: Self.browserEnabledKey) == nil ? true : defaults.bool(forKey: Self.browserEnabledKey)
         locationEnabled = defaults.object(forKey: Self.locationEnabledKey) == nil ? true : defaults.bool(forKey: Self.locationEnabledKey)
+        sshEnabled = defaults.bool(forKey: Self.sshEnabledKey)
         backgroundLoadingSound = defaults.object(forKey: BackgroundLoadingSound.enabledKey) == nil
             ? true : defaults.bool(forKey: BackgroundLoadingSound.enabledKey)
         askRobotChecks = defaults.object(forKey: RobotCheck.askKey) == nil ? true : defaults.bool(forKey: RobotCheck.askKey)
@@ -208,6 +212,7 @@ final class AppSettings {
         if pythonEnabled { groups.insert(.python) }
         if browserEnabled { groups.insert(.browser) }
         if browserEnabled && locationEnabled { groups.insert(.location) }
+        if sshEnabled { groups.insert(.ssh) }
         return groups
     }
 

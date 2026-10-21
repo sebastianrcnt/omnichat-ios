@@ -113,6 +113,8 @@ struct FeedCall: Equatable, Sendable {
             places = record.places
             artifact = record.artifact
         }
+        // The SSH card reads every argument (secrets stay masked there until tapped).
+        if SSHToolNames.covers(record.name) { argument = record.arguments }
     }
 
     init(pending: PendingToolCall) {
@@ -243,6 +245,8 @@ struct FeedCard: Identifiable, Equatable, Sendable {
         case places
         /// One `show_html` call: the artifact's title; a tap opens the page.
         case artifact(title: String)
+        /// One `ssh_` call: the tool and its arguments (secrets masked while it runs, `SSHMask`).
+        case ssh(tool: String, arguments: String)
     }
 
     var id: String
@@ -309,6 +313,7 @@ enum ActivityFeed {
                 case ToolNames.viewImage: .image(id: call.argument)
                 case ToolNames.showPlaces: .places
                 case ToolNames.showHTML: .artifact(title: call.argument)
+                case _ where SSHToolNames.covers(tool): .ssh(tool: tool, arguments: call.argument)
                 case _ where ToolNames.isBrowserAction(tool): .browserAction(tool: tool, argument: call.argument)
                 default: .note(tool: tool, argument: call.argument)
                 }

@@ -24,7 +24,7 @@ struct ToolGroupTests {
 
     @Test func theLegacyListIsTheGroupsList() {
         #expect(ToolDefinition.available(python: true, images: true, browser: true, location: true)
-                == ToolDefinition.available(groups: Set(ToolGroup.allCases), images: true))
+                == ToolDefinition.available(groups: Set(ToolGroup.allCases).subtracting([.ssh]), images: true))
         #expect(ToolDefinition.available(python: false, images: false, browser: false, location: true)
                 == ToolDefinition.available(groups: [.web], images: false), "location only with the browser")
         let noWeb = ToolDefinition.available(groups: [.python], images: false).map(\.function.name)

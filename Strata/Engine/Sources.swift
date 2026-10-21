@@ -125,12 +125,18 @@ enum AppPrompt {
     - Don't repeat an action that failed more than 2 or 3 times; try another way. If you're stuck, or a page needs a sign-in or the user's decision, use browser_show. Robot checks are handed to the user automatically; never say you solved one.
     """
 
+    /// The SSH tools: what they are for, long jobs in the background, and keeping what the user gives.
+    static let ssh = """
+    - The ssh_ tools run commands and move files on the user's servers. Use a saved server by name (ssh_server_list), or pass host, user and a password or private key. When the user gives you a password, a key or a server, save it with ssh_credential_save or ssh_server_save so later chats can use it by name.
+    - Each ssh_exec is a new connection that drops when the app goes to the background. Start anything that may take more than a minute with nohup or in tmux, writing to a log file, and check on it with later calls.
+    """
+
     /// The app prompt for a model with (or without) tools, with `run_python` offered or not, with the browser's index
-    /// tools offered or not, and with skills (`save_skill`) offered or not.
-    static func text(tools: Bool, python: Bool, browser: Bool = false, skills: Bool = false) -> String {
+    /// tools offered or not, with skills (`save_skill`) offered or not, and with the SSH tools offered or not.
+    static func text(tools: Bool, python: Bool, browser: Bool = false, skills: Bool = false, ssh: Bool = false) -> String {
         guard tools else { return base }
         return base + "\n\n" + Self.tools + (python ? "\n" + Self.python : "") + (browser ? "\n" + Self.browser : "")
-            + (skills ? "\n" + Self.skillOffer : "")
+            + (skills ? "\n" + Self.skillOffer : "") + (ssh ? "\n" + Self.ssh : "")
     }
 
     /// The user's preferences as a system-prompt section, or "" when they are blank. Followed in every reply, so
