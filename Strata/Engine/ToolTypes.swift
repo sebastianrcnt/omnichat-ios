@@ -149,6 +149,7 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
         case "show_places": return (obj["title"] as? String) ?? ""
         case "show_html": return (obj["title"] as? String) ?? ""
         case "current_location": return ""
+        case _ where SSHToolNames.covers(name): return SSHMask.sanitized(arguments)
         default: return arguments
         }
     }
@@ -175,7 +176,7 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
     /// The record without its result text: all a process row needs, so segments never hold fetched page bodies.
     /// A Python run and a browser script keep their output (the card shows it; it is capped like a page slice).
     var displayOnly: ToolCallRecord {
-        let keepsResult = name == ToolNames.runPython || name == ToolNames.browserEval
+        let keepsResult = name == ToolNames.runPython || name == ToolNames.browserEval || SSHToolNames.covers(name)
         // An index tool keeps its first line ("Clicked [12] Search"): its card's title. The page state is dropped.
         let kept = keepsResult ? result : ToolNames.isBrowserAction(name) ? String(result.prefix { $0 != "\n" }.prefix(200)) : ""
         var out = ToolCallRecord(id: id, name: name, arguments: arguments, result: kept,
@@ -284,7 +285,7 @@ enum ToolNames {
     /// Tools shown in the feed as a card of their own (not a search card or a row of "Read pages").
     static func hasOwnCard(_ name: String) -> Bool {
         [runPython, viewImage, browserOpen, browserEval, browserShow, loadSkill, runSkillScript, saveSkill, showPlaces, currentLocation,
-         showHTML].contains(name) || isBrowserAction(name)
+         showHTML].contains(name) || isBrowserAction(name) || SSHToolNames.covers(name)
     }
 
     /// Tools that read a page (and count as one in the summaries).

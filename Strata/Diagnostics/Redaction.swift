@@ -20,6 +20,14 @@ enum DebugRedaction {
         pattern: #"(?i)\b((?:[a-z_]*token|client_secret|code_verifier|code|password|api_?key|key)=)[^&\s"]+"#)
     private static let bearer = try! NSRegularExpression(pattern: #"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{8,}"#)
     private static let skKey = try! NSRegularExpression(pattern: #"\bsk-[A-Za-z0-9_-]{16,}"#)
+    /// SSH secrets: private keys anywhere, the secret arguments of `ssh_` calls (JSON inside a JSON string), and the
+    /// lines of an `ssh_credential_get` result.
+    private static let privateKey = try! NSRegularExpression(
+        pattern: #"-----BEGIN ([A-Z0-9 ]*)PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----"#, options: [.dotMatchesLineSeparators])
+    private static let sshArgument = try! NSRegularExpression(
+        pattern: #"(\\"(?:password|passphrase|private_key|stdin|answers|certificate)\\"\s*:\s*\\")(?:[^"\\]|\\[^"])*(\\")"#)
+    private static let sshResultLine = try! NSRegularExpression(
+        pattern: #"((?:\\n|^)(?:password|passphrase): )(?:[^"\\]|\\[^n"])*"#, options: [.anchorsMatchLines])
 
     static func redact(_ text: String, options: Options = Options()) -> String {
         var out = text
@@ -28,6 +36,9 @@ enum DebugRedaction {
         out = replace(formSecret, in: out) { _, groups in groups[1] + "<redacted>" }
         out = replace(bearer, in: out) { _, _ in "Bearer <redacted>" }
         out = replace(skKey, in: out) { _, _ in "sk-<redacted>" }
+        out = replace(privateKey, in: out) { _, groups in "-----BEGIN \(groups[1])PRIVATE KEY----- <redacted>" }
+        out = replace(sshArgument, in: out) { _, groups in groups[1] + "<redacted>" + groups[2] }
+        out = replace(sshResultLine, in: out) { _, groups in groups[1] + "<redacted>" }
         return out
     }
 
