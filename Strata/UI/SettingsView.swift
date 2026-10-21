@@ -709,6 +709,75 @@ private struct ToolSettingsView: View {
     }
 }
 
+/// Settings > Chats > Dictation: the language, the engine, and for the API engine a connection and model.
+private struct DictationSettingsSection: View {
+    @Environment(\.theme) private var theme
+    @Environment(\.appSettings) private var settings
+    @Environment(\.connectionStore) private var connections
+
+    var body: some View {
+        @Bindable var settings = settings
+        let api = settings.dictationEngine == .openAICompatible
+        GroupedSection(header: "Dictation", footer: api
+                       ? "The language the microphone in the composer listens for, sent as a hint. The recording is sent to the connection's /audio/transcriptions when you tap Done, and the words appear then. Works with OpenAI (whisper-1, gpt-4o-transcribe), Groq (whisper-large-v3) and local whisper servers; add one under Connections if it isn't there."
+                       : "The language the microphone in the composer listens for. Speech in another language comes out garbled. Apple on-device shows the words as you speak; nothing leaves the device.") {
+            pickerRow("Language") {
+                Picker("Language", selection: $settings.dictationLanguage) {
+                    ForEach(DictationLanguage.options(), id: \.self) { Text(verbatim: DictationLanguage.name($0)).tag($0) }
+                }
+            }
+            pickerRow("Engine") {
+                Picker("Engine", selection: $settings.dictationEngine) {
+                    ForEach(DictationEngineKind.allCases) { Text(verbatim: $0.title).tag($0) }
+                }
+            }
+            if api {
+                let eligible = DictationSettings.eligible(connections.connections)
+                pickerRow("Connection") {
+                    Picker("Connection", selection: $settings.dictationConnectionID) {
+                        Text("None").tag(UUID?.none)
+                        ForEach(eligible) { Text(verbatim: $0.name).tag(UUID?.some($0.id)) }
+                        // A connection that was deleted or changed kind stays visible, so the choice doesn't vanish.
+                        if let id = settings.dictationConnectionID, !eligible.contains(where: { $0.id == id }) {
+                            Text("Unavailable").tag(UUID?.some(id))
+                        }
+                    }
+                }
+                HStack(spacing: 0) {
+                    SettingsFieldRow(title: "Model", prompt: "whisper-1", text: $settings.dictationModel)
+                    Menu {
+                        ForEach(DictationSettings.suggestedModels, id: \.self) { model in
+                            Button(model) { settings.dictationModel = model }
+                        }
+                    } label: {
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: DS.IconSize.sm, weight: .semibold))
+                            .foregroundStyle(theme.textSecondary)
+                            .frame(width: 32, height: 32)
+                            .contentShape(Rectangle())
+                    }
+                    .menuIndicator(.hidden)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text("Suggested models"))
+                    .padding(.trailing, DS.Spacing.md)
+                }
+            }
+        }
+    }
+
+    private func pickerRow(_ title: LocalizedStringKey, @ViewBuilder picker: () -> some View) -> some View {
+        HStack {
+            Text(title).font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
+            Spacer()
+            picker()
+                .labelsHidden()
+                .tint(theme.textSecondary)
+        }
+        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.vertical, DS.Spacing.sm)
+    }
+}
+
 /// Settings > Chats.
 private struct ChatSettingsView: View {
     @Environment(\.theme) private var theme
@@ -729,19 +798,7 @@ private struct ChatSettingsView: View {
                                       isOn: $settings.generateTitles)
                 }
 
-                GroupedSection(header: "Dictation", footer: "The language the microphone in the composer listens for. Speech in another language comes out garbled.") {
-                    HStack {
-                        Text("Language").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
-                        Spacer()
-                        Picker("Language", selection: $settings.dictationLanguage) {
-                            ForEach(DictationLanguage.options(), id: \.self) { Text(verbatim: DictationLanguage.name($0)).tag($0) }
-                        }
-                        .labelsHidden()
-                        .tint(theme.textSecondary)
-                    }
-                    .padding(.horizontal, DS.Spacing.lg)
-                    .padding(.vertical, DS.Spacing.sm)
-                }
+                DictationSettingsSection()
 
                 GroupedSection(header: "Context", footer: "Used for the context ring when a model does not report its context length. Leave blank for 262144.") {
                     // A draft, so clearing the field to type a new number doesn't snap back to the default.

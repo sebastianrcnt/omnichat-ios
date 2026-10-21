@@ -215,7 +215,7 @@ private final class RequestBox: @unchecked Sendable {
 
 /// The audio session, set up for recording only while dictating and put back afterwards (iOS; a Mac has none).
 @MainActor
-private final class AudioSessionScope {
+final class AudioSessionScope {
     #if os(iOS)
     private var saved: (category: AVAudioSession.Category, mode: AVAudioSession.Mode, options: AVAudioSession.CategoryOptions)?
     #endif
