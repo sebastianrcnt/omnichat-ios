@@ -158,6 +158,7 @@ Naver changes its pages now and then. If a script returns `[]` or an error:
 
 - Read the `browser_open` text instead. A search page lists each place as its name and category, then lines like "영업 중", "별점 4.92", "리뷰 2,684", and review snippets; ads are marked "광고". A place page lists the address after "주소" and reviews after "리뷰".
 - Write a small `browser_eval` of your own that returns only what you need (for example the text of the list items), rather than reading the whole page again.
+- To get somewhere the scripts don't cover (a tab like "리뷰", "더보기", a filter), act on the page with the index tools: `browser_click` an [index] from the page state, `browser_find` to locate text.
 - Without coordinates, still call `show_places` with names and addresses: the app finds them on the map.
 
 If a page mentions "자동입력 방지" or a captcha, Naver is blocking automated access: stop and tell the user, and suggest searching in the Naver Map app.

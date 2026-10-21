@@ -132,7 +132,7 @@ enum ReadabilitySource {
 /// It stays attached to the key window at near-zero alpha so WebKit does not throttle it. (On a Mac it lives in a
 /// borderless, fully transparent window parked far outside every screen.)
 @MainActor
-final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage, KeepablePage {
+final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginPage, KeepablePage {
     nonisolated static let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
 
     let webView: WKWebView
@@ -159,6 +159,8 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage, KeepableP
         let config = WKWebViewConfiguration()
         config.websiteDataStore = store ?? BrowserData.store
         config.defaultWebpagePreferences.allowsContentJavaScript = true
+        // New windows reach `createWebViewWith`, which drops them unless a click just asked for them (`acceptPopups`).
+        config.preferences.javaScriptCanOpenWindowsAutomatically = true
         if guardNavigations { LocalNetworkRules.install(in: config.userContentController) }
         if injectsReader, let source = ReadabilitySource.script {
             config.userContentController.addUserScript(WKUserScript(source: source, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
@@ -177,6 +179,7 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage, KeepableP
         super.init()
         DiagnosticCounters.shared.webViewCreated()
         webView.navigationDelegate = self
+        webView.uiDelegate = self
         BackgroundLoadingSound.shared.register(self)
         progressObservation = webView.observe(\.estimatedProgress, options: [.new]) { [weak self] view, _ in
             let value = view.estimatedProgress
@@ -333,6 +336,7 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage, KeepableP
         onProgress = nil
         webView.stopLoading()
         webView.navigationDelegate = nil
+        webView.uiDelegate = nil
         webView.removeFromSuperview()
     }
 
@@ -409,7 +413,9 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage, KeepableP
 
     /// Runs a function body that may `await` (a plugin's promise) and returns its string result, like `evaluate`.
     func callAsync(_ body: String, timeout: Duration) async throws -> String {
-        try await Deadline.run(timeout, timeoutError: WebToolError.timeout, onAbort: { [weak self] in self?.webView.stopLoading() }) { [webView] in
+        rememberFocus()
+        defer { releaseFocus() }
+        return try await Deadline.run(timeout, timeoutError: WebToolError.timeout, onAbort: { [weak self] in self?.webView.stopLoading() }) { [webView] in
             do {
                 let value = try await webView.callAsyncJavaScript(body, contentWorld: .page)
                 return (value as? String) ?? ""
@@ -417,6 +423,85 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage, KeepableP
                 throw WebToolError.script(error.localizedDescription)
             }
         }
+    }
+
+    /// The isolated world of the index tools (`BrowserAgentScript`): the page shares the DOM, not the script.
+    static let agentWorld = WKContentWorld.world(name: "StrataAgent")
+
+    /// Runs a function body in `agentWorld` with `input` as its argument, like `callAsync`.
+    func callAgent(_ body: String, input: String, timeout: Duration) async throws -> String {
+        rememberFocus()
+        defer { releaseFocus() }
+        return try await Deadline.run(timeout, timeoutError: WebToolError.timeout, onAbort: { [weak self] in self?.webView.stopLoading() }) { [webView] in
+            do {
+                let value = try await webView.callAsyncJavaScript(body, arguments: ["input": input], in: nil, contentWorld: Self.agentWorld)
+                return (value as? String) ?? ""
+            } catch {
+                throw WebToolError.script(error.localizedDescription)
+            }
+        }
+    }
+
+    var isLoading: Bool { webView.isLoading }
+
+    /// What the view shows, as a PNG at most `width` pixels wide.
+    func snapshotPNG(width: Int) async throws -> Data {
+        let config = WKSnapshotConfiguration()
+        config.rect = webView.bounds
+        config.afterScreenUpdates = true
+        #if canImport(UIKit)
+        // iOS snapshots the view as drawn: a parked view (nearly transparent, under the app's own views) is drawn
+        // opaque for the moment it takes.
+        let parked = webView.alpha < 1
+        if parked { webView.alpha = 1 }
+        defer { if parked && !isOnScreen { webView.alpha = 0.01 } }
+        #endif
+        let image = try await webView.takeSnapshot(configuration: config)
+        #if canImport(UIKit)
+        let cg = image.cgImage
+        #else
+        let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        #endif
+        guard let cg, let png = SnapshotPNG.encode(cg, width: width) else { throw WebToolError.script("could not take a screenshot.") }
+        return png
+    }
+
+    #if canImport(UIKit)
+    /// What had the focus in the app before a call into the page (the composer, say), to give it back.
+    private weak var appResponder: UIResponder?
+    #endif
+
+    /// Notes what has the app's focus before script runs in the page.
+    private func rememberFocus() {
+        #if canImport(UIKit)
+        if let current = FirstResponder.current, !((current as? UIView)?.isDescendant(of: webView) ?? false) { appResponder = current }
+        #endif
+    }
+
+    /// Script the app runs counts as a user's gesture, so a field it (or the page's handler) focuses takes the keyboard.
+    /// Unless the user has the page in the sheet, the focus goes back to where it was.
+    func releaseFocus() {
+        #if canImport(UIKit)
+        guard !isInSheet, let current = FirstResponder.current as? UIView, current.isDescendant(of: webView) else { return }
+        current.resignFirstResponder()
+        appResponder?.becomeFirstResponder()
+        #endif
+    }
+
+    private var popupsUntil: ContinuousClock.Instant?
+
+    func acceptPopups(for duration: Duration) { popupsUntil = .now + duration }
+
+    /// A link with a target or `window.open` right after a click opens in this page (the model has one page); any
+    /// other new window is dropped.
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction,
+                 windowFeatures: WKWindowFeatures) -> WKWebView? {
+        if let until = popupsUntil, ContinuousClock.now < until, let url = navigationAction.request.url,
+           url.scheme?.lowercased().hasPrefix("http") == true {
+            popupsUntil = nil
+            webView.load(navigationAction.request)
+        }
+        return nil
     }
 
     /// Ends a pending `load` with `CancellationError` but leaves the page loading: a plugin runs on a page that is
@@ -470,6 +555,24 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, PluginPage, KeepableP
         if isCurrent(navigation) { finish(.failure(WebToolError.loadFailure(error))) }
     }
 }
+
+#if canImport(UIKit)
+/// The app's first responder, found by asking whoever takes a nil-targeted action.
+@MainActor
+enum FirstResponder {
+    fileprivate static weak var found: UIResponder?
+
+    static var current: UIResponder? {
+        found = nil
+        UIApplication.shared.sendAction(#selector(UIResponder.strataReportFirstResponder), to: nil, from: nil, for: nil)
+        return found
+    }
+}
+
+extension UIResponder {
+    @objc fileprivate func strataReportFirstResponder() { FirstResponder.found = self }
+}
+#endif
 
 #if canImport(AppKit)
 /// The window the hidden web views of a Mac live in. A web view with no window is treated as not visible and WebKit

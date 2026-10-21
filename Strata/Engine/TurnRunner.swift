@@ -250,7 +250,7 @@ struct TurnRunner: Sendable {
                         let infos = out.sources.map { sources.assign($0) }
                         ids = infos.map(\.id)
                         let blocks = zip(infos, out.sources).map { SourceFormatter.block($0, content: $1.content) }.joined(separator: "\n")
-                        out.text = out.engine.map { "Results from \($0):\n" + blocks } ?? blocks
+                        out.text = (out.engine.map { "Results from \($0):\n" + blocks } ?? blocks) + (out.trailer.map { "\n\n" + $0 } ?? "")
                     }
                     var record = ToolCallRecord(id: call.id, name: call.name, arguments: call.arguments,
                                                 result: out.text, isError: out.isError, sourceIDs: ids)

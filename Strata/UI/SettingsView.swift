@@ -449,7 +449,7 @@ struct BrowserSettingsSection: View {
 
     var body: some View {
         @Bindable var settings = settings
-        GroupedSection(header: "Browser", footer: "The model can open pages in a hidden browser on this device with browser_open and run JavaScript in them with browser_eval. It can't reach your local network. When the model needs you to sign in, it shows you the page; the sign-in is kept for later. Skills teach the model tasks like finding places on Naver; it saves new ones only when you approve.") {
+        GroupedSection(header: "Browser", footer: "The model can open pages in a hidden browser on this device with browser_open, click, type and scroll in them, and run JavaScript with browser_eval. It can't reach your local network. When the model needs you to sign in, it shows you the page; the sign-in is kept for later. Skills teach the model tasks like finding places on Naver; it saves new ones only when you approve.") {
             SettingsToggleRow(title: "Browser", subtitle: "Let the model browse sites and read data from them.", isOn: $settings.browserEnabled)
             if settings.browserEnabled {
                 SettingsToggleRow(title: "Location", subtitle: "Let the model ask for your approximate location to find places near you.",

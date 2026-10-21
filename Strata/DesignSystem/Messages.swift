@@ -426,6 +426,7 @@ struct AssistantMessage: View {
             case ToolNames.runPython: String(localized: "Running Python")
             case ToolNames.viewImage: String(localized: "Looking at the image")
             case ToolNames.browserOpen: String(localized: "Browsing")
+            case _ where ToolNames.isBrowserAction(name): String(localized: "Browsing")
             case ToolNames.browserEval, ToolNames.runSkillScript: String(localized: "Running a script")
             case ToolNames.loadSkill: String(localized: "Reading a skill")
             case ToolNames.saveSkill: String(localized: "Waiting for your answer")
