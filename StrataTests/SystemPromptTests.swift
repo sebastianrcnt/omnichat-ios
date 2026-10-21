@@ -12,6 +12,12 @@ struct AppPromptTests {
         #expect(AppPrompt.text(tools: true, python: true).hasSuffix(AppPrompt.python))
     }
 
+    @Test func skillOfferComesOnlyWithSkills() {
+        #expect(!AppPrompt.text(tools: true, python: true).contains("save_skill"))
+        #expect(AppPrompt.text(tools: true, python: true, skills: true).hasSuffix(AppPrompt.skillOffer))
+        #expect(AppPrompt.text(tools: false, python: false, skills: true) == AppPrompt.base)
+    }
+
     @Test func itHasNoPersonality() {
         #expect(!AppPrompt.base.localizedCaseInsensitiveContains("helpful"))
     }

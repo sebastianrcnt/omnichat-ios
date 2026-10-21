@@ -539,7 +539,7 @@ final class ChatController {
         // A chat keeps the skill list it first had with the browser on, like its preferences.
         let skillIndex = !(tools && settings.browserEnabled) ? ""
             : freeze ? conversation.frozenSkillIndex(current: skills.index) : conversation.skillIndexSnapshot ?? skills.index
-        let base = [AppPrompt.text(tools: tools, python: tools && settings.pythonEnabled),
+        let base = [AppPrompt.text(tools: tools, python: tools && settings.pythonEnabled, skills: tools && settings.browserEnabled),
                     skillIndex,
                     AppPrompt.preferences(freeze ? conversation.frozenPreferences(current: settings.userPreferences)
                                                   : conversation.preferencesSnapshot ?? settings.userPreferences)]

@@ -110,10 +110,17 @@ enum AppPrompt {
     - To show a figure run_python saved, put ![short caption](figure-N) on its own line where it belongs in your reply.
     """
 
-    /// The app prompt for a model with (or without) tools, and with `run_python` offered or not.
-    static func text(tools: Bool, python: Bool) -> String {
+    /// When to offer `save_skill` on your own: after hard-won work that is likely to come back, once, in one line.
+    static let skillOffer = """
+    - When a task took real work to figure out (several failed tries before one worked, the user correcting your approach, a site that needed a special script) and the user is likely to ask for something like it again, end your reply with one short line offering to save what worked as a skill, so next time is faster. Write the skill with save_skill only after the user says yes.
+    - Don't offer for one-off questions, for tasks that worked on the first try, or again in a chat where the user declined. If a loaded skill was wrong or incomplete, offer to update it instead.
+    """
+
+    /// The app prompt for a model with (or without) tools, with `run_python` offered or not, and with skills
+    /// (`save_skill`) offered or not.
+    static func text(tools: Bool, python: Bool, skills: Bool = false) -> String {
         guard tools else { return base }
-        return base + "\n\n" + Self.tools + (python ? "\n" + Self.python : "")
+        return base + "\n\n" + Self.tools + (python ? "\n" + Self.python : "") + (skills ? "\n" + Self.skillOffer : "")
     }
 
     /// The user's preferences as a system-prompt section, or "" when they are blank. Followed in every reply, so
