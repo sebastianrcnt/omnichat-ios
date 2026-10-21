@@ -531,6 +531,8 @@ struct CompactionTurnTests {
         strata.models = [ModelInfo(id: "m", contextLength: window, supportsTools: true)]
         connections.upsert(strata)
         let streamer = ProgrammableStreamer(plans)
+        // The windows here are tight; the sizes assume the tools without video_transcript.
+        defaults.set(false, forKey: AppSettings.videoTranscriptsEnabledKey)
         let controller = ChatController(connections: connections, settings: AppSettings(defaults: defaults),
                                         streamer: streamer, tools: FakeTools())
         let conversation = Conversation(connectionID: Connection.testID, modelID: "m", effort: .medium)

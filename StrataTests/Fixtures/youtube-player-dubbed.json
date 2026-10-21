@@ -1,0 +1,311 @@
+{
+ "playabilityStatus": {
+  "status": "OK"
+ },
+ "videoDetails": {
+  "videoId": "qpu_kIMdo0k",
+  "title": "주식시장 K-사고방식",
+  "lengthSeconds": "138",
+  "author": "슈카월드"
+ },
+ "captions": {
+  "playerCaptionsTracklistRenderer": {
+   "captionTracks": [
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=qpu_kIMdo0k&caps=asr&kind=asr&lang=en&signature=TEST",
+     "name": {
+      "runs": [
+       {
+        "text": "English (auto-generated)"
+       }
+      ]
+     },
+     "vssId": "a.en",
+     "languageCode": "en",
+     "kind": "asr",
+     "isTranslatable": true,
+     "trackName": ""
+    },
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=qpu_kIMdo0k&caps=asr&kind=asr&lang=id&signature=TEST",
+     "name": {
+      "runs": [
+       {
+        "text": "Indonesian (auto-generated)"
+       }
+      ]
+     },
+     "vssId": "a.id",
+     "languageCode": "id",
+     "kind": "asr",
+     "isTranslatable": true,
+     "trackName": ""
+    },
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=qpu_kIMdo0k&caps=asr&kind=asr&lang=ko&signature=TEST",
+     "name": {
+      "runs": [
+       {
+        "text": "Korean (auto-generated)"
+       }
+      ]
+     },
+     "vssId": "a.ko",
+     "languageCode": "ko",
+     "kind": "asr",
+     "isTranslatable": true,
+     "trackName": ""
+    }
+   ],
+   "audioTracks": [
+    {
+     "captionTrackIndices": [
+      2,
+      0,
+      1
+     ],
+     "audioTrackId": "id.10"
+    },
+    {
+     "captionTrackIndices": [
+      2,
+      0,
+      1
+     ],
+     "audioTrackId": "en-US.10"
+    },
+    {
+     "captionTrackIndices": [
+      2,
+      0,
+      1
+     ],
+     "audioTrackId": "ko.4"
+    }
+   ],
+   "translationLanguages": [
+    {
+     "languageCode": "ar",
+     "languageName": {
+      "runs": [
+       {
+        "text": "Arabic"
+       }
+      ]
+     }
+    },
+    {
+     "languageCode": "zh-Hant",
+     "languageName": {
+      "runs": [
+       {
+        "text": "Chinese (Traditional)"
+       }
+      ]
+     }
+    },
+    {
+     "languageCode": "nl",
+     "languageName": {
+      "runs": [
+       {
+        "text": "Dutch"
+       }
+      ]
+     }
+    },
+    {
+     "languageCode": "en",
+     "languageName": {
+      "runs": [
+       {
+        "text": "English"
+       }
+      ]
+     },
+     "translationSourceTrackIndices": [
+      1
+     ]
+    }
+   ],
+   "defaultAudioTrackIndex": 2,
+   "defaultTranslationSourceTrackIndices": [
+    0
+   ]
+  }
+ },
+ "streamingData": {
+  "adaptiveFormats": [
+   {
+    "itag": 139,
+    "audioTrack": {
+     "displayName": "English (US)",
+     "id": "en-US.10",
+     "audioIsDefault": true,
+     "isAutoDubbed": true
+    }
+   },
+   {
+    "itag": 139,
+    "audioTrack": {
+     "displayName": "Indonesian",
+     "id": "id.10",
+     "audioIsDefault": false,
+     "isAutoDubbed": true
+    }
+   },
+   {
+    "itag": 139,
+    "audioTrack": {
+     "displayName": "Korean original",
+     "id": "ko.4",
+     "audioIsDefault": false
+    }
+   },
+   {
+    "itag": 139,
+    "audioTrack": {
+     "displayName": "Korean original",
+     "id": "ko.4",
+     "audioIsDefault": false
+    }
+   },
+   {
+    "itag": 140,
+    "audioTrack": {
+     "displayName": "English (US)",
+     "id": "en-US.10",
+     "audioIsDefault": true,
+     "isAutoDubbed": true
+    }
+   },
+   {
+    "itag": 140,
+    "audioTrack": {
+     "displayName": "Indonesian",
+     "id": "id.10",
+     "audioIsDefault": false,
+     "isAutoDubbed": true
+    }
+   },
+   {
+    "itag": 140,
+    "audioTrack": {
+     "displayName": "Korean original",
+     "id": "ko.4",
+     "audioIsDefault": false
+    }
+   },
+   {
+    "itag": 140,
+    "audioTrack": {
+     "displayName": "Korean original",
+     "id": "ko.4",
+     "audioIsDefault": false
+    }
+   },
+   {
+    "itag": 249,
+    "audioTrack": {
+     "displayName": "English (US)",
+     "id": "en-US.10",
+     "audioIsDefault": true,
+     "isAutoDubbed": true
+    }
+   },
+   {
+    "itag": 249,
+    "audioTrack": {
+     "displayName": "Indonesian",
+     "id": "id.10",
+     "audioIsDefault": false,
+     "isAutoDubbed": true
+    }
+   },
+   {
+    "itag": 249,
+    "audioTrack": {
+     "displayName": "Korean original",
+     "id": "ko.4",
+     "audioIsDefault": false
+    }
+   },
+   {
+    "itag": 249,
+    "audioTrack": {
+     "displayName": "Korean original",
+     "id": "ko.4",
+     "audioIsDefault": false
+    }
+   },
+   {
+    "itag": 250,
+    "audioTrack": {
+     "displayName": "English (US)",
+     "id": "en-US.10",
+     "audioIsDefault": true,
+     "isAutoDubbed": true
+    }
+   },
+   {
+    "itag": 250,
+    "audioTrack": {
+     "displayName": "Indonesian",
+     "id": "id.10",
+     "audioIsDefault": false,
+     "isAutoDubbed": true
+    }
+   },
+   {
+    "itag": 250,
+    "audioTrack": {
+     "displayName": "Korean original",
+     "id": "ko.4",
+     "audioIsDefault": false
+    }
+   },
+   {
+    "itag": 250,
+    "audioTrack": {
+     "displayName": "Korean original",
+     "id": "ko.4",
+     "audioIsDefault": false
+    }
+   },
+   {
+    "itag": 251,
+    "audioTrack": {
+     "displayName": "English (US)",
+     "id": "en-US.10",
+     "audioIsDefault": true,
+     "isAutoDubbed": true
+    }
+   },
+   {
+    "itag": 251,
+    "audioTrack": {
+     "displayName": "Indonesian",
+     "id": "id.10",
+     "audioIsDefault": false,
+     "isAutoDubbed": true
+    }
+   },
+   {
+    "itag": 251,
+    "audioTrack": {
+     "displayName": "Korean original",
+     "id": "ko.4",
+     "audioIsDefault": false
+    }
+   },
+   {
+    "itag": 251,
+    "audioTrack": {
+     "displayName": "Korean original",
+     "id": "ko.4",
+     "audioIsDefault": false
+    }
+   }
+  ]
+ }
+}
