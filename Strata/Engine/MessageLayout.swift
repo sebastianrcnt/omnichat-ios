@@ -33,11 +33,22 @@ enum MessageLayout {
         }
     }
 
-    /// Space above `item`: one even gap between every part of the work and the answer, so a thought line sits as far
-    /// from the card above it as from the one below. The live line takes the same gap, so it doesn't move when it
-    /// finishes.
+    /// Space above `item`. Thought lines and feeds are one list of quiet lines, as far apart as a feed's own lines, so a
+    /// thought line sits as far from the card above it as from the one below; text (a note, the answer) stands off from
+    /// them. The live line takes the list's gap, so it doesn't move when it finishes.
     static func gap(above item: Item, after previous: Item?) -> Double {
-        previous == nil ? 0 : 16
+        guard let previous else { return 0 }
+        return isLine(item) && isLine(previous) ? lineGap : 16
+    }
+
+    /// The space between a feed's lines (`ActivityFeedView`'s spacing).
+    static let lineGap: Double = 4
+
+    private static func isLine(_ item: Item) -> Bool {
+        switch item {
+        case .thought, .reasoning, .working, .feed: true
+        case .note, .text: false
+        }
     }
 
     /// The work before the answer, in stream order.

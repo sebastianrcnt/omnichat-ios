@@ -61,16 +61,18 @@ struct ThoughtLine: View {
                 } else {
                     Text(doneTitle).font(DS.Typography.thought).foregroundStyle(theme.textSecondary)
                         .lineLimit(settings.thinkingLines).truncationMode(.tail)
-                        .frame(maxWidth: .infinity, alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
                         .id(doneTitle) // a translation arriving rises in
                         .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 6)), removal: .opacity))
                 }
                 Image(systemName: "chevron.right")
-                    .font(.system(size: DS.IconSize.sm - 3, weight: .semibold)).foregroundStyle(theme.textTertiary)
+                    .font(.system(size: DS.Feed.mark, weight: .semibold)).foregroundStyle(theme.textTertiary)
                     .opacity(isWorking ? 0 : 1)
+                Spacer(minLength: 0)
             }
-            .frame(minHeight: 24)
+            // A feed line's height and padding, so the thought and the feed under it read as one list.
+            .padding(.vertical, DS.Spacing.xs)
+            .frame(minHeight: DS.Feed.lineHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -210,7 +212,7 @@ struct ActivityFeedView: View {
         let items = BrowserRun.items(cards)
         let indices = Dictionary(cards.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { a, _ in a })
         let working = isStreaming && !answerStarted
-        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+        VStack(alignment: .leading, spacing: MessageLayout.lineGap) {
             ForEach(Array(items.enumerated()), id: \.element.id) { position, item in
                 Group {
                     switch item {

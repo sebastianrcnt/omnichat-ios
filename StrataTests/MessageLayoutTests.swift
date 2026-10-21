@@ -191,12 +191,14 @@ struct MessagePartsTests {
         #expect(faded == ["orld"], "only the newest, still fading span is faint")
     }
 
-    @Test func everyPartIsTheSameGapApart() {
+    @Test func workLinesAreOneListAndTextStandsOff() {
         #expect(MessageLayout.gap(above: .reasoning(0), after: nil) == 0)
-        let gaps = [MessageLayout.gap(above: .note(1), after: .reasoning(0)), MessageLayout.gap(above: .feed(0), after: .note(1)),
-                    MessageLayout.gap(above: .reasoning(3), after: .feed(0)), MessageLayout.gap(above: .working, after: .feed(0)),
+        let lines = [MessageLayout.gap(above: .feed(0), after: .reasoning(0)), MessageLayout.gap(above: .reasoning(3), after: .feed(0)),
+                     MessageLayout.gap(above: .working, after: .feed(0)), MessageLayout.gap(above: .feed(0), after: .thought)]
+        #expect(Set(lines) == [MessageLayout.lineGap])
+        let text = [MessageLayout.gap(above: .note(1), after: .reasoning(0)), MessageLayout.gap(above: .feed(0), after: .note(1)),
                     MessageLayout.gap(above: .text, after: .reasoning(3))]
-        #expect(Set(gaps).count == 1)
+        #expect(Set(text) == [16])
     }
 
     @Test func aThoughtLineIsItsLastLineWithoutMarkdown() {
