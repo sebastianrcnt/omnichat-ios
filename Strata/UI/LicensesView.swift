@@ -41,7 +41,7 @@ struct LicensesView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                GroupedSection(header: "Open source", footer: "Strata includes these components under their licenses.") {
+                GroupedSection(header: "Open source", footer: "OpenChat includes these components under their licenses.") {
                     ForEach(LicenseEntry.all) { entry in
                         NavigationLink(value: entry) {
                             HStack(spacing: DS.Spacing.md) {

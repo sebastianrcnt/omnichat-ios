@@ -19,7 +19,7 @@ struct ResponsesRequest: Encodable, Sendable {
     /// All app tools go in one namespace (the route takes function tools only inside namespaces). Fixed, so the
     /// tools part of the prompt stays byte-identical.
     static let toolNamespace = "strata"
-    static let toolNamespaceDescription = "Tools that run in the Strata app on the user's device."
+    static let toolNamespaceDescription = "Tools that run in the OpenChat app on the user's device."
 
     var model: String
     var instructions: String?

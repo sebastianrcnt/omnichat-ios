@@ -17,7 +17,7 @@ extension ResumableChatStreaming {
 struct StreamOutage: LocalizedError, Equatable {
     var minutes: Int
     var errorDescription: String? {
-        String(localized: "Could not reconnect to the server for \(minutes) minutes. Strata tries again when you come back to the app.")
+        String(localized: "Could not reconnect to the server for \(minutes) minutes. OpenChat tries again when you come back to the app.")
     }
 }
 

@@ -88,7 +88,7 @@ enum SourceFormatter {
 /// and names are the user's (`preferences`). Fixed text, so the cached prefix holds across chats.
 enum AppPrompt {
     static let base = """
-    You are an AI assistant in Strata, a chat app.
+    You are an AI assistant in OpenChat, a chat app.
 
     - Replies are rendered as Markdown. Math is not rendered: write formulas in plain text or Unicode, not LaTeX.
     - Respond in the same language as the user's message unless asked otherwise.

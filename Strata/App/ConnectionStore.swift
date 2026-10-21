@@ -311,7 +311,7 @@ extension ConnectionStore.ModelFetch {
         guard let count, let finished else { return nil }
         let when = finished.formatted(.relative(presentation: .named))
         var text = String(localized: "Fetched \(count) models \(when).")
-        if unsupported > 0 { text += " " + String(localized: "\(unsupported) more use an API Strata doesn't support yet.") }
+        if unsupported > 0 { text += " " + String(localized: "\(unsupported) more use an API OpenChat doesn't support yet.") }
         return text
     }
 }

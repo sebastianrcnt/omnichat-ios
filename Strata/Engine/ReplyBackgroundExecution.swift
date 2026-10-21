@@ -54,7 +54,7 @@ final class ReplyBackgroundExecution {
             if registered {
                 DiagnosticCounters.shared.backgroundIdentifierRegistered()
                 let request = BGContinuedProcessingTaskRequest(identifier: id,
-                    title: String(localized: "Preparing reply"), subtitle: String(localized: "Strata is replying"))
+                    title: String(localized: "Preparing reply"), subtitle: String(localized: "OpenChat is replying"))
                 request.strategy = .fail // no stale queued work after the turn has already finished
                 do { try BGTaskScheduler.shared.submit(request) }
                 catch { identifier = nil } // finite beginBackgroundTask fallback remains active
@@ -131,13 +131,13 @@ final class ReplyBackgroundExecution {
     /// Tells the person their reply is ready: the chat's title, then the start of the answer. Tapping it opens the chat.
     static func notifyCompletion(title: String, body: String, conversationID: UUID) {
         post(title: title.isEmpty ? String(localized: "Reply ready") : title,
-             body: body.isEmpty ? String(localized: "Your Strata reply is ready.") : body,
+             body: body.isEmpty ? String(localized: "Your OpenChat reply is ready.") : body,
              conversationID: conversationID)
     }
 
     /// A tool stopped at a robot check while the app is not in front. Tapping it opens the chat and the page.
     static func notifyRobotCheck(host: String, conversationID: UUID?, requestID: UUID) {
-        post(title: "Strata", body: String(localized: "\(host) wants a robot check. Tap to open the page."),
+        post(title: "OpenChat", body: String(localized: "\(host) wants a robot check. Tap to open the page."),
              conversationID: conversationID, extra: [ReplyNotificationRouter.robotCheckKey: requestID.uuidString])
     }
 

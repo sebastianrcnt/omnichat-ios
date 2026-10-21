@@ -406,7 +406,7 @@ struct RobotCheckPrompt: View {
                 FeedSymbol(name: "exclamationmark.triangle", color: theme.warning)
             }
             VStack(alignment: .leading, spacing: 0) {
-                Text("Solve it on the page and Strata picks up where it stopped. A solved check is kept for later searches.")
+                Text("Solve it on the page and OpenChat picks up where it stopped. A solved check is kept for later searches.")
                     .font(DS.Typography.feed)
                     .foregroundStyle(theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)

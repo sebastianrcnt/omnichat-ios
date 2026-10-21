@@ -360,7 +360,7 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
         case denied, restricted, unavailable(String)
         var errorDescription: String? {
             switch self {
-            case .denied: "The user has not allowed Strata to use their location. Ask them where they are (an area or a station) instead, or tell them they can allow it in Settings."
+            case .denied: "The user has not allowed OpenChat to use their location. Ask them where they are (an area or a station) instead, or tell them they can allow it in Settings."
             case .restricted: "Location access is restricted on this device. Ask the user where they are instead."
             case .unavailable(let m): "The location could not be found (\(m)). Ask the user where they are instead."
             }

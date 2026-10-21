@@ -134,7 +134,7 @@ struct OpenCodeConnectionEditor: View {
 
     private var accountFooter: LocalizedStringKey {
         if device != nil {
-            return "Open the sign-in page and approve. The code is copied when the page opens, so paste it if the page asks. Strata keeps checking and comes back here once you approve."
+            return "Open the sign-in page and approve. The code is copied when the page opens, so paste it if the page asks. OpenChat keeps checking and comes back here once you approve."
         }
         return "Sign in with your OpenCode Console account, or paste a service-account API key from the Console. Sign-ins and keys are stored in the Keychain."
     }
