@@ -1841,7 +1841,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Strata/Resources/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Strata;
+				INFOPLIST_KEY_CFBundleDisplayName = OpenChat;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Strata uses the camera to attach photos to your messages.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Strata uses your approximate location when you ask the assistant to find places near you.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Strata uses the microphone when you dictate a message.";
@@ -1899,7 +1899,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Strata/Resources/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Strata;
+				INFOPLIST_KEY_CFBundleDisplayName = OpenChat;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Strata uses the camera to attach photos to your messages.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Strata uses your approximate location when you ask the assistant to find places near you.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Strata uses the microphone when you dictate a message.";

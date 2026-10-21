@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Archives a Release build named OpenChat and uploads it to App Store Connect for TestFlight, signed and uploaded with
+# Archives a Release build and uploads it to App Store Connect for TestFlight, signed and uploaded with
 # the Apple account Xcode is signed in to. The build number is the current time, so every upload is new.
 #
 #   Tools/testflight.sh           archive + upload
@@ -29,7 +29,7 @@ EOF
 rm -rf "$WORK/OpenChat.xcarchive" "$WORK/export"
 xcodebuild -project "$REPO/Strata.xcodeproj" -scheme Strata -configuration Release -destination 'generic/platform=iOS' \
   -allowProvisioningUpdates -derivedDataPath "$WORK/dd" -archivePath "$WORK/OpenChat.xcarchive" archive \
-  INFOPLIST_KEY_CFBundleDisplayName=OpenChat CURRENT_PROJECT_VERSION=$BUILD \
+  CURRENT_PROJECT_VERSION=$BUILD \
   | grep -a "ARCHIVE SUCCEEDED\|ARCHIVE FAILED\|error: [^t]" || true
 [[ -d "$WORK/OpenChat.xcarchive" ]] || { echo "archive failed" >&2; exit 1; }
 
