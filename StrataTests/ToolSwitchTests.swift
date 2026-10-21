@@ -75,6 +75,7 @@ struct ChatToolSwitchTests {
         let settings = AppSettings(defaults: defaults)
         settings.pythonEnabled = false
         settings.videoTranscriptsEnabled = false
+        settings.interactiveViewsEnabled = false
         settings.generateTitles = false
         let streamer = ProgrammableStreamer(plans)
         let controller = ChatController(connections: connections, settings: settings, streamer: streamer, tools: FakeTools())
