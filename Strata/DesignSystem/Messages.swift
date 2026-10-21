@@ -657,7 +657,7 @@ struct TranslationBanner: View {
                 render: MessageRenderState(text: "Use glass on **controls** only [1]."))
             AssistantMessage(content: .init(isStreaming: true, phase: .thinking, turnStart: .now),
                              render: MessageRenderState(reasoning: "Let me think about the plan"))
-            AssistantMessage(content: .init(errorText: "Add an API key for Strata in Settings.", errorNeedsSettings: true), render: MessageRenderState())
+            AssistantMessage(content: .init(errorText: "Add an API key for My server in Settings.", errorNeedsSettings: true), render: MessageRenderState())
         }
         .padding()
     }

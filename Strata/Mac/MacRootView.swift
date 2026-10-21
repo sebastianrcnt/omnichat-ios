@@ -34,6 +34,7 @@ struct MacRootView: View {
         .frame(minWidth: 760, minHeight: 520)
         .onChange(of: selected?.id) { old, new in chatKey.update(old: old, new: new, active: controller.activeConversationID) }
         .chatLifecycle(selected: $selected)
+        .connectionLinks(closing: .constant(false))
         .onAppear {
             WindowActions.shared.install(newChat: newChat, findChats: findChats)
             WindowActions.shared.selectChat = selectChat

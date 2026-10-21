@@ -240,8 +240,8 @@ struct AutoRenameControllerTests {
                                            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
         let connections = ConnectionStore(defaults: defaults, keys: InMemoryKeyStore())
-        try connections.setAPIKey("k", for: Connection.strataID)
-        var strata = connections.connection(Connection.strataID)!
+        try connections.setAPIKey("k", for: Connection.testID)
+        var strata = connections.testGateway()
         strata.models = [ModelInfo(id: "m", supportsTools: true)]
         connections.upsert(strata)
         let settings = AppSettings(defaults: defaults)
@@ -249,7 +249,7 @@ struct AutoRenameControllerTests {
         let streamer = ProgrammableStreamer(plans)
         let controller = ChatController(connections: connections, settings: settings, streamer: streamer, tools: FakeTools())
         controller.requestRing = RequestRing()
-        let conversation = Conversation(connectionID: Connection.strataID, modelID: "m")
+        let conversation = Conversation(connectionID: Connection.testID, modelID: "m")
         container.mainContext.insert(conversation)
         return Rig(container: container, controller: controller, context: container.mainContext,
                    conversation: conversation, streamer: streamer, settings: settings)

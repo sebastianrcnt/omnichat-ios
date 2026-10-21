@@ -82,7 +82,7 @@ private final class IdempotentRecoveryStreamer: ResumableChatStreaming, @uncheck
 struct ResumeTests {
     private let rid = "req_0123456789abcdef01234567"
     private func endpoint(resumable: Bool = true) -> Endpoint {
-        Endpoint(connectionID: Connection.strataID, connectionName: "Test", baseURL: URL(string: "http://localhost/v1")!,
+        Endpoint(connectionID: Connection.testID, connectionName: "Test", baseURL: URL(string: "http://localhost/v1")!,
                  apiKey: nil, headers: [:], model: ModelInfo(id: "m", supportsTools: false), supportsResumable: resumable)
     }
 
@@ -247,11 +247,9 @@ struct ResumeTests {
     }
 
     @Test func oldConnectionSettingsGetSafeCapabilityDefaults() throws {
-        let strata = Data("{\"id\":\"\(Connection.strataID.uuidString)\",\"name\":\"Strata\",\"baseURL\":\"https://localhost/v1\"}".utf8)
         let other = Data("{\"id\":\"\(UUID().uuidString)\",\"name\":\"Other\",\"baseURL\":\"https://localhost/v1\"}".utf8)
-        #expect(try JSONDecoder().decode(Connection.self, from: strata).supportsResumable)
         #expect(try !JSONDecoder().decode(Connection.self, from: other).supportsResumable)
-        var disabled = Connection.strataPreset()
+        var disabled = Connection.testGateway()
         disabled.supportsResumable = false
         #expect(try !JSONDecoder().decode(Connection.self, from: JSONEncoder().encode(disabled)).supportsResumable)
     }
@@ -263,22 +261,21 @@ struct ResumeTests {
         #expect(outcome.finalContent == "plain")
         #expect(streamer.plainRequests == 1)
         #expect(streamer.checkpoints.isEmpty)
-        #expect(Connection.strataPreset().supportsResumable)
         #expect(!Connection(name: "Other", baseURL: "http://localhost/v1").supportsResumable)
     }
 
     @Test(arguments: [false, true]) func stopDuringResumeCancelsServerAndLocalTask(beforeHeaders: Bool) async throws {
         let defaults = UserDefaults(suiteName: "resume-tests-\(UUID())")!
         let keys = InMemoryKeyStore()
-        try keys.setKey("test-only-key", for: Connection.strataID)
+        try keys.setKey("test-only-key", for: Connection.testID)
         let connections = ConnectionStore(defaults: defaults, keys: keys)
-        var strata = Connection.strataPreset()
+        var strata = Connection.testGateway()
         strata.models = [ModelInfo(id: "m", supportsTools: false)]
         connections.upsert(strata)
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let context = container.mainContext
-        let conversation = Conversation(connectionID: Connection.strataID, modelID: "m")
+        let conversation = Conversation(connectionID: Connection.testID, modelID: "m")
         let prefix = beforeHeaders ? "" : "partial"
         let message = Message(role: .assistant, text: prefix, sortIndex: 0)
         message.conversation = conversation

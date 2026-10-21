@@ -15,7 +15,7 @@ struct UnconfiguredConnectionTests {
         store.removeUnconfigured()
         let ids = Set(store.connections.map(\.id))
         #expect(!ids.contains(blank.id))
-        #expect(ids.isSuperset(of: [keyed.id, real.id, account.id, Connection.strataID]))
+        #expect(ids.isSuperset(of: [keyed.id, real.id, account.id]))
     }
 }
 

@@ -121,12 +121,12 @@ final class ChatController {
         renderStates = renderStates.filter { keep.contains($0.key) || $0.key == activeMessageID }
     }
 
-    /// The Strata gateway always needs a key, and a ChatGPT or OpenCode connection a sign-in (or, for OpenCode, a key);
-    /// other connections may be keyless (local servers).
+    /// A ChatGPT or OpenCode connection needs a sign-in (or, for OpenCode, a key); an OpenAI-compatible one may be
+    /// keyless (local servers), so its server says when a key is missing.
     static func needsKey(_ endpoint: Endpoint, connections: ConnectionStore) -> Bool {
         if endpoint.kind == .chatGPT { return !connections.isChatGPTSignedIn(endpoint.connectionID) }
         if endpoint.kind == .openCode { return !connections.isOpenCodeSignedIn(endpoint.connectionID) }
-        return (endpoint.apiKey ?? "").isEmpty && connections.connection(endpoint.connectionID)?.isStrata == true
+        return false
     }
 
     /// What the chat says when `needsKey`.

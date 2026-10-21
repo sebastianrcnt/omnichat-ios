@@ -6,7 +6,7 @@ import Foundation
 struct ChatGPTConnectionTests {
     /// A connection saved before `kind` existed.
     private let legacyJSON = """
-    [{"id":"5712A7A0-0000-4000-8000-000000000001","name":"Strata","baseURL":"https://llm-api.coolservices.cc/v1",
+    [{"id":"5712A7A0-0000-4000-8000-000000000001","name":"Strata","baseURL":"https://gateway.invalid/v1",
       "customHeaders":"","models":[{"id":"qwen","supportsImages":true,"supportsEffort":true,"supportsTools":true,"isManual":false}],
       "supportsResumable":true},
      {"id":"0F6A1A52-1111-4000-8000-000000000002","name":"Local","baseURL":"http://192.168.0.2:8080/v1","models":[]}]

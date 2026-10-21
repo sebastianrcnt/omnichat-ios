@@ -102,12 +102,13 @@ struct KeyStorageTests {
         let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
         let keys = InMemoryKeyStore()
         let store = ConnectionStore(defaults: defaults, keys: keys)
-        #expect(store.connections.first?.isStrata == true)
+        #expect(store.connections.isEmpty) // nothing is built in
+        store.testGateway()
         let extra = Connection(name: "Other", baseURL: "http://localhost:1234/v1/", customHeaders: "X-Org: acme\nbad line")
         store.upsert(extra)
-        try store.setAPIKey("one", for: Connection.strataID)
+        try store.setAPIKey("one", for: Connection.testID)
         try store.setAPIKey("two", for: extra.id)
-        #expect(store.apiKey(for: Connection.strataID) == "one")
+        #expect(store.apiKey(for: Connection.testID) == "one")
         #expect(store.apiKey(for: extra.id) == "two")
         let endpoint = try #require(store.endpoint(connectionID: extra.id, modelID: "m"))
         #expect(endpoint.apiKey == "two")
@@ -115,17 +116,26 @@ struct KeyStorageTests {
         #expect(endpoint.baseURL.absoluteString == "http://localhost:1234/v1")
         store.delete(extra.id)
         #expect(keys.key(for: extra.id) == nil)
-        #expect(store.apiKey(for: Connection.strataID) == "one")
-        store.delete(Connection.strataID) // the preset cannot be deleted
-        #expect(store.connection(Connection.strataID) != nil)
+        #expect(store.apiKey(for: Connection.testID) == "one")
         // Persisted
         let reloaded = ConnectionStore(defaults: defaults, keys: keys)
-        #expect(reloaded.connections.map(\.id) == [Connection.strataID])
+        #expect(reloaded.connections.map(\.id) == [Connection.testID])
+        // Every connection can be deleted, and nothing comes back in its place.
+        reloaded.delete(Connection.testID)
+        #expect(reloaded.connections.isEmpty)
+        #expect(keys.key(for: Connection.testID) == nil)
+        #expect(ConnectionStore(defaults: defaults, keys: keys).connections.isEmpty)
     }
 
     @Test func modelCapabilityDefaultsAndContextResolution() {
-        let strata = Connection.strataPreset()
-        #expect(strata.defaultModel(id: "m", fetchedContextLength: nil).supportsEffort)
+        var configured = Connection.testGateway()
+        configured.imagesByDefault = true
+        configured.effortByDefault = true
+        let d = configured.defaultModel(id: "m", fetchedContextLength: nil)
+        #expect(d.supportsEffort && d.supportsImages)
+        // What /models says wins over the connection's defaults.
+        let said = configured.defaultModel(id: "m", fetchedContextLength: nil, fetchedImages: false, fetchedEffort: false)
+        #expect(!said.supportsEffort && !said.supportsImages)
         let other = Connection(name: "x", baseURL: "https://x")
         let m = other.defaultModel(id: "m", fetchedContextLength: 1000)
         #expect(!m.supportsEffort && !m.supportsImages && m.supportsTools)

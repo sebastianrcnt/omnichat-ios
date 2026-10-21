@@ -3,7 +3,7 @@ import Foundation
 import SwiftData
 
 /// Debug-only launch arguments used for simulator smoke runs against a local mock server.
-///   -StrataMockBaseURL http://127.0.0.1:8765/v1   point the Strata connection at the mock
+///   -StrataMockBaseURL http://127.0.0.1:8765/v1   add (or update) a connection named "Mock" at the mock
 ///   -StrataMockKey test-key                        store a fake key in the Keychain
 ///   -StrataFakeTools 1                             canned web_search/web_fetch results (no network)
 ///   -StrataAutoSend "hello"                        send a message right after launch
@@ -196,17 +196,27 @@ enum DebugHooks {
         UserDefaults.standard.string(forKey: name)
     }
 
+    /// The connection `-StrataMockBaseURL` sets up, the same one on every launch.
+    static let mockConnectionID = UUID(uuidString: "0C0FFEE0-0000-4000-8000-00000000000D")!
+
+    /// `-StrataMockBaseURL <url>` (with `-StrataMockKey <key>`): a connection named "Mock" at that address, made like
+    /// the user would add one, with images, effort and resumable replies on (`-StrataMockNotResumable 1` turns the
+    /// last off, for smoke runs of paths a resumable gateway skips, like the Responses API fallback). New chats use it.
     @MainActor
     static func applyLaunchConfiguration(connections: ConnectionStore, settings: AppSettings) {
         guard let base = value("StrataMockBaseURL") else { return }
-        var strata = connections.connection(Connection.strataID) ?? .strataPreset()
-        strata.baseURL = base
-        // Smoke runs of paths a resumable gateway skips (the Responses API fallback).
-        if UserDefaults.standard.object(forKey: "StrataMockNotResumable") != nil {
-            strata.supportsResumable = !UserDefaults.standard.bool(forKey: "StrataMockNotResumable")
+        var mock = connections.connection(mockConnectionID)
+            ?? Connection(id: mockConnectionID, name: "Mock", baseURL: base, supportsResumable: true)
+        mock.baseURL = base
+        mock.imagesByDefault = true
+        mock.effortByDefault = true
+        mock.supportsResumable = !UserDefaults.standard.bool(forKey: "StrataMockNotResumable")
+        connections.upsert(mock)
+        if let key = value("StrataMockKey") { try? connections.setAPIKey(key, for: mockConnectionID) }
+        if settings.lastConnectionID != mockConnectionID {
+            settings.lastConnectionID = mockConnectionID
+            settings.lastModelID = nil
         }
-        connections.upsert(strata)
-        if let key = value("StrataMockKey") { try? connections.setAPIKey(key, for: Connection.strataID) }
     }
 
     /// Opt-in simulator smoke artifacts. Never enabled for non-loopback endpoints.

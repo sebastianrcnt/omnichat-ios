@@ -22,6 +22,7 @@ struct SettingsView: View {
     @State private var showAppearance = false
     @State private var showTools = false
     @State private var showChats = false
+    @State private var showAddConnection = false
 
     var body: some View {
         @Bindable var settings = settings
@@ -34,21 +35,7 @@ struct SettingsView: View {
                                         value: c.models.isEmpty ? nil : String(localized: "\(c.models.count) models"),
                                         showsChevron: true) { path.append(c.id) }
                         }
-                        SettingsRow(systemImage: "plus", title: "Add OpenAI-compatible server") {
-                            let new = Connection(name: String(localized: "New connection"), baseURL: "https://")
-                            connections.upsert(new)
-                            path.append(new.id)
-                        }
-                        SettingsRow(systemImage: "person.badge.plus", title: "Add ChatGPT account") {
-                            let new = Connection.chatGPT(name: String(localized: "ChatGPT"))
-                            connections.upsert(new)
-                            path.append(new.id)
-                        }
-                        SettingsRow(systemImage: "person.badge.plus", title: "Add OpenCode account") {
-                            let new = Connection.openCode(name: String(localized: "OpenCode"))
-                            connections.upsert(new)
-                            path.append(new.id)
-                        }
+                        SettingsRow(systemImage: "plus", title: "Add connection") { showAddConnection = true }
                     }
                     .onAppear { connections.removeUnconfigured() }
                     .onChange(of: path) { _, now in if now.isEmpty { connections.removeUnconfigured() } }
@@ -97,15 +84,7 @@ struct SettingsView: View {
                 ToolbarItem(placement: .trailingBar) { Button("Done") { dismiss() } }
             }
             #endif
-            .navigationDestination(for: UUID.self) { id in
-                if connections.connection(id)?.isChatGPT == true {
-                    ChatGPTConnectionEditor(connectionID: id, path: $path)
-                } else if connections.connection(id)?.isOpenCode == true {
-                    OpenCodeConnectionEditor(connectionID: id, path: $path)
-                } else {
-                    ConnectionEditor(connectionID: id, path: $path)
-                }
-            }
+            .navigationDestination(for: UUID.self) { id in ConnectionDestination(connectionID: id, path: $path) }
             .navigationDestination(isPresented: $showDiagnostics) { AppDiagnosticsView() }
             #if os(iOS)
             .navigationDestination(isPresented: $showSoundTest) { BackgroundSoundTestView() }
@@ -121,6 +100,7 @@ struct SettingsView: View {
             .navigationDestination(isPresented: $showChats) { ChatSettingsView() }
         }
         .presentationBackground(theme.background)
+        .sheet(isPresented: $showAddConnection) { ConnectionSetupSheet(start: .presets).inAppLinks() }
         #if DEBUG
         .task {
             if DebugHooks.openSheet == "diagnostics" { settings.developerMode = true; showDiagnostics = true }
@@ -128,7 +108,8 @@ struct SettingsView: View {
             if DebugHooks.openSheet == "bgsoundtest" { settings.developerMode = true; showSoundTest = true }
             #endif
             if DebugHooks.openSheet == "licenses" { showLicenses = true }
-            if DebugHooks.openSheet == "connection" { // what "Add connection" does
+            if DebugHooks.openSheet == "addconnection" { showAddConnection = true }
+            if DebugHooks.openSheet == "connection" { // what "Add connection" > "Other server" does
                 let new = Connection(name: String(localized: "New connection"), baseURL: "https://")
                 connections.upsert(new)
                 path.append(new.id)
@@ -217,6 +198,25 @@ struct ConnectionEditor: View {
                                          multiline: true)
                     }
 
+                    GroupedSection(header: "New models", footer: "Used when the server's model list doesn't say what a model can do. Change a single model under Models.") {
+                        SettingsToggleRow(title: "Images", subtitle: "New models take image attachments.",
+                                          isOn: binding(\.imagesByDefault, fallback: false))
+                        SettingsToggleRow(title: "Reasoning effort", subtitle: "New models are sent reasoning_effort.",
+                                          isOn: binding(\.effortByDefault, fallback: false))
+                        HStack {
+                            Text("API").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
+                            Spacer()
+                            Picker("API", selection: binding(\.defaultChatAPI, fallback: nil)) {
+                                Text("Automatic").tag(ChatAPI?.none)
+                                ForEach(ChatAPI.allCases, id: \.self) { Text($0.title).tag(ChatAPI?.some($0)) }
+                            }
+                            .labelsHidden()
+                            .tint(theme.textSecondary)
+                        }
+                        .padding(.horizontal, DS.Spacing.lg)
+                        .padding(.vertical, DS.Spacing.sm)
+                    }
+
                     GroupedSection(header: "Stream recovery") {
                         SettingsToggleRow(title: "Resumable replies", subtitle: "Enable only for gateways supporting Strata stream replay.", isOn: binding(\.supportsResumable, fallback: false))
                     }
@@ -252,10 +252,8 @@ struct ConnectionEditor: View {
                         }
                     }
 
-                    if !connection.isStrata {
-                        GroupedSection {
-                            SettingsRow(systemImage: "trash", title: "Delete connection", isDestructive: true) { confirmDelete = true }
-                        }
+                    GroupedSection {
+                        SettingsRow(systemImage: "trash", title: "Delete connection", isDestructive: true) { confirmDelete = true }
                     }
                 }
                 .padding(DS.Spacing.lg)
@@ -371,7 +369,7 @@ struct ModelEditor: View {
                 GroupedSection(header: "Capabilities") {
                     SettingsToggleRow(title: "Supports images", isOn: Binding(get: { model.supportsImages }, set: { v in update { $0.supportsImages = v; $0.supportsImagesUserSet = true } }))
                     SettingsToggleRow(title: "Supports reasoning effort", subtitle: "Sends reasoning_effort with each request.",
-                                      isOn: Binding(get: { model.supportsEffort }, set: { v in update { $0.supportsEffort = v } }))
+                                      isOn: Binding(get: { model.supportsEffort }, set: { v in update { $0.supportsEffort = v; $0.supportsEffortUserSet = true } }))
                     SettingsToggleRow(title: "Supports tools", subtitle: "Lets the model use web search, Python, the browser and plugins.",
                                       isOn: Binding(get: { model.supportsTools }, set: { v in update { $0.supportsTools = v } }))
                 }
@@ -413,10 +411,14 @@ private struct ModelAPISection: View {
 
     private var footer: LocalizedStringKey {
         guard let connection else { return "" }
-        if let picked = connection.modelAPIOverrides[modelID] {
-            return picked == .responses
-                ? "Requests always use the Responses API. Replies through it can't be resumed."
-                : "Requests always use Chat Completions."
+        if let picked = connection.pickedAPI(forModel: modelID) {
+            let forConnection = connection.modelAPIOverrides[modelID] == nil
+            switch (picked, forConnection) {
+            case (.responses, false): return "Requests always use the Responses API. Replies through it can't be resumed."
+            case (.responses, true): return "Requests use the Responses API, as set for this connection. Replies through it can't be resumed."
+            case (.chatCompletions, false): return "Requests always use Chat Completions."
+            case (.chatCompletions, true): return "Requests use Chat Completions, as set for this connection."
+            }
         }
         if connection.detectedModelAPIs[modelID] == .responses {
             return "Using the Responses API: this model refused Chat Completions and answered there."

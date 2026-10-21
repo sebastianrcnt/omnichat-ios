@@ -54,6 +54,8 @@ struct ChatView: View {
     @State private var sourcesItem: SourceListItem?
     @State private var showRename = false
     @State private var loadingModels = false
+    /// The add-connection sheet, from the empty chat shown while there is no connection.
+    @State private var showAddConnection = false
     #if DEBUG
     @State private var debugSelection: String?
     @State private var debugArtifact: ArtifactRef?
@@ -203,6 +205,11 @@ struct ChatView: View {
             .sheet(item: Binding(get: { BrowserShowRequests.shared.pending },
                                  set: { if $0 == nil, let open = BrowserShowRequests.shared.pending { BrowserShowRequests.shared.answer(open.id, done: false) } })) { request in
                 BrowserShowSheet(request: request) { BrowserShowRequests.shared.answer(request.id, done: $0) }
+                    .environment(\.theme, theme)
+            }
+            .sheet(isPresented: $showAddConnection) {
+                ConnectionSetupSheet(start: .presets)
+                    .inAppLinks()
                     .environment(\.theme, theme)
             }
             .sheet(isPresented: $showDetails) {
@@ -382,7 +389,14 @@ struct ChatView: View {
 
     // MARK: Messages
 
-    private var messages: some View { messageList }
+    private var messages: some View {
+        messageList
+            .overlay {
+                if conversation == nil && connections.connections.isEmpty {
+                    NoConnectionState { composerFocused = false; showAddConnection = true }
+                }
+            }
+    }
 
     private var messageList: some View {
         ScrollView {

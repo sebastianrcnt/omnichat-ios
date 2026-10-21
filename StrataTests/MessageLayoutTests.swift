@@ -124,15 +124,15 @@ struct MessageLayoutControllerTests {
         let context = container.mainContext
         let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
         let connections = ConnectionStore(defaults: defaults, keys: InMemoryKeyStore())
-        try connections.setAPIKey("k", for: Connection.strataID)
-        var strata = connections.connection(Connection.strataID)!
+        try connections.setAPIKey("k", for: Connection.testID)
+        var strata = connections.testGateway()
         strata.models = [ModelInfo(id: "m", supportsTools: true)]
         connections.upsert(strata)
         let call = ChatDelta(toolCalls: [ToolCallDelta(index: 0, id: "c1", name: "web_search", arguments: "{\"query\":\"q\"}")])
         let streamer = ProgrammableStreamer([([ChatDelta(content: "Let me search."), call], .finish), ([ChatDelta(content: "The answer.")], .finish)])
         let gate = GateTools()
         let controller = ChatController(connections: connections, settings: AppSettings(defaults: defaults), streamer: streamer, tools: gate)
-        let conversation = Conversation(connectionID: Connection.strataID, modelID: "m", effort: .medium)
+        let conversation = Conversation(connectionID: Connection.testID, modelID: "m", effort: .medium)
         context.insert(conversation)
         controller.send(text: "hi", images: [], conversation: conversation, context: context)
 

@@ -2,10 +2,14 @@
 
 ## Connections and networking
 
-`Connection.supportsResumable` is saved with connection settings. The Strata
-preset defaults to true (including previously saved presets); other providers
-default to false. Settings exposes an explicit capability toggle. Deploy the
-resumable gateway before distributing an app with this flag enabled.
+`Connection.supportsResumable` is saved with connection settings and defaults to
+false; Settings exposes an explicit per-connection toggle, and an
+`openchat://add-connection` link can ask for it (`resumable=1`, shown in the
+confirmation sheet). The app ships with no built-in connection. The connection
+that used to be built in keeps its saved value after the update (on, unless the
+user had turned it off; see `ConnectionStore.migrateBuiltInConnection`). The app
+does not detect support by itself: the gateway only reveals it in reply to a
+request that already carries `X-Strata-Resumable: 1`.
 
 Opted-in model rounds persist a UUIDv4 `Idempotency-Key` and the exact encoded
 POST body before sending `X-Strata-Resumable: 1`. The key is sent on every stream

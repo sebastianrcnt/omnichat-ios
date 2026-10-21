@@ -126,13 +126,26 @@ enum ModelsAPI {
         var id: String
         var contextLength: Int?
         var maxOutputTokens: Int?
-        /// From `architecture.input_modalities` / `architecture.modality`; nil when the server does not say.
+        /// Whether the model reads images, when the server says (see `imageSupport`); nil when it does not.
         var supportsImages: Bool?
+        /// Whether the model takes `reasoning_effort`, when the server says (see `effortSupport`); nil when it does not.
+        var supportsEffort: Bool?
     }
 
-    /// OpenAI-style `architecture.input_modalities: ["text","image"]`, or an OpenRouter-style
-    /// `architecture.modality: "text+image->text"` (only the input side counts).
+    /// Whether a `/models` entry says the model reads images. First that answers wins:
+    /// 1. A boolean `supports_vision` / `supports_images` / `supports_image_input` / `vision` (LiteLLM and similar).
+    /// 2. `capabilities`: an object with one of those keys or `image_input` / `images`, or a list of names that
+    ///    includes `vision` / `image` / `image_input` / `images` (a list counts as complete: no such name means no).
+    /// 3. `architecture.input_modalities: ["text","image"]` (OpenRouter, OpenAI style), or
+    ///    `architecture.modality: "text+image->text"` (only the input side counts).
+    /// Anything else (unknown shapes, wrong types) is nil: the connection's default applies.
     static func imageSupport(in item: [String: Any]) -> Bool? {
+        let flags = ["supports_vision", "supports_images", "supports_image_input", "vision"]
+        if let flag = firstBool(item, flags) { return flag }
+        if let caps = item["capabilities"] as? [String: Any], let flag = firstBool(caps, flags + ["image_input", "images", "image"]) {
+            return flag
+        }
+        if let caps = capabilityNames(item) { return !caps.isDisjoint(with: ["vision", "image", "images", "image_input"]) }
         guard let arch = item["architecture"] as? [String: Any] else { return nil }
         if let inputs = arch["input_modalities"] as? [String] {
             return inputs.contains { $0.lowercased() == "image" }
@@ -142,6 +155,40 @@ enum ModelsAPI {
             return input.lowercased().contains("image")
         }
         return nil
+    }
+
+    /// Whether a `/models` entry says the model takes `reasoning_effort`. First that answers wins:
+    /// 1. A boolean `supports_reasoning_effort` / `supports_reasoning` / `reasoning` (LiteLLM and similar).
+    /// 2. `capabilities`: an object with `reasoning_effort` / `reasoning` / `thinking`, or a list of names (a list
+    ///    counts as complete: none of `reasoning_effort`, `reasoning`, `thinking` means no).
+    /// 3. OpenRouter's `supported_parameters`: `reasoning` or `reasoning_effort` listed means yes, else no.
+    /// Anything else is nil: the connection's default applies.
+    static func effortSupport(in item: [String: Any]) -> Bool? {
+        let flags = ["supports_reasoning_effort", "supports_reasoning", "reasoning"]
+        if let flag = firstBool(item, flags) { return flag }
+        if let caps = item["capabilities"] as? [String: Any],
+           let flag = firstBool(caps, ["supports_reasoning_effort", "reasoning_effort", "supports_reasoning", "reasoning", "thinking"]) {
+            return flag
+        }
+        if let caps = capabilityNames(item) { return !caps.isDisjoint(with: ["reasoning_effort", "reasoning", "thinking"]) }
+        if let params = item["supported_parameters"] as? [String] {
+            return params.contains { ["reasoning", "reasoning_effort"].contains($0.lowercased()) }
+        }
+        return nil
+    }
+
+    /// The first of `keys` that holds a boolean (or a 0/1 number).
+    private static func firstBool(_ dict: [String: Any], _ keys: [String]) -> Bool? {
+        for key in keys {
+            if let flag = dict[key] as? Bool { return flag }
+        }
+        return nil
+    }
+
+    /// `capabilities` given as a list of names (Ollama style: `["completion", "vision", "tools", "thinking"]`), lowercased.
+    private static func capabilityNames(_ item: [String: Any]) -> Set<String>? {
+        guard let list = item["capabilities"] as? [String] else { return nil }
+        return Set(list.map { $0.lowercased() })
     }
 
     static func parse(_ data: Data) throws -> [Entry] {
@@ -163,7 +210,8 @@ enum ModelsAPI {
                 if let n = item[k] as? Int, n > 0 { maxOut = n; break }
             }
             if maxOut == nil, let top = item["top_provider"] as? [String: Any], let n = top["max_completion_tokens"] as? Int, n > 0 { maxOut = n }
-            return Entry(id: id, contextLength: ctx, maxOutputTokens: maxOut, supportsImages: imageSupport(in: item))
+            return Entry(id: id, contextLength: ctx, maxOutputTokens: maxOut, supportsImages: imageSupport(in: item),
+                         supportsEffort: effortSupport(in: item))
         }
     }
 
@@ -178,7 +226,7 @@ enum ModelsAPI {
     }
 }
 
-/// Balance lookup, wired to the Strata gateway later.
+/// Balance lookup, for a gateway that offers one (none does yet).
 struct BalanceInfo: Sendable, Equatable {
     var balanceUSD: Double?
     var chatCostUSD: Double?
@@ -192,7 +240,7 @@ protocol BalanceProviding: Sendable {
 
 enum BalanceError: Error { case notAvailable }
 
-/// The Strata gateway has no balance endpoint yet.
+/// No connection has a balance endpoint yet.
 struct UnavailableBalanceProvider: BalanceProviding {
     func balance(for connection: Connection, apiKey: String?) async throws -> BalanceInfo {
         throw BalanceError.notAvailable

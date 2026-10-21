@@ -4,22 +4,29 @@ import Foundation
 
 struct ModelSelectionTests {
     private func strata(_ models: [String]) -> Connection {
-        Connection(id: Connection.strataID, name: "Strata", baseURL: Connection.strataBaseURL, models: models.map { ModelInfo(id: $0) })
+        Connection(id: Connection.testID, name: "Strata", baseURL: Connection.testBaseURL, models: models.map { ModelInfo(id: $0) })
     }
 
-    @Test func picksFirstStrataModelWhenNothingSelected() {
+    @Test func noConnectionIsFavoredWhenNothingSelected() {
         let other = Connection(name: "Local", baseURL: "http://localhost/v1", models: [ModelInfo(id: "local-1")])
         let choice = ModelSelection.resolve(connections: [other, strata(["a", "b"])], preferredConnectionID: nil, preferredModelID: nil)
-        #expect(choice == .init(connectionID: Connection.strataID, modelID: "a"))
+        #expect(choice == .init(connectionID: other.id, modelID: "local-1"))
+    }
+
+    @Test func aStaleModelFallsBackWithinThePreferredConnection() {
+        let other = Connection(name: "Local", baseURL: "http://localhost/v1", models: [ModelInfo(id: "local-1")])
+        let choice = ModelSelection.resolve(connections: [other, strata(["a", "b"])], preferredConnectionID: Connection.testID,
+                                            preferredModelID: "gone")
+        #expect(choice == .init(connectionID: Connection.testID, modelID: "a"))
     }
 
     @Test func keepsValidPreference() {
-        let choice = ModelSelection.resolve(connections: [strata(["a", "b"])], preferredConnectionID: Connection.strataID, preferredModelID: "b")
+        let choice = ModelSelection.resolve(connections: [strata(["a", "b"])], preferredConnectionID: Connection.testID, preferredModelID: "b")
         #expect(choice?.modelID == "b")
     }
 
     @Test func replacesStalePreference() {
-        let choice = ModelSelection.resolve(connections: [strata(["a"])], preferredConnectionID: Connection.strataID, preferredModelID: "gone")
+        let choice = ModelSelection.resolve(connections: [strata(["a"])], preferredConnectionID: Connection.testID, preferredModelID: "gone")
         #expect(choice?.modelID == "a")
     }
 

@@ -72,8 +72,8 @@ struct ProcessSegmentTurnTests {
         let context = container.mainContext
         let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
         let connections = ConnectionStore(defaults: defaults, keys: InMemoryKeyStore())
-        try connections.setAPIKey("k", for: Connection.strataID)
-        var strata = connections.connection(Connection.strataID)!
+        try connections.setAPIKey("k", for: Connection.testID)
+        var strata = connections.testGateway()
         strata.models = [ModelInfo(id: "m", supportsTools: true)]
         connections.upsert(strata)
         let toolCall = ChatDelta(toolCalls: [ToolCallDelta(index: 0, id: "c1", name: "web_search", arguments: "{\"query\":\"q\"}")])
@@ -82,7 +82,7 @@ struct ProcessSegmentTurnTests {
             ([ChatDelta(reasoning: "got it"), ChatDelta(content: "The answer.")], .finish),
         ])
         let controller = ChatController(connections: connections, settings: AppSettings(defaults: defaults), streamer: streamer, tools: FakeTools())
-        let conversation = Conversation(connectionID: Connection.strataID, modelID: "m", effort: .medium)
+        let conversation = Conversation(connectionID: Connection.testID, modelID: "m", effort: .medium)
         context.insert(conversation)
         controller.send(text: "hi", images: [], conversation: conversation, context: context)
         await controller.waitUntilIdle()
