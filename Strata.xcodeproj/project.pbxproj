@@ -154,6 +154,7 @@
 		55653DCA14F8524A7B81E99C /* ModelSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CE7DDF672A184EEA699E6B6 /* ModelSelection.swift */; };
 		55C00B540341F9BABA2C88DE /* OpenCodeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08538C07248262A1E9170720 /* OpenCodeModels.swift */; };
 		55F86F699C54515BBCA61138 /* PythonFigures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 689795A776DB38F58B854B51 /* PythonFigures.swift */; };
+		56201EBAD9E1CBD2F796239D /* BrowserFreezeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04FAB6777171231941D98AEE /* BrowserFreezeTests.swift */; };
 		565A64B4B05089F325EC7696 /* Messages.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20AFA546F5B8911AF644FF5 /* Messages.swift */; };
 		570A24C7325542D3CD52BE71 /* RequestInspection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 039C4D95DE3E932F7D0EB67D /* RequestInspection.swift */; };
 		5778FF916B3D00C297FE1B1E /* PluginRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B141DC5A18167B93E51A1676 /* PluginRunner.swift */; };
@@ -462,6 +463,7 @@
 		0303DF43A59DAF489DA9A7A1 /* Activity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Activity.swift; sourceTree = "<group>"; };
 		036EC236AF2525AF94B49388 /* TitlingText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TitlingText.swift; sourceTree = "<group>"; };
 		039C4D95DE3E932F7D0EB67D /* RequestInspection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestInspection.swift; sourceTree = "<group>"; };
+		04FAB6777171231941D98AEE /* BrowserFreezeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserFreezeTests.swift; sourceTree = "<group>"; };
 		058CA46D1F43622558B5ED56 /* ArtifactGalleryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactGalleryTests.swift; sourceTree = "<group>"; };
 		0694BCA49FCB6E58BA404FDA /* ThoughtTranslatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThoughtTranslatorTests.swift; sourceTree = "<group>"; };
 		08538C07248262A1E9170720 /* OpenCodeModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeModels.swift; sourceTree = "<group>"; };
@@ -782,6 +784,7 @@
 				EADB3352B26461738C5DAF17 /* AutoRenameTests.swift */,
 				4EBBBB21E9CF1342F0D61973 /* BackgroundLoadingSoundTests.swift */,
 				EF3070BC8E76608E45DEAE1D /* BrowserAgentTests.swift */,
+				04FAB6777171231941D98AEE /* BrowserFreezeTests.swift */,
 				5E7D641D69D53ED5D2EEE87E /* BrowserRunTests.swift */,
 				8E3417900BF21D88258C2ACF /* BrowserShowTests.swift */,
 				3931A4CD4FF17FED76CF10E7 /* BrowserToolTests.swift */,
@@ -1419,6 +1422,7 @@
 				1738810C75BCDF68FDBD652F /* AutoRenameTests.swift in Sources */,
 				CA6599A2D0B3BEBB7BB0A55F /* BackgroundLoadingSoundTests.swift in Sources */,
 				B73778C80BDB7F97E9023412 /* BrowserAgentTests.swift in Sources */,
+				56201EBAD9E1CBD2F796239D /* BrowserFreezeTests.swift in Sources */,
 				4FC10BC9955618C0CB3CC15C /* BrowserRunTests.swift in Sources */,
 				F8A3C78172E7598024F8AA01 /* BrowserShowTests.swift in Sources */,
 				525F91FD31875AC6DCC724C9 /* BrowserToolTests.swift in Sources */,

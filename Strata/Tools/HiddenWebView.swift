@@ -189,7 +189,7 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
         park()
     }
 
-    /// Puts the view back off screen: nearly transparent, untouchable.
+    /// Puts the view back off screen: nearly transparent, untouchable. A frozen view goes out of every window instead.
     private func park() {
         guard !disposed else { return }
         #if canImport(UIKit)
@@ -198,7 +198,9 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
         webView.isUserInteractionEnabled = false
         webView.autoresizingMask = []
         webView.frame = CGRect(x: 0, y: 0, width: Self.layoutSize.width, height: Self.layoutSize.height)
-        if let window = Self.keyWindow {
+        if isFrozen {
+            webView.removeFromSuperview()
+        } else if let window = Self.keyWindow {
             window.insertSubview(webView, at: 0)
         } else {
             webView.removeFromSuperview() // out of a card or sheet, whatever happens to it next
@@ -206,8 +208,33 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
         #else
         webView.autoresizingMask = []
         webView.frame = CGRect(x: 0, y: 0, width: Self.layoutSize.width, height: Self.layoutSize.height)
-        OffscreenWebHost.shared.attach(webView)
+        if isFrozen { webView.removeFromSuperview() } else { OffscreenWebHost.shared.attach(webView) }
         #endif
+    }
+
+    // MARK: Frozen
+
+    /// Parked out of every window (`freeze`): WebKit treats a view in no window as hidden for good and lets its page's
+    /// process be suspended, so scripts, timers and animations stop draining the battery; the page (its DOM, scroll,
+    /// form input and sign-ins) stays as it is. A claim still shows it (Open page): ownership doesn't change, only where
+    /// the view goes when nothing holds it.
+    private(set) var isFrozen = false
+
+    /// After its reply: out of the window when nothing shows it, else as soon as nothing does. It plays no loading
+    /// sound (that would keep its process awake).
+    func freeze() {
+        guard !disposed, !isFrozen else { return }
+        isFrozen = true
+        BackgroundLoadingSound.shared.unregister(self)
+        if owner == nil { park() }
+    }
+
+    /// Before the page is used again (a tool call): back in the window, running at full speed.
+    func thaw() {
+        guard !disposed, isFrozen else { return }
+        isFrozen = false
+        BackgroundLoadingSound.shared.register(self)
+        if owner == nil { park() }
     }
 
     /// The size pages are laid out at, wherever the view is: a phone's screen. A card's live preview scales it down.

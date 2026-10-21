@@ -102,6 +102,8 @@ struct BrowserRunView: View {
                     BrowserLivePreview(callID: live)
                         .padding(.top, DS.Spacing.sm)
                         .transition(.opacity)
+                } else if !active {
+                    SessionPageLink(callIDs: run.steps.map(\.id))
                 }
             }
             .padding(.leading, DS.Feed.textInset)
@@ -332,6 +334,34 @@ struct BrowserLiveStrip<Thumbnail: View>: View {
             }
             .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
+        }
+    }
+}
+
+/// After the reply, on the run with the conversation's latest browser call: "Open page ›" while its page is kept
+/// (frozen) in `BrowserSessions`, which hands it to the user in the browser sheet; once the page is closed, "Page
+/// closed · Reopen", which opens its last URL fresh. Nothing when there is neither (the app was relaunched).
+struct SessionPageLink: View {
+    @Environment(\.theme) private var theme
+    let callIDs: [String]
+
+    var body: some View {
+        let sessions = BrowserSessions.shared
+        if let conversation = sessions.conversation(lastCallIn: callIDs) {
+            if let page = sessions.page(of: conversation) {
+                Button("Open page") { PageHandover.browse(page, conversation: conversation) }
+                    .buttonStyle(.quietLink(.primary, chevron: true))
+                    .accessibilityHint(Text("Shows the page the browser was on, to use it yourself"))
+            } else if sessions.closedURL(conversation) != nil {
+                HStack(spacing: DS.Spacing.xs) {
+                    Text("Page closed ·")
+                        .font(DS.Typography.feed)
+                        .foregroundStyle(theme.textTertiary)
+                    Button("Reopen") { PageHandover.reopen(conversation) }
+                        .buttonStyle(.quietLink)
+                        .accessibilityHint(Text("Opens the page the browser was on again"))
+                }
+            }
         }
     }
 }

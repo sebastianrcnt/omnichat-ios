@@ -10,6 +10,12 @@ protocol KeepablePage: AnyObject {
     var isOnScreen: Bool { get }
     var isDisposed: Bool { get }
     func dispose()
+    /// Out of the window until it is shown or used again (`HiddenWebView.freeze`).
+    func freeze()
+}
+
+extension KeepablePage {
+    func freeze() {}
 }
 
 /// Web views whose tool failed or was blocked (a robot check, a pop-up, a timeout), kept alive instead of being torn
@@ -65,9 +71,13 @@ final class KeptPages {
         entries.last { $0.callIDs.contains(callID) && !$0.page.isDisposed }?.page
     }
 
-    /// The reply ended: its pages go after `lingering` (one on screen then waits until it is put away).
+    /// The reply ended: its pages go after `lingering` (one on screen then waits until it is put away), frozen meanwhile
+    /// (a browser session's page is its session's to freeze).
     func turnEnded(now: ContinuousClock.Instant = .now) {
-        for i in entries.indices where entries[i].expires == nil { entries[i].expires = now + lingering }
+        for i in entries.indices where entries[i].expires == nil {
+            entries[i].expires = now + lingering
+            if entries[i].owned { entries[i].page.freeze() }
+        }
         scheduleSweep()
     }
 
