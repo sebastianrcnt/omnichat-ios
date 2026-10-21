@@ -538,6 +538,10 @@ struct ChatView: View {
                     if let c = conversation { controller.saveAsSkill(conversation: c, context: context) }
                 },
                 onDismissSkillOffer: { controller.dismissSkillOffer() })
+            .environment(\.openUIHost, OpenUIHost(
+                messageID: message.id, isInteractive: isLast && !controller.isStreaming, isStreaming: active,
+                saved: message.openUIStates,
+                send: { block, submission in sendFromView(message, block: block, submission: submission) }))
             .modifier(AfterSendFlyIn(active: message.parentID != nil && message.parentID == flyingID))
         }
     }
@@ -848,6 +852,17 @@ struct ChatView: View {
             try? await Task.sleep(for: .seconds(1))
             if flyingID == sent { flyingID = nil } // a row laid out again later doesn't fly a second time
         }
+        pinLatestQuestion()
+    }
+
+    /// A button, choice or form in an answer's interactive view: what was chosen is saved on the answer, and the
+    /// follow-up goes out like a typed message (the composer's draft stays as it is).
+    private func sendFromView(_ message: Message, block: Int, submission: OUISubmission) {
+        guard !controller.isStreaming, let conversation else { return }
+        var states = message.openUIStates
+        states[block] = submission.saved
+        message.openUIStates = states
+        controller.send(text: submission.text, images: [], conversation: conversation, context: context)
         pinLatestQuestion()
     }
 
