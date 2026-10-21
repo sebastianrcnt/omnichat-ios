@@ -60,8 +60,9 @@ final class FairSlots {
     }
 }
 
-/// Tool calls waiting for something another chat is using (a browser slot, the Python runtime), by call id: the
-/// chat's live line says what its call waits for.
+/// Tool calls waiting for something another chat is using (a browser slot, the Python runtime), by chat and call id
+/// (call ids are only unique within a request, like `ToolProgress`'s keys): the chat's live line says what its call
+/// waits for.
 @MainActor
 @Observable
 final class ToolWaits {
@@ -81,23 +82,26 @@ final class ToolWaits {
         }
     }
 
-    private(set) var reasons: [String: Reason] = [:]
+    private(set) var reasons: [ToolProgress.Key: Reason] = [:]
 
-    func reason(for callID: String) -> Reason? { reasons[callID] }
+    func reason(for callID: String, conversation: UUID? = nil) -> Reason? {
+        reasons[ToolProgress.Key(conversation: conversation, id: callID)]
+    }
 
-    /// The first wait among `callIDs` (a running round's calls).
-    func reason(among callIDs: [String]) -> Reason? {
+    /// The first wait among `callIDs` (a running round's calls) of the chat.
+    func reason(among callIDs: [String], conversation: UUID?) -> Reason? {
         guard !reasons.isEmpty else { return nil }
-        return callIDs.lazy.compactMap { self.reasons[$0] }.first
+        return callIDs.lazy.compactMap { self.reasons[ToolProgress.Key(conversation: conversation, id: $0)] }.first
     }
 
-    func begin(_ callID: String?, _ reason: Reason) {
+    func begin(_ callID: String?, _ reason: Reason, conversation: UUID? = ToolContext.conversationID) {
         guard let callID else { return }
-        reasons[callID] = reason
+        reasons[ToolProgress.Key(conversation: conversation, id: callID)] = reason
     }
 
-    func end(_ callID: String?) {
-        guard let callID, reasons[callID] != nil else { return }
-        reasons[callID] = nil
+    func end(_ callID: String?, conversation: UUID? = ToolContext.conversationID) {
+        guard let callID else { return }
+        let key = ToolProgress.Key(conversation: conversation, id: callID)
+        if reasons[key] != nil { reasons[key] = nil }
     }
 }

@@ -547,9 +547,10 @@ final class PythonRuntime {
     func serialized<T>(_ body: () async -> T) async -> T? {
         let key = UUID()
         let callID = ToolContext.callID
-        if !lock.admitsNow(key) { ToolWaits.shared.begin(callID, .python) }
+        let conversation = ToolContext.conversationID
+        if !lock.admitsNow(key) { ToolWaits.shared.begin(callID, .python, conversation: conversation) }
         let admitted = await lock.acquire(key)
-        ToolWaits.shared.end(callID)
+        ToolWaits.shared.end(callID, conversation: conversation)
         guard admitted else { return nil }
         defer {
             runGeneration += 1

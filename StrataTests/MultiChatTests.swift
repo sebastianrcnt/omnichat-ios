@@ -397,14 +397,14 @@ struct MultiChatTests {
         let tc = call(c)
         await waitFor { sessions.waitingConversations == [c] }
         #expect(sessions.activeConversations == [a, b])
-        #expect(ToolWaits.shared.reason(for: "call-\(c)") == .browser, "its live line says what it waits for")
+        #expect(ToolWaits.shared.reason(for: "call-\(c)", conversation: c) == .browser, "its live line says what it waits for")
         #expect(order.value.count == 2)
 
         gates[b]!.open()
         try await tb.value
         await waitFor { order.value.count == 3 }
         #expect(order.value.last == c)
-        #expect(ToolWaits.shared.reason(for: "call-\(c)") == nil)
+        #expect(ToolWaits.shared.reason(for: "call-\(c)", conversation: c) == nil)
         #expect(sessions.activeConversations == [a, c])
 
         // A chat that already holds a slot gets in at once (its next call), others still wait.
@@ -432,6 +432,35 @@ struct MultiChatTests {
         #expect(sessions.waitingConversations.isEmpty)
         gate.open()
         try await ta.value
+    }
+
+    @Test func theSameCallIDInTwoChatsFindsEachChatsOwnPageAndProgress() async throws {
+        // Servers that send no ids get `call_0`, `call_1`... in every chat.
+        let sessions = BrowserSessions()
+        sessions.makePage = { SlotPage() }
+        let (a, b) = (UUID(), UUID())
+        for chat in [a, b] {
+            try await ToolContext.$callID.withValue("call_0") {
+                try await sessions.run(conversation: chat) { _ in }
+            }
+        }
+        let pageA = try #require(sessions.existingSession(a)?.page as? SlotPage)
+        let pageB = try #require(sessions.existingSession(b)?.page as? SlotPage)
+        #expect(pageA !== pageB)
+        #expect(sessions.conversation(forCall: "call_0", conversation: a) == a)
+        #expect(sessions.conversation(forCall: "call_0", conversation: b) == b)
+        #expect(sessions.conversation(lastCallIn: ["call_0"], of: b) == b)
+        #expect(sessions.conversation(lastCallIn: ["call_9"], of: b) == nil, "never another chat's")
+
+        let progress = ToolProgress()
+        progress.report("call_0", 0.3, conversation: a)
+        progress.report("call_0", 0.8, conversation: b)
+        #expect(progress.value(for: "call_0", conversation: a) == 0.3)
+        #expect(progress.value(for: "call_0", conversation: b) == 0.8)
+        let waits = ToolWaits()
+        waits.begin("call_0", .browser, conversation: a)
+        #expect(waits.reason(among: ["call_0"], conversation: a) == .browser)
+        #expect(waits.reason(among: ["call_0"], conversation: b) == nil)
     }
 
     // MARK: Python

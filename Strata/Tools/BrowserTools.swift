@@ -235,8 +235,9 @@ final class BrowserSessions {
 
     @ObservationIgnored private var sessions: [UUID: Session] = [:]
     @ObservationIgnored private var sweeper: Task<Void, Never>?
-    /// The session each browser call ran in, by call id: the feed finds the page of a running call's card here.
-    private var callSessions: [String: UUID] = [:]
+    /// The session each browser call ran in, by session and call id (call ids are only unique within a request, so
+    /// two chats can each have a `call_0`): the feed finds the page of a running call's card here.
+    private var callSessions: [ToolProgress.Key: UUID] = [:]
     /// The conversations that have a page now (observed, for the feed's "Open page").
     private(set) var openConversations: Set<UUID> = []
     /// Each conversation's latest browser call: the feed offers its page on the run holding it.
@@ -274,9 +275,11 @@ final class BrowserSessions {
         session.busy == 0 && session.tail == nil && !session.hold.isClosed && !session.page.isOnScreen
     }
 
-    /// The conversation whose latest browser call is one of `callIDs` (a run of the feed).
-    func conversation(lastCallIn callIDs: [String]) -> UUID? {
-        lastCalls.first { callIDs.contains($0.value) }?.key
+    /// The conversation whose latest browser call is one of `callIDs` (a run of the feed). Given the feed's chat, only
+    /// that chat's.
+    func conversation(lastCallIn callIDs: [String], of conversation: UUID? = nil) -> UUID? {
+        if let conversation { return lastCalls[conversation].map(callIDs.contains) == true ? conversation : nil }
+        return lastCalls.first { callIDs.contains($0.value) }?.key
     }
 
     /// The conversation's page, while it has one.
@@ -305,13 +308,17 @@ final class BrowserSessions {
         session.page.freeze()
     }
 
-    /// The page a browser call used (nil once its session is closed).
-    func page(forCall callID: String) -> HiddenWebView? {
-        callSessions[callID].flatMap { sessions[$0]?.page as? HiddenWebView }
+    /// The page a browser call of `conversation` used (nil once its session is closed). Without a chat, any call with
+    /// that id.
+    func page(forCall callID: String, conversation: UUID? = nil) -> HiddenWebView? {
+        self.conversation(forCall: callID, conversation: conversation).flatMap { sessions[$0]?.page as? HiddenWebView }
     }
 
     /// The conversation whose session a browser call used.
-    func conversation(forCall callID: String) -> UUID? { callSessions[callID] }
+    func conversation(forCall callID: String, conversation: UUID? = nil) -> UUID? {
+        if let conversation { return callSessions[ToolProgress.Key(conversation: conversation, id: callID)] }
+        return callSessions.first { $0.key.id == callID }?.value
+    }
 
     /// The session showing `page`, if it is one's.
     func conversation(showing page: HiddenWebView) -> UUID? {
@@ -331,7 +338,7 @@ final class BrowserSessions {
         let key = conversation ?? Self.defaultKey
         let session = session(for: conversation)
         if let callID = ToolContext.callID {
-            callSessions[callID] = key
+            callSessions[ToolProgress.Key(conversation: key, id: callID)] = key
             lastCalls[key] = callID
         }
         let previous = session.tail
@@ -348,9 +355,9 @@ final class BrowserSessions {
                 return .failure(error)
             }
             // Two other chats are browsing: wait for one of them, and say so on this chat's live line.
-            if !slots.admitsNow(key) { ToolWaits.shared.begin(callID, .browser) }
+            if !slots.admitsNow(key) { ToolWaits.shared.begin(callID, .browser, conversation: conversation) }
             let admitted = await slots.acquire(key)
-            ToolWaits.shared.end(callID)
+            ToolWaits.shared.end(callID, conversation: conversation)
             guard admitted else { return .failure(session.stopped ? BrowserStoppedError() : CancellationError()) }
             defer { slots.release(key) }
             guard !session.stopped else { return .failure(BrowserStoppedError()) }

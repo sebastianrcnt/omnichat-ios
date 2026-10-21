@@ -545,11 +545,12 @@ struct ReadStatusMark: View {
 struct ReadProgressRing: View {
     @Environment(\.theme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.citations) private var citations
     let callID: String
     @State private var spin = false
 
     var body: some View {
-        let progress = ToolProgress.shared.value(for: callID)
+        let progress = ToolProgress.shared.value(for: callID, conversation: citations.conversationID)
         ZStack {
             Circle().stroke(theme.textTertiary.opacity(0.35), lineWidth: 2)
             Circle()

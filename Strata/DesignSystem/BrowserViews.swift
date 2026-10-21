@@ -65,6 +65,7 @@ struct BrowserRun: Identifiable, Equatable {
 struct BrowserRunView: View {
     @Environment(\.theme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.citations) private var citations
     let run: BrowserRun
     let collapsed: Bool
     /// The step showing the model's page live (`ActivityFeed.liveBrowserCard`), when it is in this run.
@@ -94,7 +95,7 @@ struct BrowserRunView: View {
                     steps.transition(.opacity)
                 } else {
                     // Folded, a failed page that was kept can still be opened.
-                    ForEach(run.steps.filter { $0.isError && !$0.isRunning && KeptPageLink.hasPage($0.id) }) { card in
+                    ForEach(run.steps.filter { $0.isError && !$0.isRunning && KeptPageLink.hasPage($0.id, conversation: citations.conversationID) }) { card in
                         BrowserStep(card: card, current: false)
                     }
                 }
@@ -159,6 +160,7 @@ struct BrowserRunView: View {
 struct BrowserStep: View {
     @Environment(\.theme) private var theme
     @Environment(\.openURL) private var openURL
+    @Environment(\.citations) private var citations
     let card: FeedCard
     let current: Bool
     var collapsed = true
@@ -167,7 +169,7 @@ struct BrowserStep: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.xs) {
             line
-            if !card.isRunning, card.isError, KeptPageLink.hasPage(card.id) {
+            if !card.isRunning, card.isError, KeptPageLink.hasPage(card.id, conversation: citations.conversationID) {
                 KeptPageLink(callID: card.id)
                     .padding(.leading, DS.Feed.markColumn + DS.Spacing.xs)
             }
@@ -271,11 +273,14 @@ struct BrowserStep: View {
 /// It goes back off screen when the run scrolls away or the reply stops working.
 struct BrowserLivePreview: View {
     @Environment(\.theme) private var theme
+    /// The chat the card is in: its own page, even when another chat's call has the same id.
+    @Environment(\.citations) private var citations
     let callID: String
 
     var body: some View {
         let sessions = BrowserSessions.shared
-        if let page = sessions.page(forCall: callID), let conversation = sessions.conversation(forCall: callID) {
+        if let conversation = sessions.conversation(forCall: callID, conversation: citations.conversationID),
+           let page = sessions.page(forCall: callID, conversation: conversation) {
             BrowserLiveStrip(onWatch: { PageHandover.watch(page, conversation: conversation) },
                              onTakeOver: { PageHandover.open(page) },
                              onStop: { sessions.stopBrowsing(conversation) }) {
@@ -343,11 +348,12 @@ struct BrowserLiveStrip<Thumbnail: View>: View {
 /// closed · Reopen", which opens its last URL fresh. Nothing when there is neither (the app was relaunched).
 struct SessionPageLink: View {
     @Environment(\.theme) private var theme
+    @Environment(\.citations) private var citations
     let callIDs: [String]
 
     var body: some View {
         let sessions = BrowserSessions.shared
-        if let conversation = sessions.conversation(lastCallIn: callIDs) {
+        if let conversation = sessions.conversation(lastCallIn: callIDs, of: citations.conversationID) {
             if let page = sessions.page(of: conversation) {
                 Button("Open page") { PageHandover.browse(page, conversation: conversation) }
                     .buttonStyle(.quietLink(.primary, chevron: true))
@@ -368,12 +374,15 @@ struct SessionPageLink: View {
 
 /// "Open this page ›" under a failed call whose page was kept (`KeptPages`): hands that same page to the user.
 struct KeptPageLink: View {
+    @Environment(\.citations) private var citations
     let callID: String
 
-    static func hasPage(_ callID: String) -> Bool { KeptPages.shared.page(forCall: callID) is HiddenWebView }
+    static func hasPage(_ callID: String, conversation: UUID?) -> Bool {
+        KeptPages.shared.page(forCall: callID, conversation: conversation) is HiddenWebView
+    }
 
     var body: some View {
-        if let page = KeptPages.shared.page(forCall: callID) as? HiddenWebView {
+        if let page = KeptPages.shared.page(forCall: callID, conversation: citations.conversationID) as? HiddenWebView {
             Button("Open this page") { PageHandover.open(page) }
                 .buttonStyle(.quietLink(.primary, chevron: true))
                 .accessibilityHint(Text("Shows the page the tool stopped on"))

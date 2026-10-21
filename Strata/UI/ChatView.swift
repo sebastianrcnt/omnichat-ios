@@ -235,6 +235,7 @@ struct ChatView: View {
                               seconds: message.thinkingSeconds,
                               showsTools: request.showsTools)
                     .environment(\.theme, theme)
+                    .environment(\.citations, citationContext)
             }
             .sheet(item: $compactionNotes) { record in
                 CompactionNotesSheet(notes: record.notes, tokensBefore: record.tokensBefore, tokensAfter: record.tokensAfter,
@@ -534,7 +535,7 @@ struct ChatView: View {
                     roundFinished: live?.roundRecords ?? [],
                     isStreaming: active,
                     phase: live?.phase ?? .idle,
-                    waiting: live.flatMap { ToolWaits.shared.reason(among: $0.pendingCalls.map(\.id)) },
+                    waiting: live.flatMap { ToolWaits.shared.reason(among: $0.pendingCalls.map(\.id), conversation: $0.conversationID) },
                     turnStart: live?.turnStart,
                     errorText: message.errorText,
                     errorNeedsSettings: message.errorNeedsSettings,

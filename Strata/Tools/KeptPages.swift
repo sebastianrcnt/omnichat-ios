@@ -69,9 +69,13 @@ final class KeptPages {
         return entries.first { $0.page.pageID == trimmed && !$0.page.isDisposed }?.page
     }
 
-    /// The page kept for a failed call, for the "Open this page" button on its row.
-    func page(forCall callID: String) -> (any KeepablePage)? {
-        entries.last { $0.callIDs.contains(callID) && !$0.page.isDisposed }?.page
+    /// The page kept for a failed call, for the "Open this page" button on its row. Given the call's chat, only a page
+    /// that chat's reply kept (call ids repeat across chats).
+    func page(forCall callID: String, conversation: UUID? = nil) -> (any KeepablePage)? {
+        entries.last { entry in
+            entry.callIDs.contains(callID) && !entry.page.isDisposed
+                && (conversation == nil || entry.conversationID == nil || entry.conversationID == conversation)
+        }?.page
     }
 
     /// The reply of `conversation` ended: its pages go after `lingering` (one on screen then waits until it is put
@@ -112,8 +116,8 @@ final class KeptPages {
     }
 
     /// The note for the kept page of `callID`, with a leading space; empty when nothing was kept.
-    func note(forCall callID: String?) -> String {
-        guard let callID, let page = page(forCall: callID) else { return "" }
+    func note(forCall callID: String?, conversation: UUID? = ToolContext.conversationID) -> String {
+        guard let callID, let page = page(forCall: callID, conversation: conversation) else { return "" }
         return " " + Self.note(pageID: page.pageID)
     }
 
