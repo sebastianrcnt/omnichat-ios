@@ -1002,6 +1002,27 @@ final class ChatController {
     }
 }
 
+#if DEBUG
+extension ChatController {
+    /// Screenshots of the sidebar marks and the "Reply ready" banner (`-StrataMultiChatDemo 1`): runs that do nothing
+    /// (one of them queued), a chat with a reply not seen yet, and the notice for it. Nothing is sent.
+    func debugMultiChatDemo(running: [UUID], queued: UUID?, unread: UUID, title: String) {
+        for id in running where runs[id] == nil {
+            let run = ChatRun(conversationID: id, kind: .turn, messageID: nil)
+            run.phase = .writing
+            runs[id] = run
+        }
+        if let queued, runs[queued] == nil {
+            let run = ChatRun(conversationID: queued, kind: .turn, messageID: nil)
+            run.phase = .queued
+            runs[queued] = run
+        }
+        indicators.runEnded(unread, visible: visibleConversationID)
+        readyNotice = ReadyNotice(conversationID: unread, title: title)
+    }
+}
+#endif
+
 /// Feeds streamed deltas into the render models and measures thinking time.
 /// Resumable turns checkpoint persisted fields at each applied SSE boundary.
 @MainActor

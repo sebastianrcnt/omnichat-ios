@@ -3,8 +3,8 @@ import SwiftUI
 // Marks for chats that reply while another one is on screen: a sidebar row's dot (working, or a reply not seen yet),
 // and the quiet "Reply ready" banner over the chat.
 
-/// The trailing mark of a sidebar row: the breathing accent dot while the chat's reply runs, a still one while a reply
-/// that ended elsewhere hasn't been seen. Nothing otherwise.
+/// The trailing mark of a sidebar row: the feed's small spinner while the chat's reply runs (or waits for a slot), the
+/// accent dot while a reply that ended elsewhere hasn't been seen. Nothing otherwise.
 struct ChatRowMark: View {
     @Environment(\.theme) private var theme
     let status: ChatIndicators.Status
@@ -12,7 +12,7 @@ struct ChatRowMark: View {
     var body: some View {
         switch status {
         case .running:
-            ZStack { PulsingDot() }
+            ZStack { FeedSpinner() }
                 .accessibilityElement()
                 .accessibilityLabel(Text("Replying"))
         case .unread:
@@ -33,8 +33,13 @@ struct ReplyReadyBanner: View {
     let title: String
     let onOpen: () -> Void
 
-    /// How long it stays.
-    static let lifetime: Duration = .seconds(4)
+    /// How long it stays (the screenshot demo keeps it).
+    static var lifetime: Duration {
+        #if DEBUG
+        if DebugHooks.value("StrataMultiChatDemo") != nil { return .seconds(120) }
+        #endif
+        return .seconds(4)
+    }
 
     var body: some View {
         Button(action: onOpen) {

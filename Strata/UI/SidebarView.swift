@@ -103,6 +103,7 @@ struct SidebarView: View {
             close()
         }
         #if DEBUG
+        .task { await DebugHooks.multiChatDemo(context: context, controller: controller) }
         .task {
             guard DebugHooks.openSheet == "artifacts" else { return }
             if DebugHooks.value("StrataSeedArtifacts") != nil { DebugHooks.seedArtifacts(context: context) }
