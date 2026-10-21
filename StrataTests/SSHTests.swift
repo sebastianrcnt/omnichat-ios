@@ -459,3 +459,23 @@ struct SSHToolSwitchTests {
         #expect(chat.offeredTools?.contains(.ssh) == true)
     }
 }
+
+struct SSHRedactionTests {
+    @Test func debugBundlesHideSSHSecrets() {
+        let call = #"{"name":"ssh_exec","arguments":"{\"server\":\"nas\",\"password\":\"hunter2\",\"stdin\":\"hunter2\\n\",\"command\":\"uptime\"}"}"#
+        let out = DebugRedaction.redact(call)
+        #expect(!out.contains("hunter2"))
+        #expect(out.contains("uptime"))
+        #expect(out.contains(#"\"server\":\"nas\""#))
+
+        let key = "x -----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA\n-----END OPENSSH PRIVATE KEY----- y"
+        let redactedKey = DebugRedaction.redact(key)
+        #expect(!redactedKey.contains("b3BlbnNzaC1rZXktdjEAAAAA"))
+        #expect(redactedKey.hasSuffix(" y"))
+
+        let result = #"{"content":"name: nas\npassword: hunter2\nuser: pw"}"#
+        let redactedResult = DebugRedaction.redact(result)
+        #expect(!redactedResult.contains("hunter2"))
+        #expect(redactedResult.contains(#"\nuser: pw"#))
+    }
+}
