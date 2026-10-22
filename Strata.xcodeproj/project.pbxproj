@@ -85,6 +85,7 @@
 		22E3E3354F0088679BD7AF90 /* PretendardVariable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 4B4A57A9A2B035AE408E902E /* PretendardVariable.ttf */; };
 		2347F1AD8687AF9774EF1204 /* engines.json in Resources */ = {isa = PBXBuildFile; fileRef = D9B7287789884909C961D282 /* engines.json */; };
 		237D58ECE7432AD286C6CA5E /* SSHRequests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25DEE90C8B19B95171747AD2 /* SSHRequests.swift */; };
+		2415A803FC3EED0CA14B46BA /* OnDeviceDebug.swift in Sources */ = {isa = PBXBuildFile; fileRef = B448973723DAB3925A364F5A /* OnDeviceDebug.swift */; };
 		2488A23B810A1FE3CE36566F /* MacSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6F85CEAFCCA5E519C8FC093 /* MacSidebarView.swift */; };
 		253BBB118B749ED407AA6BFE /* DiagnosticsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28192AEFEA602E26941A9F24 /* DiagnosticsViews.swift */; };
 		254708036E2BF5202393FAF7 /* ThoughtTranslator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 580F50B9BAFF5058C292E7D1 /* ThoughtTranslator.swift */; };
@@ -153,6 +154,7 @@
 		453C640D622CC54F89F06551 /* DisplayActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26362C1640E1FFD07DB34A8F /* DisplayActivity.swift */; };
 		45CACCD11F64860A42537A04 /* RateLimiter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC5FEFAD7E7BF8EC9CB97FDD /* RateLimiter.swift */; };
 		45D19EC2918C1A7614C375DE /* Platform.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF7F53A781D1513C22B3EB69 /* Platform.swift */; };
+		4672D77C5F3B80809BECB760 /* OnDeviceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68511F5020614C731F515923 /* OnDeviceTests.swift */; };
 		4677C7BBC549D586B0F14DC8 /* MacDebug.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B5BBAA2FDE1CDE917B886E5 /* MacDebug.swift */; };
 		467A7F4FF4980E4391410DA7 /* BrowserAgent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D6B0FF18B33F8501A5ECCEB /* BrowserAgent.swift */; };
 		48B9B78BDA7A335D72BF0561 /* SystemPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 182FD0E6C234BFA230BFB671 /* SystemPromptTests.swift */; };
@@ -550,6 +552,7 @@
 		FD24D1ED12BCC63615A1C3D5 /* TranslationCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82C404FA2628001A9F85F7EC /* TranslationCore.swift */; };
 		FD7F8E950E5183214D8AE008 /* FaviconTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EAC7838625B6FD3C2C89EDB /* FaviconTests.swift */; };
 		FE41041D5B866618BF77EE98 /* ParallelToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3FC9C20B1D8A17C7643053D /* ParallelToolTests.swift */; };
+		FE6AEBA7021DF1514BF0FD55 /* OnDeviceDebug.swift in Sources */ = {isa = PBXBuildFile; fileRef = B448973723DAB3925A364F5A /* OnDeviceDebug.swift */; };
 		FEA20917838F0AB4446C95C2 /* SSHClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0379170C079B3AB3D6C19394 /* SSHClient.swift */; };
 		FEB93A1A5A5DA4035142363C /* ModelSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3BBC86C33779550DEC50E5F /* ModelSelectionTests.swift */; };
 		FECC75B9B83AA535B25C0A0C /* MacRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47232D28ED3A73F94A9C06BF /* MacRootView.swift */; };
@@ -727,6 +730,7 @@
 		66B56A8CE4450D02BB8C0419 /* StreamingMarkdownViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamingMarkdownViews.swift; sourceTree = "<group>"; };
 		671364462B473B3D56397DEA /* LICENSE-OpenSSL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "LICENSE-OpenSSL.txt"; sourceTree = "<group>"; };
 		67A397A75060DA5AB167DF7C /* CompactionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactionViews.swift; sourceTree = "<group>"; };
+		68511F5020614C731F515923 /* OnDeviceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnDeviceTests.swift; sourceTree = "<group>"; };
 		689795A776DB38F58B854B51 /* PythonFigures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonFigures.swift; sourceTree = "<group>"; };
 		68DB86954737F5286205F983 /* TestGateway.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestGateway.swift; sourceTree = "<group>"; };
 		6946DA516AFD242CE9D85CF0 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
@@ -820,6 +824,7 @@
 		B20AFA546F5B8911AF644FF5 /* Messages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Messages.swift; sourceTree = "<group>"; };
 		B2F3C73BDC1D5F971A7C72A4 /* OpenUIControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenUIControls.swift; sourceTree = "<group>"; };
 		B3BBC86C33779550DEC50E5F /* ModelSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelSelectionTests.swift; sourceTree = "<group>"; };
+		B448973723DAB3925A364F5A /* OnDeviceDebug.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnDeviceDebug.swift; sourceTree = "<group>"; };
 		B62DB34499406A1921D8E58C /* ContextGridTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextGridTests.swift; sourceTree = "<group>"; };
 		B63857674820F2E11039ED28 /* ChatStream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatStream.swift; sourceTree = "<group>"; };
 		B6E3B9C5865EB6DCC5972037 /* StrataMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StrataMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -1024,6 +1029,7 @@
 				B3BBC86C33779550DEC50E5F /* ModelSelectionTests.swift */,
 				88596CF1B679CFA4FE3425B4 /* MultiChatTests.swift */,
 				2AF1F6B416081EDDA46C8DAD /* NoBuiltInConnectionTests.swift */,
+				68511F5020614C731F515923 /* OnDeviceTests.swift */,
 				D6F7EDA3AB6D39C31110D19B /* OpenCodeAuthTests.swift */,
 				0AC62066CB8780EC3A65783E /* OpenCodeConnectionTests.swift */,
 				E2E868355B9AC25EC98E62D2 /* OpenUILangTests.swift */,
@@ -1079,6 +1085,7 @@
 				2778A6278BA46DF0B98B40C7 /* AppleFoundationModel.swift */,
 				AE25DE3C0FB80C4934DA32A6 /* OnDeviceClient.swift */,
 				512080A8E448C01C3099D0C3 /* OnDeviceConnection.swift */,
+				B448973723DAB3925A364F5A /* OnDeviceDebug.swift */,
 				96E02D8F125489114E54E1BC /* OnDeviceModel.swift */,
 				DBEED40101593DF4FB5687A5 /* OnDevicePromptBuilder.swift */,
 			);
@@ -1824,6 +1831,7 @@
 				FEB93A1A5A5DA4035142363C /* ModelSelectionTests.swift in Sources */,
 				5735038FA2EACF3FFD3511B0 /* MultiChatTests.swift in Sources */,
 				B4BEEB3B711ED74E071C9908 /* NoBuiltInConnectionTests.swift in Sources */,
+				4672D77C5F3B80809BECB760 /* OnDeviceTests.swift in Sources */,
 				36CD6399DE6BF968ECAD65EE /* OpenCodeAuthTests.swift in Sources */,
 				5921A33771A082F7E49A8F4C /* OpenCodeConnectionTests.swift in Sources */,
 				323472A70EB4AAFD37D39BB2 /* OpenUILangTests.swift in Sources */,
@@ -1979,6 +1987,7 @@
 				CE1E3EC39D21762486AB301B /* OnDeviceClient.swift in Sources */,
 				0FA6249EC3A2DF48330CAB30 /* OnDeviceConnection.swift in Sources */,
 				A6594570C1EF329CF2E4C6D9 /* OnDeviceConnectionEditor.swift in Sources */,
+				FE6AEBA7021DF1514BF0FD55 /* OnDeviceDebug.swift in Sources */,
 				5348CDBC0D85DB0A84FCD99B /* OnDeviceModel.swift in Sources */,
 				0FEA73DEBC8567E572B24B48 /* OnDevicePromptBuilder.swift in Sources */,
 				F7310D1B298972665A1382F4 /* OpenCodeAPI.swift in Sources */,
@@ -2187,6 +2196,7 @@
 				6E1112B75DA09CAB580BA0B7 /* OnDeviceClient.swift in Sources */,
 				22BE303EFEEBEF18E2737B69 /* OnDeviceConnection.swift in Sources */,
 				A93A9323E49D6D73BAD335DF /* OnDeviceConnectionEditor.swift in Sources */,
+				2415A803FC3EED0CA14B46BA /* OnDeviceDebug.swift in Sources */,
 				ADA95ACD6F705C4B82662907 /* OnDeviceModel.swift in Sources */,
 				FAAE5FA1F8C461C26B87BD3D /* OnDevicePromptBuilder.swift in Sources */,
 				C2CCBF63F3B371C804446F20 /* OpenCodeAPI.swift in Sources */,
