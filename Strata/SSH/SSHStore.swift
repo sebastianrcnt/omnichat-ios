@@ -82,47 +82,13 @@ protocol SSHVault: Sendable {
     func accounts() -> [String]
 }
 
+/// The records in the Keychain (`KeychainItems`: synced with iCloud Keychain while the switch is on).
 struct KeychainSSHVault: SSHVault {
-    var service = "cc.coolservices.strata.ssh"
+    var items = KeychainItems(service: "cc.coolservices.strata.ssh")
 
-    private func base(_ account: String) -> [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
-    }
-
-    func read(_ account: String) -> Data? {
-        var query = base(account)
-        query[kSecReturnData as String] = true
-        query[kSecMatchLimit as String] = kSecMatchLimitOne
-        var out: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess else { return nil }
-        return out as? Data
-    }
-
-    func write(_ data: Data?, account: String) throws {
-        guard let data else {
-            let status = SecItemDelete(base(account) as CFDictionary)
-            if status != errSecSuccess && status != errSecItemNotFound { throw KeychainError(status: status) }
-            return
-        }
-        let status = SecItemUpdate(base(account) as CFDictionary, [kSecValueData as String: data] as CFDictionary)
-        if status == errSecItemNotFound {
-            var add = base(account)
-            add[kSecValueData as String] = data
-            add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-            let added = SecItemAdd(add as CFDictionary, nil)
-            if added != errSecSuccess { throw KeychainError(status: added) }
-        } else if status != errSecSuccess {
-            throw KeychainError(status: status)
-        }
-    }
-
-    func accounts() -> [String] {
-        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
-                                    kSecReturnAttributes as String: true, kSecMatchLimit as String: kSecMatchLimitAll]
-        var out: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess, let items = out as? [[String: Any]] else { return [] }
-        return items.compactMap { $0[kSecAttrAccount as String] as? String }
-    }
+    func read(_ account: String) -> Data? { items.read(account) }
+    func write(_ data: Data?, account: String) throws { try items.write(data, account: account) }
+    func accounts() -> [String] { items.accounts() }
 }
 
 /// For tests and previews.
