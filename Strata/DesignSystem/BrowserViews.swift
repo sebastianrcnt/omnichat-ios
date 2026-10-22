@@ -487,7 +487,7 @@ struct BrowserScriptDetail: View {
 enum ToolNote {
     static func covers(_ tool: String) -> Bool {
         [ToolNames.browserShow, ToolNames.loadSkill, ToolNames.runSkillScript, ToolNames.saveSkill, ToolNames.showPlaces, ToolNames.currentLocation,
-         ToolNames.showHTML].contains(tool) || ToolNames.isBrowserAction(tool)
+         ToolNames.showHTML, ToolNames.healthQuery].contains(tool) || ToolNames.isBrowserAction(tool)
     }
 
     static func icon(_ tool: String) -> String {
@@ -506,6 +506,7 @@ enum ToolNote {
         case ToolNames.showPlaces: "map"
         case ToolNames.currentLocation: "location"
         case ToolNames.showHTML: ArtifactFeedCard.icon
+        case ToolNames.healthQuery: HealthFeedCard.icon
         default: "wrench.and.screwdriver"
         }
     }
@@ -531,6 +532,8 @@ enum ToolNote {
             running ? String(localized: "Finding places on the map…") : String(localized: "Showed places on a map")
         case ToolNames.currentLocation:
             running ? String(localized: "Getting your location…") : String(localized: "Got your location")
+        case ToolNames.healthQuery:
+            HealthCallLabel.title(summary: argument, running: running, failed: failed)
         case ToolNames.showHTML:
             running ? String(localized: "Making an artifact…")
                 : failed ? String(localized: "Couldn't show the artifact") : String(localized: "Showed \(argument)")

@@ -22,6 +22,7 @@ struct SettingsView: View {
     @State private var showAppearance = false
     @State private var showTools = false
     @State private var showSSH = false
+    @State private var showHealth = false
     @State private var showChats = false
     @State private var showAddConnection = false
 
@@ -59,6 +60,10 @@ struct SettingsView: View {
                                     showsChevron: true) { showTools = true }
                         SettingsRow(systemImage: "terminal", title: "SSH", subtitle: "Servers, credentials and approvals",
                                     showsChevron: true) { showSSH = true }
+                        if HealthSettings.isSupported {
+                            SettingsRow(systemImage: "heart", title: "Health", subtitle: "Apple Health for the assistant, read-only",
+                                        showsChevron: true) { showHealth = true }
+                        }
                         SettingsRow(systemImage: "bubble.left.and.text.bubble.right", title: "Chats",
                                     subtitle: "Answers, notifications, dictation and context", showsChevron: true) { showChats = true }
                     }
@@ -101,6 +106,7 @@ struct SettingsView: View {
             .navigationDestination(isPresented: $showAppearance) { AppearanceSettingsView() }
             .navigationDestination(isPresented: $showTools) { ToolSettingsView() }
             .navigationDestination(isPresented: $showSSH) { SSHSettingsView() }
+            .navigationDestination(isPresented: $showHealth) { HealthSettingsView() }
             .navigationDestination(isPresented: $showChats) { ChatSettingsView() }
         }
         .presentationBackground(theme.background)
@@ -112,6 +118,7 @@ struct SettingsView: View {
             if DebugHooks.openSheet == "bgsoundtest" { settings.developerMode = true; showSoundTest = true }
             #endif
             if DebugHooks.openSheet == "licenses" { showLicenses = true }
+            if DebugHooks.openSheet == "health" { showHealth = true }
             if DebugHooks.openSheet == "addconnection" { showAddConnection = true }
             if DebugHooks.openSheet == "connection" { // what "Add connection" > "Other server" does
                 let new = Connection(name: String(localized: "New connection"), baseURL: "https://")

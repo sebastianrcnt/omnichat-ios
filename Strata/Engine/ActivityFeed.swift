@@ -255,6 +255,8 @@ struct FeedCard: Identifiable, Equatable, Sendable {
         case artifact(title: String)
         /// One `ssh_` call: the tool and its arguments (secrets masked while it runs, `SSHMask`).
         case ssh(tool: String, arguments: String)
+        /// One `health_query` call: what it read ("sleep, last 14 days"); it opens to the table.
+        case health(summary: String)
     }
 
     var id: String
@@ -322,6 +324,7 @@ enum ActivityFeed {
                 case ToolNames.showPlaces: .places
                 case ToolNames.showHTML: .artifact(title: call.argument)
                 case _ where SSHToolNames.covers(tool): .ssh(tool: tool, arguments: call.argument)
+                case ToolNames.healthQuery: .health(summary: call.argument)
                 case _ where ToolNames.isBrowserAction(tool): .browserAction(tool: tool, argument: call.argument)
                 default: .note(tool: tool, argument: call.argument)
                 }

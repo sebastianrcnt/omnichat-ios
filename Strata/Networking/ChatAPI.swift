@@ -368,6 +368,7 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
         if groups.contains(.location) { out += [currentLocation] }
         if groups.contains(.ssh) { out += ssh }
         if groups.contains(.video) { out += [videoTranscript] }
+        if groups.contains(.health), ToolGroup.health.isSupported { out += [healthQuery] }
         return out
     }
 }

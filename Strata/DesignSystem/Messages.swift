@@ -448,6 +448,7 @@ struct AssistantMessage: View {
             case ToolNames.currentLocation: String(localized: "Finding your location")
             case _ where SSHToolNames.connects(name): String(localized: "Working on a server")
             case ToolNames.videoTranscript: String(localized: "Reading the transcript")
+            case ToolNames.healthQuery: String(localized: "Reading health data")
             default: String(localized: "Reading")
             }
         case .compacting: String(localized: "Summarizing conversation…")

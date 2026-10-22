@@ -10,6 +10,8 @@ enum ToolContext {
     @TaskLocal static var conversationID: UUID?
     /// The model reads images, so `view_image` is offered and Python output points to it.
     @TaskLocal static var readsImages = false
+    /// The connection the turn's results go to (`HealthPrivacy` checks it).
+    @TaskLocal static var destination: ToolDestination?
 }
 
 /// Progress of running tool calls (0...1), keyed by chat and call id, for the fill in a running fetch's chip. Only calls

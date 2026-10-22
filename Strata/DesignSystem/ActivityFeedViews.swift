@@ -276,6 +276,8 @@ struct ActivityFeedView: View {
             ArtifactFeedCard(card: card, onDetails: onDetails)
         case .ssh:
             SSHFeedCard(card: card, collapsed: collapsed, onToggle: toggle, onDetails: onDetails)
+        case .health:
+            HealthFeedCard(card: card, collapsed: collapsed, onToggle: toggle, onDetails: onDetails)
         case .search, .pages, .transcripts:
             FeedCardView(card: card, collapsed: collapsed, showAll: showingAll.contains(card.id), staggerRows: isStreaming,
                          onToggle: toggle,
@@ -375,7 +377,7 @@ struct FeedCardView: View {
                 : (card.extras.count == 1 ? String(localized: "Read transcript") : String(localized: "Read \(card.extras.count) transcripts"))
         case .python: String(localized: "Ran Python")
         case .image(let id): String(localized: "Viewed \(id)")
-        case .browser, .script, .browserAction, .note, .places, .artifact, .ssh: ""
+        case .browser, .script, .browserAction, .note, .places, .artifact, .ssh, .health: ""
         }
     }
 
@@ -386,7 +388,7 @@ struct FeedCardView: View {
         case .transcripts: String(localized: "Transcripts read")
         case .python: String(localized: "Ran Python")
         case .image(let id): String(localized: "Viewed \(id)")
-        case .browser, .script, .browserAction, .note, .places, .artifact, .ssh: ""
+        case .browser, .script, .browserAction, .note, .places, .artifact, .ssh, .health: ""
         }
     }
 
@@ -397,7 +399,7 @@ struct FeedCardView: View {
         switch card.kind {
         case .pages, .transcripts:
             return card.failedCount > 0 ? String(localized: "\(card.failedCount) failed") : ""
-        case .python, .image, .browser, .script, .browserAction, .note, .places, .artifact, .ssh:
+        case .python, .image, .browser, .script, .browserAction, .note, .places, .artifact, .ssh, .health:
             return ""
         case .search:
             let count = card.results.count == 1 ? String(localized: "1 result") : String(localized: "\(card.results.count) results")

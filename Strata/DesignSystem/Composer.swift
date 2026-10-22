@@ -592,7 +592,7 @@ private struct ComposerPreview: View {
         VStack {
             Spacer()
             ComposerBar(text: $text, isStreaming: streaming, canSend: true, onAttach: {},
-                        toolSwitches: ToolGroup.allCases.map { ComposerToolSwitch(id: $0.rawValue, title: $0.title, systemImage: $0.systemImage, isOn: $0 != .python) },
+                        toolSwitches: ToolGroup.supported.map { ComposerToolSwitch(id: $0.rawValue, title: $0.title, systemImage: $0.systemImage, isOn: $0 != .python) },
                         onSend: {}, onStop: {},
                         accessory: {
                             ModelSettingsButton(effortFraction: 0.6, valueDescription: "Medium", action: {}) {

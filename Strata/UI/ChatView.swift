@@ -717,7 +717,7 @@ struct ChatView: View {
     private var toolSwitchItems: [ComposerToolSwitch] {
         guard selectedModel?.supportsTools ?? true else { return [] }
         let on = conversation.map { controller.toolSwitches($0) } ?? newChatTools ?? settings.defaultToolGroups
-        return ToolGroup.allCases.map { ComposerToolSwitch(id: $0.rawValue, title: $0.title, systemImage: $0.systemImage, isOn: on.contains($0)) }
+        return ToolGroup.supported.map { ComposerToolSwitch(id: $0.rawValue, title: $0.title, systemImage: $0.systemImage, isOn: on.contains($0)) }
     }
 
     /// Applies from the next message.
@@ -995,7 +995,7 @@ struct ChatView: View {
             switch DebugHooks.openSheet {
             case "usage" where conversation != nil: showContext = true
             case "model", "chatsettings": showChatSettings = true
-            case "settings", "diagnostics", "licenses", "connection", "bgsoundtest": onOpenSettings()
+            case "settings", "diagnostics", "licenses", "connection", "bgsoundtest", "health": onOpenSettings()
             case "attach": showAttach = true
             case "code": debugViewer = true
             default: break

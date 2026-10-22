@@ -45,6 +45,7 @@ struct ProcessSegment: Codable, Hashable, Identifiable, Sendable {
         if calls.contains(where: { $0.name == ToolNames.showPlaces }) { parts.append(String(localized: "Mapped places")) }
         if calls.contains(where: { $0.name == ToolNames.showHTML && !$0.isError }) { parts.append(String(localized: "Made an artifact")) }
         if calls.contains(where: { SSHToolNames.connects($0.name) }) { parts.append(String(localized: "Worked on a server")) }
+        if calls.contains(where: { $0.name == ToolNames.healthQuery && !$0.isError }) { parts.append(String(localized: "Read health data")) }
         return parts.isEmpty ? String(localized: "Used tools") : parts.joined(separator: " · ")
     }
 }
