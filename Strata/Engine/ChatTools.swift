@@ -11,8 +11,16 @@ enum ToolGroup: String, CaseIterable, Codable, Sendable, Identifiable {
     case web, browser, python, location, video, ssh
     /// Interactive views (OpenUI Lang blocks in answers): no tools, only a system prompt section.
     case views
+    /// Apple Health (`health_query`), read-only. iPhone only (`isSupported`).
+    case health
 
     var id: String { rawValue }
+
+    /// Whether the group exists on this platform: the Mac has no HealthKit.
+    var isSupported: Bool { self != .health || HealthSettings.isSupported }
+
+    /// The groups the "+" menu lists here.
+    static var supported: [ToolGroup] { allCases.filter(\.isSupported) }
 
     /// The tools of the group. `show_html` is in none: it only displays, so every chat with tools has it.
     var toolNames: Set<String> {
@@ -24,6 +32,7 @@ enum ToolGroup: String, CaseIterable, Codable, Sendable, Identifiable {
         case .ssh: Set(SSHToolNames.all)
         case .video: [ToolNames.videoTranscript]
         case .views: []
+        case .health: [ToolNames.healthQuery]
         }
     }
 
@@ -41,6 +50,7 @@ enum ToolGroup: String, CaseIterable, Codable, Sendable, Identifiable {
         case .ssh: String(localized: "SSH")
         case .video: String(localized: "Video transcripts")
         case .views: String(localized: "Interactive views")
+        case .health: String(localized: "Apple Health")
         }
     }
 
@@ -53,6 +63,7 @@ enum ToolGroup: String, CaseIterable, Codable, Sendable, Identifiable {
         case .ssh: "terminal"
         case .video: "captions.bubble"
         case .views: "square.grid.2x2"
+        case .health: "heart"
         }
     }
 
@@ -66,6 +77,7 @@ enum ToolGroup: String, CaseIterable, Codable, Sendable, Identifiable {
         case .ssh: "SSH"
         case .video: "Video transcripts"
         case .views: "Interactive views"
+        case .health: "Apple Health"
         }
     }
 
@@ -78,6 +90,7 @@ enum ToolGroup: String, CaseIterable, Codable, Sendable, Identifiable {
         case .ssh: "SSH"
         case .video: "video transcripts"
         case .views: "interactive views"
+        case .health: "Apple Health"
         }
     }
 

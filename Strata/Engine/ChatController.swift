@@ -639,8 +639,10 @@ final class ChatController {
             do {
                 let outcome = try await ToolContext.$conversationID.withValue(conversationID) {
                     try await ToolContext.$readsImages.withValue(endpoint.model.supportsImages) {
-                        try await runner.run(endpoint: endpoint, messages: messages, effort: effort, sources: sourceStore, checkpoint: checkpoint) { event in
-                            try self.handle(event, run: run, tracker: tracker, context: context)
+                        try await ToolContext.$destination.withValue(ToolDestination(endpoint)) {
+                            try await runner.run(endpoint: endpoint, messages: messages, effort: effort, sources: sourceStore, checkpoint: checkpoint) { event in
+                                try self.handle(event, run: run, tracker: tracker, context: context)
+                            }
                         }
                     }
                 }
@@ -783,7 +785,7 @@ final class ChatController {
             : freeze ? conversation.frozenSkillIndex(current: skills.index) : conversation.skillIndexSnapshot ?? skills.index
         let base = [AppPrompt.text(tools: tools, python: offered.contains(.python), browser: offered.contains(.browser),
                                    skills: offered.contains(.browser), video: offered.contains(.video), ssh: offered.contains(.ssh),
-                                   views: offered.contains(.views)),
+                                   health: offered.contains(.health), views: offered.contains(.views)),
                     skillIndex,
                     AppPrompt.preferences(freeze ? conversation.frozenPreferences(current: settings.userPreferences)
                                                   : conversation.preferencesSnapshot ?? settings.userPreferences)]

@@ -47,6 +47,7 @@ targets:
       properties:
         com.apple.security.application-groups:
           - group.cc.coolservices.strata
+        com.apple.developer.healthkit: true # health_query reads Apple Health (read-only)
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cc.coolservices.strata
@@ -65,8 +66,13 @@ targets:
         INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: OpenChat turns your dictation into text on this device.
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: OpenChat uses your approximate location when you ask the assistant to find places near you.
         INFOPLIST_KEY_NSLocalNetworkUsageDescription: OpenChat connects to servers on your local network when the assistant runs commands over SSH.
+        INFOPLIST_KEY_NSHealthShareUsageDescription: OpenChat reads only the health data you allow, when you ask the assistant about your health. It is sent to the model connection your chat uses to answer you, never used for advertising, and never written back to Health.
         INFOPLIST_KEY_UIUserInterfaceStyle: Automatic
         SWIFT_EMIT_LOC_STRINGS: YES
+      configs:
+        # Debug builds can seed sample data on a simulator (-StrataSeedHealth); release builds only read.
+        Debug:
+          INFOPLIST_KEY_NSHealthUpdateUsageDescription: Debug builds write sample health data on a simulator for testing.
     info:
       path: Strata/Resources/Info.plist
       properties:

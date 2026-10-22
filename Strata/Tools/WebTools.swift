@@ -485,6 +485,8 @@ struct ToolRouter: ToolExecuting {
         case ToolNames.showHTML:
             return ShowHTMLTool(store: artifacts).run(arguments: args, conversationID: ToolContext.conversationID,
                                                       callID: ToolContext.callID)
+        case ToolNames.healthQuery:
+            return await HealthQueryTool().run(arguments: arguments)
         case let tool where SSHToolNames.covers(tool):
             return await SSHTool().run(name: tool, arguments: arguments, conversation: ToolContext.conversationID,
                                        callID: ToolContext.callID)

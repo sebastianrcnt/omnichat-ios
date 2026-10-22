@@ -29,6 +29,11 @@ enum DebugRedaction {
     private static let sshResultLine = try! NSRegularExpression(
         pattern: #"((?:\\n|^)(?:password|passphrase): )(?:[^"\\]|\\[^n"])*"#, options: [.anchorsMatchLines])
 
+    /// A `health_query` result (it starts with `HealthReport.marker`): the whole JSON string, whatever API shape holds it.
+    private static let healthResult = try! NSRegularExpression(
+        pattern: "\"" + NSRegularExpression.escapedPattern(for: HealthReport.marker) + #"(?:[^"\\]|\\.)*""#)
+    static let healthPlaceholder = "<Apple Health data removed>"
+
     static func redact(_ text: String, options: Options = Options()) -> String {
         var out = text
         if options.stripImages { out = stripImages(out) }
@@ -39,6 +44,7 @@ enum DebugRedaction {
         out = replace(privateKey, in: out) { _, groups in "-----BEGIN \(groups[1])PRIVATE KEY----- <redacted>" }
         out = replace(sshArgument, in: out) { _, groups in groups[1] + "<redacted>" + groups[2] }
         out = replace(sshResultLine, in: out) { _, groups in groups[1] + "<redacted>" }
+        out = replace(healthResult, in: out) { _, _ in "\"" + healthPlaceholder + "\"" }
         return out
     }
 
