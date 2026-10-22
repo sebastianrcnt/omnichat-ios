@@ -8,7 +8,9 @@
     " to %@": {},
     "\"%@\" can't be used as a folder name.": {},
     "%@": {},
-    "%@ (recommended)": {},
+    "%@ (recommended)": {
+      "extractionState": "stale"
+    },
     "%@ / %@": {},
     "%@ and %@": {},
     "%@ asks for an answer": {},
@@ -19,11 +21,17 @@
     "%@ failed": {},
     "%@ has no earlier version to go back to.": {},
     "%@ is a page tool, which only packages built into OmniChat may have for now.": {},
-    "%@ is a page tool, which only packages built into OpenChat may have for now.": {},
+    "%@ is a page tool, which only packages built into OpenChat may have for now.": {
+      "extractionState": "stale"
+    },
     "%@ is built into OmniChat and can't be replaced or removed.": {},
     "%@ is built into OmniChat and can't be replaced.": {},
-    "%@ is built into OpenChat and can't be replaced or removed.": {},
-    "%@ is built into OpenChat and can't be replaced.": {},
+    "%@ is built into OpenChat and can't be replaced or removed.": {
+      "extractionState": "stale"
+    },
+    "%@ is built into OpenChat and can't be replaced.": {
+      "extractionState": "stale"
+    },
     "%@ isn't installed.": {},
     "%@ of %@ (%lld%%)": {
       "extractionState": "stale"
@@ -84,7 +92,9 @@
     "%lld more chats": {},
     "%lld more chats replying": {},
     "%lld more use an API OmniChat doesn't support yet.": {},
-    "%lld more use an API OpenChat doesn't support yet.": {},
+    "%lld more use an API OpenChat doesn't support yet.": {
+      "extractionState": "stale"
+    },
     "%lld of %lld": {},
     "%lld pages": {
       "localizations": {
@@ -180,6 +190,7 @@
     "1 earlier step": {},
     "1 figure": {},
     "1 item couldn't be read.": {},
+    "1 line": {},
     "1 model": {},
     "1 more chat": {},
     "1 more chat replying": {},
@@ -200,6 +211,7 @@
     "A language code such as en or ko. Leave empty for the video's own captions.": {},
     "A link asks to add this server. Add it only if you trust where the link came from: what you send in chats goes to this server.": {},
     "A running reply on the Lock Screen and in the Dynamic Island when iOS isn't showing its own progress for it.": {},
+    "A server with an OpenAI-compatible API, Anthropic, or your ChatGPT plan. API keys and sign-ins are stored in the Keychain.": {},
     "A server with an OpenAI-compatible API, your ChatGPT plan, or your OpenCode account. API keys and sign-ins are stored in the Keychain.": {},
     "API": {},
     "API key": {},
@@ -209,7 +221,9 @@
     "API key from platform.openai.com": {
       "extractionState": "stale"
     },
-    "API keys, ChatGPT and OpenCode sign-ins, SSH credentials and custom headers. Off, this device keeps its own copy of each one; copies already in iCloud Keychain stay for your other devices until you remove them.": {},
+    "API keys, ChatGPT and OpenCode sign-ins, SSH credentials and custom headers. Off, this device keeps its own copy of each one; copies already in iCloud Keychain stay for your other devices until you remove them.": {
+      "extractionState": "stale"
+    },
     "API keys, ChatGPT and OpenCode sign-ins, SSH credentials and custom headers. Off, this device keeps its own copy of each one; copies already in iCloud Keychain stay for your other devices.": {
       "extractionState": "stale"
     },
@@ -224,7 +238,9 @@
     "Add a connection in Settings, then fetch its models or add one by hand.": {},
     "Add a connection to start": {},
     "Add a connection with a model in OmniChat first.": {},
-    "Add a connection with a model in OpenChat first.": {},
+    "Add a connection with a model in OpenChat first.": {
+      "extractionState": "stale"
+    },
     "Add an API key for %@ in Settings.": {},
     "Add an API key to use this server": {},
     "Add another service": {},
@@ -270,7 +286,9 @@
     "Appearance": {},
     "Apple Health": {},
     "Apple Health can't be used on this device while chat sync is on, so no health data goes to iCloud.": {},
-    "Apple Health can't be used on this device while chat sync is on, so no health data goes to iCloud. Health data the assistant already read is removed from your chats first; the replies stay.": {},
+    "Apple Health can't be used on this device while chat sync is on, so no health data goes to iCloud. Health data the assistant already read is removed from your chats first; the replies stay.": {
+      "extractionState": "stale"
+    },
     "Apple Health in new chats": {},
     "Apple Intelligence": {},
     "Apple Intelligence is off": {},
@@ -280,7 +298,9 @@
     "Apple's on-device model answers without an API key or an account. Your messages never leave this device, and it works offline. It's a small model with a short memory: good for quick questions, rewriting and summaries. For long chats or hard questions, use a larger model.": {},
     "Apple's on-device safety guardrails stopped this answer. Try rephrasing, or use another connection.": {},
     "Applies when OmniChat reopens": {},
-    "Applies when OpenChat reopens": {},
+    "Applies when OpenChat reopens": {
+      "extractionState": "stale"
+    },
     "Approve %@ › %@": {},
     "Approve %@ › %@?": {},
     "Approve a command on %@": {},
@@ -291,7 +311,9 @@
     "Ask ${prompt}": {},
     "Ask Apple's on-device model for titles instead of the chat's model. Free and private; titles may be simpler.": {},
     "Ask OmniChat": {},
-    "Ask OpenChat": {},
+    "Ask OpenChat": {
+      "extractionState": "stale"
+    },
     "Ask anything about this": {},
     "Ask before running commands": {},
     "Ask me to solve robot checks": {},
@@ -360,9 +382,13 @@
     "Chat Completions": {},
     "Chat database": {},
     "Chat sync changes the next time OmniChat opens. Close and reopen it to apply.": {},
-    "Chat sync changes the next time OpenChat opens. Close and reopen it to apply.": {},
+    "Chat sync changes the next time OpenChat opens. Close and reopen it to apply.": {
+      "extractionState": "stale"
+    },
     "Chat sync is off. Close and reopen OmniChat to use Apple Health.": {},
-    "Chat sync is off. Close and reopen OpenChat to use Apple Health.": {},
+    "Chat sync is off. Close and reopen OpenChat to use Apple Health.": {
+      "extractionState": "stale"
+    },
     "Chat sync was turned on while Apple Health was being read, so what was read wasn't used.": {},
     "ChatGPT": {},
     "ChatGPT account": {},
@@ -382,10 +408,14 @@
     "ChatGPT · Signed out": {},
     "Chats": {},
     "Chats sync through iCloud on this device, and health data never goes to iCloud. Turn off chat sync to use Apple Health; this device's chats stay, and stop syncing the next time OmniChat opens.": {},
-    "Chats sync through iCloud on this device, and health data never goes to iCloud. Turn off chat sync to use Apple Health; this device's chats stay, and stop syncing the next time OpenChat opens.": {},
+    "Chats sync through iCloud on this device, and health data never goes to iCloud. Turn off chat sync to use Apple Health; this device's chats stay, and stop syncing the next time OpenChat opens.": {
+      "extractionState": "stale"
+    },
     "Chats that already list it keep the name, but it can no longer be loaded.": {},
     "Chats whose model runs on a remote server can't read Health, and a chat that read Health can't be sent to one.": {},
-    "Chats whose model runs on a remote server can't read Health.": {},
+    "Chats whose model runs on a remote server can't read Health.": {
+      "extractionState": "stale"
+    },
     "Checked which health data is available": {},
     "Checking Apple Health…": {},
     "Checking the translation languages…": {},
@@ -431,7 +461,9 @@
     "Conversation details": {},
     "Cookies, sign-ins in the browser, and downloaded Python packages.": {},
     "Cookies, storage and caches of OmniChat's browser, used by search, fetch and browsing. Sites you signed in to will ask again, and robot checks may come back.": {},
-    "Cookies, storage and caches of OpenChat's browser, used by search, fetch and browsing. Sites you signed in to will ask again, and robot checks may come back.": {},
+    "Cookies, storage and caches of OpenChat's browser, used by search, fetch and browsing. Sites you signed in to will ask again, and robot checks may come back.": {
+      "extractionState": "stale"
+    },
     "Copied": {},
     "Copy": {},
     "Copy Last Answer": {},
@@ -444,7 +476,9 @@
       "extractionState": "stale"
     },
     "Could not reconnect to the server for %lld minutes. OmniChat tries again when you come back to the app.": {},
-    "Could not reconnect to the server for %lld minutes. OpenChat tries again when you come back to the app.": {},
+    "Could not reconnect to the server for %lld minutes. OpenChat tries again when you come back to the app.": {
+      "extractionState": "stale"
+    },
     "Could not resolve the host %@.": {},
     "Could not save: %@": {},
     "Couldn't check Apple Health": {},
@@ -464,7 +498,9 @@
     "Couldn't scroll": {},
     "Couldn't search the page": {},
     "Couldn't share to OmniChat": {},
-    "Couldn't share to OpenChat": {},
+    "Couldn't share to OpenChat": {
+      "extractionState": "stale"
+    },
     "Couldn't show the artifact": {},
     "Couldn't show the places": {},
     "Couldn't show this view.": {},
@@ -526,13 +562,17 @@
     "Download English–Korean": {},
     "Download the English–Korean language to translate thinking. Until then it shows as written.": {},
     "Downloaded ": {},
-    "Downloaded packages": {},
+    "Downloaded packages": {
+      "extractionState": "stale"
+    },
     "Downloading ": {},
     "Downloading the model…": {},
     "Dynamic size": {},
     "Each device has its own Apple Intelligence connection.": {},
     "Each server's host key is saved the first time OmniChat connects; a different key later stops the connection. Reset a host after reinstalling it.": {},
-    "Each server's host key is saved the first time OpenChat connects; a different key later stops the connection. Reset a host after reinstalling it.": {},
+    "Each server's host key is saved the first time OpenChat connects; a different key later stops the connection. Reset a host after reinstalling it.": {
+      "extractionState": "stale"
+    },
     "Earlier messages summarized": {},
     "Earlier messages were replaced by these notes when the conversation neared the model's limit. They stay in the transcript.": {},
     "Edit": {},
@@ -545,7 +585,9 @@
     "Eligible requests in OmniChat use your ChatGPT plan and count toward its usage limits. You can manage usage in ChatGPT settings.": {},
     "Eligible requests use your ChatGPT plan and count toward its usage limits, which you manage in ChatGPT settings. The sign-in is stored in the Keychain.": {},
     "Enable only for gateways supporting OmniChat stream replay.": {},
-    "Enable only for gateways supporting Strata stream replay.": {},
+    "Enable only for gateways supporting Strata stream replay.": {
+      "extractionState": "stale"
+    },
     "Engine": {},
     "Enter a number": {},
     "Enter a valid URL": {},
@@ -554,7 +596,9 @@
     "Estimate": {},
     "Every model here %@.": {},
     "Everything syncs through your private iCloud storage, between the devices signed in to your Apple Account. OmniChat's developer never sees it.": {},
-    "Everything syncs through your private iCloud storage, between the devices signed in to your Apple Account. OpenChat's developer never sees it.": {},
+    "Everything syncs through your private iCloud storage, between the devices signed in to your Apple Account. OpenChat's developer never sees it.": {
+      "extractionState": "stale"
+    },
     "Exit %lld": {},
     "Expanded": {},
     "Explain": {},
@@ -635,7 +679,9 @@
     "Headers": {},
     "Health": {},
     "Health data is not sent to OmniChat's developer and not used for advertising. Debug bundles leave it out. The answers stay in your chats on this device until you delete them. Health data never goes to iCloud: Apple Health can't be used while chat sync is on.": {},
-    "Health data is not sent to OpenChat's developer and not used for advertising. Debug bundles leave it out. The answers stay in your chats on this device until you delete them. Health data never goes to iCloud: Apple Health can't be used while chat sync is on.": {},
+    "Health data is not sent to OpenChat's developer and not used for advertising. Debug bundles leave it out. The answers stay in your chats on this device until you delete them. Health data never goes to iCloud: Apple Health can't be used while chat sync is on.": {
+      "extractionState": "stale"
+    },
     "Health data never goes to iCloud. In chats where the assistant read Apple Health, the replies, summaries, figures and artifacts can repeat what it read, so chat sync can only be turned on after those chats are deleted from this device. Apple Health can't be used here while chat sync is on.": {},
     "Hidden": {},
     "Hidden web views": {},
@@ -647,8 +693,12 @@
     "Hides the script and its result": {},
     "Hides the steps": {},
     "High": {},
-    "Higher effort lets the model think longer. It costs more time and plan usage. The model decides how long to think; there is no token cap.": {},
-    "Higher effort lets the model think longer. It costs more time and tokens. Limits are the engine's thinking-token caps.": {},
+    "Higher effort lets the model think longer. It costs more time and plan usage. The model decides how long to think; there is no token cap.": {
+      "extractionState": "stale"
+    },
+    "Higher effort lets the model think longer. It costs more time and tokens. Limits are the engine's thinking-token caps.": {
+      "extractionState": "stale"
+    },
     "Higher effort thinks longer.": {},
     "Host": {},
     "How many lines a thought may take while the model works and after.": {},
@@ -822,7 +872,9 @@
     "No captions": {},
     "No chats yet": {},
     "No connection yet: add one in OmniChat to get a reply.": {},
-    "No connection yet: add one in OpenChat to get a reply.": {},
+    "No connection yet: add one in OpenChat to get a reply.": {
+      "extractionState": "stale"
+    },
     "No connections yet": {},
     "No cookies": {},
     "No data for %@": {},
@@ -836,7 +888,9 @@
       "extractionState": "stale"
     },
     "No model yet: open OmniChat to load the model list.": {},
-    "No model yet: open OpenChat to load the model list.": {},
+    "No model yet: open OpenChat to load the model list.": {
+      "extractionState": "stale"
+    },
     "No models match": {},
     "No models yet": {},
     "No output": {},
@@ -852,7 +906,9 @@
     "None": {},
     "None yet": {},
     "Not a key OmniChat can read": {},
-    "Not a key OpenChat can read": {},
+    "Not a key OpenChat can read": {
+      "extractionState": "stale"
+    },
     "Not available": {
       "extractionState": "stale"
     },
@@ -874,8 +930,12 @@
     "Off": {},
     "Off by default. Chats sync in the background; turning chat sync off or on applies the next time OmniChat opens.": {},
     "Off by default. Chats sync in the background; turning chat sync off or on applies the next time OmniChat opens. While it is on, Apple Health can't be used on this device.": {},
-    "Off by default. Chats sync in the background; turning chat sync off or on applies the next time OpenChat opens.": {},
-    "Off by default. Chats sync in the background; turning chat sync off or on applies the next time OpenChat opens. While it is on, Apple Health can't be used on this device.": {},
+    "Off by default. Chats sync in the background; turning chat sync off or on applies the next time OpenChat opens.": {
+      "extractionState": "stale"
+    },
+    "Off by default. Chats sync in the background; turning chat sync off or on applies the next time OpenChat opens. While it is on, Apple Health can't be used on this device.": {
+      "extractionState": "stale"
+    },
     "Off keeps this model out of the composer's model menu. A chat already using it keeps it.": {},
     "Off while chat sync is on": {},
     "Offered in Add connection. Presets never carry keys.": {},
@@ -888,6 +948,7 @@
     "OmniChat is using this page · view only": {},
     "OmniChat isn't allowed to add photos. You can allow it in Settings.": {},
     "OmniChat stops at a robot check (CAPTCHA) and asks you to solve it on the page; it never solves one itself. With this off, a page that shows one isn't read.": {},
+    "OmniChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT account.": {},
     "OmniChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.": {},
     "OmniChat waits while you use the page. Tap Done to hand it back.": {},
     "On": {},
@@ -917,8 +978,12 @@
     "Open OmniChat to continue. The chat starts as soon as it opens.": {
       "extractionState": "stale"
     },
-    "Open OpenChat to continue": {},
-    "Open OpenChat to continue. The chat starts as soon as it opens.": {},
+    "Open OpenChat to continue": {
+      "extractionState": "stale"
+    },
+    "Open OpenChat to continue. The chat starts as soon as it opens.": {
+      "extractionState": "stale"
+    },
     "Open Settings": {},
     "Open full screen": {},
     "Open in Browser": {},
@@ -930,24 +995,48 @@
     "Open the OpenCode Console": {},
     "Open the chat in the app while it answers.": {},
     "Open the sign-in page and approve. The code is copied when the page opens, so paste it if the page asks. OmniChat keeps checking and comes back here once you approve.": {},
-    "Open the sign-in page and approve. The code is copied when the page opens, so paste it if the page asks. OpenChat keeps checking and comes back here once you approve.": {},
+    "Open the sign-in page and approve. The code is copied when the page opens, so paste it if the page asks. OpenChat keeps checking and comes back here once you approve.": {
+      "extractionState": "stale"
+    },
     "Open this page": {},
     "Open timeline": {
       "extractionState": "stale"
     },
     "OpenAI-compatible API": {},
     "OpenAI-compatible · %@": {},
-    "OpenChat": {},
-    "OpenChat can't talk to %@ yet. Choose another model.": {},
-    "OpenChat includes these components under their licenses.": {},
-    "OpenChat is replying": {},
-    "OpenChat is replying in %lld chats": {},
-    "OpenChat is still answering. The reply will be in the chat when it's done.": {},
-    "OpenChat is using this page · view only": {},
-    "OpenChat isn't allowed to add photos. You can allow it in Settings.": {},
-    "OpenChat stops at a robot check (CAPTCHA) and asks you to solve it on the page; it never solves one itself. With this off, a page that shows one isn't read.": {},
-    "OpenChat talks to the AI service you choose: OpenAI, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.": {},
-    "OpenChat waits while you use the page. Tap Done to hand it back.": {},
+    "OpenChat": {
+      "extractionState": "stale"
+    },
+    "OpenChat can't talk to %@ yet. Choose another model.": {
+      "extractionState": "stale"
+    },
+    "OpenChat includes these components under their licenses.": {
+      "extractionState": "stale"
+    },
+    "OpenChat is replying": {
+      "extractionState": "stale"
+    },
+    "OpenChat is replying in %lld chats": {
+      "extractionState": "stale"
+    },
+    "OpenChat is still answering. The reply will be in the chat when it's done.": {
+      "extractionState": "stale"
+    },
+    "OpenChat is using this page · view only": {
+      "extractionState": "stale"
+    },
+    "OpenChat isn't allowed to add photos. You can allow it in Settings.": {
+      "extractionState": "stale"
+    },
+    "OpenChat stops at a robot check (CAPTCHA) and asks you to solve it on the page; it never solves one itself. With this off, a page that shows one isn't read.": {
+      "extractionState": "stale"
+    },
+    "OpenChat talks to the AI service you choose: OpenAI, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.": {
+      "extractionState": "stale"
+    },
+    "OpenChat waits while you use the page. Tap Done to hand it back.": {
+      "extractionState": "stale"
+    },
     "OpenCode": {},
     "OpenCode Go": {},
     "OpenCode Go refused the request. Check that this workspace has a Go subscription in the OpenCode Console.": {},
@@ -963,10 +1052,16 @@
     "Opening %@…": {},
     "Opens OmniChat to a new chat, optionally with text ready to send.": {},
     "Opens OmniChat to a new chat.": {},
-    "Opens OpenChat to a new chat, optionally with text ready to send.": {},
-    "Opens OpenChat to a new chat.": {},
+    "Opens OpenChat to a new chat, optionally with text ready to send.": {
+      "extractionState": "stale"
+    },
+    "Opens OpenChat to a new chat.": {
+      "extractionState": "stale"
+    },
     "Opens a chat in OmniChat.": {},
-    "Opens a chat in OpenChat.": {},
+    "Opens a chat in OpenChat.": {
+      "extractionState": "stale"
+    },
     "Opens settings.": {
       "extractionState": "stale"
     },
@@ -993,7 +1088,9 @@
     },
     "PDF · its text is sent": {},
     "Package · OmniChat opens it for review": {},
-    "Package · OpenChat opens it for review": {},
+    "Package · OpenChat opens it for review": {
+      "extractionState": "stale"
+    },
     "Packages": {},
     "Packages add tools, skills and instructions to chats. A chat keeps the packages it started with; turn one on or off in a chat from the + menu.": {},
     "Page characters": {},
@@ -1016,14 +1113,18 @@
     "Photo": {},
     "Photo access is off. Use Add photo below.": {},
     "Pick the service OmniChat talks to. You'll enter its API key or sign in next. Keys stay in the Keychain on this device.": {},
-    "Pick the service OpenChat talks to. You'll enter its API key or sign in next. Keys stay in the Keychain on this device.": {},
+    "Pick the service OpenChat talks to. You'll enter its API key or sign in next. Keys stay in the Keychain on this device.": {
+      "extractionState": "stale"
+    },
     "Pin": {},
     "Pink": {},
     "Pinned": {},
     "Place": {},
     "Placed on the map by name; the pin may be approximate.": {},
     "Plan": {},
-    "Play a sound while browsing in the background": {},
+    "Play a sound while browsing in the background": {
+      "extractionState": "stale"
+    },
     "Plugins": {},
     "Port": {},
     "Preferences, tool defaults, plugins and your connection list.": {},
@@ -1091,7 +1192,9 @@
     "Reading what you shared…": {},
     "Ready": {},
     "Ready in OmniChat": {},
-    "Ready in OpenChat": {},
+    "Ready in OpenChat": {
+      "extractionState": "stale"
+    },
     "Ready · runs on this device": {},
     "Reasoning": {},
     "Reasoning effort": {},
@@ -1261,7 +1364,9 @@
     "Show and edit": {},
     "Show fewer steps": {},
     "Show in OmniChat": {},
-    "Show in OpenChat": {},
+    "Show in OpenChat": {
+      "extractionState": "stale"
+    },
     "Show in picker": {},
     "Show key": {},
     "Show less": {},
@@ -1292,10 +1397,18 @@
     "Sign in to ChatGPT for %@ in Settings.": {},
     "Sign in to ChatGPT in Settings.": {},
     "Sign in to use OpenCode Go or pay as you go": {},
-    "Sign in to use your ChatGPT plan": {},
-    "Sign in with ChatGPT": {},
-    "Sign in with ChatGPT for %@ in Settings.": {},
-    "Sign in with ChatGPT in Settings.": {},
+    "Sign in to use your ChatGPT plan": {
+      "extractionState": "stale"
+    },
+    "Sign in with ChatGPT": {
+      "extractionState": "stale"
+    },
+    "Sign in with ChatGPT for %@ in Settings.": {
+      "extractionState": "stale"
+    },
+    "Sign in with ChatGPT in Settings.": {
+      "extractionState": "stale"
+    },
     "Sign in with OpenCode": {},
     "Sign in with OpenCode in Settings.": {},
     "Sign in with OpenCode, or enter a valid API key, for %@ in Settings.": {},
@@ -1310,24 +1423,32 @@
     "Signed in, but plan usage wasn't allowed.": {},
     "Signed out": {},
     "Signed out on this device, but ChatGPT didn't confirm it. You can disconnect OmniChat in ChatGPT Settings.": {},
-    "Signed out on this device, but ChatGPT didn't confirm it. You can disconnect Strata in ChatGPT Settings.": {},
+    "Signed out on this device, but ChatGPT didn't confirm it. You can disconnect Strata in ChatGPT Settings.": {
+      "extractionState": "stale"
+    },
     "Signed out on this device.": {},
     "Signed out.": {},
     "Signing in…": {},
     "Site cookies": {},
     "Site plugins the model can run with run_plugin. A plugin that is on is listed in the system prompt.": {},
     "Sites you sign in to or pass a robot check on in OmniChat's browser keep their cookies here.": {},
-    "Sites you sign in to or pass a robot check on in OpenChat's browser keep their cookies here.": {},
+    "Sites you sign in to or pass a robot check on in OpenChat's browser keep their cookies here.": {
+      "extractionState": "stale"
+    },
     "Skills": {},
     "Skills that come with OmniChat. They can't be changed.": {},
-    "Skills that come with OpenChat. They can't be changed.": {},
+    "Skills that come with OpenChat. They can't be changed.": {
+      "extractionState": "stale"
+    },
     "Skills the assistant saved with your approval. New chats list them; a chat keeps the list it started with.": {},
     "Skip": {},
     "Small": {},
     "Smaller text": {},
     "Smooth streaming": {},
     "Solve it on the page and OmniChat picks up where it stopped. A solved check is kept for later searches.": {},
-    "Solve it on the page and OpenChat picks up where it stopped. A solved check is kept for later searches.": {},
+    "Solve it on the page and OpenChat picks up where it stopped. A solved check is kept for later searches.": {
+      "extractionState": "stale"
+    },
     "Solve the robot check on this page, then tap Done.": {},
     "Some secrets couldn't be copied to this device, so they stay in iCloud. Try again later.": {},
     "Sort By": {},
@@ -1346,14 +1467,18 @@
     "Stays on this device": {},
     "Steps": {},
     "Still working on it. Continue in OmniChat?": {},
-    "Still working on it. Continue in OpenChat?": {},
+    "Still working on it. Continue in OpenChat?": {
+      "extractionState": "stale"
+    },
     "Stop": {},
     "Stop Generating": {},
     "Stop browsing": {},
     "Stopped": {},
     "Stops searching and answers from what has been found": {},
     "Storage": {},
-    "Strata": {},
+    "Strata": {
+      "extractionState": "stale"
+    },
     "Strata includes these components under their licenses.": {
       "extractionState": "stale"
     },
@@ -1401,7 +1526,9 @@
     "That chat is still answering. Try again when it's done.": {},
     "That chat no longer exists.": {},
     "That file isn't a private key OmniChat can read.": {},
-    "That file isn't a private key OpenChat can read.": {},
+    "That file isn't a private key OpenChat can read.": {
+      "extractionState": "stale"
+    },
     "That isn't a video link.": {},
     "The API key for %@ was not accepted. Check it in Settings.": {},
     "The Anthropic response ended before it was complete. Try again.": {},
@@ -1415,7 +1542,9 @@
     "The artifact can't be opened safely right now.": {},
     "The assistant asks to read Apple Health.": {},
     "The assistant can read the Apple Health data you allow, to answer questions about your own health and fitness. It never writes to Health. iOS asks the first time a chat reads each type; change it any time in the Settings app > Health > Data Access & Devices > OmniChat. A chat turns Apple Health on or off from the + menu.": {},
-    "The assistant can read the Apple Health data you allow, to answer questions about your own health and fitness. It never writes to Health. iOS asks the first time a chat reads each type; change it any time in the Settings app > Health > Data Access & Devices > OpenChat. A chat turns Apple Health on or off from the + menu.": {},
+    "The assistant can read the Apple Health data you allow, to answer questions about your own health and fitness. It never writes to Health. iOS asks the first time a chat reads each type; change it any time in the Settings app > Health > Data Access & Devices > OpenChat. A chat turns Apple Health on or off from the + menu.": {
+      "extractionState": "stale"
+    },
     "The assistant is told not to diagnose, and to suggest a healthcare professional when values look concerning.": {},
     "The assistant wants to save this skill. Its name and description will be listed in new chats, and the assistant will follow it when it loads it. Web pages can contain instructions meant to mislead the assistant: save it only if it looks right to you.": {},
     "The base URL can't contain a key, token or password: it would be saved and synced as plain text. Remove it from the URL and enter the key under API key, or as a header.": {},
@@ -1428,9 +1557,13 @@
     "The language the microphone in the composer listens for, sent as a hint. The recording is sent to the connection's /audio/transcriptions when you tap Done, and the words appear then. Works with OpenAI (whisper-1, gpt-4o-transcribe), Groq (whisper-large-v3) and local whisper servers; add one under Connections if it isn't there.": {},
     "The language the microphone in the composer listens for. Speech in another language comes out garbled. Apple on-device shows the words as you speak; nothing leaves the device.": {},
     "The last %lld request bodies, kept compressed in memory.": {},
-    "The link asks for Anthropic's Messages API, which OpenChat can't use with a server yet.": {},
+    "The link asks for Anthropic's Messages API, which OpenChat can't use with a server yet.": {
+      "extractionState": "stale"
+    },
     "The link asks for an API OmniChat doesn't know (%@).": {},
-    "The link asks for an API OpenChat doesn't know (%@).": {},
+    "The link asks for an API OpenChat doesn't know (%@).": {
+      "extractionState": "stale"
+    },
     "The link doesn't say which server to add.": {},
     "The link included an API key. It was ignored: enter the key yourself.": {},
     "The local sign-in listener could not start. Try again.": {},
@@ -1440,10 +1573,14 @@
     "The model can run Python code on this device with run_python (Pyodide %@). Packages such as numpy, sympy and pandas are downloaded the first time they are used and kept for later.": {
       "extractionState": "stale"
     },
-    "The model can run Python code on this device with run_python (Pyodide %@). Packages such as numpy, sympy and pandas are downloaded the first time they are used and kept for later. A chat can turn Python on or off from the + menu.": {},
+    "The model can run Python code on this device with run_python (Pyodide %@). Packages such as numpy, sympy and pandas are downloaded the first time they are used and kept for later. A chat can turn Python on or off from the + menu.": {
+      "extractionState": "stale"
+    },
     "The model can run Python code on this device with run_python (Pyodide %@). numpy, pandas and matplotlib are bundled and work offline. Other packages cannot be installed. A chat can turn Python on or off from the + menu.": {},
     "The model can run commands and move files on your servers over SSH, and save the passwords and keys you give it in the Keychain on this device. A chat turns SSH on or off from the + menu. Each command connects anew; a connection drops soon after OmniChat leaves the screen.": {},
-    "The model can run commands and move files on your servers over SSH, and save the passwords and keys you give it in the Keychain on this device. A chat turns SSH on or off from the + menu. Each command connects anew; a connection drops soon after OpenChat leaves the screen.": {},
+    "The model can run commands and move files on your servers over SSH, and save the passwords and keys you give it in the Keychain on this device. A chat turns SSH on or off from the + menu. Each command connects anew; a connection drops soon after OpenChat leaves the screen.": {
+      "extractionState": "stale"
+    },
     "The model didn't answer. Check its connection and try again.": {},
     "The model reported an error.": {},
     "The model to answer. Leave empty for the one a new chat uses (or the chat's own).": {},
@@ -1454,7 +1591,9 @@
     "The on-device model doesn't support this language yet. Try English or another supported language, or use another connection.": {},
     "The on-device model failed: %@": {},
     "The on-device model is busy. Try again in a moment, with OmniChat open.": {},
-    "The on-device model is busy. Try again in a moment, with OpenChat open.": {},
+    "The on-device model is busy. Try again in a moment, with OpenChat open.": {
+      "extractionState": "stale"
+    },
     "The on-device model is still downloading. Keep the device on Wi-Fi and power, and try again in a few minutes.": {},
     "The on-device model isn't available right now (it may be updating). Try again later.": {},
     "The page failed to load: %@": {},
@@ -1503,7 +1642,9 @@
     "This is a local or private network address. It only works where that network is reachable.": {},
     "This language can't be translated to your language.": {},
     "This link isn't an OmniChat add-connection link.": {},
-    "This link isn't an OpenChat add-connection link.": {},
+    "This link isn't an OpenChat add-connection link.": {
+      "extractionState": "stale"
+    },
     "This model %@.": {},
     "This model can't read images": {},
     "This model can't read images. If it can, turn image support on.": {},
@@ -1519,7 +1660,9 @@
     "This server uses http, so the API key and your messages travel unencrypted. Use https if the server supports it.": {},
     "This server uses http: the API key and your messages travel unencrypted.": {},
     "This sign-in didn't allow OmniChat to use your ChatGPT plan, so requests will be refused. Sign out and sign in again, and allow plan usage.": {},
-    "This sign-in didn't allow Strata to use your ChatGPT plan, so requests will be refused. Sign out and sign in again, and allow plan usage.": {},
+    "This sign-in didn't allow Strata to use your ChatGPT plan, so requests will be refused. Sign out and sign in again, and allow plan usage.": {
+      "extractionState": "stale"
+    },
     "This sign-in returned a different ChatGPT account. Sign in with the original account, or add another ChatGPT connection.": {},
     "This turn's resume checkpoint. Empty for connections without resumable replies.": {},
     "This version of %@ is signed by a different key than the installed one. Remove the installed package first if you trust the new publisher.": {},
@@ -1593,7 +1736,9 @@
     "Used tools": {},
     "Used when the server's model list doesn't say what a model can do. Change a single model under Models.": {},
     "User": {},
-    "Uses your ChatGPT plan. Requests count toward its usage limits. The sign-in is stored in the Keychain.": {},
+    "Uses your ChatGPT plan. Requests count toward its usage limits. The sign-in is stored in the Keychain.": {
+      "extractionState": "stale"
+    },
     "Using %@": {},
     "Using %@…": {},
     "Using Chat Completions. Switches to the Responses API if the server says this model needs it.": {},
@@ -1637,7 +1782,9 @@
     "What the skill is for": {},
     "What's shared": {},
     "When OmniChat is in the background: the chat's title and the start of the answer.": {},
-    "When OpenChat is in the background: the chat's title and the start of the answer.": {},
+    "When OpenChat is in the background: the chat's title and the start of the answer.": {
+      "extractionState": "stale"
+    },
     "When the assistant reads Health, the summary it reads (daily totals, nights of sleep, workouts) goes to the chat's model connection with your message, and stays in that chat.": {},
     "Where it goes": {},
     "Which chat?": {},
@@ -1651,7 +1798,9 @@
     "With this off, web searches and browsing can stop while OmniChat is in the background. The sound plays only while the model is using the web and OmniChat is not on screen, even in silent mode, and may pause other audio until it ends.": {
       "extractionState": "stale"
     },
-    "With this off, web searches and browsing can stop while OpenChat is in the background. The sound plays only while the model is using the web and Strata is not on screen, even in silent mode, and may pause other audio until it ends.": {},
+    "With this off, web searches and browsing can stop while OpenChat is in the background. The sound plays only while the model is using the web and Strata is not on screen, even in silent mode, and may pause other audio until it ends.": {
+      "extractionState": "stale"
+    },
     "Worked on a server": {},
     "Worked on it": {},
     "Working": {},
@@ -1673,14 +1822,18 @@
     "You're using your ChatGPT plan": {},
     "You've hit Anthropic's rate limit for this API key. Try again in %lld seconds.": {},
     "You've hit Anthropic's rate limit for this API key. Wait a moment and try again.": {},
-    "You've reached a ChatGPT usage limit for Strata. Check your plan usage and app limits at chatgpt.com/settings/usage.": {},
+    "You've reached a ChatGPT usage limit for Strata. Check your plan usage and app limits at chatgpt.com/settings/usage.": {
+      "extractionState": "stale"
+    },
     "You've reached an OpenCode Go usage limit. Limits reset over time; check your usage in the OpenCode Console.": {},
     "You've reached an OpenCode usage or spending limit. Check your workspace in the OpenCode Console.": {},
     "Your %@": {},
     "Your Anthropic credit balance is too low. Add credits or billing details in the Anthropic Console.": {},
     "Your ChatGPT session has ended. Sign in again in Settings.": {},
     "Your OmniChat reply is ready.": {},
-    "Your OpenChat reply is ready.": {},
+    "Your OpenChat reply is ready.": {
+      "extractionState": "stale"
+    },
     "Your OpenCode session has ended. Sign in again in Settings.": {},
     "Your OpenCode workspace has no credit left. Add credit or billing details in the OpenCode Console.": {},
     "Your Strata reply is ready.": {
