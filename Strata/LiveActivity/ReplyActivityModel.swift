@@ -14,6 +14,8 @@ struct ReplyActivityInput: Equatable {
         case browser
         /// A package tool waits for approval.
         case packageTool(package: String, tool: String)
+        /// Python asks to connect to a local or private host.
+        case network(host: String)
     }
 
     var id: UUID
@@ -145,6 +147,7 @@ enum ReplyActivityPhase {
         case .robotCheck(let host): String(localized: "\(host) wants a robot check")
         case .browser: String(localized: "Finish a step in the browser")
         case .packageTool(let package, let tool): String(localized: "Approve \(package) › \(tool)")
+        case .network(let host): String(localized: "Allow a connection to \(host)")
         }
     }
 
