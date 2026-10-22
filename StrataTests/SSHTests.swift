@@ -304,6 +304,36 @@ struct SSHApprovalTests {
         }
     }
 
+    /// From the audit: `prod` kept "always" when its jump host `bastion` was pointed elsewhere, so commands went
+    /// through the new jump host without asking.
+    @Test func changingAJumpHostForgetsAlwaysForServersBehindIt() throws {
+        let store = SSHStore(vault: InMemorySSHVault())
+        let bastion = SSHServer(name: "bastion", host: "198.51.100.1", user: "jump")
+        try store.save(bastion)
+        try store.save(SSHServer(name: "prod", host: "10.0.0.5", user: "app", jump: ["bastion"]))
+        try store.save(SSHServer(name: "db", host: "10.0.0.6", user: "app", jump: ["prod"]))
+        try store.save(SSHServer(name: "other", host: "10.0.0.7", user: "app"))
+        func allowAll() throws { for t in ["bastion", "prod", "db", "other"] { try store.setAlwaysAllowed(true, target: t) } }
+
+        try allowAll()
+        try store.save(bastion) // unchanged
+        #expect(Set(store.alwaysAllowed) == ["bastion", "prod", "db", "other"])
+
+        var moved = bastion
+        moved.host = "203.0.113.66"
+        try store.save(moved)
+        #expect(store.alwaysAllowed == ["other"], "bastion, prod (directly) and db (through prod) ask again")
+
+        try allowAll()
+        try store.deleteServer("bastion")
+        #expect(store.alwaysAllowed == ["other"])
+
+        // A new server whose name a jump list already gives changes that route too.
+        try allowAll()
+        try store.save(bastion)
+        #expect(Set(store.alwaysAllowed) == ["bastion", "other"])
+    }
+
     @Test func aDeniedCommandNeverConnects() async throws {
         let store = SSHStore(vault: InMemorySSHVault())
         try store.save(SSHServer(name: "nas", host: "203.0.113.1", user: "u"))
