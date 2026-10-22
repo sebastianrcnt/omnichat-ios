@@ -327,6 +327,7 @@
 		8194BFBA8667BE3B34853248 /* RequestRing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A73ADE2586D58C97EEF31AB /* RequestRing.swift */; };
 		819542AD7E5384D1DB9E6EB9 /* HealthTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B777C54B86FA8443DFB181E /* HealthTool.swift */; };
 		822D6D2E73A828816726A0E3 /* Platform.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF7F53A781D1513C22B3EB69 /* Platform.swift */; };
+		8252ADC3A99857FCDDBE77DB /* HealthTaintTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA6B666B3B48DDF418FE5284 /* HealthTaintTests.swift */; };
 		829F022F2DA323F8C6B730D2 /* ArtifactTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13DC56CBADC3CAD222C053C7 /* ArtifactTests.swift */; };
 		8324ED2D8F873061AF9EA420 /* TranslationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2899D197DC24DD35D3ED8CEE /* TranslationService.swift */; };
 		83DBAAA5EAA2D1FAD4A96293 /* BrowserAgent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D6B0FF18B33F8501A5ECCEB /* BrowserAgent.swift */; };
@@ -996,6 +997,7 @@
 		B842C3D165C27BDCA8A15DFF /* ResponsesFallbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResponsesFallbackTests.swift; sourceTree = "<group>"; };
 		B891A8CC4C7C11D14F67A454 /* LimitedDownload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LimitedDownload.swift; sourceTree = "<group>"; };
 		BA664C3216587A234466E7CA /* CheckpointPersister.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckpointPersister.swift; sourceTree = "<group>"; };
+		BA6B666B3B48DDF418FE5284 /* HealthTaintTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthTaintTests.swift; sourceTree = "<group>"; };
 		BAAF1AA8F6545AAD623C9514 /* InFlightLoads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InFlightLoads.swift; sourceTree = "<group>"; };
 		BB947F8AC9122712C0BF2C33 /* ResponsesAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResponsesAPITests.swift; sourceTree = "<group>"; };
 		BBF73B4F94D85C972052389E /* ddg-challenge.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "ddg-challenge.html"; sourceTree = "<group>"; };
@@ -1202,6 +1204,7 @@
 				DF9BE4A130E3ECAC8CF744BD /* FetchBatchTests.swift */,
 				DFCB6157027BFB48D3D1BD12 /* FigureReferenceTests.swift */,
 				E51D1B5424FADF0D7496139D /* FontTests.swift */,
+				BA6B666B3B48DDF418FE5284 /* HealthTaintTests.swift */,
 				D5671A5B373F3ECFE7BF73BB /* HealthTests.swift */,
 				458EC6F2FD7AB600655A6D82 /* HTTPToolTests.swift */,
 				454BB4BCB6FA48CC430AF454 /* IntentTests.swift */,
@@ -2146,6 +2149,7 @@
 				B9923FE3B488479DB82304C8 /* FigureReferenceTests.swift in Sources */,
 				62B4A026A91D8BBDF0D894AB /* FontTests.swift in Sources */,
 				3C44504215DBB6B54DC7F6B2 /* HTTPToolTests.swift in Sources */,
+				8252ADC3A99857FCDDBE77DB /* HealthTaintTests.swift in Sources */,
 				28F46C5AFC26B4FA0F507B8D /* HealthTests.swift in Sources */,
 				D5A5A7D0FD60CE987BC7A96A /* IntentTests.swift in Sources */,
 				28B60779B38478FF1E71856D /* KeychainSyncTests.swift in Sources */,

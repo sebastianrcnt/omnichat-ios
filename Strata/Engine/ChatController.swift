@@ -133,6 +133,8 @@ final class ChatController {
     @ObservationIgnored var skills: SkillStore = .shared
     /// The packages a new chat can offer (`PackageSnapshot` freezes them per chat).
     @ObservationIgnored var packages: PackageStore = .shared
+    /// "Only send health data to on-device or local models" (Settings > Health); tests set it.
+    @ObservationIgnored var healthLocalOnly: () -> Bool = { HealthSettings.localOnly }
     @ObservationIgnored private var cancelTasks: [UUID: Task<Void, Never>] = [:]
     private let background = ReplyBackgroundExecution()
 
@@ -273,6 +275,7 @@ final class ChatController {
         guard let endpoint = onDevice ?? connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID,
                                                               sessionID: conversation.id.uuidString),
               !Self.needsKey(endpoint, connections: connections),
+              healthBlock(conversation, endpoint) == nil,
               let prompt = AutoRename.prompt(lines: conversation.namingLines,
                                              replacing: force ? conversation.displayTitle : nil) else {
             if force { titleFailedConversationID = conversation.id }
@@ -709,6 +712,8 @@ final class ChatController {
         case .checkpoint(let checkpoint):
             run.persister?.update(checkpoint)
         case .roundStarted(let n):
+            // Before every request of the turn (and the compaction before it), resumed and retried ones too.
+            if let blocked = healthBlock(tracker.conversation, run.endpoint) { throw blocked }
             run.completedToolRounds = n
             tracker.beginRound(n)
             run.pendingCalls = []
@@ -731,6 +736,13 @@ final class ChatController {
             run.roundRequested = run.pendingCalls
             if let first = run.pendingCalls.first { run.phase = .tool(name: first.name, argument: first.primaryArgument) }
         case .toolFinished(let record):
+            if HealthTaint.readsHealth(record) {
+                // Chat sync went on while it read: what it read must reach neither the model nor the store (`CloudSync`).
+                if HealthRedaction.isActive {
+                    throw APIError.server(String(localized: "Chat sync was turned on while Apple Health was being read, so what was read wasn't used."))
+                }
+                tracker.conversation.healthTainted = true
+            }
             tracker.completeTool(record)
             if let store = run.sourceStore { run.liveSources = store.items }
             run.roundRecords.append(record)
@@ -915,6 +927,11 @@ final class ChatController {
                                             thinkingModel: thinkingModel)
     }
 
+    /// Why a request from the chat may not go to `endpoint` (`HealthPrivacy.blockedRequest`); nil when it may.
+    private func healthBlock(_ conversation: Conversation, _ endpoint: Endpoint?) -> APIError? {
+        HealthPrivacy.blockedRequest(conversation, to: endpoint.map { ToolDestination($0) }, localOnly: healthLocalOnly())
+    }
+
     /// The tools the chat's requests send (see `ToolDefinition.available`).
     private func requestTools(_ endpoint: Endpoint, conversation: Conversation) -> [ToolDefinition] {
         let offered = offeredTools(conversation, freeze: false)
@@ -984,6 +1001,11 @@ final class ChatController {
     private func startCompaction(_ run: ChatRun, conversation: Conversation, leaf: Message, path: [Message], endpoint: Endpoint,
                                  context: ModelContext) {
         run.start = nil
+        if let blocked = healthBlock(conversation, endpoint) {
+            compactionErrors[conversation.id] = blocked.localizedDescription
+            endRun(run)
+            return
+        }
         run.phase = .compacting
         run.turnStart = .now
         let messages = apiHistory(path: path, conversation: conversation, endpoint: endpoint)
