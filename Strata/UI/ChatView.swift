@@ -58,6 +58,8 @@ struct ChatView: View {
     @State private var loadingModels = false
     /// The add-connection sheet, from the empty chat shown while there is no connection.
     @State private var showAddConnection = false
+    /// Where "Add a connection" opens: the presets, or straight into a new connection's editor (first-run shortcuts).
+    @State private var addConnectionStart: ConnectionSetupSheet.Start = .presets
     #if DEBUG
     @State private var debugSelection: String?
     @State private var debugArtifact: ArtifactRef?
@@ -217,7 +219,7 @@ struct ChatView: View {
                     #endif
             }
             .sheet(isPresented: $showAddConnection) {
-                ConnectionSetupSheet(start: .presets)
+                ConnectionSetupSheet(start: addConnectionStart)
                     .inAppLinks()
                     .environment(\.theme, theme)
             }
@@ -403,10 +405,16 @@ struct ChatView: View {
         messageList
             .overlay {
                 if conversation == nil && connections.connections.isEmpty {
-                    NoConnectionState(onUseOnDevice: OnDevice.system.availability.isSupported
-                                      ? { connections.addOnDeviceConnection() } : nil) {
-                        composerFocused = false; showAddConnection = true
-                    }
+                    NoConnectionState(onChatGPT: { addConnection(preset: .chatGPT) },
+                                      onAdd: { addConnection() },
+                                      onUseOnDevice: OnDevice.system.availability.isSupported
+                                          ? { connections.addOnDeviceConnection() } : nil)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if conversation == nil, !connections.connections.isEmpty,
+                   connections.connection(selection.connectionID)?.isAppleOnDevice != true {
+                    StarterPrompts(draft: draft) { composerFocused = true }
                 }
             }
             .overlay(alignment: .top) { readyBanner }
@@ -798,7 +806,21 @@ struct ChatView: View {
             selectedConnectionID: s.connectionID, selectedModelID: s.modelID, effort: s.effort,
             onSelectModel: apply(connectionID:modelID:),
             onSelectEffort: apply(effort:),
-            onOpenSettings: { showChatSettings = false; onOpenSettings() })
+            onOpenSettings: { showChatSettings = false; onOpenSettings() },
+            onAddConnection: { showChatSettings = false; addConnection() })
+    }
+
+    /// Opens "Add a connection": on the presets, or with `preset` already picked and its editor open.
+    private func addConnection(preset: ConnectionPreset? = nil) {
+        composerFocused = false
+        if let preset {
+            let new = preset.makeConnection()
+            connections.upsert(new)
+            addConnectionStart = .editor(new.id)
+        } else {
+            addConnectionStart = .presets
+        }
+        showAddConnection = true
     }
 
     private var pasteHandler: (([Data]) -> Void)? {
@@ -1113,6 +1135,60 @@ final class ComposerDraft {
     /// Sending is allowed whenever there is something to send; missing key or model is reported inline.
     var canSend: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty
+    }
+}
+
+/// Things to try, over the first new chat: tapping one puts it in the composer. Gone once there is a chat, or while
+/// the composer has text. Reads the draft itself, like the composer, so `ChatView` doesn't re-render per keystroke.
+private struct StarterPrompts: View {
+    @Environment(\.theme) private var theme
+    @Bindable var draft: ComposerDraft
+    let onPick: () -> Void
+    @Query(Self.anyChat) private var chats: [Conversation]
+
+    private static var anyChat: FetchDescriptor<Conversation> {
+        var descriptor = FetchDescriptor<Conversation>()
+        descriptor.fetchLimit = 1
+        return descriptor
+    }
+
+    private static let prompts: [LocalizedStringResource] = [
+        "Compare the weather in Lisbon and Athens next week",
+        "Chart $500 a month invested for 30 years at 6%",
+        "Show quiet cafés near me on a map",
+        "Open a flight search site and find fares to Tokyo next month",
+    ]
+
+    var body: some View {
+        if chats.isEmpty && draft.text.isEmpty {
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                Text("Try asking")
+                    .font(DS.Typography.uiSmall)
+                    .foregroundStyle(theme.textSecondary)
+                FlowLayout(spacing: DS.Spacing.sm) {
+                    ForEach(Self.prompts.indices, id: \.self) { i in
+                        let prompt = Self.prompts[i]
+                        Button {
+                            draft.text = String(localized: prompt)
+                            onPick()
+                        } label: {
+                            Text(prompt)
+                                .font(DS.Typography.ui)
+                                .foregroundStyle(theme.textPrimary)
+                                .multilineTextAlignment(.leading)
+                                .padding(.horizontal, DS.Spacing.md)
+                                .padding(.vertical, DS.Spacing.sm)
+                        }
+                        .buttonStyle(.plain)
+                        .glassEffect(.regular.interactive(), in: Capsule())
+                    }
+                }
+            }
+            .frame(maxWidth: 560, alignment: .leading)
+            .padding(.horizontal, DS.Spacing.page)
+            .padding(.bottom, DS.Spacing.md)
+            .transition(.opacity)
+        }
     }
 }
 

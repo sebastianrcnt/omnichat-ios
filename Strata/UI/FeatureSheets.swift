@@ -31,6 +31,8 @@ struct ModelPickerSheet: View {
     let onSelectModel: (UUID, String) -> Void
     let onSelectEffort: (Effort) -> Void
     let onOpenSettings: () -> Void
+    /// Opens "Add a connection" where the sheet was shown from; nil falls back to Settings.
+    let onAddConnection: (() -> Void)?
 
     @State private var page: Page = .root
     @State private var currentEffort: Effort
@@ -44,13 +46,14 @@ struct ModelPickerSheet: View {
 
     init(selectedConnectionID: UUID?, selectedModelID: String?, effort: Effort,
          onSelectModel: @escaping (UUID, String) -> Void, onSelectEffort: @escaping (Effort) -> Void,
-         onOpenSettings: @escaping () -> Void) {
+         onOpenSettings: @escaping () -> Void, onAddConnection: (() -> Void)? = nil) {
         self.selectedConnectionID = selectedConnectionID
         self.selectedModelID = selectedModelID
         self.effort = effort
         self.onSelectModel = onSelectModel
         self.onSelectEffort = onSelectEffort
         self.onOpenSettings = onOpenSettings
+        self.onAddConnection = onAddConnection
         _currentEffort = State(initialValue: effort)
     }
 
@@ -96,9 +99,25 @@ struct ModelPickerSheet: View {
         return SheetScaffold(title: "Select model") {
             effortSection
             planUsageSection
-            if groups.isEmpty {
-                GroupedSection(footer: "Add a connection in Settings, then fetch its models or add one by hand.") {
-                    SettingsRow(title: "No models yet")
+            if groups.isEmpty && unset.isEmpty {
+                // Nothing connected yet: the ways to start, here, instead of a pointer to Settings.
+                GroupedSection(header: "No models yet",
+                               footer: "Sign in with your ChatGPT plan, or add an API key or a server on your network.") {
+                    if OnDevice.system.availability.isSupported {
+                        SettingsRow(systemImage: "apple.intelligence", title: "Use Apple Intelligence (free, on device)") {
+                            connections.addOnDeviceConnection()
+                        }
+                    }
+                    SettingsRow(systemImage: "plus", title: "Add a connection", showsChevron: true, action: onAddConnection ?? onOpenSettings)
+                }
+            } else if groups.isEmpty {
+                GroupedSection(footer: "Finish setting up a connection, then pick one of its models.") {
+                    ForEach(unset) { c in
+                        SettingsRow(title: "", value: String(localized: "Set up"), showsChevron: true, verbatimTitle: c.name) {
+                            SettingsRoute.shared.connection = c.id
+                            onOpenSettings()
+                        }
+                    }
                 }
             } else if groups.count == 1, unset.isEmpty, let only = groups.first {
                 modelList(only)
@@ -209,9 +228,11 @@ struct ModelPickerSheet: View {
     }
 
     @ViewBuilder private var settingsSections: some View {
-        GroupedSection {
-            SettingsRow(title: "Search engine", value: settings.searchEngine.label, showsChevron: true) {
-                withAnimation(DS.Motion.snappy) { page = .search }
+        if !connections.connections.isEmpty { // nothing to search with until there's a model
+            GroupedSection {
+                SettingsRow(title: "Search engine", value: settings.searchEngine.label, showsChevron: true) {
+                    withAnimation(DS.Motion.snappy) { page = .search }
+                }
             }
         }
         GroupedSection {

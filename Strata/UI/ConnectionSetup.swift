@@ -83,6 +83,8 @@ extension View {
 struct ConnectionSetupSheet: View {
     enum Start {
         case presets
+        /// Straight into this new connection's editor (a first-run shortcut), with the presets one step back.
+        case editor(UUID)
         case link(Result<AddConnectionLink, AddConnectionLink.Failure>)
     }
 
@@ -91,16 +93,21 @@ struct ConnectionSetupSheet: View {
     @Environment(\.connectionStore) private var connections
     let start: Start
 
-    @State private var path: [UUID] = []
+    @State private var path: [UUID]
     /// The connection the link added, so going back from its editor doesn't offer to add it again.
     @State private var addedFromLink: UUID?
+
+    init(start: Start) {
+        self.start = start
+        if case .editor(let id) = start { _path = State(initialValue: [id]) } else { _path = State(initialValue: []) }
+    }
 
     var body: some View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Spacing.lg) {
                     switch start {
-                    case .presets: presets
+                    case .presets, .editor: presets
                     case .link(.success(let link)): confirmation(link)
                     case .link(.failure(let failure)): rejected(failure)
                     }
@@ -125,7 +132,7 @@ struct ConnectionSetupSheet: View {
 
     private var title: LocalizedStringKey {
         switch start {
-        case .presets: "Add a connection"
+        case .presets, .editor: "Add a connection"
         case .link: "Add this connection?"
         }
     }
@@ -253,40 +260,46 @@ struct ConnectionSetupSheet: View {
     }
 }
 
-/// Shown in an empty chat while there is no connection: what to do first.
+/// Shown in an empty chat while there is no connection: the three ways to start, as buttons.
 struct NoConnectionState: View {
     @Environment(\.theme) private var theme
+    /// Opens Sign in with ChatGPT.
+    let onChatGPT: () -> Void
+    /// Opens "Add a connection" (API keys, servers, everything else).
+    let onAdd: () -> Void
     /// Adds the on-device connection; nil hides the offer (the device can't run it).
     var onUseOnDevice: (() -> Void)?
-    let onAdd: () -> Void
 
     var body: some View {
         VStack(spacing: DS.Spacing.md) {
-            Image(systemName: "point.3.connected.trianglepath.dotted")
-                .font(.system(size: DS.IconSize.lg))
-                .foregroundStyle(theme.textSecondary)
-            Text("Add a connection to start")
+            Text("Connect a model to start")
                 .font(DS.Typography.title)
                 .foregroundStyle(theme.textPrimary)
-            Text("OmniChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT account.")
+            Text("Use the models you already have: your ChatGPT plan, an API key, or a server on your network. Web search, Python and your own servers are built in.")
                 .font(DS.Typography.ui)
                 .foregroundStyle(theme.textSecondary)
                 .multilineTextAlignment(.center)
-            if let onUseOnDevice {
-                Button(action: onUseOnDevice) {
-                    Label("Use Apple Intelligence (free, on device)", systemImage: "apple.intelligence")
+            VStack(spacing: DS.Spacing.sm) {
+                Button(action: onChatGPT) {
+                    Text("Continue with ChatGPT").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.glassProminent)
                 .tint(theme.accent)
-                .padding(.top, DS.Spacing.sm)
-                Button("Add another service", action: onAdd)
+                Button(action: onAdd) {
+                    Text("Use an API key or server").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.glass)
+                if let onUseOnDevice {
+                    Button(action: onUseOnDevice) {
+                        Label("Try Apple Intelligence (free, on device)", systemImage: "apple.intelligence")
+                            .frame(maxWidth: .infinity)
+                    }
                     .buttonStyle(.glass)
-            } else {
-                Button("Add a connection", action: onAdd)
-                    .buttonStyle(.glassProminent)
-                    .tint(theme.accent)
-                    .padding(.top, DS.Spacing.sm)
+                }
             }
+            .controlSize(.large)
+            .padding(.top, DS.Spacing.sm)
+            .frame(maxWidth: 320)
         }
         .frame(maxWidth: 420)
         .padding(.horizontal, DS.Spacing.xl)
