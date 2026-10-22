@@ -107,6 +107,16 @@ enum OpenCodeModelsAPI {
         var maxOutputTokens: Int?
         var supportsImages: Bool?
         var supportsTools: Bool?
+        /// models.dev prices the model at nothing (`cost.input` and `cost.output` both 0).
+        var zeroCost = false
+    }
+
+    /// OpenCode's free models: an id ending in `-free` (how the gateways name them) or a zero price in models.dev (Big
+    /// Pickle and other promotions without the suffix). The gateways refuse them from any app but OpenCode's own
+    /// (`FreeTierError`), so the list leaves them out instead of offering models that can only fail. A model without a
+    /// price in models.dev is not assumed free.
+    static func isFree(_ entry: Entry) -> Bool {
+        entry.id.lowercased().hasSuffix("-free") || entry.zeroCost
     }
 
     /// The gateway's `{"data": [{"id": …}]}`.
@@ -131,6 +141,7 @@ enum OpenCodeModelsAPI {
             let api = OpenCodeModelAPI(npm: npm) ?? .guess(model: id, gateway: gateway)
             let limit = item["limit"] as? [String: Any]
             let inputs = (item["modalities"] as? [String: Any])?["input"] as? [String]
+            let cost = item["cost"] as? [String: Any]
             var info = OpenCodeModelInfo(api: api)
             if item["reasoning"] as? Bool == true {
                 info.efforts = efforts(item["reasoning_options"])
@@ -139,7 +150,8 @@ enum OpenCodeModelsAPI {
             out[id] = Entry(id: id, name: item["name"] as? String, info: info,
                             contextLength: positive(limit?["context"]), maxOutputTokens: positive(limit?["output"]),
                             supportsImages: inputs.map { $0.contains("image") },
-                            supportsTools: item["tool_call"] as? Bool)
+                            supportsTools: item["tool_call"] as? Bool,
+                            zeroCost: isZero(cost?["input"]) && isZero(cost?["output"]))
         }
         return out
     }
@@ -153,23 +165,27 @@ enum OpenCodeModelsAPI {
     }
 
     /// Joins the gateway's ids with the metadata, in the gateway's order. Without a gateway list, models.dev's ids are
-    /// used (sorted). Models whose API Strata can't talk are returned apart.
-    static func merge(ids: [String]?, metadata: [String: Entry], gateway: OpenCodeGateway) -> (supported: [Entry], unsupported: [String]) {
+    /// used (sorted). Free models (`isFree`) and models whose API the app can't talk are returned apart.
+    static func merge(ids: [String]?, metadata: [String: Entry], gateway: OpenCodeGateway)
+        -> (supported: [Entry], unsupported: [String], free: [String]) {
         let list = ids ?? metadata.keys.sorted()
         var seen = Set<String>()
         var supported: [Entry] = []
         var unsupported: [String] = []
+        var free: [String] = []
         for id in list where seen.insert(id).inserted {
             let entry = metadata[id] ?? Entry(id: id, info: OpenCodeModelInfo(api: .guess(model: id, gateway: gateway)))
-            if entry.info.api.isSupported { supported.append(entry) } else { unsupported.append(id) }
+            if isFree(entry) { free.append(id) }
+            else if entry.info.api.isSupported { supported.append(entry) }
+            else { unsupported.append(id) }
         }
-        return (supported, unsupported)
+        return (supported, unsupported, free)
     }
 
     /// Fetches the gateway list (with the token, so it can be the account's) and the metadata, in parallel. Either may
     /// fail alone; both failing is an error.
     static func fetch(connectionID: UUID, gateway: OpenCodeGateway, auth: any OpenCodeTokenProviding,
-                      session: URLSession = .shared) async throws -> (supported: [Entry], unsupported: [String]) {
+                      session: URLSession = .shared) async throws -> (supported: [Entry], unsupported: [String], free: [String]) {
         let token = try await auth.accessToken(connectionID: connectionID)
         async let idsResult = Result { try await gatewayIDs(gateway: gateway, token: token, session: session) }
         async let metadataResult = Result { try await metadata(gateway: gateway, session: session) }
@@ -178,7 +194,7 @@ enum OpenCodeModelsAPI {
         let merged = merge(ids: try? ids.get(), metadata: (try? meta.get()) ?? [:], gateway: gateway)
         OpenCodeAuth.log.debug("""
             models gateway=\(gateway.rawValue, privacy: .public) supported=\(merged.supported.count, privacy: .public) \
-            unsupported=\(merged.unsupported.count, privacy: .public) metadata=\((try? meta.get())?.count ?? -1, privacy: .public)
+            unsupported=\(merged.unsupported.count, privacy: .public) free=\(merged.free.count, privacy: .public) metadata=\((try? meta.get())?.count ?? -1, privacy: .public)
             """)
         return merged
     }
@@ -204,6 +220,10 @@ enum OpenCodeModelsAPI {
         let parsed = parseMetadata(data, gateway: gateway)
         if parsed.isEmpty { throw APIError.server("models.dev") }
         return parsed
+    }
+
+    private static func isZero(_ value: Any?) -> Bool {
+        (value as? NSNumber).map { $0.doubleValue == 0 } ?? false
     }
 
     private static func positive(_ value: Any?) -> Int? {
