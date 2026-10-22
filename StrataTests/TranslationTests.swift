@@ -324,7 +324,7 @@ struct TranslationServiceTests {
 
     private func rig() throws -> (ModelContext, Conversation) {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self, CompactionRecord.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         Self.containers.append(container)
         let context = container.mainContext
         let c = Conversation(connectionID: nil, modelID: "m")

@@ -114,7 +114,7 @@ struct ModelAliasTests {
     /// Sends one message and returns the encoded request body.
     private func sentBody(alias: String?) async throws -> (ChatRequest, String) {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         let context = container.mainContext
         let defaults = freshDefaults()
         let connections = ConnectionStore(defaults: defaults, keys: InMemoryKeyStore())

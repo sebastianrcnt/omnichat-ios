@@ -45,7 +45,7 @@ struct ProcessSegmentTests {
 
     @Test func segmentsRoundTripThroughTheMessage() throws {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         let m = Message(role: .assistant, sortIndex: 0)
         container.mainContext.insert(m)
         m.segments = [.init(index: 0, kind: .thinking, text: "t", seconds: 3), .init(index: 1, kind: .toolRound, calls: [call("a", "web_search", "{}", sources: [1])])]
@@ -68,7 +68,7 @@ struct ProcessSegmentTests {
 struct ProcessSegmentTurnTests {
     @Test func aStreamedTurnPersistsSegmentsInOrder() async throws {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         let context = container.mainContext
         let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
         let connections = ConnectionStore(defaults: defaults, keys: InMemoryKeyStore())

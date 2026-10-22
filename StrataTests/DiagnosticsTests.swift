@@ -188,7 +188,7 @@ struct RequestRingTests {
 
     @Test func theControllerLogsEachRequestOfATurnWithItsNote() async throws {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         Self.keptContainers.append(container)
         let context = container.mainContext
         let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
@@ -322,7 +322,7 @@ struct DebugBundleTests {
 struct ConversationDiagnosticsTests {
     @Test func measuresStorageContextAndStructure() throws {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         let context = container.mainContext
         let c = Conversation(title: "t", modelID: "m")
         context.insert(c)

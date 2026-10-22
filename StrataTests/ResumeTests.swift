@@ -149,7 +149,7 @@ struct ResumeTests {
 
     @Test func checkpointPersistsIDSequencePartialAndToolArgumentsInSwiftData() throws {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         let context = container.mainContext
         let message = Message(role: .assistant, text: "partial", sortIndex: 0)
         var snapshot = try TurnCheckpoint(messages: [.user(parts: [.imageURL("data:image/jpeg;base64,AA=="), .text("hi")])])
@@ -273,7 +273,7 @@ struct ResumeTests {
         strata.models = [ModelInfo(id: "m", supportsTools: false)]
         connections.upsert(strata)
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
-                                          configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                                          configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         let context = container.mainContext
         let conversation = Conversation(connectionID: Connection.testID, modelID: "m")
         let prefix = beforeHeaders ? "" : "partial"

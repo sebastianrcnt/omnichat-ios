@@ -5,18 +5,19 @@ import SwiftData
 /// Anchored to a message on the path, so a branch that does not pass through it never sees it (see `MessageTree.swift`).
 @Model
 final class CompactionRecord {
-    @Attribute(.unique) var id: UUID
+    // Synced through CloudKit: see the rules at the top of `Conversation.swift`.
+    var id: UUID = UUID()
     /// The message the summary covers up to. Messages after it are sent as they are.
-    var anchorMessageID: UUID
+    var anchorMessageID: UUID = UUID()
     /// For a compaction in the middle of a turn, the anchor is the answer being written and this is how many of its tool
     /// steps the summary covers; the steps after that (and its text) follow the replacement. Negative: the whole message.
     var anchorSteps: Int = -1
-    var notes: String
+    var notes: String = ""
     /// JSON `[APIMessage]` (no system message): recent user messages, the notes, and any kept tool group.
-    @Attribute(.externalStorage) var replacementData: Data
-    var tokensBefore: Int
-    var tokensAfter: Int
-    var createdAt: Date
+    @Attribute(.externalStorage) var replacementData: Data = Data()
+    var tokensBefore: Int = 0
+    var tokensAfter: Int = 0
+    var createdAt: Date = Date.now
     /// False for "Summarize now".
     var isAutomatic: Bool = true
     var conversation: Conversation?

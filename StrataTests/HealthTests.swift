@@ -488,7 +488,7 @@ final class HealthAskLog: @unchecked Sendable {
 struct HealthToolSwitchTests {
     private func rig() throws -> (ChatController, AppSettings, ModelContext, ProgrammableStreamer, ModelContainer) {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
         let connections = ConnectionStore(defaults: defaults, keys: InMemoryKeyStore())
         try connections.setAPIKey("k", for: Connection.testID)
