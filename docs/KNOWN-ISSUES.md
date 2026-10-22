@@ -83,3 +83,8 @@ Everything else those reviews reported was fixed in that commit. Each entry: whe
   and micropip) report “This package isn't available in OmniChat”. Standard-library networking remains available for
   data, not a package installation feature. The run_python description was deliberately corrected to remove claims
   that scipy/sympy/PyPI installation are supported; its package-cache golden digest changes for that reason only.
+- **Intel/universal Release builds need an x86_64 SSH library.** The checked-in `Vendor/CLibSSH2.xcframework` has only
+  arm64 slices for Mac and iOS Simulator. Default Release builds also attempt x86_64 and fail with undefined libssh2
+  symbols; arm64 Release and the normal native Debug build work. Before offering an Intel Mac binary, rebuild the
+  vendored library with an x86_64 macOS slice. Release validation/string extraction here uses `ARCHS=arm64
+  ONLY_ACTIVE_ARCH=YES`; this does not claim universal/Intel support.
