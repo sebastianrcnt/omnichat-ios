@@ -40,7 +40,7 @@ struct OpenCodeDeviceFlowTests {
         #expect(request.url?.absoluteString == "https://opencode.ai/console/auth/device/code")
         #expect(request.httpMethod == "POST")
         #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
-        #expect(request.value(forHTTPHeaderField: "User-Agent")?.hasPrefix("Strata/") == true)
+        #expect(request.value(forHTTPHeaderField: "User-Agent")?.hasPrefix("OpenChat/") == true)
         let sent = body(request)
         #expect(sent["client_id"] as? String == "strata")
         #expect(sent["supports_org_scope"] as? Bool == true)

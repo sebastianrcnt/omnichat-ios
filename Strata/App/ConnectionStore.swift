@@ -236,18 +236,20 @@ final class ConnectionStore {
         var finished: Date?
         var count: Int?
         var unsupported = 0
+        /// OpenCode's free models, left out (`OpenCodeModelsAPI.isFree`).
+        var free = 0
         var error: String?
     }
 
     private(set) var modelFetches: [UUID: ModelFetch] = [:]
 
     /// Runs a model-list fetch of `id` and records how it went in `modelFetches`.
-    private func tracked(_ id: UUID, _ fetch: () async throws -> (count: Int, unsupported: Int)) async throws
-        -> (count: Int, unsupported: Int) {
+    private func tracked(_ id: UUID, _ fetch: () async throws -> (count: Int, unsupported: Int, free: Int)) async throws
+        -> (count: Int, unsupported: Int, free: Int) {
         modelFetches[id, default: ModelFetch()].running = true
         do {
             let result = try await fetch()
-            modelFetches[id] = ModelFetch(finished: .now, count: result.count, unsupported: result.unsupported)
+            modelFetches[id] = ModelFetch(finished: .now, count: result.count, unsupported: result.unsupported, free: result.free)
             return result
         } catch {
             var failed = ModelFetch(finished: .now)
@@ -262,7 +264,7 @@ final class ConnectionStore {
     func refreshModels(for id: UUID) async throws -> Int {
         if connection(id)?.isOpenCode == true { return try await refreshOpenCodeModels(for: id).count }
         if connection(id)?.isAppleOnDevice == true { refreshOnDeviceModels(); return 1 }
-        return try await tracked(id) { (try await fetchModels(for: id), 0) }.count
+        return try await tracked(id) { (try await fetchModels(for: id), 0, 0) }.count
     }
 
     private func fetchModels(for id: UUID) async throws -> Int {
@@ -339,16 +341,18 @@ final class ConnectionStore {
     }
 
     /// The gateway's models with their catalog metadata, merged like ChatGPT's: user-set flags stay, models that dropped
-    /// out go. Models of an API Strata can't talk yet are left out and counted.
+    /// out go. Free models (they only work in OpenCode's own apps) and models of an API the app can't talk yet are left
+    /// out and counted. A chat still set to a free model keeps it and gets the gateway's refusal, worded by
+    /// `OpenCodeErrorMapper`.
     @discardableResult
-    func refreshOpenCodeModels(for id: UUID) async throws -> (count: Int, unsupported: Int) {
+    func refreshOpenCodeModels(for id: UUID) async throws -> (count: Int, unsupported: Int, free: Int) {
         try await tracked(id) { try await fetchOpenCodeModels(for: id) }
     }
 
-    private func fetchOpenCodeModels(for id: UUID) async throws -> (count: Int, unsupported: Int) {
-        guard let gateway = connection(id)?.openCodeGateway else { return (0, 0) }
+    private func fetchOpenCodeModels(for id: UUID) async throws -> (count: Int, unsupported: Int, free: Int) {
+        guard let gateway = connection(id)?.openCodeGateway else { return (0, 0, 0) }
         let fetched = try await OpenCodeModelsAPI.fetch(connectionID: id, gateway: gateway, auth: openCode, session: session)
-        guard var updated = connection(id), updated.openCodeGateway == gateway else { return (0, 0) }
+        guard var updated = connection(id), updated.openCodeGateway == gateway else { return (0, 0, 0) }
         updated.models = fetched.supported.map { entry in
             var model = updated.models.first { $0.id == entry.id }
                 ?? ModelInfo(id: entry.id, supportsImages: entry.supportsImages ?? false,
@@ -361,7 +365,7 @@ final class ConnectionStore {
             return model
         }
         upsert(updated)
-        return (fetched.supported.count, fetched.unsupported.count)
+        return (fetched.supported.count, fetched.unsupported.count, fetched.free.count)
     }
 }
 
@@ -386,6 +390,7 @@ extension ConnectionStore.ModelFetch {
         let when = finished.formatted(.relative(presentation: .named))
         var text = String(localized: "Fetched \(count) models \(when).")
         if unsupported > 0 { text += " " + String(localized: "\(unsupported) more use an API OpenChat doesn't support yet.") }
+        if free > 0 { text += " " + String(localized: "Free models are hidden: OpenCode allows them only in its own apps.") }
         return text
     }
 }

@@ -365,6 +365,7 @@
     "ChatGPT returned incomplete credentials. Please sign in again.": {},
     "ChatGPT sign-in failed (%@).": {},
     "ChatGPT usage couldn't be checked right now. Try again shortly.": {},
+    "ChatGPT usage limit reached. The limit may be on your ChatGPT plan or on OpenChat's use of it.": {},
     "ChatGPT · Signed out": {},
     "Chats": {},
     "Chats sync in the background. Turning chat sync off or on applies the next time OpenChat opens; nothing is deleted either way.": {
@@ -413,6 +414,7 @@
     "Context: no usage yet": {},
     "Continue": {},
     "Continue when the answer is empty": {},
+    "Continue with ChatGPT": {},
     "Conversation details": {},
     "Cookies, sign-ins in the browser, and downloaded Python packages.": {},
     "Cookies, storage and caches of OpenChat's browser, used by search, fetch and browsing. Sites you signed in to will ask again, and robot checks may come back.": {},
@@ -519,7 +521,12 @@
     },
     "Editing · sends as a new version": {},
     "Effort": {},
-    "Enable only for gateways supporting Strata stream replay.": {},
+    "Eligible requests in OpenChat use your ChatGPT plan and count toward its usage limits. You can manage usage in ChatGPT settings.": {},
+    "Eligible requests use your ChatGPT plan and count toward its usage limits, which you manage in ChatGPT settings. The sign-in is stored in the Keychain.": {},
+    "Enable only for gateways supporting OpenChat stream replay.": {},
+    "Enable only for gateways supporting Strata stream replay.": {
+      "extractionState": "stale"
+    },
     "Engine": {},
     "Enter a number": {},
     "Enter a valid URL": {},
@@ -588,6 +595,7 @@
     "For example: Be concise and casual. Skip the pleasantries.": {},
     "Found in messages": {},
     "Free": {},
+    "Free models are hidden: OpenCode allows them only in its own apps.": {},
     "Free, private, on this device": {},
     "Generate ED25519 key": {},
     "Generate RSA 4096 key": {},
@@ -599,6 +607,7 @@
     "Go back to an older version?": {},
     "Go is the monthly subscription with usage limits. Pay as you go bills the workspace balance. Each plan has its own models.": {},
     "Go to chat": {},
+    "Got it": {},
     "Got your location": {},
     "Green": {},
     "Grid": {},
@@ -898,7 +907,9 @@
     "OpenChat isn't allowed to add photos. You can allow it in Settings.": {},
     "OpenChat stops at a robot check (CAPTCHA) and asks you to solve it on the page; it never solves one itself. With this off, a page that shows one isn't read.": {},
     "OpenChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.": {},
-    "OpenChat talks to the AI service you choose: OpenAI, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.": {},
+    "OpenChat talks to the AI service you choose: OpenAI, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.": {
+      "extractionState": "stale"
+    },
     "OpenChat waits while you use the page. Tap Done to hand it back.": {},
     "OpenCode": {},
     "OpenCode Go": {},
@@ -1233,11 +1244,21 @@
     "Shows the source": {},
     "Shows the steps": {},
     "Sidebar": {},
+    "Sign in to ChatGPT for %@ in Settings.": {},
+    "Sign in to ChatGPT in Settings.": {},
     "Sign in to use OpenCode Go or pay as you go": {},
-    "Sign in to use your ChatGPT plan": {},
-    "Sign in with ChatGPT": {},
-    "Sign in with ChatGPT for %@ in Settings.": {},
-    "Sign in with ChatGPT in Settings.": {},
+    "Sign in to use your ChatGPT plan": {
+      "extractionState": "stale"
+    },
+    "Sign in with ChatGPT": {
+      "extractionState": "stale"
+    },
+    "Sign in with ChatGPT for %@ in Settings.": {
+      "extractionState": "stale"
+    },
+    "Sign in with ChatGPT in Settings.": {
+      "extractionState": "stale"
+    },
     "Sign in with OpenCode": {},
     "Sign in with OpenCode in Settings.": {},
     "Sign in with OpenCode, or enter a valid API key, for %@ in Settings.": {},
@@ -1251,7 +1272,10 @@
     "Signed in with the OpenCode Console": {},
     "Signed in, but plan usage wasn't allowed.": {},
     "Signed out": {},
-    "Signed out on this device, but ChatGPT didn't confirm it. You can disconnect Strata in ChatGPT Settings.": {},
+    "Signed out on this device, but ChatGPT didn't confirm it. You can disconnect OpenChat in ChatGPT Settings.": {},
+    "Signed out on this device, but ChatGPT didn't confirm it. You can disconnect Strata in ChatGPT Settings.": {
+      "extractionState": "stale"
+    },
     "Signed out on this device.": {},
     "Signed out.": {},
     "Signing in…": {},
@@ -1290,7 +1314,9 @@
     "Stopped": {},
     "Stops searching and answers from what has been found": {},
     "Storage": {},
-    "Strata": {},
+    "Strata": {
+      "extractionState": "stale"
+    },
     "Strata includes these components under their licenses.": {
       "extractionState": "stale"
     },
@@ -1362,7 +1388,9 @@
     "The language the microphone in the composer listens for, sent as a hint. The recording is sent to the connection's /audio/transcriptions when you tap Done, and the words appear then. Works with OpenAI (whisper-1, gpt-4o-transcribe), Groq (whisper-large-v3) and local whisper servers; add one under Connections if it isn't there.": {},
     "The language the microphone in the composer listens for. Speech in another language comes out garbled. Apple on-device shows the words as you speak; nothing leaves the device.": {},
     "The last %lld request bodies, kept compressed in memory.": {},
-    "The link asks for Anthropic's Messages API, which OpenChat can't use with a server yet.": {},
+    "The link asks for Anthropic's Messages API, which OpenChat can't use with a server yet.": {
+      "extractionState": "stale"
+    },
     "The link asks for an API OpenChat doesn't know (%@).": {},
     "The link doesn't say which server to add.": {},
     "The link included an API key. It was ignored: enter the key yourself.": {},
@@ -1442,7 +1470,10 @@
     "This reply was started with a different server or model, so it can't be resumed. Try again to send it with the current one.": {},
     "This server uses http, so the API key and your messages travel unencrypted. Use https if the server supports it.": {},
     "This server uses http: the API key and your messages travel unencrypted.": {},
-    "This sign-in didn't allow Strata to use your ChatGPT plan, so requests will be refused. Sign out and sign in again, and allow plan usage.": {},
+    "This sign-in didn't allow OpenChat to use your ChatGPT plan, so requests will be refused. Sign out and sign in again, and allow plan usage.": {},
+    "This sign-in didn't allow Strata to use your ChatGPT plan, so requests will be refused. Sign out and sign in again, and allow plan usage.": {
+      "extractionState": "stale"
+    },
     "This sign-in returned a different ChatGPT account. Sign in with the original account, or add another ChatGPT connection.": {},
     "This turn's resume checkpoint. Empty for connections without resumable replies.": {},
     "This version of %@ is signed by a different key than the installed one. Remove the installed package first if you trust the new publisher.": {},
@@ -1504,6 +1535,7 @@
     "Use at least %lld characters": {},
     "Use at most %lld characters": {},
     "Use system size": {},
+    "Use your ChatGPT plan": {},
     "Used %@": {},
     "Used a page": {},
     "Used for the context ring when a model does not report its context length.": {
@@ -1514,10 +1546,13 @@
     "Used tools": {},
     "Used when the server's model list doesn't say what a model can do. Change a single model under Models.": {},
     "User": {},
-    "Uses your ChatGPT plan. Requests count toward its usage limits. The sign-in is stored in the Keychain.": {},
+    "Uses your ChatGPT plan. Requests count toward its usage limits. The sign-in is stored in the Keychain.": {
+      "extractionState": "stale"
+    },
     "Using %@": {},
     "Using %@…": {},
     "Using Chat Completions. Switches to the Responses API if the server says this model needs it.": {},
+    "Using ChatGPT plan": {},
     "Using the Responses API: this model refused Chat Completions and answered there.": {},
     "Using the browser": {},
     "Using your ChatGPT plan isn't available for this account or workspace.": {},
@@ -1567,7 +1602,10 @@
     },
     "With an API key": {},
     "With an account": {},
-    "With this off, web searches and browsing can stop while OpenChat is in the background. The sound plays only while the model is using the web and Strata is not on screen, even in silent mode, and may pause other audio until it ends.": {},
+    "With this off, web searches and browsing can stop while OpenChat is in the background. The sound plays only while the model is using the web and OpenChat is not on screen, even in silent mode, and may pause other audio until it ends.": {},
+    "With this off, web searches and browsing can stop while OpenChat is in the background. The sound plays only while the model is using the web and Strata is not on screen, even in silent mode, and may pause other audio until it ends.": {
+      "extractionState": "stale"
+    },
     "Worked on a server": {},
     "Worked on it": {},
     "Working": {},
@@ -1586,9 +1624,12 @@
     "You closed the browser": {},
     "You finished in the browser": {},
     "You'll enter the API key next. Links never carry keys.": {},
+    "You're using your ChatGPT plan": {},
     "You've hit Anthropic's rate limit for this API key. Try again in %lld seconds.": {},
     "You've hit Anthropic's rate limit for this API key. Wait a moment and try again.": {},
-    "You've reached a ChatGPT usage limit for Strata. Check your plan usage and app limits at chatgpt.com/settings/usage.": {},
+    "You've reached a ChatGPT usage limit for Strata. Check your plan usage and app limits at chatgpt.com/settings/usage.": {
+      "extractionState": "stale"
+    },
     "You've reached an OpenCode Go usage limit. Limits reset over time; check your usage in the OpenCode Console.": {},
     "You've reached an OpenCode usage or spending limit. Check your workspace in the OpenCode Console.": {},
     "Your %@": {},

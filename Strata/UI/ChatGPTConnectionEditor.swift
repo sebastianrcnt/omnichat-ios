@@ -18,6 +18,8 @@ struct ChatGPTConnectionEditor: View {
     @State private var status: String?
     @State private var statusIsError = false
     @State private var fetching = false
+    /// The one-time "You're using your ChatGPT plan" welcome (`ChatGPTPlanUsage.claimWelcome`).
+    @State private var showsWelcome = false
 
     /// This editor's fetch, or one from launch still running.
     private var fetchingModels: Bool { fetching || connections.modelFetches[connectionID]?.running == true }
@@ -29,7 +31,8 @@ struct ChatGPTConnectionEditor: View {
         if let connection {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                    GroupedSection(header: "ChatGPT account", footer: accountFooter) {
+                    // Signed out, the section offers the plan: the guidelines' heading and sign-in label.
+                    GroupedSection(header: signedIn ? "ChatGPT account" : "Use your ChatGPT plan", footer: accountFooter) {
                         if signedIn {
                             SettingsRow(systemImage: "person.crop.circle", title: "", subtitle: registration?.email,
                                         verbatimTitle: registration?.name ?? registration?.email ?? String(localized: "Signed in"))
@@ -42,7 +45,7 @@ struct ChatGPTConnectionEditor: View {
                                 SettingsRow(systemImage: "person.crop.circle", title: "", subtitle: String(localized: "Signed out"),
                                             verbatimTitle: email)
                             }
-                            SettingsRow(systemImage: "person.badge.key", title: flow == nil ? "Sign in with ChatGPT" : "Signing in…") {
+                            SettingsRow(systemImage: "person.badge.key", title: flow == nil ? "Continue with ChatGPT" : "Signing in…") {
                                 Task { await signIn() }
                             }
                             .disabled(flow != nil)
@@ -53,6 +56,7 @@ struct ChatGPTConnectionEditor: View {
                             }
                             #endif
                         }
+                        // Near the account and its plan, as the guidelines ask of a usage page.
                         SettingsRow(systemImage: "chart.bar", title: "Manage usage", showsChevron: true) {
                             openURL(ChatGPTOAuth.usageURL)
                         }
@@ -108,6 +112,12 @@ struct ChatGPTConnectionEditor: View {
             .sheet(item: Binding(get: { editingModel.map { ModelRef(id: $0) } }, set: { editingModel = $0?.id })) { ref in
                 ModelEditor(connectionID: connectionID, modelID: ref.id)
             }
+            .alert("You're using your ChatGPT plan", isPresented: $showsWelcome) {
+                Button("Manage usage") { openURL(ChatGPTOAuth.usageURL) }
+                Button("Got it", role: .cancel) {}
+            } message: {
+                Text("Eligible requests in OpenChat use your ChatGPT plan and count toward its usage limits. You can manage usage in ChatGPT settings.")
+            }
         }
     }
 
@@ -115,9 +125,9 @@ struct ChatGPTConnectionEditor: View {
 
     private var accountFooter: LocalizedStringKey {
         if signedIn && planAllowed == false {
-            return "This sign-in didn't allow Strata to use your ChatGPT plan, so requests will be refused. Sign out and sign in again, and allow plan usage."
+            return "This sign-in didn't allow OpenChat to use your ChatGPT plan, so requests will be refused. Sign out and sign in again, and allow plan usage."
         }
-        return "Uses your ChatGPT plan. Requests count toward its usage limits. The sign-in is stored in the Keychain."
+        return "Eligible requests use your ChatGPT plan and count toward its usage limits, which you manage in ChatGPT settings. The sign-in is stored in the Keychain."
     }
 
     private func reload() {
@@ -147,6 +157,10 @@ struct ChatGPTConnectionEditor: View {
             if planAllowed == false {
                 show(String(localized: "Signed in, but plan usage wasn't allowed."), error: true)
             } else {
+                if ChatGPTPlanUsage.claimWelcome(planAllowed: planAllowed == true) {
+                    // Once the sign-in sheet has gone: an alert asked for while it closes is never shown.
+                    Task { try? await Task.sleep(for: .milliseconds(600)); showsWelcome = true }
+                }
                 await fetch()
             }
         } catch ChatGPTAuthError.cancelled {
@@ -163,7 +177,7 @@ struct ChatGPTConnectionEditor: View {
         let confirmed = await connections.chatGPT.signOut(connectionID: connectionID)
         reload()
         show(confirmed ? String(localized: "Signed out.")
-                       : String(localized: "Signed out on this device, but ChatGPT didn't confirm it. You can disconnect Strata in ChatGPT Settings."),
+                       : String(localized: "Signed out on this device, but ChatGPT didn't confirm it. You can disconnect OpenChat in ChatGPT Settings."),
              error: !confirmed)
     }
 

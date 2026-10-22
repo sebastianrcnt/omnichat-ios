@@ -85,6 +85,17 @@ struct ChatControllerTests {
         #expect(!r.controller.isStreaming)
     }
 
+    /// A ChatGPT usage limit is saved with its action, "Manage usage", instead of "Open Settings".
+    @Test func usageLimitErrorKeepsTheManageUsageAction() async throws {
+        let r = try rig([([], .fail(APIError.chatGPTUsageLimit))])
+        r.controller.send(text: "hi", images: [], conversation: r.conversation, context: r.context)
+        await settle(r)
+        let m = try #require(assistant(r))
+        #expect(m.errorText == APIError.chatGPTUsageLimit.errorDescription)
+        #expect(m.errorManagesUsage && !m.errorNeedsSettings)
+        #expect(r.streamer.requests.count == 1) // not retried
+    }
+
     @Test func stopWhileThinkingKeepsPartialReasoning() async throws {
         let r = try rig([([ChatDelta(reasoning: "pondering the question")], .hang)])
         r.controller.send(text: "hi", images: [], conversation: r.conversation, context: r.context)

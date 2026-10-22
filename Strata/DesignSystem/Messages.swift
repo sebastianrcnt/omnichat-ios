@@ -338,6 +338,7 @@ struct AssistantContent: Equatable {
     var turnStart: Date?
     var errorText: String?
     var errorNeedsSettings = false
+    var errorManagesUsage = false
     var stopped = false
     var canRegenerate = false
     var translation = TranslationUI.none
@@ -350,6 +351,7 @@ struct AssistantContent: Equatable {
 
 struct AssistantMessage: View {
     @Environment(\.theme) private var theme
+    @Environment(\.openURL) private var openURL
     @Environment(\.citations) private var citations
     let content: AssistantContent
     let render: MessageRenderState
@@ -564,7 +566,12 @@ struct AssistantMessage: View {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(theme.warning)
                     VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                         Text(error).font(DS.Typography.uiSmall).foregroundStyle(theme.textPrimary)
-                        if content.errorNeedsSettings {
+                        if content.errorManagesUsage {
+                            // OpenAI's guidelines: "Manage usage" is the primary action, and nothing retries the request.
+                            Button("Manage usage") { openURL(ChatGPTOAuth.usageURL) }
+                                .buttonStyle(.glassProminent)
+                                .tint(theme.accent)
+                        } else if content.errorNeedsSettings {
                             Button("Open Settings", action: onOpenSettings).buttonStyle(.glass)
                         } else if content.canRegenerate {
                             Button("Try again", systemImage: "arrow.clockwise", action: onRegenerate).buttonStyle(.glass)

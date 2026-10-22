@@ -21,7 +21,7 @@ enum ConnectionPreset: String, CaseIterable, Identifiable, Sendable {
     var subtitle: String {
         switch self {
         case .anthropic: String(localized: "Claude models, API key from console.anthropic.com")
-        case .chatGPT: String(localized: "Sign in to use your ChatGPT plan")
+        case .chatGPT: String(localized: "Use your ChatGPT plan")
         case .openCode: String(localized: "Sign in to use OpenCode Go or pay as you go")
         case .custom: String(localized: "Any OpenAI-compatible API: enter its URL")
         }

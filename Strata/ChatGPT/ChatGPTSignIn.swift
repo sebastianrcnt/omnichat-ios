@@ -41,15 +41,15 @@ final class ChatGPTSignIn: NSObject, ASWebAuthenticationPresentationContextProvi
             switch ChatGPTOAuth.parseCallback(url, attempt: attempt) {
             case .ignored:
                 return .init(status: 400, html: LoopbackServer.page(title: "Sign-in not recognized",
-                                                                   message: "Return to Strata and start sign-in again."),
+                                                                   message: "Return to OpenChat and start sign-in again."),
                              finishes: false)
             case .success:
                 return .init(status: 200, html: LoopbackServer.page(title: "Signed in",
-                                                                   message: "You can close this page and return to Strata."),
+                                                                   message: "You can close this page and return to OpenChat."),
                              finishes: true)
             case .failure:
                 return .init(status: 200, html: LoopbackServer.page(title: "Sign-in not completed",
-                                                                   message: "You can close this page and return to Strata."),
+                                                                   message: "You can close this page and return to OpenChat."),
                              finishes: true)
             }
         }

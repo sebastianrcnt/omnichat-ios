@@ -242,7 +242,7 @@ struct ConnectionEditor: View {
                         }
 
                         GroupedSection(header: "Stream recovery") {
-                            SettingsToggleRow(title: "Resumable replies", subtitle: "Enable only for gateways supporting Strata stream replay.", isOn: binding(\.supportsResumable, fallback: false))
+                            SettingsToggleRow(title: "Resumable replies", subtitle: "Enable only for gateways supporting OpenChat stream replay.", isOn: binding(\.supportsResumable, fallback: false))
                         }
                     }
 
@@ -774,7 +774,7 @@ private struct ToolSettingsView: View {
                 }
 
                 #if os(iOS)
-                GroupedSection(footer: "With this off, web searches and browsing can stop while OpenChat is in the background. The sound plays only while the model is using the web and Strata is not on screen, even in silent mode, and may pause other audio until it ends.") {
+                GroupedSection(footer: "With this off, web searches and browsing can stop while OpenChat is in the background. The sound plays only while the model is using the web and OpenChat is not on screen, even in silent mode, and may pause other audio until it ends.") {
                     SettingsToggleRow(title: "Play a sound while browsing in the background", isOn: $settings.backgroundLoadingSound)
                 }
                 #endif

@@ -544,6 +544,7 @@ struct ChatView: View {
                     turnStart: live?.turnStart,
                     errorText: message.errorText,
                     errorNeedsSettings: message.errorNeedsSettings,
+                    errorManagesUsage: message.errorManagesUsage,
                     stopped: message.stoppedByUser,
                     canRegenerate: isLast && !isStreamingHere,
                     translation: translation,

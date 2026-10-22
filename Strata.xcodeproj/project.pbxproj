@@ -151,6 +151,7 @@
 		319805F9397A8F10F0525158 /* ShareItemLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AECCF73F6748FE84F7099DE /* ShareItemLoader.swift */; };
 		31F0B81C90D3E205658F05D8 /* ArtifactGalleryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D1D207CEBD4D374E1551FDB /* ArtifactGalleryViews.swift */; };
 		323472A70EB4AAFD37D39BB2 /* OpenUILangTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2E868355B9AC25EC98E62D2 /* OpenUILangTests.swift */; };
+		3282332219A17518804DE793 /* PlanUsageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABD3288E5294100A9505CCFE /* PlanUsageTests.swift */; };
 		32E57C56C03CE5E603BB7ACF /* AppleFoundationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2778A6278BA46DF0B98B40C7 /* AppleFoundationModel.swift */; };
 		3353F69F401FA3CC38F2FF25 /* HealthSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD89011C978F30A13FA7EB72 /* HealthSettingsView.swift */; };
 		34399817E3D9E618497FD999 /* OpenChatWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17853C1B929DA30A131D394B /* OpenChatWidgets.swift */; };
@@ -196,6 +197,7 @@
 		4672D77C5F3B80809BECB760 /* OnDeviceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68511F5020614C731F515923 /* OnDeviceTests.swift */; };
 		4677C7BBC549D586B0F14DC8 /* MacDebug.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B5BBAA2FDE1CDE917B886E5 /* MacDebug.swift */; };
 		467A7F4FF4980E4391410DA7 /* BrowserAgent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D6B0FF18B33F8501A5ECCEB /* BrowserAgent.swift */; };
+		483B4815A5953BB9EFC79D8D /* ChatGPTPlanUsage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52326B76F5E96E2F6B3F49FC /* ChatGPTPlanUsage.swift */; };
 		488BF2DF7BB8CA6D13DDD66B /* OpenChatPackageKit in Frameworks */ = {isa = PBXBuildFile; productRef = B13B61E6304494BCB102441B /* OpenChatPackageKit */; };
 		48B9B78BDA7A335D72BF0561 /* SystemPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 182FD0E6C234BFA230BFB671 /* SystemPromptTests.swift */; };
 		48CD0DC0DB21A5D440C25C14 /* HiddenWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2591276CC7B49180E08D4971 /* HiddenWebView.swift */; };
@@ -248,6 +250,7 @@
 		5D1F237B143839E8918B244E /* LimitedDownload.swift in Sources */ = {isa = PBXBuildFile; fileRef = B891A8CC4C7C11D14F67A454 /* LimitedDownload.swift */; };
 		5D87B925992AC9EBB7A96C02 /* DebugBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF02DB6A733BBE52D18499D5 /* DebugBundle.swift */; };
 		5DE1FB9CA2AD5FB98F1B6C83 /* MarkdownBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = C48316140F6C91D3CBA80AB7 /* MarkdownBlock.swift */; };
+		5EE3FCF71C11AEFE84455E98 /* ChatGPTPlanUsage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52326B76F5E96E2F6B3F49FC /* ChatGPTPlanUsage.swift */; };
 		5F0F715C186715374478D644 /* CLibSSH2.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 22E2A7E41B65A1B0574343FC /* CLibSSH2.xcframework */; };
 		5F34BCD8114C1401ED676070 /* youtube-track-ko.json3.json in Resources */ = {isa = PBXBuildFile; fileRef = ECB19FF727AB01236F899434 /* youtube-track-ko.json3.json */; };
 		5F7E7AB124E6242B940CF6FE /* ResponsesClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6A7759097BB69338E3086E6 /* ResponsesClient.swift */; };
@@ -841,6 +844,7 @@
 		50DA4005B42904F19FF745C4 /* HealthReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthReport.swift; sourceTree = "<group>"; };
 		512080A8E448C01C3099D0C3 /* OnDeviceConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnDeviceConnection.swift; sourceTree = "<group>"; };
 		51F73404257AB826A0402DBF /* ThoughtSentenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThoughtSentenceTests.swift; sourceTree = "<group>"; };
+		52326B76F5E96E2F6B3F49FC /* ChatGPTPlanUsage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatGPTPlanUsage.swift; sourceTree = "<group>"; };
 		5280BB687C005E6ECA5D7CA6 /* PythonRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonRuntime.swift; sourceTree = "<group>"; };
 		52A0341634730B2E75D9309C /* ChatGPTSignIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatGPTSignIn.swift; sourceTree = "<group>"; };
 		53B0DA9BC609410BB67796D5 /* Skills */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Skills; path = Strata/Resources/Skills; sourceTree = SOURCE_ROOT; };
@@ -963,6 +967,7 @@
 		A9D1DDD718804C25A9044ECA /* MacImageAttaching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacImageAttaching.swift; sourceTree = "<group>"; };
 		A9E37AF343F7CFB5A7201272 /* IntentChat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentChat.swift; sourceTree = "<group>"; };
 		AB6B8F8D07D0F0A10BCACF9E /* OpenUIRuntimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenUIRuntimeTests.swift; sourceTree = "<group>"; };
+		ABD3288E5294100A9505CCFE /* PlanUsageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanUsageTests.swift; sourceTree = "<group>"; };
 		AC5FEFAD7E7BF8EC9CB97FDD /* RateLimiter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RateLimiter.swift; sourceTree = "<group>"; };
 		AC9B4C0F5B7D9EA0C318B662 /* ChatClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatClient.swift; sourceTree = "<group>"; };
 		ACC8E424A0B6EE0926E7BB07 /* PDFFetchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFFetchTests.swift; sourceTree = "<group>"; };
@@ -1227,6 +1232,7 @@
 				ACC8E424A0B6EE0926E7BB07 /* PDFFetchTests.swift */,
 				69EA84DD75CFA6988FD9FBA5 /* PerformanceFixesTests.swift */,
 				DF07350688C023ED3EB19EF9 /* PlacesTests.swift */,
+				ABD3288E5294100A9505CCFE /* PlanUsageTests.swift */,
 				CEA1AB82E5C9F803670E2297 /* PluginTests.swift */,
 				8D35FCBD9685D8FFD316494C /* ProcessSegmentTests.swift */,
 				9A8F2001AC39567BD8A1D60D /* PythonIntegrationTests.swift */,
@@ -1575,6 +1581,7 @@
 				709A6CFD36DC0094D78DD1DC /* ChatGPTAuth.swift */,
 				ED7180F1E8B24CD9E6D90907 /* ChatGPTModelsAPI.swift */,
 				CDCADCD21B35ACD8FD77D776 /* ChatGPTOAuth.swift */,
+				52326B76F5E96E2F6B3F49FC /* ChatGPTPlanUsage.swift */,
 				52A0341634730B2E75D9309C /* ChatGPTSignIn.swift */,
 				632AB63B1429A3F5E862FF89 /* LoopbackServer.swift */,
 			);
@@ -2168,6 +2175,7 @@
 				FE41041D5B866618BF77EE98 /* ParallelToolTests.swift in Sources */,
 				13F18EEAA4D0AA7EAD7A2407 /* PerformanceFixesTests.swift in Sources */,
 				093F99CAF43214296CA96A6F /* PlacesTests.swift in Sources */,
+				3282332219A17518804DE793 /* PlanUsageTests.swift in Sources */,
 				06C3F18826B96E1CE607BA9A /* PluginTests.swift in Sources */,
 				34E022A9049E6A1924ECD5C0 /* ProcessSegmentTests.swift in Sources */,
 				AC5B9BB1ECC121E76601798C /* PythonIntegrationTests.swift in Sources */,
@@ -2247,6 +2255,7 @@
 				4C9B7173DF25A5C3FE22C716 /* ChatGPTConnectionEditor.swift in Sources */,
 				CDD264E38D31BB43AF97E628 /* ChatGPTModelsAPI.swift in Sources */,
 				AB4AF8223D57CF7C9199BC92 /* ChatGPTOAuth.swift in Sources */,
+				5EE3FCF71C11AEFE84455E98 /* ChatGPTPlanUsage.swift in Sources */,
 				BE289B6161EF4045B43C403A /* ChatGPTSignIn.swift in Sources */,
 				B0F04C0884FFFD51BFDCFA1A /* ChatIntents.swift in Sources */,
 				4DA691107E55E33B13DE2C90 /* ChatLifecycle.swift in Sources */,
@@ -2509,6 +2518,7 @@
 				E21176D1E11779E4B7DE28AA /* ChatGPTConnectionEditor.swift in Sources */,
 				4DDC4C522993E3F8AF715D6A /* ChatGPTModelsAPI.swift in Sources */,
 				ABE061F344AB5156B62B28D2 /* ChatGPTOAuth.swift in Sources */,
+				483B4815A5953BB9EFC79D8D /* ChatGPTPlanUsage.swift in Sources */,
 				0DE3BD6EFC19838C5BF8EDD3 /* ChatGPTSignIn.swift in Sources */,
 				F5623EB081E5BF0C151496A9 /* ChatIntents.swift in Sources */,
 				68251F5ECF73365321AED967 /* ChatLifecycle.swift in Sources */,

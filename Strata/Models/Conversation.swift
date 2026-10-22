@@ -311,6 +311,8 @@ final class Message {
     var sortIndex: Int = 0
     var errorText: String?
     var errorNeedsSettings: Bool = false
+    /// The error is a ChatGPT usage limit: its first action is "Manage usage" (`APIError.managesUsage`).
+    var errorManagesUsage: Bool = false
     /// Atomic turn checkpoint, including request id, cursor and tool accumulator.
     @Attribute(.externalStorage) var resumeData: Data?
     /// The small, fast-changing half of the checkpoint (cursor and accumulator), written about once a second.
