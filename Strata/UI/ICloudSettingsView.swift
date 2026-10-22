@@ -30,7 +30,7 @@ struct ICloudSettingsView: View {
                                       isOn: $sync.settingsSyncSwitch)
                 }
 
-                GroupedSection(footer: "API keys, ChatGPT and OpenCode sign-ins, SSH credentials and custom headers. Off, this device keeps its own copy of each one; copies already in iCloud Keychain stay for your other devices until you remove them.") {
+                GroupedSection(footer: "API keys, SSH credentials and custom headers. Off, this device keeps its own copy of each one; copies already in iCloud Keychain stay for your other devices until you remove them. ChatGPT and OpenCode sign-ins always stay on the device that signed in: sign in on each device.") {
                     SettingsToggleRow(title: "Sync secrets with iCloud Keychain", isOn: $sync.secretSyncSwitch)
                     if !sync.secretSyncSwitch {
                         SettingsRow(systemImage: "icloud.slash", title: "Remove Secrets from iCloud", subtitle: removalResult,

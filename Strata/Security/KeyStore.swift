@@ -15,14 +15,14 @@ struct KeychainError: Error, LocalizedError {
 }
 
 /// API keys and other per-connection secrets, one item per connection id (`KeychainItems`: synced with iCloud Keychain
-/// while the switch is on).
+/// while the switch is on, except the rotating sign-ins of `KeychainSync.deviceOnlyServices`).
 struct KeychainKeyStore: KeyStoring {
     let items: KeychainItems
 
     var service: String { items.service }
 
     init(service: String = "cc.coolservices.strata.apikey") {
-        items = KeychainItems(service: service)
+        items = KeychainItems(service: service, deviceOnly: KeychainSync.deviceOnlyServices.contains(service))
     }
 
     init(items: KeychainItems) {

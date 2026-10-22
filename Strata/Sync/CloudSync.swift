@@ -8,7 +8,8 @@ import SwiftData
 ///
 /// What syncs: chats with their messages, images, compactions, figures and artifact pages, and saved skills (CloudKit,
 /// `StrataStore`); preferences and the connection list (key-value storage, `SettingsSync`, `ConnectionSync`); API keys,
-/// sign-ins, SSH credentials and custom headers (iCloud Keychain, `KeychainItems`).
+/// SSH credentials and custom headers (iCloud Keychain, `KeychainItems`). ChatGPT and OpenCode sign-ins stay on each
+/// device (`KeychainSync.deviceOnlyServices`).
 @MainActor
 @Observable
 final class CloudSync {

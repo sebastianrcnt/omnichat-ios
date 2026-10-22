@@ -51,8 +51,9 @@ OpenChat sends data directly from your device to services you set up or ask it t
 Chats, settings and files are stored on your device. API keys and sign-in tokens are stored in the Keychain.
 
 iCloud sync is off by default for chats. If you turn it on, chats and settings are stored in your private iCloud database
-(CloudKit) and keys in iCloud Keychain, protected by your Apple Account. We have no access to them. Turning on chat sync
-turns off Health.
+(CloudKit) and API keys in iCloud Keychain, protected by your Apple Account; ChatGPT and OpenCode sign-ins stay on each
+device. We have no access to them. Turning on chat sync turns off Health, and chats in which the assistant read Health
+must be deleted first, so health data never reaches iCloud.
 
 ## Deleting your data
 
