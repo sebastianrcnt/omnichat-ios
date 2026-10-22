@@ -356,3 +356,45 @@ struct ResponsesFallbackStoreTests {
         #expect(store.endpoint(connectionID: gpt.id, modelID: "x")?.apiRoute == nil)
     }
 }
+
+/// Same stub as the Responses tests, so in their serialized suite.
+extension ResponsesFallbackClientTests {
+    private static let autoOnly = #"{"error":{"message":"only `\"auto\"` is supported for `tool_choice`. `\"none\"`, `\"required\"`, and named function choices are not currently supported"}}"#
+
+    private var autoOnly: String { Self.autoOnly }
+
+    private func autoOnlyEndpoint() -> Endpoint {
+        Endpoint(connectionID: UUID(), connectionName: "t", baseURL: URL(string: "http://stub.test/v1")!, apiKey: "sk-test",
+                 headers: [:], model: ModelInfo(id: "auto-only-\(UUID().uuidString)", supportsTools: true))
+    }
+
+    private func capped() -> ChatRequest {
+        var r = ChatRequest(model: "m", messages: [.system("S"), .user("q")])
+        r.toolChoice = "none"
+        return r
+    }
+
+    @Test func aServerThatTakesOnlyAutoGetsTheRequestWithoutItAndANote() async throws {
+        APIStub.reset(chat: [.init(status: 400, body: autoOnly), .init(status: 200, body: chatAnswer), .init(status: 200, body: chatAnswer)])
+        let ep = autoOnlyEndpoint()
+        let client = ChatClient(session: APIStub.session)
+        #expect(try await collect(client.stream(capped(), endpoint: ep)).text == "chat")
+        // Remembered: the next capped request goes without it at once.
+        #expect(try await collect(client.stream(capped(), endpoint: ep)).text == "chat")
+        let bodies = APIStub.bodies("chat/completions")
+        #expect(bodies.count == 3)
+        #expect(bodies[0]["tool_choice"] as? String == "none")
+        for body in bodies.dropFirst() {
+            #expect(body["tool_choice"] == nil)
+            let last = (body["messages"] as? [[String: Any]])?.last
+            #expect(last?["role"] as? String == "user" && last?["content"] as? String == ToolChoiceFallback.nudge)
+        }
+    }
+
+    @Test func otherRefusalsAndAutoRequestsAreNotRetried() async throws {
+        #expect(!ToolChoiceFallback.shouldRetry(capped(), status: 400, body: Data(#"{"error":{"message":"context too long"}}"#.utf8)))
+        #expect(!ToolChoiceFallback.shouldRetry(ChatRequest(model: "m", messages: []), status: 400, body: Data(autoOnly.utf8)))
+        #expect(!ToolChoiceFallback.shouldRetry(capped(), status: 401, body: Data(autoOnly.utf8)))
+        #expect(ToolChoiceFallback.shouldRetry(capped(), status: 400, body: Data(autoOnly.utf8)))
+    }
+}

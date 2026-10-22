@@ -48,6 +48,8 @@ struct ChatClient: ChatStreaming {
             return OpenCodeClient(session: session, tokens: openCodeTokens).stream(request, endpoint: endpoint)
         }
         if endpoint.kind == .appleOnDevice { return OnDeviceClient().stream(request, endpoint: endpoint) }
+        let request = ToolChoiceFallback.isRefused(endpoint) && request.toolChoice == "none"
+            ? ToolChoiceFallback.adapted(request) : request
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
@@ -56,16 +58,24 @@ struct ChatClient: ChatStreaming {
                         continuation.finish()
                         return
                     }
-                    let body = try request.encoded()
-                    var req = HTTP.makeRequest(url: endpoint.baseURL.appendingPathComponent("chat/completions"),
-                                               endpoint: endpoint, method: "POST", body: body)
-                    req.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-                    req.timeoutInterval = 300
-                    let (bytes, response) = try await session.bytes(for: req)
+                    var request = request
+                    var (bytes, response) = try await send(request, endpoint: endpoint)
                     if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-                        var errorData = Data()
-                        for try await b in bytes { errorData.append(b); if errorData.count > 4096 { break } }
-                        let refused = APIError.http(status: http.statusCode, message: HTTP.errorMessage(from: errorData))
+                        var errorData = try await Self.errorBody(bytes)
+                        // A server that takes only `tool_choice: "auto"`: once more without it (`ToolChoiceFallback`).
+                        if ToolChoiceFallback.shouldRetry(request, status: http.statusCode, body: errorData) {
+                            request = ToolChoiceFallback.adapted(request)
+                            (bytes, response) = try await send(request, endpoint: endpoint)
+                            if let retried = response as? HTTPURLResponse, (200..<300).contains(retried.statusCode) {
+                                ToolChoiceFallback.remember(endpoint)
+                                try await Self.consume(bytes) { continuation.yield($0) }
+                                continuation.finish()
+                                return
+                            }
+                            errorData = try await Self.errorBody(bytes)
+                        }
+                        let refused = APIError.http(status: (response as? HTTPURLResponse)?.statusCode ?? http.statusCode,
+                                                    message: HTTP.errorMessage(from: errorData))
                         // Refused before any of the answer: a model that only answers the Responses API gets one try there.
                         guard let route = endpoint.apiRoute, route.automatic,
                               ResponsesFallback.shouldSwitch(status: http.statusCode, body: errorData) else { throw refused }
@@ -86,6 +96,20 @@ struct ChatClient: ChatStreaming {
             }
             continuation.onTermination = { _ in task.cancel() }
         }
+    }
+
+    private func send(_ request: ChatRequest, endpoint: Endpoint) async throws -> (URLSession.AsyncBytes, URLResponse) {
+        var req = HTTP.makeRequest(url: endpoint.baseURL.appendingPathComponent("chat/completions"),
+                                   endpoint: endpoint, method: "POST", body: try request.encoded())
+        req.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        req.timeoutInterval = 300
+        return try await session.bytes(for: req)
+    }
+
+    private static func errorBody(_ bytes: URLSession.AsyncBytes) async throws -> Data {
+        var data = Data()
+        for try await b in bytes { data.append(b); if data.count > 4096 { break } }
+        return data
     }
 
     static let cutOffMessage = "The connection closed before the reply finished."

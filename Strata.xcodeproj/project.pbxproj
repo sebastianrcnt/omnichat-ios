@@ -43,6 +43,7 @@
 		0DC1C2E2FC13DF167A4A01F3 /* P2PerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A622DCD2F41352D5522EDFA /* P2PerformanceTests.swift */; };
 		0DE3BD6EFC19838C5BF8EDD3 /* ChatGPTSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A0341634730B2E75D9309C /* ChatGPTSignIn.swift */; };
 		0E454AB4A52B175EED6EE70A /* Tokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76F833CD45E5B92CAEB723F3 /* Tokens.swift */; };
+		0E6C26216713C16071702A8C /* ToolChoiceFallback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8498A2FDA0D28F4026574AB3 /* ToolChoiceFallback.swift */; };
 		0E9E153E53EB4F8BC58069E1 /* ddg-challenge.html in Resources */ = {isa = PBXBuildFile; fileRef = BBF73B4F94D85C972052389E /* ddg-challenge.html */; };
 		0FA6249EC3A2DF48330CAB30 /* OnDeviceConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 512080A8E448C01C3099D0C3 /* OnDeviceConnection.swift */; };
 		0FEA73DEBC8567E572B24B48 /* OnDevicePromptBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBEED40101593DF4FB5687A5 /* OnDevicePromptBuilder.swift */; };
@@ -81,6 +82,7 @@
 		1F4DDFE2A5D78EF18E5EDFE5 /* Conversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCFE8ACA7DF44925496D753 /* Conversation.swift */; };
 		1F5BE10CC2418493D5D9A760 /* ReplyActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6B5296FB0E143757D557C45 /* ReplyActivityAttributes.swift */; };
 		1FC2DA85BC27BB4F0C1D8F5B /* TitlingText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 036EC236AF2525AF94B49388 /* TitlingText.swift */; };
+		20247E7322B0C5DD1AE456E1 /* ToolChoiceFallback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8498A2FDA0D28F4026574AB3 /* ToolChoiceFallback.swift */; };
 		2027B007E0771B6D5639ADD9 /* OpenUIGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = C294B025984B086E84A579BC /* OpenUIGallery.swift */; };
 		2053C48352BAD70BD4F3605F /* Artifacts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 089ACC0B5C832620F6132A73 /* Artifacts.swift */; };
 		21014F66A307085B689A0C11 /* MemoryCaches.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FCC4C024AED5AC7DD77A998 /* MemoryCaches.swift */; };
@@ -817,6 +819,7 @@
 		82C404FA2628001A9F85F7EC /* TranslationCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationCore.swift; sourceTree = "<group>"; };
 		83B0FA64BE88210A53AC5E2F /* AnthropicMessagesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnthropicMessagesTests.swift; sourceTree = "<group>"; };
 		8466A7CDF21ACE56C1F711D2 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		8498A2FDA0D28F4026574AB3 /* ToolChoiceFallback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolChoiceFallback.swift; sourceTree = "<group>"; };
 		85518AFBF34570F272695809 /* ChatGPTConnectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatGPTConnectionTests.swift; sourceTree = "<group>"; };
 		866C5798DDE8F5ECD3DD4550 /* AnswerNow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnswerNow.swift; sourceTree = "<group>"; };
 		86A1F27D001B4C15E57543DF /* CJKEmphasisFixer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CJKEmphasisFixer.swift; sourceTree = "<group>"; };
@@ -1404,6 +1407,7 @@
 				19E3E58A1DF950B1F7BAD9CD /* ResponsesFallback.swift */,
 				9B655A48CCD825D9D0172DEE /* SSE.swift */,
 				7BA62F2BCED42B3D782F1475 /* StreamRecovery.swift */,
+				8498A2FDA0D28F4026574AB3 /* ToolChoiceFallback.swift */,
 			);
 			path = Networking;
 			sourceTree = "<group>";
@@ -2216,6 +2220,7 @@
 				254708036E2BF5202393FAF7 /* ThoughtTranslator.swift in Sources */,
 				1FC2DA85BC27BB4F0C1D8F5B /* TitlingText.swift in Sources */,
 				15556FA5C78CC8AEBD250884 /* Tokens.swift in Sources */,
+				0E6C26216713C16071702A8C /* ToolChoiceFallback.swift in Sources */,
 				FC14979418AB93302BD30307 /* ToolExecutionRecovery.swift in Sources */,
 				54AA0FA69A881A61FD542A4C /* ToolProgress.swift in Sources */,
 				C03EF09F32CE980A3DD0A35F /* ToolRound.swift in Sources */,
@@ -2451,6 +2456,7 @@
 				8AABABFC2EE4EDD58699CB3F /* ThoughtTranslator.swift in Sources */,
 				04E956459C099A3B8F11EE46 /* TitlingText.swift in Sources */,
 				89A1F9C53DD81EF369A6A533 /* Tokens.swift in Sources */,
+				20247E7322B0C5DD1AE456E1 /* ToolChoiceFallback.swift in Sources */,
 				525239D1099C9C9841701BB8 /* ToolExecutionRecovery.swift in Sources */,
 				0494E510701597DC79E71611 /* ToolProgress.swift in Sources */,
 				A0E0FE68B247DE067D1D6836 /* ToolRound.swift in Sources */,
