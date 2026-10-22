@@ -1153,10 +1153,10 @@ private struct StarterPrompts: View {
     }
 
     private static let prompts: [LocalizedStringResource] = [
-        "Compare the weather in Lisbon and Athens next week",
-        "Chart $500 a month invested for 30 years at 6%",
-        "Show quiet cafés near me on a map",
-        "Open a flight search site and find fares to Tokyo next month",
+        "Weather in Lisbon vs Athens next week",
+        "Chart $500 a month at 6% for 30 years",
+        "Quiet cafés near me, on a map",
+        "Find flights to Tokyo next month",
     ]
 
     var body: some View {
@@ -1165,7 +1165,7 @@ private struct StarterPrompts: View {
                 Text("Try asking")
                     .font(DS.Typography.uiSmall)
                     .foregroundStyle(theme.textSecondary)
-                FlowLayout(spacing: DS.Spacing.sm) {
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                     ForEach(Self.prompts.indices, id: \.self) { i in
                         let prompt = Self.prompts[i]
                         Button {
@@ -1176,6 +1176,7 @@ private struct StarterPrompts: View {
                                 .font(DS.Typography.ui)
                                 .foregroundStyle(theme.textPrimary)
                                 .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
                                 .padding(.horizontal, DS.Spacing.md)
                                 .padding(.vertical, DS.Spacing.sm)
                         }
@@ -1185,6 +1186,7 @@ private struct StarterPrompts: View {
                 }
             }
             .frame(maxWidth: 560, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, DS.Spacing.page)
             .padding(.bottom, DS.Spacing.md)
             .transition(.opacity)

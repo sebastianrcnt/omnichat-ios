@@ -291,7 +291,7 @@ struct NoConnectionState: View {
                 .buttonStyle(.glass)
                 if let onUseOnDevice {
                     Button(action: onUseOnDevice) {
-                        Label("Try Apple Intelligence (free, on device)", systemImage: "apple.intelligence")
+                        Label("Try Apple Intelligence (free)", systemImage: "apple.intelligence")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.glass)
