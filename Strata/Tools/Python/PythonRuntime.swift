@@ -32,7 +32,7 @@ enum PythonSettings {
 struct PythonLimits: Sendable, Equatable {
     /// The user's code.
     var run: Duration
-    /// Starting the interpreter, and loading the packages the code imports (downloads on first use).
+    /// Starting the interpreter and loading the bundled packages.
     var setup: Duration = .seconds(180)
 
     static var current: PythonLimits { PythonLimits(run: .seconds(PythonSettings.timeLimitSeconds)) }

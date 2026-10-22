@@ -75,3 +75,11 @@ Everything else those reviews reported was fixed in that commit. Each entry: whe
   scripts/plugins are never replayed automatically (they may already have clicked or posted). Existing WebKit load
   and script deadlines return a readable error if suspension/termination interrupts them. Continued-processing
   execution remains for eligible reply work, not as a guarantee that WebKit will keep running.
+- **Python packages are bundle-only in every configuration.** Pyodide 314.0.7 supports numpy, pandas and matplotlib
+  plus their dependency closure: 13 wheels, **17,444,678 bytes (16.64 MiB)** added, plus a tiny package-name index.
+  `python3 Tools/bundle_python_packages.py` reproduces them from the pinned jsDelivr release and verifies each SHA-256
+  against the unchanged upstream lock. The server verifies bundled wheel hashes, never reads old package caches and
+  never downloads missing wheels; PyPI/package-source requests are refused. Unknown imports (including dynamic imports
+  and micropip) report “This package isn't available in OmniChat”. Standard-library networking remains available for
+  data, not a package installation feature. The run_python description was deliberately corrected to remove claims
+  that scipy/sympy/PyPI installation are supported; its package-cache golden digest changes for that reason only.

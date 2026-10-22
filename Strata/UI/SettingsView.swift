@@ -553,15 +553,14 @@ struct BrowsingDataSection: View {
     }
 }
 
-/// Settings > Python: on in new chats or not, the time limit of one run, and the packages downloaded so far.
+/// Settings > Python: the bundled package set and the time limit of one run.
 struct PythonSettingsSection: View {
     @Environment(\.theme) private var theme
     @Environment(\.appSettings) private var settings
-    @State private var packageBytes: Int64?
 
     var body: some View {
         @Bindable var settings = settings
-        GroupedSection(header: "Python", footer: "The model can run Python code on this device with run_python (Pyodide \(Pyodide.version)). Packages such as numpy, sympy and pandas are downloaded the first time they are used and kept for later. A chat can turn Python on or off from the + menu.") {
+        GroupedSection(header: "Python", footer: "The model can run Python code on this device with run_python (Pyodide \(Pyodide.version)). numpy, pandas and matplotlib are bundled and work offline. Other packages cannot be installed. A chat can turn Python on or off from the + menu.") {
             SettingsToggleRow(title: "Python in new chats", subtitle: "Let the model run code and make charts.", isOn: $settings.pythonEnabled)
             HStack {
                 Text("Python time limit").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
@@ -574,33 +573,7 @@ struct PythonSettingsSection: View {
             }
             .padding(.horizontal, DS.Spacing.lg)
             .padding(.vertical, DS.Spacing.sm)
-            HStack {
-                VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                    Text("Downloaded packages").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
-                    Text(verbatim: packageBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "…")
-                        .font(DS.Typography.uiCaption).foregroundStyle(theme.textSecondary)
-                }
-                Spacer()
-                Button("Clear") { clear() }
-                    .disabled((packageBytes ?? 0) == 0)
-                    .tint(theme.accent)
-            }
-            .padding(.horizontal, DS.Spacing.lg)
-            .padding(.vertical, DS.Spacing.sm)
         }
-        .task { await measure() }
-    }
-
-    private func measure() async {
-        packageBytes = await Task.detached(priority: .utility) {
-            PyodidePackageCache(directory: Pyodide.packagesRoot).size
-        }.value
-    }
-
-    private func clear() {
-        PythonRuntime.shared.dispose() // a running interpreter may hold loaded packages; the next one fetches again
-        PyodidePackageCache(directory: Pyodide.packagesRoot).clear()
-        Task { await measure() }
     }
 }
 

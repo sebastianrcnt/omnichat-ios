@@ -96,41 +96,32 @@ struct PyodideServerTests {
         for url in refused { #expect(!PyodideAllowlist.isPackageSource(URL(string: url)!), "\(url)") }
     }
 
-    @Test func aPackageIsDownloadedCheckedCachedAndThenServedFromTheCache() async {
+    @Test func bundledPackagesAreCheckedAndServedWithoutNetwork() async throws {
+        let network = FakeNetwork()
+        let (server, cache) = server(network: network)
+        defer { try? FileManager.default.removeItem(at: server.root) }
+        let name = URL(string: numpyURL)!.lastPathComponent
+        try wheel.write(to: server.root.appendingPathComponent("pyodide/" + name))
+        let response = await server.respond(to: request(numpyURL))
+        #expect(response.status == 200 && response.body == wheel)
+        #expect(network.count == 0 && cache.read(name) == nil)
+        try Data("damaged".utf8).write(to: server.root.appendingPathComponent("pyodide/" + name))
+        let damaged = await server.respond(to: request(numpyURL))
+        #expect(damaged.status == 502)
+        #expect(String(decoding: damaged.body, as: UTF8.self).contains("sha256"))
+        #expect(network.count == 0)
+    }
+
+    @Test func missingPackagesNeverUseTheCacheOrNetwork() async {
         let network = FakeNetwork()
         network.set(cdnURL, body: wheel)
         let (server, cache) = server(network: network)
-
-        let first = await server.respond(to: request(numpyURL))
-        #expect(first.status == 200)
-        #expect(first.body == wheel)
-        #expect(network.requested == [cdnURL])
-        #expect(cache.read("numpy-2.4.6-cp314-cp314-pyemscripten_2026_0_wasm32.whl") == wheel)
-
-        let second = await server.respond(to: request(numpyURL))
-        #expect(second.status == 200)
-        #expect(second.body == wheel)
-        #expect(network.count == 1) // a cache hit: no second download
-    }
-
-    @Test func aDownloadThatDoesNotMatchTheLockIsRefusedAndNotCached() async {
-        let network = FakeNetwork()
-        network.set(cdnURL, body: Data("tampered".utf8))
-        let (server, cache) = server(network: network)
+        cache.write(wheel, as: URL(string: numpyURL)!.lastPathComponent)
+        defer { cache.clear(); try? FileManager.default.removeItem(at: server.root) }
         let response = await server.respond(to: request(numpyURL))
-        #expect(response.status == 502)
-        #expect(String(decoding: response.body, as: UTF8.self).contains("sha256"))
-        #expect(cache.read("numpy-2.4.6-cp314-cp314-pyemscripten_2026_0_wasm32.whl") == nil)
-    }
-
-    @Test func aDamagedCacheEntryIsFetchedAgain() async {
-        let network = FakeNetwork()
-        network.set(cdnURL, body: wheel)
-        let (server, cache) = server(network: network)
-        cache.write(Data("corrupt".utf8), as: "numpy-2.4.6-cp314-cp314-pyemscripten_2026_0_wasm32.whl")
-        let response = await server.respond(to: request(numpyURL))
-        #expect(response.body == wheel)
-        #expect(network.count == 1)
+        #expect(response.status == 404)
+        #expect(String(decoding: response.body, as: UTF8.self) == "This package isn't available in OmniChat")
+        #expect(network.count == 0)
     }
 
     @Test func aFileTheLockDoesNotListIsNotFetched() async {
@@ -155,14 +146,14 @@ struct PyodideServerTests {
         #expect(otherHost.status == 404)
     }
 
-    @Test func theProxyCarriesAnyWebRequest() async {
+    @Test func theProxyRefusesPackageInstallSources() async {
         let network = FakeNetwork()
         network.set("https://pypi.org/pypi/attrs/json", body: Data("{\"info\":{}}".utf8))
         let (server, _) = server(network: network)
         let proxied = "strata-py://app/proxy?u=" + "https://pypi.org/pypi/attrs/json".addingPercentEncoding(withAllowedCharacters: .alphanumerics)!
         let ok = await server.respond(to: request(proxied))
-        #expect(ok.status == 200)
-        #expect(ok.body == Data("{\"info\":{}}".utf8))
+        #expect(ok.status == 403)
+        #expect(network.count == 0)
 
         network.set("https://example.com/x", body: Data("hi".utf8))
         let other = "strata-py://app/proxy?u=" + "https://example.com/x".addingPercentEncoding(withAllowedCharacters: .alphanumerics)!
@@ -170,10 +161,10 @@ struct PyodideServerTests {
         #expect(reached.status == 200)
         #expect(reached.body == Data("hi".utf8))
         let post = await server.respond(to: request(proxied, method: "POST"))
-        #expect(post.status == 200)
+        #expect(post.status == 403)
         let file = "strata-py://app/proxy?u=" + "file:///etc/hosts".addingPercentEncoding(withAllowedCharacters: .alphanumerics)!
         #expect(await server.respond(to: request(file)).status == 400)
-        #expect(network.requested == ["https://pypi.org/pypi/attrs/json", "https://example.com/x", "https://pypi.org/pypi/attrs/json"])
+        #expect(network.requested == ["https://example.com/x"])
     }
 
     @Test func aCDNRequestThroughTheProxyIsCheckedAgainstTheLock() async {
@@ -182,7 +173,25 @@ struct PyodideServerTests {
         let (server, _) = server(network: network)
         let proxied = "strata-py://app/proxy?u=" + cdnURL.addingPercentEncoding(withAllowedCharacters: .alphanumerics)!
         let response = await server.respond(to: request(proxied))
-        #expect(response.status == 502)
+        #expect(response.status == 404)
+        #expect(network.count == 0)
+    }
+
+    @Test func allBundledWheelsMatchTheLockAndIncludeEveryDependency() throws {
+        let root = try #require(Pyodide.bundleRoot).appendingPathComponent("pyodide")
+        let data = try Data(contentsOf: root.appendingPathComponent("pyodide-lock.json"))
+        let lock = try PyodideLock(data: data)
+        let names = try JSONDecoder().decode([String].self, from: Data(contentsOf: root.appendingPathComponent("bundled-packages.json")))
+        let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let packages = try #require(json["packages"] as? [String: [String: Any]])
+        #expect(Set(names).isSuperset(of: ["numpy", "pandas", "matplotlib"]))
+        #expect(names.count == 13)
+        for name in names {
+            let package = try #require(packages[name])
+            let file = try #require(package["file_name"] as? String)
+            #expect(PyodideServer.sha256(try Data(contentsOf: root.appendingPathComponent(file))) == lock.sha256(of: file))
+            #expect(Set(names).isSuperset(of: package["depends"] as? [String] ?? []))
+        }
     }
 
     @Test func theBundledLockMatchesThePinnedRelease() throws {
