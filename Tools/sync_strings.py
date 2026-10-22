@@ -26,7 +26,7 @@ PLURALS = {
 }
 
 # Placeholders and examples that must not be translated.
-NO_TRANSLATE = {"%lld", "[%lld]", "262144", "https://host/v1", "model-id", "sk-…", "Name: value"}
+NO_TRANSLATE = {"%lld", "[%lld]", "262144", "https://host/v1", "model-id", "sk-…", "sk-ant-…", "Name: value"}
 
 def plural_entry(one, other):
     unit = lambda s: {"stringUnit": {"state": "translated", "value": s}}
