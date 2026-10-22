@@ -207,13 +207,13 @@ final class PackageStore: @unchecked Sendable {
         return child
     }
 
-    private func save() {
+    private func save() throws {
         guard let directory else { return }
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let e = JSONEncoder()
         e.outputFormatting = [.sortedKeys, .prettyPrinted]
         e.dateEncodingStrategy = .iso8601
-        if let data = try? e.encode(registry) { try? data.write(to: directory.appendingPathComponent("registry.json"), options: .atomic) }
+        try e.encode(registry).write(to: directory.appendingPathComponent("registry.json"), options: .atomic)
     }
 
     // MARK: Reading
@@ -295,30 +295,50 @@ final class PackageStore: @unchecked Sendable {
         let ns = namespace ?? alias(for: m.namespace, id: m.id)
         try lock.withLock {
             loadIfNeeded()
-            if directory != nil {
-                let target = try folder(m.id, m.version)
-                try? FileManager.default.removeItem(at: target)
-                try bundle.write(to: target)
-            }
             let old = registry.packages.first { $0.id == m.id }
-            if let old, old.version != m.version, let older = old.previousVersion, older != m.version, directory != nil {
-                if let older = try? folder(m.id, older) { try? FileManager.default.removeItem(at: older) }
+            if directory != nil {
+                // Written and checked beside the installed files, then swapped in: a failed write (a full disk) leaves
+                // the working version as it was.
+                let target = try folder(m.id, m.version)
+                let staging = try Self.contained(".staging-\(UUID().uuidString)", in: target.deletingLastPathComponent())
+                do {
+                    try bundle.write(to: staging)
+                    _ = try PackageBundle.load(folder: staging)
+                    if FileManager.default.fileExists(atPath: target.path) {
+                        _ = try FileManager.default.replaceItemAt(target, withItemAt: staging)
+                    } else {
+                        try FileManager.default.moveItem(at: staging, to: target)
+                    }
+                } catch {
+                    try? FileManager.default.removeItem(at: staging)
+                    throw error
+                }
             }
+            let before = (registry, bundles[m.id])
             let consent = PackageRecord.Consent(version: m.version, date: .now, network: m.network, secrets: m.secrets.map(\.name),
                                                 privateNetwork: m.privateNetwork)
-            var record = PackageRecord(id: m.id, version: m.version,
+            let record = PackageRecord(id: m.id, version: m.version,
                                        previousVersion: old.flatMap { $0.version == m.version ? $0.previousVersion : $0.version },
                                        trust: trust, keys: bundle.verification.keys.map(\.string), namespace: old?.namespace ?? ns,
-                                       onInNewChats: old?.onInNewChats ?? onInNewChats, installedAt: .now,
+                                       onInNewChats: onInNewChats, installedAt: .now,
                                        consents: Array(((old?.consents ?? []) + [consent]).suffix(10)))
-            if old == nil { record.onInNewChats = onInNewChats }
             registry.packages.removeAll { $0.id == m.id }
             registry.packages.append(record)
             bundles[m.id] = bundle
             if trust == .trustedKey, let key = bundle.verification.signingKey?.string, !registry.trustedKeys.contains(key) {
                 registry.trustedKeys.append(key)
             }
-            save()
+            do {
+                try save()
+            } catch {
+                (registry, bundles[m.id]) = before
+                if old?.version != m.version, let target = try? folder(m.id, m.version) { try? FileManager.default.removeItem(at: target) }
+                throw error
+            }
+            // Only the newest two versions are kept, once the registry no longer names the oldest.
+            if let old, old.version != m.version, let older = old.previousVersion, older != m.version, directory != nil {
+                if let older = try? folder(m.id, older) { try? FileManager.default.removeItem(at: older) }
+            }
         }
         PackagesVersion.bump()
     }
@@ -334,8 +354,13 @@ final class PackageStore: @unchecked Sendable {
             registry.packages[i].version = previous
             registry.packages[i].previousVersion = current
             registry.packages[i].keys = bundle.verification.keys.map(\.string)
+            // Trust goes with the files: an unsigned (or untrusted) earlier version doesn't keep a signed one's.
+            let key = bundle.verification.signingKey?.string
+            if key == nil || (registry.packages[i].trust == .trustedKey && !registry.trustedKeys.contains(key ?? "")) {
+                registry.packages[i].trust = .unsigned
+            }
             bundles[id] = bundle
-            save()
+            try? save()
         }
         PackagesVersion.bump()
     }
@@ -348,7 +373,7 @@ final class PackageStore: @unchecked Sendable {
             registry.packages.removeAll { $0.id == id }
             bundles[id] = nil
             if let directory, let folder = try? Self.contained(id, in: directory) { try? FileManager.default.removeItem(at: folder) }
-            save()
+            try? save()
         }
         PackagesVersion.bump()
     }
@@ -362,7 +387,7 @@ final class PackageStore: @unchecked Sendable {
             } else if let i = registry.packages.firstIndex(where: { $0.id == id }) {
                 registry.packages[i].onInNewChats = on
             }
-            save()
+            try? save()
         }
         PackagesVersion.bump()
     }

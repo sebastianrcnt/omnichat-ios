@@ -447,4 +447,44 @@ struct ChatGPTTokenRefreshTests {
         }
         #expect(store.tokens(connection) == nil)
     }
+
+    /// Deleting the connection while the code exchange is in flight: nothing comes back, and the issued tokens are revoked.
+    @Test func deletionDuringCodeExchangeSavesNothing() async throws {
+        let signer = TestSigner()
+        let store = ChatGPTCredentialStore.inMemory()
+        let clock = FakeClock()
+        let attempt = ChatGPTOAuth.Attempt(state: "S", nonce: "nonce-1", verifier: "V", redirectURI: "http://127.0.0.1:9/auth/callback",
+                                           savedClientID: nil, hostID: "h", loginHint: nil)
+        let idToken = signer.token(["iss": "https://auth.openai.com", "sub": "user-9", "aud": "oaiapp_9", "nonce": "nonce-1",
+                                    "exp": clock.now.timeIntervalSince1970 + 3600, "iat": clock.now.timeIntervalSince1970])
+        let jwks = signer.jwks
+        let http = FakeAuthHTTP { request in
+            if request.url == ChatGPTOAuth.jwksURL { return (jwks, 200) }
+            if request.url == ChatGPTOAuth.revocationEndpoint { return (Data(), 200) }
+            return (json(["access_token": "at", "refresh_token": "rt", "id_token": idToken, "token_type": "Bearer",
+                          "expires_in": 3600, "scope": "openid offline_access chatgpt.tokens.use.direct"]), 200)
+        }
+        http.delay = .milliseconds(200)
+        let auth = ChatGPTAuth(store: store, http: http, now: { clock.now })
+        let connection = UUID()
+        let generation = await auth.signInGeneration(connection)
+        try await auth.saveIssuedClientID("oaiapp_9", connectionID: connection, generation: generation)
+        let exchange = Task {
+            try await auth.completeSignIn(connectionID: connection, attempt: attempt, code: "code", clientID: "oaiapp_9",
+                                          generation: generation)
+        }
+        try await Task.sleep(for: .milliseconds(50))
+        await auth.signOut(connectionID: connection) // what Delete connection does, before removing the records
+        store.removeAll(connection)
+        await #expect(throws: ChatGPTAuthError.cancelled) { try await exchange.value }
+        #expect(store.tokens(connection) == nil)
+        #expect(store.registration(connection) == nil)
+        let revocation = try #require(http.requests.first { $0.url == ChatGPTOAuth.revocationEndpoint })
+        #expect(http.form(revocation)["token"] == "rt")
+        // A sign-in started after the deletion is not refused.
+        await #expect(throws: Never.self) {
+            try await auth.saveIssuedClientID("oaiapp_9", connectionID: connection,
+                                              generation: await auth.signInGeneration(connection))
+        }
+    }
 }

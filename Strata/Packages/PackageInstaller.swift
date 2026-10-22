@@ -23,6 +23,10 @@ struct PackageCandidate: Identifiable, Sendable {
     var namespace: String
     /// The first install of its signing key: the sheet asks "Trust this publisher's key?".
     var asksToTrustKey: Bool
+    /// The installed version is signed with this key but the user didn't trust it: the question comes back, off.
+    var keyDeclined = false
+    /// The installed version's "On in new chats" (nil for a new install).
+    var installedOnInNewChats: Bool?
     /// Hosts, secrets and private network access the installed version didn't have (empty for a new install).
     var newHosts: [String]
     var newSecrets: [String]
@@ -35,8 +39,9 @@ struct PackageCandidate: Identifiable, Sendable {
     var id: String { bundle.manifest.id }
     var manifest: PackageManifest { bundle.manifest }
     var widensPermissions: Bool { !newHosts.isEmpty || !newSecrets.isEmpty || newPrivateNetwork }
-    /// "On in new chats" starts on only for company trust (decision of 2026-10-22).
-    var onInNewChatsByDefault: Bool { trust.onInNewChatsByDefault }
+    /// "On in new chats" starts on only for company trust (decision of 2026-10-22); an update starts from the
+    /// installed setting.
+    var onInNewChatsByDefault: Bool { installedOnInNewChats ?? trust.onInNewChatsByDefault }
 }
 
 /// Reads packages for review and installs the ones the user accepts (docs/PACKAGES.md 5.1–5.4): the same-key rule for
@@ -122,6 +127,7 @@ struct PackageInstaller: Sendable {
         }
         guard let installed else { return candidate }
 
+        candidate.installedOnInNewChats = installed.record.onInNewChats
         let old = installed.manifest
         candidate.newHosts = m.network.filter { !old.network.contains($0) }
         candidate.newSecrets = m.secrets.map(\.name).filter { old.secret(named: $0) == nil }
@@ -139,6 +145,9 @@ struct PackageInstaller: Sendable {
                 candidate.blocker = String(localized: "The installed \(installed.name) is signed, and this version isn't. Only its publisher can update it.")
             } else if keys.isDisjoint(with: installed.record.keys) {
                 candidate.blocker = String(localized: "This version of \(installed.name) is signed by a different key than the installed one. Remove the installed package first if you trust the new publisher.")
+            } else if installed.trust == .unsigned {
+                // Signed, but the user said no to its key: continuity of the key isn't trust in it.
+                candidate.keyDeclined = candidate.asksToTrustKey
             } else {
                 candidate.asksToTrustKey = false
             }

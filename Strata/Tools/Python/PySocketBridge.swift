@@ -731,8 +731,12 @@ final class PySocketBridge: @unchecked Sendable {
             sock.reading.remove(key)
             guard sock.state != .closed else { return }
             if let relay = sock.relay, relay.raw === conn || relay.inner === conn {
-                self.pipe(relay, from: conn, data: data, complete: complete || error != nil)
-                if !complete, error == nil { self.read(sock, from: conn) }
+                // The next receive waits until this chunk has moved on, so a peer can't fill the app's memory faster
+                // than the other end (and Python behind it) reads.
+                self.pipe(relay, from: conn, data: data, complete: complete || error != nil) { [weak self, weak sock] in
+                    guard let self, let sock, !complete, error == nil else { return }
+                    self.read(sock, from: conn)
+                }
                 return
             }
             guard conn === sock.connection else { return }
@@ -1173,6 +1177,7 @@ final class PySocketBridge: @unchecked Sendable {
                     for chunk in relay.pending { conn.send(content: chunk, completion: .idempotent) }
                     relay.pending = []
                     if relay.rawEOF { conn.send(content: nil, contentContext: .finalMessage, isComplete: true, completion: .idempotent) }
+                    else { self.read(sock, from: relay.raw) } // paused while there was nowhere to send to
                     self.read(sock, from: conn)
                 }
                 conn.start(queue: self.queue)
@@ -1275,20 +1280,28 @@ final class PySocketBridge: @unchecked Sendable {
         return Reply(json: json)
     }
 
-    /// Moves bytes between the server and the TLS connection's loopback end.
-    private func pipe(_ relay: TLSRelay, from conn: NWConnection, data: Data?, complete: Bool) {
+    /// Moves bytes between the server and the TLS connection's loopback end. `next` runs once the chunk has been
+    /// handed on (not while the receiving end is backed up); before the inner end is ready the server's bytes wait in
+    /// `pending` and reading resumes when it is.
+    private func pipe(_ relay: TLSRelay, from conn: NWConnection, data: Data?, complete: Bool,
+                      next: @escaping @Sendable () -> Void) {
+        let target: NWConnection
         if conn === relay.raw {
-            if let inner = relay.inner {
-                if let data, !data.isEmpty { inner.send(content: data, completion: .idempotent) }
-                if complete { inner.send(content: nil, contentContext: .finalMessage, isComplete: true, completion: .idempotent) }
-            } else {
+            guard let inner = relay.inner else {
                 if let data, !data.isEmpty { relay.pending.append(data) }
                 if complete { relay.rawEOF = true }
+                return
             }
+            target = inner
         } else {
-            if let data, !data.isEmpty { relay.raw.send(content: data, completion: .idempotent) }
-            if complete { relay.raw.send(content: nil, contentContext: .finalMessage, isComplete: true, completion: .idempotent) }
+            target = relay.raw
         }
+        if let data, !data.isEmpty {
+            target.send(content: data, completion: .contentProcessed { error in if error == nil { next() } })
+        } else {
+            next()
+        }
+        if complete { target.send(content: nil, contentContext: .finalMessage, isComplete: true, completion: .idempotent) }
     }
 
     static func tlsMessage(_ error: NWError) -> String {

@@ -43,7 +43,8 @@ struct PackageInstallTests {
         #expect(c.change == .update(from: "1.0.0"))
         #expect(c.newHosts == ["files.example.com"] && c.newSecrets == ["token"] && c.widensPermissions)
         #expect(c.changedFiles == ["manifest.json"])
-        try i.install(c, onInNewChats: false)
+        #expect(c.onInNewChatsByDefault, "the update sheet starts from the installed setting")
+        try i.install(c, onInNewChats: c.onInNewChatsByDefault)
         let p = try #require(s.package(id: "com.example.demo"))
         #expect(p.version == "1.1.0" && p.record.previousVersion == "1.0.0")
         #expect(p.record.onInNewChats, "an update keeps the user's choice")
@@ -69,6 +70,38 @@ struct PackageInstallTests {
         #expect(reopened.package(id: "com.example.demo") == nil)
         #expect(secrets.value("token", package: "com.example.demo") == nil, "uninstall deletes its secrets")
         #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("com.example.demo").path))
+    }
+
+    /// A reinstall that can't be written, or a registry that can't be saved, leaves the working installation.
+    @Test func aFailedInstallKeepsTheInstalledVersion() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("pkgs-\(UUID().uuidString)")
+        let packageDir = dir.appendingPathComponent("com.example.demo")
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: packageDir.path)
+            try? FileManager.default.removeItem(at: dir)
+        }
+        let s = PackageStore(directory: dir, builtIn: [], builtInDefault: { _ in false })
+        let i = installer(s)
+        try i.install(i.candidate(try TestPackages.bundle(TestPackages.manifest()), source: .file("a")), onInNewChats: false)
+        try i.install(i.candidate(try TestPackages.bundle(TestPackages.manifest()), source: .file("a")), onInNewChats: false)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: packageDir.path) == ["1.0.0"], "no staging left behind")
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: packageDir.path)
+        #expect(throws: (any Error).self) {
+            try i.install(i.candidate(try TestPackages.bundle(TestPackages.manifest()), source: .file("a")), onInNewChats: false)
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: packageDir.path)
+        #expect(PackageStore(directory: dir, builtIn: [], builtInDefault: { _ in false }).package(id: "com.example.demo")?.version == "1.0.0")
+
+        // The registry can't be written: the update fails and the store still has the installed version.
+        let registry = dir.appendingPathComponent("registry.json")
+        try FileManager.default.removeItem(at: registry)
+        try FileManager.default.createDirectory(at: registry, withIntermediateDirectories: false)
+        #expect(throws: (any Error).self) {
+            try i.install(i.candidate(try TestPackages.bundle(TestPackages.manifest(version: "2.0.0")), source: .file("b")), onInNewChats: false)
+        }
+        #expect(s.package(id: "com.example.demo")?.version == "1.0.0")
+        #expect(!FileManager.default.fileExists(atPath: packageDir.appendingPathComponent("2.0.0").path))
     }
 
     /// The audit's example: build metadata used to be dropped unchecked, so this version passed validation and named
@@ -115,6 +148,48 @@ struct PackageInstallTests {
         let rotated = i.candidate(try TestPackages.signed(TestPackages.manifest(version: "2.0.0"), key: next, chain: [link], original: key.publicKey),
                                   source: .file("e"))
         #expect(rotated.blocker == nil)
+    }
+
+    @Test func theUpdateSheetsSwitchDecidesOnInNewChats() throws {
+        let s = store()
+        let i = installer(s)
+        try i.install(i.candidate(try TestPackages.bundle(TestPackages.manifest()), source: .file("a")), onInNewChats: true)
+        let update = i.candidate(try TestPackages.bundle(TestPackages.manifest(version: "1.1.0")), source: .file("b"))
+        #expect(update.onInNewChatsByDefault)
+        try i.install(update, onInNewChats: false)
+        #expect(s.package(id: "com.example.demo")?.record.onInNewChats == false)
+    }
+
+    @Test func aDeclinedKeyStaysUntrustedThroughUpdates() throws {
+        let s = store()
+        let i = installer(s)
+        let key = PackageKeys.generate()
+        let first = i.candidate(try TestPackages.signed(TestPackages.manifest(), key: key), source: .file("a"))
+        try i.install(first, onInNewChats: false, trustKey: false)
+        #expect(s.package(id: "com.example.demo")?.trust == .unsigned && !s.isTrustedKey(key.publicKey))
+        // The same key signs the update: the question comes back, starting off, and saying no keeps it unsigned.
+        let update = i.candidate(try TestPackages.signed(TestPackages.manifest(version: "1.1.0"), key: key), source: .file("b"))
+        #expect(update.blocker == nil && update.asksToTrustKey && update.keyDeclined)
+        try i.install(update, onInNewChats: false, trustKey: false)
+        #expect(s.package(id: "com.example.demo")?.trust == .unsigned)
+        // Saying yes now trusts it.
+        let later = i.candidate(try TestPackages.signed(TestPackages.manifest(version: "1.2.0"), key: key), source: .file("c"))
+        try i.install(later, onInNewChats: false, trustKey: true)
+        #expect(s.package(id: "com.example.demo")?.trust == .trustedKey && s.isTrustedKey(key.publicKey))
+    }
+
+    @Test func revertToAnUnsignedVersionDropsTrust() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("pkgs-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let s = PackageStore(directory: dir, builtIn: [], builtInDefault: { _ in false })
+        let i = installer(s)
+        try i.install(i.candidate(try TestPackages.bundle(TestPackages.manifest()), source: .file("a")), onInNewChats: false)
+        let signed = i.candidate(try TestPackages.signed(TestPackages.manifest(version: "2.0.0"), key: PackageKeys.generate()), source: .file("b"))
+        try i.install(signed, onInNewChats: false)
+        #expect(s.package(id: "com.example.demo")?.trust == .trustedKey)
+        try s.revert(id: "com.example.demo")
+        let p = try #require(s.package(id: "com.example.demo"))
+        #expect(p.version == "1.0.0" && p.trust == .unsigned && p.record.keys.isEmpty)
     }
 
     @Test func pageToolsAndBuiltInIDsAreRefused() throws {

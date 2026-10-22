@@ -134,7 +134,7 @@ enum StandardResponses {
     static func body(_ request: ChatRequest) throws -> Data {
         var translated = ResponsesRequest(request, reasoning: request.reasoningEffort != nil, namespacedTools: false)
         translated.input.removeAll { if case .reasoning(let item) = $0 { item.encryptedContent == nil } else { false } }
-        translated.maxOutputTokens = request.maxTokens
+        translated.maxOutputTokens = request.maxTokens ?? request.maxCompletionTokens
         return try translated.encoded()
     }
 

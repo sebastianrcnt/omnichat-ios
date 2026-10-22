@@ -30,6 +30,7 @@ final class ChatGPTSignIn: NSObject, ASWebAuthenticationPresentationContextProvi
     /// closes the sheet.
     func run() async throws -> ChatGPTRegistration {
         let store = auth.store
+        let generation = await auth.signInGeneration(connectionID)
         let registration = store.registration(connectionID)
         let hostID = store.hostIDStore.hostID()
 
@@ -65,8 +66,9 @@ final class ChatGPTSignIn: NSObject, ASWebAuthenticationPresentationContextProvi
         case .ignored: throw ChatGPTAuthError.registrationIncomplete
         case .failure(let error): throw error
         case .success(let code, let clientID):
-            try await auth.saveIssuedClientID(clientID, connectionID: connectionID)
-            return try await auth.completeSignIn(connectionID: connectionID, attempt: attempt, code: code, clientID: clientID)
+            try await auth.saveIssuedClientID(clientID, connectionID: connectionID, generation: generation)
+            return try await auth.completeSignIn(connectionID: connectionID, attempt: attempt, code: code, clientID: clientID,
+                                                 generation: generation)
         }
     }
 

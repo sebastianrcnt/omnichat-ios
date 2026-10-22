@@ -1,13 +1,21 @@
 import Foundation
 import Observation
 
-/// Connections (JSON in UserDefaults) plus their Keychain-backed API keys.
+/// Connections (JSON in UserDefaults) plus their Keychain-backed API keys and custom headers.
 @MainActor
 @Observable
 final class ConnectionStore {
     private(set) var connections: [Connection] = []
     private let defaults: UserDefaults
     let keys: any KeyStoring
+    /// Custom headers, which may hold credentials: in the Keychain (`KeychainSync.headersService`, the items connection
+    /// sync uses too) rather than the UserDefaults list. In memory when the API keys are (tests, `-StrataEphemeralKeys`).
+    let headerStore: any KeyStoring
+    /// Each connection's headers as the header store holds them, as last read or written here, and as this device last
+    /// had them (both trimmed). The list keeps a connection's headers until the store is known to hold the same: a
+    /// Keychain that couldn't be written, or that holds another value this device didn't choose, never costs one.
+    @ObservationIgnored private var storedHeaders: [UUID: String] = [:]
+    @ObservationIgnored private var localHeaders: [UUID: String] = [:]
     private let storageKey = "connections.v1"
     private let session: URLSession
     /// Sign-in and tokens of ChatGPT connections.
@@ -15,10 +23,11 @@ final class ConnectionStore {
     /// Sign-in, tokens and API keys of OpenCode connections.
     let openCode: OpenCodeAuth
 
-    init(defaults: UserDefaults = .standard, keys: any KeyStoring = KeychainKeyStore(), session: URLSession = .shared,
-         chatGPT: ChatGPTAuth = .shared, openCode: OpenCodeAuth = .shared) {
+    init(defaults: UserDefaults = .standard, keys: any KeyStoring = KeychainKeyStore(), headers: (any KeyStoring)? = nil,
+         session: URLSession = .shared, chatGPT: ChatGPTAuth = .shared, openCode: OpenCodeAuth = .shared) {
         self.defaults = defaults
         self.keys = keys
+        headerStore = headers ?? (keys is KeychainKeyStore ? KeychainKeyStore(service: KeychainSync.headersService) : InMemoryKeyStore())
         self.session = session
         self.chatGPT = chatGPT
         self.openCode = openCode
@@ -35,9 +44,33 @@ final class ConnectionStore {
                 defaults.set(data, forKey: storageKey + ".unreadable")
                 connections = ((try? JSONDecoder().decode([Lenient<Connection>].self, from: data)) ?? []).compactMap(\.value)
             }
+            loadHeaders()
             migrateSystemPrompts(data)
         }
         migrateBuiltInConnection(defaults.data(forKey: storageKey))
+    }
+
+    private static func trimmed(_ headers: String) -> String { headers.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    /// Headers come from the header store. Headers an older version saved in the list move there (checked by reading
+    /// them back) and leave the list on the next save; where the store already holds different ones, this device keeps
+    /// its own in the list, as before.
+    private func loadHeaders() {
+        var moved = false
+        for i in connections.indices {
+            let id = connections[i].id
+            var stored = headerStore.key(for: id) ?? ""
+            let listed = connections[i].customHeaders
+            if !Self.trimmed(listed).isEmpty, Self.trimmed(stored).isEmpty {
+                try? headerStore.setKey(listed, for: id)
+                stored = headerStore.key(for: id) ?? ""
+                moved = moved || Self.trimmed(stored) == Self.trimmed(listed)
+            }
+            storedHeaders[id] = Self.trimmed(stored)
+            if Self.trimmed(listed).isEmpty { connections[i].customHeaders = stored }
+            localHeaders[id] = Self.trimmed(connections[i].customHeaders)
+        }
+        if moved { save() }
     }
 
     /// Set once the connection that used to ship with the app has become an ordinary one.
@@ -78,7 +111,18 @@ final class ConnectionStore {
     }
 
     private func save() {
-        if let data = try? JSONEncoder().encode(connections) { defaults.set(data, forKey: storageKey) }
+        var listed = connections
+        for i in listed.indices {
+            let id = listed[i].id, now = Self.trimmed(listed[i].customHeaders)
+            // Changed on this device: into the header store, read back to be sure.
+            if now != storedHeaders[id, default: ""], now != localHeaders[id] {
+                try? headerStore.setKey(now.isEmpty ? nil : listed[i].customHeaders, for: id)
+                storedHeaders[id] = Self.trimmed(headerStore.key(for: id) ?? "")
+            }
+            localHeaders[id] = now
+            if now == storedHeaders[id, default: ""] { listed[i].customHeaders = "" }
+        }
+        if let data = try? JSONEncoder().encode(listed) { defaults.set(data, forKey: storageKey) }
         onSave?(connections)
     }
 
@@ -106,6 +150,9 @@ final class ConnectionStore {
     func delete(_ id: UUID) {
         connections.removeAll { $0.id == id }
         try? keys.setKey(nil, for: id)
+        try? headerStore.setKey(nil, for: id)
+        storedHeaders[id] = nil
+        localHeaders[id] = nil
         chatGPT.store.removeAll(id)
         openCode.store.removeAll(id)
         save()
@@ -280,9 +327,12 @@ final class ConnectionStore {
         for h in conn.parsedHeaders { headers[h.name] = h.value }
         let probe = Endpoint(connectionID: id, connectionName: conn.name, baseURL: base, apiKey: keys.key(for: id),
                              headers: headers, model: ModelInfo(id: ""))
-        let entries = try await ModelsAPI.fetch(endpoint: probe, session: session)
-        // Merge into the connection as it is now: it may have been deleted or edited while the request ran.
+        let sent = fetchTarget(id)
+        let entries = try await ModelsAPI.fetch(endpoint: probe, session: session).filter { OpenAIPlatform.isChatModel($0.id, baseURL: base) }
+        // Merge into the connection as it is now: it may have been deleted or edited while the request ran. A list from
+        // another address, headers or key (edited meanwhile, or a fetch that a newer one overtook) isn't this one's.
         guard let conn = connection(id) else { return entries.count }
+        guard fetchTarget(id) == sent else { throw CancellationError() }
         var updated = conn
         let manual = conn.models.filter { m in !entries.contains { $0.id == m.id } && m.isManual }
         var merged: [ModelInfo] = entries.map { entry in
@@ -301,6 +351,12 @@ final class ConnectionStore {
         updated.models = merged
         upsert(updated)
         return entries.count
+    }
+
+    /// What a `/models` request goes to and with: its answer is merged only while the connection still has all of it.
+    private func fetchTarget(_ id: UUID) -> [String?] {
+        guard let c = connection(id) else { return [] }
+        return [c.normalizedBaseURL?.absoluteString, c.customHeaders, keys.key(for: id)]
     }
 
     /// The signed-in account's catalog (`GET /v1/models`, `visibility: "list"` entries, in the server's order),
@@ -328,8 +384,10 @@ final class ConnectionStore {
         for h in conn.parsedHeaders { headers[h.name] = h.value }
         let probe = Endpoint(connectionID: id, connectionName: conn.name, baseURL: base, apiKey: keys.key(for: id),
                              headers: headers, model: ModelInfo(id: ""), kind: .anthropic)
+        let sent = fetchTarget(id)
         let entries = try await AnthropicModelsAPI.fetch(endpoint: probe, session: session)
         guard var updated = connection(id) else { return entries.count }
+        guard fetchTarget(id) == sent else { throw CancellationError() } // edited while the request ran
         let manual = updated.models.filter { m in m.isManual && !entries.contains { $0.id == m.id } }
         updated.models = entries.map { entry in
             var model = updated.models.first { $0.id == entry.id } ?? AnthropicModels.model(id: entry.id)
