@@ -20,8 +20,10 @@ enum ChatGPTOAuth {
     static let planScope = "chatgpt.tokens.use.direct"
     /// The first-registration entry point; never saved and never used for a token request.
     static let dynamicClientID = "dynamic_agent_client"
-    /// Sent as `agent_name_hint` on first registration only. The user can rename it on the consent page.
-    static let agentName = "Strata"
+    /// Sent as `agent_name_hint` on first registration only: the app's actual name, the same on every installation (the
+    /// sign-in docs). The user can rename it on the consent page; it is display metadata, so registrations made under an
+    /// earlier name keep working (returning sign-ins send the issued client id and no name).
+    static let agentName = "OpenChat"
     /// Only the port of the redirect URI may vary between sign-ins.
     static let callbackPath = "/auth/callback"
     /// ChatGPT Settings → Usage: plan usage and per-app limits.
@@ -274,7 +276,7 @@ enum ChatGPTAuthError: Error, LocalizedError, Equatable {
         case .invalidTokenResponse: String(localized: "ChatGPT returned incomplete credentials. Please sign in again.")
         case .invalidIDToken(let why): String(localized: "The ChatGPT identity could not be verified (\(why)). Please sign in again.")
         case .accountMismatch: String(localized: "This sign-in returned a different ChatGPT account. Sign in with the original account, or add another ChatGPT connection.")
-        case .signInRequired: String(localized: "Sign in with ChatGPT in Settings.")
+        case .signInRequired: String(localized: "Sign in to ChatGPT in Settings.")
         case .sessionExpired: String(localized: "Your ChatGPT session has ended. Sign in again in Settings.")
         case .cancelled: String(localized: "Sign-in was cancelled.")
         case .listenerFailed: String(localized: "The local sign-in listener could not start. Try again.")
@@ -290,7 +292,7 @@ enum ChatGPTAuthError: Error, LocalizedError, Equatable {
 
 // MARK: - ID token
 
-/// The claims Strata reads from an ID token.
+/// The claims the app reads from an ID token.
 struct ChatGPTIDClaims: Decodable, Sendable, Equatable {
     var iss: String
     var sub: String
