@@ -149,6 +149,8 @@ struct PyodideServer: Sendable {
     var fetch: PyNetworkFetch
     /// Largest download accepted through the proxy.
     var maxDownload = 200 * 1024 * 1024
+    /// Python's sockets (`strata-py://app/sock`); nil refuses them.
+    var sockets: PySocketBridge?
 
     /// The real server for the app: bundle, lock and cache directory.
     static func live() -> PyodideServer? {
@@ -180,6 +182,12 @@ struct PyodideServer: Sendable {
             guard let raw = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "u" })?.value,
                   let target = URL(string: raw) else { return .error(400, "Bad proxy request") }
             return await proxy(target, original: request)
+        }
+        if path == "/sock" {
+            guard let sockets else { return .error(404, "Not found") }
+            let body = request.httpBody ?? request.httpBodyStream.map(Self.drain) ?? Data()
+            return PyResponse(status: 200, mimeType: "application/octet-stream", body: await sockets.handle(body),
+                              headers: ["Cache-Control": "no-store"])
         }
         let relative = path.hasPrefix("/") ? String(path.dropFirst()) : path
         guard !relative.isEmpty, !relative.split(separator: "/").contains(where: { $0 == ".." || $0 == "." }) else {

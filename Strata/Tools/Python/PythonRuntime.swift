@@ -98,8 +98,16 @@ enum PythonOutputFormatter {
     ///   - limit: characters of output (Settings > Fetch length); longer output keeps its start and end.
     ///   - figures: the figures this run saved.
     ///   - canView: the model can look at figures with `view_image`.
+    ///   - network: what the run did on the network (`PySocketActivity.summary`), shown last.
     static func format(_ outcome: PythonOutcome, figures: [ToolImage], limit: Int, sessionReset: Bool,
-                       canView: Bool) -> ToolOutput {
+                       canView: Bool, network: String? = nil) -> ToolOutput {
+        var out = formatRun(outcome, figures: figures, limit: limit, sessionReset: sessionReset, canView: canView)
+        if let network, !network.isEmpty, !out.text.isEmpty { out.text += "\n\n[\(network)]" }
+        return out
+    }
+
+    private static func formatRun(_ outcome: PythonOutcome, figures: [ToolImage], limit: Int, sessionReset: Bool,
+                                  canView: Bool) -> ToolOutput {
         var lines: [String] = []
         if sessionReset { lines.append(resetNote) }
         switch outcome {
@@ -209,6 +217,8 @@ struct PythonSessionLedger: Sendable, Equatable {
 final class PythonWebHost: NSObject, WKNavigationDelegate {
     let webView: WKWebView
     private let handler: PythonSchemeHandler
+    /// The interpreter's sockets.
+    let sockets: PySocketBridge?
     private var loadContinuation: CheckedContinuation<Void, Error>?
     private(set) var isLoaded = false
     /// The web content process died (most often: memory).
@@ -217,6 +227,7 @@ final class PythonWebHost: NSObject, WKNavigationDelegate {
 
     init(server: PyodideServer) {
         handler = PythonSchemeHandler(server: server)
+        sockets = server.sockets
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
         config.setURLSchemeHandler(handler, forURLScheme: Pyodide.scheme)
@@ -238,6 +249,7 @@ final class PythonWebHost: NSObject, WKNavigationDelegate {
 
     func dispose() {
         DiagnosticCounters.shared.webViewDisposed()
+        sockets?.closeAll()
         handler.stopAll()
         webView.stopLoading()
         webView.navigationDelegate = nil
@@ -275,9 +287,16 @@ final class PythonWebHost: NSObject, WKNavigationDelegate {
         return (value as? String) ?? ""
     }
 
-    /// Terminates the worker (the interpreter's state is gone; the page stays).
+    /// Terminates the worker (the interpreter's state is gone; the page stays). Its sockets close.
     func resetWorker() {
+        sockets?.closeAll()
         webView.callAsyncJavaScript("return window.strataPython && window.strataPython.reset();", arguments: [:],
+                                    in: nil, in: .page) { _ in }
+    }
+
+    /// Stops (or restarts) the run's clock while the user is asked something.
+    func holdTimer(_ on: Bool) {
+        webView.callAsyncJavaScript("return window.strataPython && window.strataPython.hold(on);", arguments: ["on": on],
                                     in: nil, in: .page) { _ in }
     }
 
@@ -378,9 +397,15 @@ final class PythonRuntime {
     private var running: Bool { !lock.holderKeys.isEmpty }
     /// Bumped as each run ends, so a reset scheduled by a cancelled run can't hit the run after it.
     private var runGeneration = 0
+    /// The tool call of the run in progress.
+    private var currentCallID: String?
     private var idleTimer: Task<Void, Never>?
     /// Test seam: the server the web view loads from.
     var makeServer: () -> PyodideServer? = { PyodideServer.live() }
+    /// Test seam: how a socket's connection to a local address is approved (nil asks with a card in the chat).
+    var approveNetwork: PySocketBridge.Approver?
+    /// The running call's deadlines, stopped while a network card waits.
+    private var runClocks: [any Deadline.Clock] = []
     let images: ToolImageStore
 
     #if os(macOS)
@@ -425,12 +450,22 @@ final class PythonRuntime {
         var outcome: PythonOutcome
         var fresh = true
         var pngs: [String] = []
+        var network: PySocketActivity?
         // Backstop for a page that never answers: the page has its own limits and normally answers first.
         let backstop = limits.run + limits.setup * 2 + .seconds(15)
         do {
             let host = try await liveHost()
+            host.sockets?.beginRun(conversationID: conversationID, callID: ToolContext.callID)
+            defer {
+                network = host.sockets?.endRun()
+                runClocks = []
+                PythonNetworkActivity.shared.clear(conversation: conversationID, callID: ToolContext.callID)
+            }
             let json = try await withTaskCancellationHandler {
-                try await Deadline.run(backstop, timeoutError: WebToolError.timeout) { try await host.run(code: code, limits: limits) }
+                try await Deadline.run(backstop, timeoutError: WebToolError.timeout) {
+                    self.runClocks = Deadline.clocks
+                    return try await host.run(code: code, limits: limits)
+                }
             } onCancel: {
                 Task { @MainActor [weak self] in
                     guard let self, self.runGeneration == generation else { return } // this run already ended
@@ -470,14 +505,17 @@ final class PythonRuntime {
             markSession(conversationID)
             note = ledger.finishRun(conversationID, fresh: fresh, hadSession: hadSession, lostState: outcome.lostState, now: .now)
         }
+        if outcome.lostState { host?.sockets?.closeAll() }
         scheduleIdleCheck()
-        return PythonOutputFormatter.format(outcome, figures: figures, limit: outputLimit, sessionReset: note, canView: canView)
+        return PythonOutputFormatter.format(outcome, figures: figures, limit: outputLimit, sessionReset: note, canView: canView,
+                                            network: network?.summary(localAddress: (network?.listening.isEmpty ?? true) ? nil : LocalAddress.wifi()))
     }
 
     private func liveHost() async throws -> PythonWebHost {
         if let host, !host.terminated, host.isLoaded { return host }
         disposeHost()
-        guard let server = makeServer() else { throw PythonHostError.unavailable }
+        guard var server = makeServer() else { throw PythonHostError.unavailable }
+        server.sockets = makeSockets()
         let host = PythonWebHost(server: server)
         host.onTerminate = { [weak self, weak host] in
             guard let self, let host, self.host === host else { return }
@@ -491,6 +529,28 @@ final class PythonRuntime {
     private func disposeHost() {
         host?.dispose()
         host = nil
+    }
+
+    /// The new interpreter's sockets: cards in the running call's chat, which stop the run's clock while they wait.
+    private func makeSockets() -> PySocketBridge {
+        let approve = approveNetwork ?? { approval, conversation, callID in
+            await ToolApprovals.shared.approveNetwork(approval, conversation: conversation, callID: callID)
+        }
+        return PySocketBridge(approve: approve, onWaitingForUser: { [weak self] waiting in
+            Task { @MainActor in self?.userWait(waiting) }
+        }, onActivity: { [weak self] activity in
+            Task { @MainActor in self?.showActivity(activity) }
+        })
+    }
+
+    private func userWait(_ waiting: Bool) {
+        host?.holdTimer(waiting)
+        for clock in runClocks { waiting ? clock.pause() : clock.resume() }
+    }
+
+    private func showActivity(_ activity: PySocketActivity) {
+        guard running, let owner = ledger.owner else { return }
+        PythonNetworkActivity.shared.update(conversation: owner, callID: currentCallID, summary: activity.summary())
     }
 
     /// Throws the interpreter away (idle, memory pressure, another chat).
@@ -552,8 +612,10 @@ final class PythonRuntime {
         let admitted = await lock.acquire(key)
         ToolWaits.shared.end(callID, conversation: conversation)
         guard admitted else { return nil }
+        currentCallID = callID
         defer {
             runGeneration += 1
+            currentCallID = nil
             lock.release(key)
         }
         return await body()

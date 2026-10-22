@@ -139,6 +139,7 @@
 		306B4942F897E48C44CB3636 /* BlockScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A89BAED1B31429F736228424 /* BlockScanner.swift */; };
 		30735106D1E50BC0D3716028 /* RevealController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6863F41588D64F67CDFE471 /* RevealController.swift */; };
 		30A0D0B89B1165984BCBB63C /* MessageTree.swift in Sources */ = {isa = PBXBuildFile; fileRef = 887031854AAB1463B8C6B465 /* MessageTree.swift */; };
+		30B387F8744E749AE97064AA /* PythonSocketTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E560938142EF6AF0F16B0EC /* PythonSocketTests.swift */; };
 		30C42465B49485D58B461445 /* SSHIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FECE87404E45AA86D7238B1 /* SSHIntegrationTests.swift */; };
 		30C4CDF68D365D443EBD530F /* CompactionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57C860BFAC93144D535EE9CD /* CompactionTests.swift */; };
 		30D142136F21C71477241808 /* OpenCodeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08538C07248262A1E9170720 /* OpenCodeModels.swift */; };
@@ -306,6 +307,7 @@
 		796035B400885F19288917B2 /* ThoughtSentence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1311BB3FAFBD1EC5F5DAA45E /* ThoughtSentence.swift */; };
 		7A4AB033521DA71E829776C9 /* MarkdownBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = C48316140F6C91D3CBA80AB7 /* MarkdownBlock.swift */; };
 		7A8B280D44A0C4FCA8F9BEA2 /* HealthSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = C612F50B1912B1F050696899 /* HealthSeed.swift */; };
+		7B5FA03B7924BF85DCFEF606 /* PySocketBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AA041031B8B2971BD97D579 /* PySocketBridge.swift */; };
 		7C20B111F0222EDCAC2ECC50 /* ChatController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C03FBF59DC6F9A1BD1C0A47 /* ChatController.swift */; };
 		7E1056D92B99471BE1919978 /* Skills.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8D8B674FF40A93C900B658F /* Skills.swift */; };
 		7E1E618885FEFCC120A25FD8 /* ChatStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = B63857674820F2E11039ED28 /* ChatStream.swift */; };
@@ -487,6 +489,7 @@
 		BE3BD316D70341DEFFE7487B /* ReplyActivityGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2602F113231ADAE526B5308B /* ReplyActivityGallery.swift */; };
 		BE5285A427D60122FF7171A8 /* ThoughtSentence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1311BB3FAFBD1EC5F5DAA45E /* ThoughtSentence.swift */; };
 		BEB34B0DB85669AACC226655 /* DisplayActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26362C1640E1FFD07DB34A8F /* DisplayActivity.swift */; };
+		BED11A044D14CBB11EF66AAC /* PySocketBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AA041031B8B2971BD97D579 /* PySocketBridge.swift */; };
 		BEF013CEB02D118BEADBC033 /* Artifacts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 089ACC0B5C832620F6132A73 /* Artifacts.swift */; };
 		BF78BF0FF2C6C37B29C17084 /* SyntaxHighlighter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D35D3DE95E22BA2A824C1C6 /* SyntaxHighlighter.swift */; };
 		C00702096A12E441FEF6B6F7 /* APIDictationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 361CCF5BF9B32D745D5FA42E /* APIDictationEngine.swift */; };
@@ -513,6 +516,7 @@
 		C60DA53419477699364FC35F /* ChatGPTAuthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A37BDCD5FD7C74B102B9E7E /* ChatGPTAuthTests.swift */; };
 		C6E0C3E3DF17F1CD6F152DB7 /* Effort.swift in Sources */ = {isa = PBXBuildFile; fileRef = 648F250AFB2520ECD6FBA4E7 /* Effort.swift */; };
 		C8442B0B875C04787DDE60B7 /* PackageSecrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4570911E9ACBAE9DBB37902C /* PackageSecrets.swift */; };
+		C85E937B26C867F1D42CE7A3 /* PythonNetworkActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7FD8B3372D4129B89DBCC0A /* PythonNetworkActivity.swift */; };
 		C944F80FF74D09821E6600CE /* SharePayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37ECA5855E5B61E2072BEB9F /* SharePayload.swift */; };
 		C95DB90E3E2396CBDF374547 /* MessageLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2787E35474BAA48D4652C8AE /* MessageLayout.swift */; };
 		C9AA32800B72508720EFB313 /* BrowserViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFB12D5FD8CEF9C79D43AF6D /* BrowserViews.swift */; };
@@ -577,6 +581,7 @@
 		E28B8F472D7AD64CCA802003 /* ShareItemLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AECCF73F6748FE84F7099DE /* ShareItemLoader.swift */; };
 		E2C16160D762E348D9135F77 /* Sources.swift in Sources */ = {isa = PBXBuildFile; fileRef = 603FD8755196D4C36A00346F /* Sources.swift */; };
 		E2FA2382C013258DA12BFE81 /* Pretendard-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 2FCFE1A61E07F2EE5636D7C1 /* Pretendard-OFL.txt */; };
+		E402237E60499CC076B5EE92 /* PythonNetworkActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7FD8B3372D4129B89DBCC0A /* PythonNetworkActivity.swift */; };
 		E49471B8D7BE1DC6C4BC89DA /* ICloudSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E3CC0C5CAAC962B84AC9257 /* ICloudSettingsView.swift */; };
 		E4B3A8D2F830437CC4E85F8F /* Skills in Resources */ = {isa = PBXBuildFile; fileRef = 53B0DA9BC609410BB67796D5 /* Skills */; };
 		E60ABAA22C8AC2C6810153D7 /* AppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 367D2EA9A1A5A06C4AA4B1FA /* AppShortcuts.swift */; };
@@ -732,6 +737,7 @@
 		17C8B76F60CF255F7FCBAEDB /* ContextSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextSheet.swift; sourceTree = "<group>"; };
 		182FD0E6C234BFA230BFB671 /* SystemPromptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemPromptTests.swift; sourceTree = "<group>"; };
 		19E3E58A1DF950B1F7BAD9CD /* ResponsesFallback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResponsesFallback.swift; sourceTree = "<group>"; };
+		1AA041031B8B2971BD97D579 /* PySocketBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PySocketBridge.swift; sourceTree = "<group>"; };
 		1AECCF73F6748FE84F7099DE /* ShareItemLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareItemLoader.swift; sourceTree = "<group>"; };
 		1B13CAD466BE4E5D1157F58C /* TextSizeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextSizeTests.swift; sourceTree = "<group>"; };
 		1B5BBAA2FDE1CDE917B886E5 /* MacDebug.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacDebug.swift; sourceTree = "<group>"; };
@@ -819,6 +825,7 @@
 		4C5558DF262D9B1B283F6605 /* BrowserAgent.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = BrowserAgent.js; sourceTree = "<group>"; };
 		4D1D207CEBD4D374E1551FDB /* ArtifactGalleryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactGalleryViews.swift; sourceTree = "<group>"; };
 		4DE91374F2E8D63D589AFF75 /* Compactor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Compactor.swift; sourceTree = "<group>"; };
+		4E560938142EF6AF0F16B0EC /* PythonSocketTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonSocketTests.swift; sourceTree = "<group>"; };
 		4E659CD4EAC77F222AED42AC /* Redaction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Redaction.swift; sourceTree = "<group>"; };
 		4EBBBB21E9CF1342F0D61973 /* BackgroundLoadingSoundTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundLoadingSoundTests.swift; sourceTree = "<group>"; };
 		4EFCFA16D1F4DB5CCBCAF9CF /* SSHKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHKeys.swift; sourceTree = "<group>"; };
@@ -1064,6 +1071,7 @@
 		F42DD6DE488FF594429FF03E /* MessageTreeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageTreeTests.swift; sourceTree = "<group>"; };
 		F4818A8A93C53CD3075EE65D /* SSHTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHTests.swift; sourceTree = "<group>"; };
 		F5AC0A7BCD327ACF820153EA /* ChatLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatLifecycle.swift; sourceTree = "<group>"; };
+		F7FD8B3372D4129B89DBCC0A /* PythonNetworkActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonNetworkActivity.swift; sourceTree = "<group>"; };
 		F8D8B674FF40A93C900B658F /* Skills.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Skills.swift; sourceTree = "<group>"; };
 		F9DD5CE5A930F470033D1540 /* PluginCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginCore.swift; sourceTree = "<group>"; };
 		FB5939AEB1A666782A72840E /* TurnRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnRunnerTests.swift; sourceTree = "<group>"; };
@@ -1212,6 +1220,7 @@
 				CEA1AB82E5C9F803670E2297 /* PluginTests.swift */,
 				8D35FCBD9685D8FFD316494C /* ProcessSegmentTests.swift */,
 				9A8F2001AC39567BD8A1D60D /* PythonIntegrationTests.swift */,
+				4E560938142EF6AF0F16B0EC /* PythonSocketTests.swift */,
 				D7F52682BF34F352DC90C188 /* PythonToolTests.swift */,
 				342661A12FE2062C81D8B547 /* QuoteCitationTests.swift */,
 				BB947F8AC9122712C0BF2C33 /* ResponsesAPITests.swift */,
@@ -1422,7 +1431,9 @@
 			isa = PBXGroup;
 			children = (
 				9A6AC1D6A0D425D2934E4B1D /* PyodideServer.swift */,
+				1AA041031B8B2971BD97D579 /* PySocketBridge.swift */,
 				689795A776DB38F58B854B51 /* PythonFigures.swift */,
+				F7FD8B3372D4129B89DBCC0A /* PythonNetworkActivity.swift */,
 				5280BB687C005E6ECA5D7CA6 /* PythonRuntime.swift */,
 			);
 			path = Python;
@@ -2140,6 +2151,7 @@
 				06C3F18826B96E1CE607BA9A /* PluginTests.swift in Sources */,
 				34E022A9049E6A1924ECD5C0 /* ProcessSegmentTests.swift in Sources */,
 				AC5B9BB1ECC121E76601798C /* PythonIntegrationTests.swift in Sources */,
+				30B387F8744E749AE97064AA /* PythonSocketTests.swift in Sources */,
 				C0DAAFD66177DD5F10746928 /* PythonToolTests.swift in Sources */,
 				6F0815E31AE206A439DA29D4 /* QuoteCitationTests.swift in Sources */,
 				3FD32AE69C1794195A9FA452 /* ResponsesAPITests.swift in Sources */,
@@ -2336,8 +2348,10 @@
 				CF4419B7FDB59826E9B3E860 /* PluginRunner.swift in Sources */,
 				29825640B2033A6C4B739BE7 /* ProcessSegmentModel.swift in Sources */,
 				1B2572A99F43D2C2B5132BEB /* ProcessSegments.swift in Sources */,
+				BED11A044D14CBB11EF66AAC /* PySocketBridge.swift in Sources */,
 				5B54319231F66AB260EA8828 /* PyodideServer.swift in Sources */,
 				CFDF09F10704FB0893C3F7E8 /* PythonFigures.swift in Sources */,
+				E402237E60499CC076B5EE92 /* PythonNetworkActivity.swift in Sources */,
 				A5FF899CC4F9262F57D90F5F /* PythonRuntime.swift in Sources */,
 				5AE42DB81E21478AFC110729 /* PythonViews.swift in Sources */,
 				93B3C71AE5DAFCDB0DB4B313 /* QuoteCitations.swift in Sources */,
@@ -2594,8 +2608,10 @@
 				5778FF916B3D00C297FE1B1E /* PluginRunner.swift in Sources */,
 				16AF34E2559E0EA1E6AC89C5 /* ProcessSegmentModel.swift in Sources */,
 				22D853C6287BACD18129747C /* ProcessSegments.swift in Sources */,
+				7B5FA03B7924BF85DCFEF606 /* PySocketBridge.swift in Sources */,
 				682B3FA45D683F485F6342F8 /* PyodideServer.swift in Sources */,
 				55F86F699C54515BBCA61138 /* PythonFigures.swift in Sources */,
+				C85E937B26C867F1D42CE7A3 /* PythonNetworkActivity.swift in Sources */,
 				A7F9A516AA2BA729C4452A39 /* PythonRuntime.swift in Sources */,
 				51DF420444A3FA34885F55CD /* PythonViews.swift in Sources */,
 				92F0C04504430F572ABC5E76 /* QuoteCitations.swift in Sources */,
