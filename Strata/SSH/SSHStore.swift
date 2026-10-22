@@ -208,7 +208,7 @@ final class SSHStore: Sendable {
         s.jump = s.jump.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         guard !s.jump.contains(s.name) else { throw SSHStoreError.invalid("A server can't be its own jump host.") }
         // "Always allow" was given for where the name led: a new address, user or route asks again.
-        if let old = server(named: s.name), old.host != s.host || old.port != s.port || old.user != s.user || old.jump != s.jump {
+        if let old = self.server(named: s.name), old.host != s.host || old.port != s.port || old.user != s.user || old.jump != s.jump {
             try setAlwaysAllowed(false, target: s.name)
         }
         try encode(s, Self.serverPrefix + s.name)
