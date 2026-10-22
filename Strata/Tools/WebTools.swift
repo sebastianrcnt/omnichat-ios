@@ -244,8 +244,17 @@ final class PageCache: @unchecked Sendable {
     private let lock = NSLock()
     private var entries: [String: (page: FetchedPage, stored: Date)] = [:]
 
+    /// Which load a URL is: all of it, fragment and query included. A hash-routed app (`/#/reports/first`) shows a
+    /// different page per fragment, so the citation key (`SourceStore.key`, which drops it) can't stand in.
+    static func key(for url: URL) -> String {
+        guard var comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url.absoluteString }
+        comps.scheme = comps.scheme?.lowercased()
+        comps.host = comps.host?.lowercased()
+        return comps.string ?? url.absoluteString
+    }
+
     func page(for url: URL, now: Date = .now) -> FetchedPage? {
-        let key = SourceStore.key(for: url.absoluteString)
+        let key = Self.key(for: url)
         return lock.withLock {
             guard let e = entries[key], now.timeIntervalSince(e.stored) < timeToLive else { return nil }
             return e.page
@@ -253,7 +262,7 @@ final class PageCache: @unchecked Sendable {
     }
 
     func store(_ page: FetchedPage, for url: URL, now: Date = .now) {
-        let key = SourceStore.key(for: url.absoluteString)
+        let key = Self.key(for: url)
         lock.withLock {
             entries[key] = (page, now)
             if entries.count > capacity, let oldest = entries.min(by: { $0.value.stored < $1.value.stored })?.key { entries[oldest] = nil }
@@ -338,7 +347,7 @@ struct WebFetchTool {
         } else {
             do {
                 let load = loader ?? Self.loadWithWebView(resolver: resolver, timeouts: timeouts)
-                page = try await (inFlight ?? .shared).load(key: SourceStore.key(for: url.absoluteString), callID: ToolContext.callID) { sink in
+                page = try await (inFlight ?? .shared).load(key: PageCache.key(for: url), callID: ToolContext.callID) { sink in
                     try await ToolContext.$progressSink.withValue(sink) { try await load(url) }
                 }
             } catch WebToolError.timeout {
