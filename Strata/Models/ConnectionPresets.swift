@@ -9,6 +9,17 @@ enum ConnectionPreset: String, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
+    /// The account connections the add-connection screen offers. OpenCode's terms don't say yet whether a general chat
+    /// app may use its gateways, so App Store builds leave it out until OpenCode confirms; connections made before keep
+    /// working, and Debug builds keep the option for development.
+    static var accounts: [ConnectionPreset] {
+        #if DEBUG
+        [.chatGPT, .openCode]
+        #else
+        [.chatGPT]
+        #endif
+    }
+
     var title: String {
         switch self {
         case .anthropic: String(localized: "Anthropic")

@@ -156,7 +156,7 @@ struct ConnectionSetupSheet: View {
                 }
             }
             GroupedSection(header: "With an account") {
-                ForEach([ConnectionPreset.chatGPT, .openCode]) { row($0) }
+                ForEach(ConnectionPreset.accounts) { row($0) }
             }
             GroupedSection(footer: "Anything that speaks the OpenAI API: vLLM, llama.cpp, LiteLLM, a company gateway.") {
                 row(.custom)
