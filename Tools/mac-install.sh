@@ -13,7 +13,7 @@ BUNDLE=cc.coolservices.strata.mac
 
 LOG=$(mktemp -t strata-mac-build)
 # A failed build must not install the previous build's app, which is still in the derived data.
-if ! xcodebuild -project "$REPO/Strata.xcodeproj" -scheme StrataMac -configuration Debug -derivedDataPath "$DD" build >"$LOG" 2>&1; then
+if ! xcodebuild -project "$REPO/Strata.xcodeproj" -scheme StrataMac -configuration Debug -derivedDataPath "$DD" -allowProvisioningUpdates build >"$LOG" 2>&1; then
   grep -a "error: " "$LOG" | head -20 >&2
   echo "build failed (log: $LOG)" >&2
   exit 1
