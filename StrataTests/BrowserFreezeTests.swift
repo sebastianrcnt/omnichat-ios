@@ -218,4 +218,27 @@ struct BrowserFreezeTests {
         #expect(page.webView.superview == nil && !page.isOnScreen, "parked out of the window again")
         #endif
     }
+
+    @Test func newWindowsOpenWhileTheUserHasThePage() throws {
+        // From the audit: a target="_blank" link or a "Sign in with…" popup did nothing in the browser sheet.
+        #if canImport(UIKit)
+        let window = try #require(HiddenWebView.keyWindow)
+        let page = HiddenWebView(guardNavigations: false)
+        defer { page.dispose() }
+        let stage = UIView(frame: CGRect(x: 0, y: 0, width: 200, height: 300))
+        window.addSubview(stage)
+        defer { stage.removeFromSuperview() }
+        #expect(!page.userHasPage)
+        let watching = page.claim(.sheet, in: stage, interactive: false)
+        #expect(!page.userHasPage, "watching the model's page is view only")
+        page.release(watching)
+        let preview = page.claim(.preview, in: stage, interactive: false)
+        #expect(!page.userHasPage)
+        page.release(preview)
+        let using = page.claim(.sheet, in: stage, interactive: true)
+        #expect(page.userHasPage)
+        page.release(using)
+        #expect(!page.userHasPage)
+        #endif
+    }
 }

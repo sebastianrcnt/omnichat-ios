@@ -75,6 +75,28 @@ struct OpenUIActionTests {
         #expect(ok.root != nil)
     }
 
+    @Test func aProgramThatDoublesStopsAtTheBudget() {
+        // From the audit: thirty-two lines doubling a string asked for 4 GiB while the answer drew.
+        func doubling(_ make: (String) -> String) -> String {
+            var lines = ["x0 = \"x\""]
+            for i in 1...32 { lines.append("x\(i) = \(make("x\(i - 1)"))") }
+            lines.append("root = Card([TextContent(x32)])")
+            return lines.joined(separator: "\n")
+        }
+        for source in [doubling { "\($0) + \($0)" }, doubling { "[\($0), \($0)]" }, doubling { "\"\" + [\($0), \($0)]" }] {
+            let r = page(source)
+            #expect(r.root == nil)
+            #expect(r.problems.contains("Too large to show"))
+        }
+        // A chain of references deeper than any real view.
+        let chain = (1...500).map { "y\($0) = y\($0 - 1)" }.joined(separator: "\n")
+        #expect(page("y0 = \"deep\"\n\(chain)\nroot = Card([TextContent(y500)])").root == nil)
+        // An ordinary view is well inside it.
+        let fine = page("rows = @Each([1, 2, 3], \"n\", \"Row \" + n)\nroot = Card([TextContent(\"\" + rows)])")
+        #expect(fine.root?.components("children").first?.string("text") == "Row 1,Row 2,Row 3")
+        #expect(fine.problems.isEmpty)
+    }
+
     @Test func numbersThatArentFiniteReadAsMissing() {
         // From a review: TextArea's rows went straight into Int(), so 1e400 or 0/0 crashed the app.
         let c = OUIComponent(type: "TextArea", props: ["rows": .number(.infinity), "min": .number(.nan), "max": .number(5)])
@@ -95,6 +117,12 @@ struct OpenUIActionTests {
         #expect(OUIValidation.error(.string("abc"), rules: rules(["numeric": .bool(true)])) == "Enter a number")
         #expect(OUIValidation.error(.object(OUIObject(keys: ["a"], values: ["a": .bool(false)])), rules: rules(["required": .bool(true)])) == "Required",
                 "a checkbox group with nothing checked is empty")
+        // From the audit: `^(a+)+$` against a long run of a's froze the chat on Submit. Patterns are not run at all.
+        let clock = ContinuousClock()
+        let started = clock.now
+        #expect(OUIValidation.error(.string(String(repeating: "a", count: 5000) + "!"), rules: rules(["pattern": .string("^(a+)+$")])) == nil)
+        #expect(OUIValidation.error(.string(String(repeating: "a", count: 100_000) + "@b"), rules: rules(["email": .bool(true)])) == "Enter a valid email address")
+        #expect(clock.now - started < .seconds(1))
     }
 
     @Test func aChoiceOnAPageWithNothingToPressSendsAtOnce() throws {
@@ -133,6 +161,33 @@ struct OpenUIActionTests {
         #expect(press("Docs", in: r, runtime: runtime, opened: { opened = $0 }) == nil)
         #expect(opened == URL(string: "https://example.com/docs"))
         #expect(runtime.saved == nil, "links and state changes don't lock the view")
+    }
+
+    @Test func aResetBoundFieldSendsWhatItShows() throws {
+        // From the audit: Reset put the input back to 1 on screen, but Submit still sent the 5 typed before.
+        let source = """
+        $quantity = 1
+        root = Card([order])
+        order = Form("order", Buttons([Button("Reset", Action([@Reset($quantity)])), Button("Two", Action([@Set($quantity, 2)])), Button("Order")]), [qty])
+        qty = FormControl("Quantity", Input("qty", "", "number", null, $quantity))
+        """
+        let runtime = OUIRuntime()
+        var r = page(source)
+        let root = try #require(r.root)
+        let field = try #require(OUITree.fields(in: root, form: "order").first)
+        runtime.setValue(.string("5"), form: "order", name: "qty", binding: "$quantity")
+        #expect(runtime.current(field, form: "order", program: r.program) == .string("5"))
+        #expect(press("Reset", in: r, runtime: runtime, form: "order") == nil)
+        #expect(runtime.current(field, form: "order", program: r.program) == .number(1), "what the input shows")
+        r = OUIRendered.make(source: source, state: runtime.state)
+        #expect(press("Order", in: r, runtime: runtime, form: "order")?.text == "Order\n- Quantity: 1")
+        #expect(runtime.saved?.fields["order"]?["qty"] == .number(1), "saved as shown")
+
+        let preset = OUIRuntime()
+        preset.setValue(.string("5"), form: "order", name: "qty", binding: "$quantity")
+        #expect(press("Two", in: r, runtime: preset, form: "order") == nil)
+        let after = OUIRendered.make(source: source, state: preset.state)
+        #expect(press("Order", in: after, runtime: preset, form: "order")?.text == "Order\n- Quantity: 2")
     }
 
     @Test func aListItemAndFollowUpTextAreMessages() {

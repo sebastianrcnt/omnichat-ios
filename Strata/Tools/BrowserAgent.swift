@@ -50,7 +50,7 @@ struct BrowserAgentState: Decodable, Sendable, Equatable {
     var tree: String
 
     /// What the model reads: the page, its scroll position, and the tree.
-    var text: String { "URL: \(url)\nTitle: \(title)\nScroll: \(scroll)\n\n\(tree)" }
+    var text: String { "URL: \(url)\nTitle: \(PageMetadata.capped(title))\nScroll: \(scroll)\n\n\(tree)" }
 
     static func decode(_ json: String) -> BrowserAgentState? { try? JSONDecoder().decode(Self.self, from: Data(json.utf8)) }
 }

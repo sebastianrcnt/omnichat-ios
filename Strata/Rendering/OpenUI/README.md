@@ -67,7 +67,7 @@ Arguments are positional in the order below. You can also pass them by name.
 
 Aliases: `Header` → `CardHeader`, `Divider` → `Separator`, `Badge` → `Tag`.
 
-Form `rules`: `required`, `email`, `url`, `numeric`, `min`, `max`, `minLength`, `maxLength` and `pattern`.
+Form `rules`: `required`, `email`, `url`, `numeric`, `min`, `max`, `minLength` and `maxLength`. `pattern` is ignored: a regular expression from the model could backtrack on the main thread with no way to stop it.
 
 ## Streaming
 

@@ -16,8 +16,9 @@ enum WebToolError: Error, LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .timeout: String(localized: "The page took too long to load.")
-        case .navigation(let m): String(localized: "The page failed to load: \(m)")
-        case .script(let m): String(localized: "Page script failed: \(m)")
+        // A page's exception can carry any string: cut like a title.
+        case .navigation(let m): String(localized: "The page failed to load: \(PageMetadata.capped(m, limit: PageMetadata.messageLimit))")
+        case .script(let m): String(localized: "Page script failed: \(PageMetadata.capped(m, limit: PageMetadata.messageLimit))")
         // Read by the model, so it says what to do next.
         case .insecure: "The site's security certificate is invalid (expired, self-signed or issued for another name), so the page was not opened. This site can't be read; use another source."
         }
@@ -35,6 +36,8 @@ enum WebToolError: Error, LocalizedError, Equatable {
         if e.domain == NSURLErrorDomain, Self.certificateCodes.contains(e.code) { return .insecure }
         return .navigation(error.localizedDescription)
     }
+
+    static let noLocalNetworkRules = "The browser's local-network protection could not be set up, so the page was not opened. Try again."
 
     static let certificateCodes: Set<Int> = [
         NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateHasBadDate, NSURLErrorServerCertificateUntrusted,
@@ -56,6 +59,9 @@ enum BrowserData {
 @MainActor
 enum BrowsingData {
     static func clearAll() async {
+        // Sheets first, then every page that holds a document from before: sessions, kept pages, the pool.
+        BrowserShowRequests.shared.closeAll()
+        KeptPages.shared.disposeAll()
         BrowserSessions.shared.closeAll()
         WebViewPool.shared.drain()
         PageCache.shared.removeAll()
@@ -103,14 +109,8 @@ enum LocalNetworkRules {
         return String(decoding: data, as: UTF8.self)
     }
 
-    /// Adds the rules to `controller`, now or once they are compiled.
-    static func install(in controller: WKUserContentController) {
-        if let list = lists[identifier] { controller.add(list); return }
-        let task = compile(identifier, patterns)
-        Task { @MainActor [weak controller] in
-            if let compiled = await task.value { controller?.add(compiled) }
-        }
-    }
+    /// The rules when they are already compiled.
+    static var compiled: WKContentRuleList? { lists[identifier] }
 
     /// The compiled rules, for a view that must not load anything before they are in place.
     static func rules() async -> WKContentRuleList? {
@@ -130,6 +130,7 @@ enum LocalNetworkRules {
             let compiled = try? await WKContentRuleListStore.default().compileContentRuleList(
                 forIdentifier: identifier, encodedContentRuleList: json(patterns))
             lists[identifier] = compiled
+            if compiled == nil { compiling[identifier] = nil } // the next view tries again
             return compiled
         }
         compiling[identifier] = task
@@ -166,6 +167,9 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
     private var continuation: CheckedContinuation<Void, Error>?
     private var allowNextNavigation = false
     private var guardNavigations: Bool
+    /// The local-network rules are on the view. A guarded view lets nothing load before they are (`decidePolicyFor`):
+    /// they are what stops a page's images, scripts and requests, which no navigation callback sees.
+    private(set) var hasRules = false
     private var resolver: any HostResolving
     /// The navigation a pending `load` is waiting for. Callbacks about any other (an abandoned one) are ignored.
     private var activeNavigation: WKNavigation?
@@ -180,7 +184,10 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
         config.defaultWebpagePreferences.allowsContentJavaScript = true
         // New windows reach `createWebViewWith`, which drops them unless a click just asked for them (`acceptPopups`).
         config.preferences.javaScriptCanOpenWindowsAutomatically = true
-        if guardNavigations { LocalNetworkRules.install(in: config.userContentController) }
+        if guardNavigations, let rules = LocalNetworkRules.compiled {
+            config.userContentController.add(rules)
+            hasRules = true
+        }
         if injectsReader, let source = ReadabilitySource.script {
             config.userContentController.addUserScript(WKUserScript(source: source, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         }
@@ -563,12 +570,17 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
 
     func acceptPopups(for duration: Duration) { popupsUntil = .now + duration }
 
-    /// A link with a target or `window.open` right after a click opens in this page (the model has one page); any
-    /// other new window is dropped.
+    /// The user has the page in the sheet and can touch it.
+    var userHasPage: Bool { owner?.kind == .sheet && owner?.interactive == true }
+
+    /// A link with a target or `window.open` right after the model's click, or while the user has the page in the
+    /// sheet (a `target="_blank"` link, a "Sign in with…" button), opens in this page: there is one page, and it goes
+    /// through the same address checks. Any other new window is dropped.
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction,
                  windowFeatures: WKWindowFeatures) -> WKWebView? {
-        if let until = popupsUntil, ContinuousClock.now < until, let url = navigationAction.request.url,
-           url.scheme?.lowercased().hasPrefix("http") == true {
+        guard let url = navigationAction.request.url, url.scheme?.lowercased().hasPrefix("http") == true else { return nil }
+        let clicked = popupsUntil.map { ContinuousClock.now < $0 } ?? false
+        if clicked || userHasPage {
             popupsUntil = nil
             webView.load(navigationAction.request)
         }
@@ -591,8 +603,13 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
         guard let url = navigationAction.request.url else { return .cancel }
-        if allowNextNavigation { allowNextNavigation = false; return .allow }
         let isMainFrame = navigationAction.targetFrame?.isMainFrame ?? true
+        // Fails closed: without the rules a page could reach the local network through what it loads.
+        if guardNavigations, !(await installRules()) {
+            if isMainFrame { finish(.failure(WebToolError.navigation(WebToolError.noLocalNetworkRules))) }
+            return .cancel
+        }
+        if allowNextNavigation { allowNextNavigation = false; return .allow }
         let scheme = url.scheme?.lowercased() ?? ""
         if scheme == "about" || scheme == "blob" || scheme == "data" || scheme == "javascript" { return .allow }
         guard guardNavigations else { return .allow }
@@ -604,6 +621,18 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
             if isMainFrame { finish(.failure(error)) }
             return .cancel
         }
+    }
+
+    /// Adds the local-network rules once they are compiled (the first view after launch waits for them). False when
+    /// they could not be compiled.
+    private func installRules() async -> Bool {
+        if hasRules { return true }
+        guard let rules = await LocalNetworkRules.rules(), !disposed else { return false }
+        if !hasRules {
+            webView.configuration.userContentController.add(rules)
+            hasRules = true
+        }
+        return true
     }
 
     /// A callback for the navigation being waited for (or any, when none is tracked).

@@ -185,7 +185,7 @@
       try { site = rule.extract(); } catch (e) {}
       if (site && site.text && site.text.length > 200) {
         var t = site.text.length > cap ? site.text.slice(0, cap) : site.text;
-        return JSON.stringify({ title: site.title || document.title || "", text: t, readable: true, method: "site:" + rule.name });
+        return JSON.stringify({ title: (site.title || document.title || "").slice(0, 300), text: t, readable: true, method: "site:" + rule.name });
       }
     }
     var title = document.title || "";
@@ -219,6 +219,6 @@
       method = "page";
     }
     if (text.length > cap) text = text.slice(0, cap);
-    return JSON.stringify({ title: title, text: text, readable: method === "readability", method: method });
+    return JSON.stringify({ title: String(title || "").slice(0, 300), text: text, readable: method === "readability", method: method });
   };
 })();

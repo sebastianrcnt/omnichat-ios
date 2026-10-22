@@ -125,7 +125,7 @@ enum BrowserSettle {
         """
         (function() {
           var t = document.body ? document.body.innerText : "";
-          return JSON.stringify({ title: document.title || "", url: String(location.href), text: (t || "").slice(0, \(maxCharacters)) });
+          return JSON.stringify({ title: (document.title || "").slice(0, \(PageMetadata.titleLimit)), url: String(location.href), text: (t || "").slice(0, \(maxCharacters)) });
         })()
         """
     }
@@ -529,8 +529,16 @@ struct BrowserOpenTool {
         do {
             let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let parsed = URL(string: trimmed) else { throw URLGuardError.invalidURL }
-            try await URLGuard.validate(parsed, resolver: resolver)
+            // Under the overall limit and cancellable: a DNS server that stops answering must not hold the reply (the
+            // system resolver can't be interrupted, so it is left behind).
+            try await Deadline.run(timeouts.overall) { [resolver] in try await URLGuard.validate(parsed, resolver: resolver) }
+            try Task.checkCancellation()
             url = parsed
+        } catch is CancellationError {
+            return ToolOutput(text: "Error: cancelled.", isError: true)
+        } catch WebToolError.timeout {
+            let text = WebToolError.timeoutMessage(after: ContinuousClock.now - started, limit: timeouts.overall, what: "looking up the address")
+            return ToolOutput(text: "Error: \(text)", isError: true)
         } catch {
             return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true)
         }
@@ -781,6 +789,13 @@ final class BrowserShowRequests {
         guard let i = queue.firstIndex(where: { $0.request.id == id }) else { return }
         queue.remove(at: i).answer?.resume(returning: done)
     }
+
+    /// Clear browsing data: every sheet closes as if the user closed it, so no page outlives the clearing on screen.
+    func closeAll() {
+        let closed = queue
+        queue.removeAll()
+        for entry in closed { entry.answer?.resume(returning: false) }
+    }
 }
 
 /// `browser_show(reason, page)`: shows a page to the user, so they can sign in, pass a check or do a step only they
@@ -855,6 +870,7 @@ struct BrowserShowTool {
 
     @MainActor
     private static func place(_ page: HiddenWebView) -> String {
-        [page.webView.title, page.webView.url?.absoluteString].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " — ")
+        [page.webView.title.map { PageMetadata.capped($0) }, page.webView.url?.absoluteString].compactMap { $0 }.filter { !$0.isEmpty }
+            .joined(separator: " — ")
     }
 }

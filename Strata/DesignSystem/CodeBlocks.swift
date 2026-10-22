@@ -135,14 +135,22 @@ struct CodeBlockContent: Equatable, Sendable {
 struct CodeBlockView: View, Equatable {
     let content: CodeBlockContent
     var isStreaming = false
+    /// While streaming `content` holds only the tail: the whole fenced block so far, which Copy reads.
+    var blockText: String?
 
-    var body: some View { CodeBlockBody(content: content, isStreaming: isStreaming) }
+    var body: some View { CodeBlockBody(content: content, isStreaming: isStreaming, blockText: blockText) }
+
+    /// What Copy puts on the pasteboard: all the code so far, not the streaming tail. Parsed only when copied.
+    nonisolated static func copyText(_ content: CodeBlockContent, blockText: String?) -> String {
+        blockText.map { CodeBlockContent(blockText: $0).code } ?? content.code
+    }
 }
 
 private struct CodeBlockBody: View {
     @Environment(\.theme) private var theme
     let content: CodeBlockContent
     let isStreaming: Bool
+    let blockText: String?
 
     @State private var expanded = false
     @State private var copied = false
@@ -283,7 +291,7 @@ private struct CodeBlockBody: View {
     }
 
     private func copy() {
-        Pasteboard.copy(content.code)
+        Pasteboard.copy(CodeBlockView.copyText(content, blockText: blockText))
         copied = true
         Task { try? await Task.sleep(for: .seconds(1.5)); copied = false }
     }

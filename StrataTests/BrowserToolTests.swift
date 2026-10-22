@@ -41,6 +41,15 @@ private struct PublicResolver: HostResolving {
     func resolve(_ host: String) async -> [String] { ["93.184.216.34"] }
 }
 
+/// A DNS server that stops answering: replies after 5 s, whatever happens meanwhile (like a blocked getaddrinfo).
+private struct StuckResolver: HostResolving {
+    func resolve(_ host: String) async -> [String] {
+        await withCheckedContinuation { cont in
+            DispatchQueue.global().asyncAfter(deadline: .now() + 5) { cont.resume(returning: ["93.184.216.34"]) }
+        }
+    }
+}
+
 struct BrowserTextTests {
     @Test func shortTextIsKeptWhole() {
         let out = BrowserText.capped("  one \n\n\n\n two  ", limit: 100)
@@ -124,6 +133,20 @@ struct LocalNetworkRuleTests {
         #expect(await ArtifactNavigation.subframePolicy(url, resolver: PackageTestResolver()) == .allow)
         #expect(await ArtifactNavigation.subframePolicy(URL(string: "file:///etc/hosts")!, resolver: PackageTestResolver()) == .cancel)
     }
+
+    @Test func artifactsOpenOnlyTappedPublicLinksOutside() async {
+        let web = URL(string: "https://example.com/")!
+        #expect(await ArtifactNavigation.mayOpenOutside(web, type: .linkActivated, resolver: PackageTestResolver()))
+        // A script assigning location.href (or calling window.open) is not a tap.
+        #expect(!(await ArtifactNavigation.mayOpenOutside(web, type: .other, resolver: PackageTestResolver())))
+        // The other browser has no local-network rules, so a LAN destination stays blocked even when tapped.
+        #expect(!(await ArtifactNavigation.mayOpenOutside(URL(string: "http://router.local/admin")!, type: .linkActivated,
+                                                          resolver: PackageTestResolver())))
+        #expect(!(await ArtifactNavigation.mayOpenOutside(web, type: .linkActivated,
+                                                          resolver: PackageTestResolver(address: "10.0.0.1"))))
+        #expect(await ArtifactNavigation.mayOpenOutside(URL(string: "mailto:a@example.com")!, type: .linkActivated))
+        #expect(!(await ArtifactNavigation.mayOpenOutside(URL(string: "file:///etc/hosts")!, type: .linkActivated)))
+    }
 }
 
 @MainActor
@@ -151,6 +174,29 @@ struct BrowserToolTests {
             let out = await tool.run(urlString: url, conversation: nil)
             #expect(out.isError, "\(url)")
         }
+    }
+
+    @Test func openGivesUpOnAResolverThatStopsAnswering() async {
+        // From the audit: the address check ran before the overall deadline and couldn't be cancelled.
+        let page = FakeBrowserPage()
+        var timeouts = FetchTimeouts.standard
+        timeouts.overall = .milliseconds(300)
+        let tool = BrowserOpenTool(resolver: StuckResolver(), timeouts: timeouts, sessions: sessions(page))
+        let start = ContinuousClock.now
+        let out = await tool.run(urlString: "https://slow.example.com/", conversation: UUID())
+        #expect(out.isError && out.text.contains("looking up the address"))
+        #expect(ContinuousClock.now - start < .seconds(2))
+        #expect(page.currentURL == nil, "nothing was opened")
+
+        let stopped = Task { @MainActor in
+            await BrowserOpenTool(resolver: StuckResolver(), sessions: sessions(page)).run(urlString: "https://slow.example.com/", conversation: UUID())
+        }
+        try? await Task.sleep(for: .milliseconds(100))
+        stopped.cancel()
+        let cancelled = await stopped.value
+        #expect(cancelled.isError && cancelled.text.contains("cancelled"))
+        #expect(ContinuousClock.now - start < .seconds(3))
+        #expect(page.currentURL == nil)
     }
 
     @Test func evalNeedsAnOpenPage() async {

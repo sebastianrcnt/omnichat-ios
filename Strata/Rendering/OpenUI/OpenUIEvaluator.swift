@@ -62,6 +62,35 @@ indirect enum OUIValue: Equatable, Sendable {
 
     var isNull: Bool { self == .null }
 
+    /// How much there is to draw or print, up to `limit`: one per value plus a string's bytes. Counting stops past
+    /// the limit, so a value built by sharing (`x1 = [x0, x0]`, `x2 = [x1, x1]`, …) costs at most `limit` to measure.
+    /// Nil when it is over.
+    func weight(limit: Int) -> Int? {
+        var left = limit
+        return fits(&left) ? limit - left : nil
+    }
+
+    private func fits(_ left: inout Int) -> Bool {
+        left -= 1
+        if case .string(let s) = self { left -= s.utf8.count }
+        guard left >= 0 else { return false }
+        switch self {
+        case .array(let a): return a.allSatisfy { $0.fits(&left) }
+        case .object(let o): return o.values.values.allSatisfy { $0.fits(&left) }
+        case .component(let c): return c.props.values.allSatisfy { $0.fits(&left) } && c.args.allSatisfy { $0.fits(&left) }
+        case .action(let a):
+            return a.steps.allSatisfy { step in
+                switch step {
+                case .toAssistant(_, let context?): context.fits(&left)
+                case .set(_, _, let locals): locals.values.allSatisfy { $0.fits(&left) }
+                case .custom(_, let values): values.allSatisfy { $0.fits(&left) }
+                default: true
+                }
+            }
+        default: return true
+        }
+    }
+
     /// Text for display: strings as is, numbers without a needless ".0", booleans as words.
     var text: String? {
         switch self {
@@ -309,6 +338,25 @@ struct OUIEvaluator {
     private var memo: [String: OUIValue?] = [:]
     private var visiting: Set<String> = []
 
+    /// What one evaluation may spend. The program comes from the model and evaluates in a view's body, so a few
+    /// lines that double a string or a list thirty times must stop rather than take the app's memory.
+    enum Budget {
+        /// Expressions evaluated plus values measured.
+        static let work = 4_000_000
+        /// A statement's value, or the rendered tree (see `OUIValue.weight`).
+        static let weight = 1_000_000
+        /// One string made by `+`, and all of them together, in bytes.
+        static let string = 256 * 1024
+        static let strings = 4 * 1024 * 1024
+        /// Nested expressions and references.
+        static let depth = 200
+    }
+    /// Set once the budget ran out: everything after evaluates to nothing.
+    private(set) var overBudget = false
+    private var work = 0
+    private var stringBytes = 0
+    private var depth = 0
+
     init(program: OUIProgram, library: OUILibrary = .omniChat, state: [String: OUIValue] = [:]) {
         self.program = program
         self.library = library
@@ -318,7 +366,25 @@ struct OUIEvaluator {
     /// The rendered tree: the entry statement's value, when it is a component.
     mutating func root() -> OUIComponent? {
         guard let entry = program.entry(library: library) else { return nil }
-        return reference(entry)?.componentValue
+        let value = reference(entry)
+        return overBudget ? nil : value?.componentValue
+    }
+
+    /// Counts `cost` against the work budget; false once it has run out.
+    private mutating func spend(_ cost: Int) -> Bool {
+        work += cost
+        if work > Budget.work { overBudget = true }
+        return !overBudget
+    }
+
+    /// `value`, unless it is too big to keep (measuring it is work too).
+    private mutating func checked(_ value: OUIValue?) -> OUIValue? {
+        guard let value, !overBudget else { return nil }
+        guard let weight = value.weight(limit: Budget.weight), spend(weight) else {
+            overBudget = true
+            return nil
+        }
+        return value
     }
 
     /// A `$variable`'s value: what the user set, else its declared default, else null.
@@ -353,7 +419,7 @@ struct OUIEvaluator {
         if let cached = memo[name] { return cached }
         guard !visiting.contains(name) else { return nil } // a cycle: unresolved here
         visiting.insert(name)
-        let value = make(&self)
+        let value = checked(make(&self))
         visiting.remove(name)
         memo[name] = value
         return value
@@ -367,6 +433,12 @@ struct OUIEvaluator {
 
     /// The value of `expr`, or nil for nothing (an unresolved reference, a cycle, an inline `Query`).
     mutating func eval(_ expr: OUIExpr, locals: [String: OUIValue]) -> OUIValue? {
+        guard spend(1), depth < Budget.depth else {
+            overBudget = true
+            return nil
+        }
+        depth += 1
+        defer { depth -= 1 }
         switch expr {
         case .string(let s): return .string(s)
         case .number(let d): return .number(d)
@@ -444,9 +516,10 @@ struct OUIEvaluator {
         let b = eval(r, locals: locals) ?? .null
         switch op {
         case "+":
-            if case .string = a { return .string(a.stringForm + b.stringForm) }
-            if case .string = b { return .string(a.stringForm + b.stringForm) }
-            return .number(a.toNumber + b.toNumber)
+            switch (a, b) {
+            case (.string, _), (_, .string): return concat(a, b)
+            default: return .number(a.toNumber + b.toNumber)
+            }
         case "-": return .number(a.toNumber - b.toNumber)
         case "*": return .number(a.toNumber * b.toNumber)
         case "/": return .number(b.toNumber == 0 ? 0 : a.toNumber / b.toNumber)
@@ -459,6 +532,19 @@ struct OUIEvaluator {
         case "<=": return .bool(a.toNumber <= b.toNumber)
         default: return .null
         }
+    }
+
+    /// String `+`, sized before anything is allocated: a list operand prints everything in it.
+    private mutating func concat(_ a: OUIValue, _ b: OUIValue) -> OUIValue {
+        guard let x = checked(a), let y = checked(b) else { return .null }
+        let (left, right) = (x.stringForm, y.stringForm)
+        let size = left.utf8.count + right.utf8.count
+        stringBytes += size
+        guard size <= Budget.string, stringBytes <= Budget.strings else {
+            overBudget = true
+            return .null
+        }
+        return .string(left + right)
     }
 
     // MARK: Components
@@ -545,7 +631,9 @@ struct OUIEvaluator {
         default:
             break
         }
-        let values = args.map { eval($0.value, locals: locals) ?? .null }
+        // Measured first: `@Filter` and `@Sort` read through every item.
+        let values = args.map { checked(eval($0.value, locals: locals)) ?? .null }
+        if overBudget { return nil }
         if let result = Self.builtin(name, values) { return result }
         unknownFunctions.insert(name)
         return .null

@@ -219,6 +219,28 @@ struct KeptPagesTests {
         #expect(!session.isDisposed && kept.page(id: "page2") == nil)
     }
 
+    @Test func clearingBrowsingDataTakesEveryKeptPage() async {
+        // From the audit: after Clear browsing data, "Open this page" still reopened a signed-in kept page.
+        let kept = KeptPages()
+        let a = FakeKept("page1"), shown = FakeKept("page2")
+        shown.isOnScreen = true
+        kept.keep(a, callID: "1")
+        kept.keep(shown, callID: "2")
+        kept.disposeAll()
+        #expect(a.isDisposed && shown.isDisposed)
+        #expect(kept.page(id: "page2") == nil && kept.page(forCall: "1") == nil && kept.entries.isEmpty)
+
+        // Its sheet closes as if the user closed it, and whoever asked hears "not done".
+        let requests = BrowserShowRequests()
+        let view = HiddenWebView(guardNavigations: false)
+        defer { view.dispose() }
+        let asking = Task { await requests.ask(.init(reason: "Sign in", page: view, conversationID: nil)) }
+        while requests.pending == nil { await Task.yield() }
+        requests.closeAll()
+        #expect(await asking.value == false)
+        #expect(requests.pending == nil)
+    }
+
     @Test func failedResultsNameTheKeptPage() {
         let kept = KeptPages()
         kept.keep(FakeKept("page9"), callID: "c")

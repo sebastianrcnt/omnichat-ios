@@ -502,6 +502,20 @@ struct WebFetchContinuationTests {
         #expect(second.sources.first?.url == first.sources.first?.url)
     }
 
+    @Test func hashRoutedPagesAreCachedApart() async {
+        // From the audit: `/#/reports/second` came back from the cache as the first report.
+        let counter = LoadCounter()
+        let t = tool(counter: counter, cache: PageCache())
+        _ = await t.run(urlString: "https://example.com/#/reports/first")
+        _ = await t.run(urlString: "https://example.com/#/reports/second")
+        _ = await t.run(urlString: "https://example.com/?next=/")
+        _ = await t.run(urlString: "https://example.com/?next=")
+        #expect(counter.count == 4)
+        _ = await t.run(urlString: "https://EXAMPLE.com/#/reports/first")
+        #expect(counter.count == 4, "the same page still comes from the cache")
+        #expect(PageCache.key(for: URL(string: "https://e.com/#/a")!) != PageCache.key(for: URL(string: "https://e.com/#/b")!))
+    }
+
     @Test func offsetPastTheEndIsAClearError() async {
         let t = tool(counter: LoadCounter(), cache: PageCache())
         let out = await t.run(urlString: "https://example.com/long", offset: 500)
@@ -525,11 +539,14 @@ struct WebFetchContinuationTests {
         #expect(counter.count == 2)
     }
 
-    @Test func cacheKeyIgnoresFragmentsAndTrailingSlash() {
+    @Test func cacheKeyIgnoresOnlyTheHostsCase() {
+        // A fragment can be a different page (hash routing), and a slash can be part of a query value.
         let cache = PageCache()
         let page = FetchedPage(title: "t", url: "u", text: "body")
         cache.store(page, for: URL(string: "https://Example.com/a/#top")!)
-        #expect(cache.page(for: URL(string: "https://example.com/a")!) == page)
+        #expect(cache.page(for: URL(string: "https://example.com/a/#top")!) == page)
+        #expect(cache.page(for: URL(string: "https://example.com/a/")!) == nil)
+        #expect(cache.page(for: URL(string: "https://example.com/a")!) == nil)
         #expect(cache.page(for: URL(string: "https://example.com/b")!) == nil)
     }
 

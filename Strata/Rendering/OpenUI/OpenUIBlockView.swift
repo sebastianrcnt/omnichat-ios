@@ -140,6 +140,9 @@ struct OUIScope {
     var autoSendChoices: Bool
     /// Inside a card: nested tiles and fields take the page colour instead of the card's.
     var onSurface = false
+    /// The enclosing FormControl's label and hint, for VoiceOver on the input itself.
+    var fieldLabel: String?
+    var fieldHint: String?
     let send: @MainActor (OUISubmission) -> Void
     let open: @MainActor (URL) -> Void
 
@@ -163,6 +166,13 @@ struct OUIScope {
     func inForm(_ name: String) -> OUIScope {
         var s = self
         s.form = name
+        return s
+    }
+
+    func labeled(_ label: String?, hint: String?) -> OUIScope {
+        var s = self
+        s.fieldLabel = label
+        s.fieldHint = hint
         return s
     }
 
