@@ -214,6 +214,25 @@ struct FetchedPage: Sendable, Equatable {
     var title: String
     var url: String
     var text: String
+
+    init(title: String, url: String, text: String) {
+        self.title = PageMetadata.capped(title)
+        self.url = url
+        self.text = text
+    }
+}
+
+/// What a page says about itself outside its text. `document.title` is the page's to set and can be megabytes, so it
+/// is cut in the page and again here, before a tool result, the cache or a source holds it.
+enum PageMetadata {
+    static let titleLimit = 300
+    /// Page-derived error messages (a script's exception).
+    static let messageLimit = 1000
+
+    static func capped(_ text: String, limit: Int = titleLimit) -> String {
+        guard text.utf8.count > limit, text.count > limit else { return text }
+        return String(text.prefix(limit)) + "…"
+    }
 }
 
 /// In-memory cache of extracted pages (about 10 minutes).
@@ -271,7 +290,7 @@ struct WebFetchTool {
           var cap = \(maxCharacters);
           if (typeof strataExtract === "function") { try { return strataExtract(cap); } catch (e) {} }
           var t = document.body ? document.body.innerText : "";
-          return JSON.stringify({ title: document.title || "", text: (t || "").slice(0, cap), readable: false, method: "page" });
+          return JSON.stringify({ title: (document.title || "").slice(0, \(PageMetadata.titleLimit)), text: (t || "").slice(0, cap), readable: false, method: "page" });
         })()
         """
     }

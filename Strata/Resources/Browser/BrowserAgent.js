@@ -352,7 +352,7 @@
     if (!tree) tree = "(Nothing is visible in this part of the page.)";
     if (truncated) tree += "\n[Truncated at " + max + " characters: " + skipped + " more elements in view are not listed. Use browser_find to locate text, or scroll a container with browser_scroll and its index.]";
     return {
-      url, title: document.title || "", docId: S.docId, counter: S.counter, count: shown,
+      url, title: (document.title || "").slice(0, 300), docId: S.docId, counter: S.counter, count: shown,
       scroll: above + " px above, " + below + " px below (viewport " + Math.round(vp.width) + "x" + Math.round(vp.height) + ")",
       below, tree,
     };

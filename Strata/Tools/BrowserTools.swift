@@ -125,7 +125,7 @@ enum BrowserSettle {
         """
         (function() {
           var t = document.body ? document.body.innerText : "";
-          return JSON.stringify({ title: document.title || "", url: String(location.href), text: (t || "").slice(0, \(maxCharacters)) });
+          return JSON.stringify({ title: (document.title || "").slice(0, \(PageMetadata.titleLimit)), url: String(location.href), text: (t || "").slice(0, \(maxCharacters)) });
         })()
         """
     }
@@ -862,6 +862,7 @@ struct BrowserShowTool {
 
     @MainActor
     private static func place(_ page: HiddenWebView) -> String {
-        [page.webView.title, page.webView.url?.absoluteString].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " — ")
+        [page.webView.title.map { PageMetadata.capped($0) }, page.webView.url?.absoluteString].compactMap { $0 }.filter { !$0.isEmpty }
+            .joined(separator: " — ")
     }
 }

@@ -16,8 +16,9 @@ enum WebToolError: Error, LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .timeout: String(localized: "The page took too long to load.")
-        case .navigation(let m): String(localized: "The page failed to load: \(m)")
-        case .script(let m): String(localized: "Page script failed: \(m)")
+        // A page's exception can carry any string: cut like a title.
+        case .navigation(let m): String(localized: "The page failed to load: \(PageMetadata.capped(m, limit: PageMetadata.messageLimit))")
+        case .script(let m): String(localized: "Page script failed: \(PageMetadata.capped(m, limit: PageMetadata.messageLimit))")
         // Read by the model, so it says what to do next.
         case .insecure: "The site's security certificate is invalid (expired, self-signed or issued for another name), so the page was not opened. This site can't be read; use another source."
         }

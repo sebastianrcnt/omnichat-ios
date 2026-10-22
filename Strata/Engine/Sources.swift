@@ -43,6 +43,8 @@ final class SourceStore {
 
     @discardableResult
     func assign(_ candidate: SourceCandidate) -> SourceInfo {
+        var candidate = candidate
+        candidate.title = PageMetadata.capped(candidate.title) // it goes back to the model in every <source title>
         let key = Self.key(for: candidate.url)
         let snippet = String(candidate.content.trimmingCharacters(in: .whitespacesAndNewlines).prefix(400))
         if let id = byKey[key], let index = items.firstIndex(where: { $0.id == id }) {
