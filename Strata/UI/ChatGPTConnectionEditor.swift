@@ -116,7 +116,7 @@ struct ChatGPTConnectionEditor: View {
                 Button("Manage usage") { openURL(ChatGPTOAuth.usageURL) }
                 Button("Got it", role: .cancel) {}
             } message: {
-                Text("Eligible requests in OpenChat use your ChatGPT plan and count toward its usage limits. You can manage usage in ChatGPT settings.")
+                Text("Eligible requests in OmniChat use your ChatGPT plan and count toward its usage limits. You can manage usage in ChatGPT settings.")
             }
         }
     }
@@ -125,7 +125,7 @@ struct ChatGPTConnectionEditor: View {
 
     private var accountFooter: LocalizedStringKey {
         if signedIn && planAllowed == false {
-            return "This sign-in didn't allow OpenChat to use your ChatGPT plan, so requests will be refused. Sign out and sign in again, and allow plan usage."
+            return "This sign-in didn't allow OmniChat to use your ChatGPT plan, so requests will be refused. Sign out and sign in again, and allow plan usage."
         }
         return "Eligible requests use your ChatGPT plan and count toward its usage limits, which you manage in ChatGPT settings. The sign-in is stored in the Keychain."
     }
@@ -177,7 +177,7 @@ struct ChatGPTConnectionEditor: View {
         let confirmed = await connections.chatGPT.signOut(connectionID: connectionID)
         reload()
         show(confirmed ? String(localized: "Signed out.")
-                       : String(localized: "Signed out on this device, but ChatGPT didn't confirm it. You can disconnect OpenChat in ChatGPT Settings."),
+                       : String(localized: "Signed out on this device, but ChatGPT didn't confirm it. You can disconnect OmniChat in ChatGPT Settings."),
              error: !confirmed)
     }
 

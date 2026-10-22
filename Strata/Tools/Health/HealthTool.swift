@@ -29,7 +29,7 @@ extension AppPrompt {
     static let health = """
     - health_query reads the user's Apple Health data, read-only, for their own questions about their health and fitness. Read only what the question needs, and summarize trends in plain words rather than repeating the tables.
     - You are not a doctor: don't diagnose or give medical advice. When values look concerning (very high or low heart rate, blood pressure, blood glucose or blood oxygen, a sudden change), say so calmly and suggest talking to a healthcare professional; for an emergency, tell them to call emergency services.
-    - "No data or not allowed" means OpenChat can't tell whether there is no data or the user didn't allow reading it: say both are possible.
+    - "No data or not allowed" means OmniChat can't tell whether there is no data or the user didn't allow reading it: say both are possible.
     """
 }
 
@@ -238,7 +238,7 @@ final class HealthRequests {
                 if Task.isCancelled { cont.resume(returning: false); return }
                 queue.append((request, cont))
                 if !AppLifecycle.isActive, let conversation = request.conversationID {
-                    ReplyBackgroundExecution.notifyCompletion(title: "OpenChat", body: String(localized: "The assistant asks to read Apple Health."),
+                    ReplyBackgroundExecution.notifyCompletion(title: "OmniChat", body: String(localized: "The assistant asks to read Apple Health."),
                                                               conversationID: conversation)
                 }
             }
@@ -278,7 +278,7 @@ struct HealthQueryTool {
             return ToolOutput(text: "Error: Apple Health is off on this device while chat sync is on, so health data never goes to iCloud. Don't try again in this chat. Tell the user they can turn off \"Sync chats and skills\" in Settings > iCloud to use Apple Health.", isError: true)
         }
         guard source.isAvailable else {
-            return ToolOutput(text: "Error: Apple Health isn't available on this device. Tell the user it works in OpenChat on iPhone.", isError: true)
+            return ToolOutput(text: "Error: Apple Health isn't available on this device. Tell the user it works in OmniChat on iPhone.", isError: true)
         }
         if localOnly && !HealthPrivacy.isLocal(destination) {
             let name = destination.map { " (\($0.name))" } ?? ""
@@ -298,7 +298,7 @@ struct HealthQueryTool {
             case .text(let text): return ToolOutput(text: text)
             case .empty:
                 let name = request.metric?.displayName ?? "health"
-                return ToolOutput(text: "No \(name) data or not allowed: Apple Health returned nothing for \(request.rangeLabel). iOS doesn't tell apps whether the user denied reading a type, so either there is no data in that range or OpenChat isn't allowed to read it. The user can check in the Settings app > Health > Data Access & Devices > OpenChat (where they may also have shared only recent history). Try a longer range if there might be older data.")
+                return ToolOutput(text: "No \(name) data or not allowed: Apple Health returned nothing for \(request.rangeLabel). iOS doesn't tell apps whether the user denied reading a type, so either there is no data in that range or OmniChat isn't allowed to read it. The user can check in the Settings app > Health > Data Access & Devices > OmniChat (where they may also have shared only recent history). Try a longer range if there might be older data.")
             }
         } catch {
             return ToolOutput(text: "Error: couldn't read Apple Health: \(HealthStores.describe(error))", isError: true)

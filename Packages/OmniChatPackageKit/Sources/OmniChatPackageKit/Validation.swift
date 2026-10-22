@@ -13,9 +13,9 @@ public enum PackageLimits {
     public static let promptCharacters = 4_000
     public static let fullToolNameLength = 64
     public static let timeout = 1...120
-    /// Namespaces packages can't take: they read as the app's own tools.
+    /// Namespaces packages can't take: they read as the app's own tools (`openchat` was its name before OmniChat).
     public static let reservedNamespaces: Set<String> = ["web", "browser", "run", "view", "load", "save", "show", "current", "video",
-                                                         "ssh", "python", "openchat", "app", "test", "pkg"]
+                                                         "ssh", "python", "omnichat", "openchat", "app", "test", "pkg"]
     /// Built-in tool groups a package may require or exclude.
     public static let groups: Set<String> = ["web", "browser", "python", "location", "video", "ssh", "views", "health"]
 }

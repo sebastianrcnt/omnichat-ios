@@ -243,7 +243,7 @@ final class HealthKitStore: HealthDataSource, @unchecked Sendable {
         switch error.code {
         case .errorDatabaseInaccessible: return "the iPhone is locked, and health data can only be read while it's unlocked."
         case .errorHealthDataUnavailable: return "Apple Health isn't available on this device."
-        case .errorAuthorizationDenied, .errorAuthorizationNotDetermined: return "OpenChat isn't allowed to read it."
+        case .errorAuthorizationDenied, .errorAuthorizationNotDetermined: return "OmniChat isn't allowed to read it."
         default: return error.localizedDescription
         }
     }

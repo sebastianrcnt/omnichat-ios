@@ -4,7 +4,7 @@
 
 `Connection.supportsResumable` is saved with connection settings and defaults to
 false; Settings exposes an explicit per-connection toggle, and an
-`openchat://add-connection` link can ask for it (`resumable=1`, shown in the
+`omnichat://add-connection` link can ask for it (`resumable=1`, shown in the
 confirmation sheet). The app ships with no built-in connection. The connection
 that used to be built in keeps its saved value after the update (on, unless the
 user had turned it off; see `ConnectionStore.migrateBuiltInConnection`). The app

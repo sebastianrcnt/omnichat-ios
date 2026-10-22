@@ -59,8 +59,8 @@ struct OpenCodeConnectionTests {
         #expect(endpoint.baseURL.absoluteString == "https://opencode.ai/inference/go/v1")
         #expect(endpoint.requestURL.absoluteString == "https://opencode.ai/inference/go/v1/chat/completions")
         #expect(endpoint.headers["x-opencode-session"] == "conv-1")
-        #expect(endpoint.headers["x-opencode-client"] == "openchat")
-        #expect(endpoint.headers["User-Agent"]?.hasPrefix("OpenChat/") == true)
+        #expect(endpoint.headers["x-opencode-client"] == "omnichat")
+        #expect(endpoint.headers["User-Agent"]?.hasPrefix("OmniChat/") == true)
         #expect(endpoint.apiKey == nil && !endpoint.supportsResumable)
         #expect(endpoint.openCodeGateway == .go)
 
@@ -197,7 +197,7 @@ struct OpenCodeRequestTests {
         var model = ModelInfo(id: id, supportsEffort: !efforts.isEmpty)
         model.openCode = OpenCodeModelInfo(api: api, efforts: efforts, interleavedReasoning: interleaved)
         return Endpoint(connectionID: UUID(), connectionName: "OpenCode", baseURL: gateway.baseURL, apiKey: nil,
-                        headers: ["User-Agent": "OpenChat/1.0 (iOS)", "x-opencode-session": "conv-1", "x-opencode-client": "openchat"],
+                        headers: ["User-Agent": "OmniChat/1.0 (iOS)", "x-opencode-session": "conv-1", "x-opencode-client": "omnichat"],
                         model: model, kind: .openCode)
     }
 
@@ -284,8 +284,8 @@ struct OpenCodeRequestTests {
         #expect(req.httpMethod == "POST")
         #expect(req.value(forHTTPHeaderField: "Authorization") == "Bearer tok")
         #expect(req.value(forHTTPHeaderField: "x-opencode-session") == "conv-1")
-        #expect(req.value(forHTTPHeaderField: "x-opencode-client") == "openchat")
-        #expect(req.value(forHTTPHeaderField: "User-Agent") == "OpenChat/1.0 (iOS)")
+        #expect(req.value(forHTTPHeaderField: "x-opencode-client") == "omnichat")
+        #expect(req.value(forHTTPHeaderField: "User-Agent") == "OmniChat/1.0 (iOS)")
         #expect(req.value(forHTTPHeaderField: "Accept") == "text/event-stream")
     }
 

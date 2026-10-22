@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import Strata
 
-/// OpenChatPackageKit: manifests, validation, schemas, rendering, archives and signatures (docs/PACKAGES.md 3).
+/// OmniChatPackageKit: manifests, validation, schemas, rendering, archives and signatures (docs/PACKAGES.md 3).
 struct PackageManifestTests {
     @Test func aMinimalPackageLoads() throws {
         let b = try TestPackages.bundle(TestPackages.manifest(extra: ["contents": ["tools": [TestPackages.getTool()]],

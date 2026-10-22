@@ -73,9 +73,10 @@ struct ReplyActivityChat: Codable, Hashable, Identifiable {
     var ended: Date?
 }
 
-/// `openchat://chat/<id>`: a tap on the activity (or on one of its rows) opens that chat.
+/// `omnichat://chat/<id>`: a tap on the activity (or on one of its rows) opens that chat. `openchat://` links from
+/// before the rename open too.
 enum ReplyActivityLink {
-    static let scheme = "openchat"
+    static let scheme = AppURLScheme.current
     static let host = "chat"
 
     static func url(for conversation: UUID) -> URL {
@@ -84,7 +85,7 @@ enum ReplyActivityLink {
 
     /// The chat a link opens; nil for any other URL.
     static func conversationID(from url: URL) -> UUID? {
-        guard url.scheme?.lowercased() == scheme, url.host()?.lowercased() == host else { return nil }
+        guard AppURLScheme.matches(url), url.host()?.lowercased() == host else { return nil }
         return UUID(uuidString: url.lastPathComponent)
     }
 }

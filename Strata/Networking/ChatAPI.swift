@@ -492,7 +492,7 @@ enum APIError: Error, LocalizedError, Equatable {
         case .openCodeSignInRequired(let name): String(localized: "Sign in with OpenCode, or enter a valid API key, for \(name) in Settings.")
         case .rejectedAPIKey(let name): String(localized: "The API key for \(name) was not accepted. Check it in Settings.")
         // No reset time: the limit may be the app's rather than the whole plan's (the errors-and-recovery docs).
-        case .chatGPTUsageLimit: String(localized: "ChatGPT usage limit reached. The limit may be on your ChatGPT plan or on OpenChat's use of it.")
+        case .chatGPTUsageLimit: String(localized: "ChatGPT usage limit reached. The limit may be on your ChatGPT plan or on OmniChat's use of it.")
         case .http(let status, let message):
             message.isEmpty ? String(localized: "The server returned HTTP \(status).")
                             : String(localized: "HTTP \(status): \(message)")

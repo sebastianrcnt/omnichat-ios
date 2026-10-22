@@ -129,7 +129,7 @@ enum ChatSpotlight {
             try? await index.deleteAppEntities(ofType: ConversationEntity.self)
             guard !Task.isCancelled else { return }
             try? await index.indexAppEntities(entities)
-            OpenChatShortcuts.updateAppShortcutParameters() // "Open <chat> in OpenChat" knows the chats' names
+            OmniChatShortcuts.updateAppShortcutParameters() // "Open <chat> in OmniChat" knows the chats' names
         }
     }
 }

@@ -4,8 +4,8 @@ import Testing
 import UIKit
 @testable import Strata
 
-/// Sharing into OpenChat: the payload the share extension writes, the message made from it, the inbox in the App
-/// Group, the `openchat://share` link, and the import that sends it in a chat.
+/// Sharing into OmniChat: the payload the share extension writes, the message made from it, the inbox in the App
+/// Group, the `omnichat://share` link, and the import that sends it in a chat.
 @MainActor
 struct ShareTests {
     // MARK: Payload and message
@@ -101,11 +101,11 @@ struct ShareTests {
     @Test func shareLinkCarriesTheShareID() throws {
         let id = UUID()
         let url = ShareURL.url(for: id)
-        #expect(url.absoluteString == "openchat://share?id=\(id.uuidString)")
+        #expect(url.absoluteString == "omnichat://share?id=\(id.uuidString)")
         #expect(ShareURL.isShareURL(url) && ShareURL.id(in: url) == id)
-        #expect(ShareURL.isShareURL(URL(string: "OPENCHAT://share")!))
-        #expect(ShareURL.id(in: URL(string: "openchat://share?id=nope")!) == nil)
-        #expect(!ShareURL.isShareURL(URL(string: "openchat://add-connection?name=a&url=https://x")!))
+        #expect(ShareURL.isShareURL(URL(string: "OMNICHAT://share")!))
+        #expect(ShareURL.id(in: URL(string: "omnichat://share?id=nope")!) == nil)
+        #expect(!ShareURL.isShareURL(URL(string: "omnichat://add-connection?name=a&url=https://x")!))
         #expect(!AddConnectionLink.isAddLink(url), "the add-connection handler leaves share links alone")
     }
 

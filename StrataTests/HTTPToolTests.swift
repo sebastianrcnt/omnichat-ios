@@ -175,7 +175,7 @@ struct HTTPToolTests {
 struct PackageSkillTests {
     private func store() throws -> PackageStore {
         let skill = "---\nname: triage\ndescription: Sort issues.\n---\n\nSort them by priority.\n"
-        let b = try TestPackages.bundle(TestPackages.manifest(id: "app.openchat.korea", name: "Korea", namespace: "kr",
+        let b = try TestPackages.bundle(TestPackages.manifest(id: "app.omnichat.korea", name: "Korea", namespace: "kr",
                                                               extra: ["contents": ["skills": ["skills/triage.md"]]]),
                                         ["skills/triage.md": skill])
         return PackageStore(directory: nil, builtIn: [b], builtInDefault: { _ in false })
@@ -183,7 +183,7 @@ struct PackageSkillTests {
 
     @Test func packageSkillsLoadByTheirFullName() async throws {
         let s = try store()
-        let p = try #require(s.package(id: "app.openchat.korea"))
+        let p = try #require(s.package(id: "app.omnichat.korea"))
         let router = PackageToolRouter(base: FakeTools(), snapshot: PackageSnapshot(packages: [p]), store: s)
         let out = await router.execute(name: ToolNames.loadSkill, arguments: #"{"name":"kr:triage"}"#)
         #expect(!out.isError && out.text == "Skill: kr:triage\n\nSort them by priority.")

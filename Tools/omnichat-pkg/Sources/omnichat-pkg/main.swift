@@ -1,14 +1,14 @@
-// openchat-pkg: the package author's tool.
+// omnichat-pkg: the package author's tool.
 //
-//   openchat-pkg validate <folder|file.ocpkg>          check every rule the app checks, print what the package adds
-//   openchat-pkg pack <folder> [-o out.ocpkg]          normalize, write CHECKSUMS, zip
-//   openchat-pkg sign <folder|file.ocpkg> --key <file> [-o out.ocpkg]
+//   omnichat-pkg validate <folder|file.ocpkg>          check every rule the app checks, print what the package adds
+//   omnichat-pkg pack <folder> [-o out.ocpkg]          normalize, write CHECKSUMS, zip
+//   omnichat-pkg sign <folder|file.ocpkg> --key <file> [-o out.ocpkg]
 //                                                      pack and sign with an Ed25519 key from keygen
-//   openchat-pkg keygen [-o name]                      write name.key (private, keep it secret) and print the public key
-//   openchat-pkg run <folder|file.ocpkg> <tool> [--args '<json>'] [--secret name=value]...
+//   omnichat-pkg keygen [-o name]                      write name.key (private, keep it secret) and print the public key
+//   omnichat-pkg run <folder|file.ocpkg> <tool> [--args '<json>'] [--secret name=value]...
 //                                                      call one HTTP tool against the real network, print what the model reads
 import Foundation
-import OpenChatPackageKit
+import OmniChatPackageKit
 
 func fail(_ message: String) -> Never {
     FileHandle.standardError.write(Data("error: \(message)\n".utf8))
@@ -19,7 +19,7 @@ func note(_ message: String) { FileHandle.standardError.write(Data("\(message)\n
 
 var args = Array(CommandLine.arguments.dropFirst())
 guard let command = args.first else {
-    fail("usage: openchat-pkg validate|pack|sign|keygen|run … (see the top of main.swift)")
+    fail("usage: omnichat-pkg validate|pack|sign|keygen|run … (see the top of main.swift)")
 }
 args.removeFirst()
 
@@ -83,13 +83,13 @@ func defaultOutput(_ bundle: PackageBundle) -> String { "\(bundle.manifest.id)-\
 
 switch command {
 case "validate":
-    guard let path = args.first else { fail("usage: openchat-pkg validate <folder|file.ocpkg>") }
+    guard let path = args.first else { fail("usage: omnichat-pkg validate <folder|file.ocpkg>") }
     describe(load(readFiles(path)))
     print("ok")
 
 case "pack":
     let output = option("-o")
-    guard let path = args.first else { fail("usage: openchat-pkg pack <folder> [-o out.ocpkg]") }
+    guard let path = args.first else { fail("usage: omnichat-pkg pack <folder> [-o out.ocpkg]") }
     let files: [String: Data]
     do { files = try PackageBundle.packed(readFiles(path)) } catch { fail(error.localizedDescription) }
     let bundle = load(files)
@@ -99,7 +99,7 @@ case "pack":
 case "sign":
     let output = option("-o")
     guard let keyPath = option("--key"), let path = args.first else {
-        fail("usage: openchat-pkg sign <folder|file.ocpkg> --key <file.key> [-o out.ocpkg]")
+        fail("usage: omnichat-pkg sign <folder|file.ocpkg> --key <file.key> [-o out.ocpkg]")
     }
     let privateKey: String
     do { privateKey = try String(contentsOfFile: keyPath, encoding: .utf8) } catch { fail("can't read \(keyPath).") }
@@ -119,7 +119,7 @@ case "sign":
     } catch { fail(error.localizedDescription) }
 
 case "keygen":
-    let name = option("-o") ?? "openchat-package"
+    let name = option("-o") ?? "omnichat-package"
     let pair = PackageKeys.generate()
     let path = name + ".key"
     guard !FileManager.default.fileExists(atPath: path) else { fail("\(path) exists; pick another name with -o.") }
@@ -137,7 +137,7 @@ case "run":
         guard let eq = pair.firstIndex(of: "=") else { return nil }
         return (String(pair[..<eq]), String(pair[pair.index(after: eq)...]))
     }, uniquingKeysWith: { _, last in last })
-    guard args.count >= 2 else { fail("usage: openchat-pkg run <folder|file.ocpkg> <tool> [--args '<json>'] [--secret name=value]") }
+    guard args.count >= 2 else { fail("usage: omnichat-pkg run <folder|file.ocpkg> <tool> [--args '<json>'] [--secret name=value]") }
     let bundle = load(readFiles(args[0]))
     let name = PackageRender.split(toolName: args[1])?.tool ?? args[1]
     guard let tool = bundle.usableTools.first(where: { $0.name == name }) else {

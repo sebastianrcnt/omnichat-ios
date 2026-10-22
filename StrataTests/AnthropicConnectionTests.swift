@@ -56,7 +56,7 @@ private struct Rendered {
 struct AnthropicRequestTests {
     @Test func placesFourBreakpointsAtMost() throws {
         var request = ChatRequest(model: "claude-opus-5-5", messages: [
-            .system("You are OpenChat."), .user("one"), .assistant("two"), .user("three"), .assistant("four"), .user("five"),
+            .system("You are OmniChat."), .user("one"), .assistant("two"), .user("three"), .assistant("four"), .user("five"),
         ])
         request.tools = ToolDefinition.standard
         let body = try AnthropicClient.body(request, model: AnthropicModels.model(id: "claude-opus-5-5")).encoded()
@@ -66,7 +66,7 @@ struct AnthropicRequestTests {
         #expect(tools.last?["cache_control"] as? [String: String] == ["type": "ephemeral"])
         #expect(tools.dropLast().allSatisfy { $0["cache_control"] == nil })
         let system = try #require(sent["system"] as? [[String: Any]])
-        #expect(system.count == 1 && system[0]["text"] as? String == "You are OpenChat.")
+        #expect(system.count == 1 && system[0]["text"] as? String == "You are OmniChat.")
         #expect(system[0]["cache_control"] as? [String: String] == ["type": "ephemeral"])
         // The newest message, and the one the previous request ended with.
         #expect(try Rendered(body).breakpoints == [2, 4])
@@ -293,16 +293,16 @@ struct AnthropicRequestTests {
 
     @Test func addLinks() throws {
         func parse(_ s: String) -> Result<AddConnectionLink, AddConnectionLink.Failure> { AddConnectionLink.parse(URL(string: s)!) }
-        let plain = try parse("openchat://add-connection?api=anthropic&images=1&resumable=1&key=sk-ant-secret").get()
+        let plain = try parse("omnichat://add-connection?api=anthropic&images=1&resumable=1&key=sk-ant-secret").get()
         #expect(plain.anthropic && plain.name == "Anthropic" && plain.droppedKey)
         #expect(!plain.resumable && !plain.images)
         let c = plain.makeConnection()
         #expect(c.isAnthropic && c.baseURL == "https://api.anthropic.com/v1" && !c.supportsResumable)
         #expect(!String(decoding: try JSONEncoder().encode(c), as: UTF8.self).contains("sk-ant-secret"))
-        let proxy = try parse("openchat://add-connection?api=anthropic&url=https://gateway.example.com/anthropic/v1&name=Work").get()
+        let proxy = try parse("omnichat://add-connection?api=anthropic&url=https://gateway.example.com/anthropic/v1&name=Work").get()
         #expect(proxy.makeConnection().baseURL == "https://gateway.example.com/anthropic/v1" && proxy.name == "Work")
-        #expect(parse("openchat://add-connection?api=anthropic&url=ftp://x") == .failure(.invalidURL))
-        #expect(parse("openchat://add-connection?api=openai") == .failure(.missingURL))
+        #expect(parse("omnichat://add-connection?api=anthropic&url=ftp://x") == .failure(.invalidURL))
+        #expect(parse("omnichat://add-connection?api=openai") == .failure(.missingURL))
     }
 }
 

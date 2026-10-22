@@ -28,12 +28,12 @@ struct IntentChat {
         var errorDescription: String? {
             switch self {
             case .emptyPrompt: String(localized: "There is nothing to send.")
-            case .noModel: String(localized: "Add a connection with a model in OpenChat first.")
+            case .noModel: String(localized: "Add a connection with a model in OmniChat first.")
             case .chatNotFound: String(localized: "That chat no longer exists.")
             case .chatBusy: String(localized: "That chat is still answering. Try again when it's done.")
             case .reply(let message): message
             case .stopped: String(localized: "The reply was stopped.")
-            case .stillAnswering: String(localized: "OpenChat is still answering. The reply will be in the chat when it's done.")
+            case .stillAnswering: String(localized: "OmniChat is still answering. The reply will be in the chat when it's done.")
             }
         }
     }

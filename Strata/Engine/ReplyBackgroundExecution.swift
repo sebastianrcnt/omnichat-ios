@@ -118,7 +118,7 @@ final class ReplyBackgroundExecution {
             if registered {
                 DiagnosticCounters.shared.backgroundIdentifierRegistered()
                 let request = BGContinuedProcessingTaskRequest(identifier: id,
-                    title: String(localized: "Preparing reply"), subtitle: String(localized: "OpenChat is replying"))
+                    title: String(localized: "Preparing reply"), subtitle: String(localized: "OmniChat is replying"))
                 request.strategy = .fail // no stale queued work after the turn has already finished
                 do { try BGTaskScheduler.shared.submit(request) }
                 catch { identifier = nil } // finite beginBackgroundTask fallback remains active
@@ -140,9 +140,9 @@ final class ReplyBackgroundExecution {
         if let liveStatus {
             continued.updateTitle(liveStatus.title, subtitle: liveStatus.subtitle)
         } else if holderCount > 1 {
-            continued.updateTitle(String(localized: "Preparing replies"), subtitle: String(localized: "OpenChat is replying in \(holderCount) chats"))
+            continued.updateTitle(String(localized: "Preparing replies"), subtitle: String(localized: "OmniChat is replying in \(holderCount) chats"))
         } else {
-            continued.updateTitle(String(localized: "Preparing reply"), subtitle: String(localized: "OpenChat is replying"))
+            continued.updateTitle(String(localized: "Preparing reply"), subtitle: String(localized: "OmniChat is replying"))
         }
     }
 
@@ -222,13 +222,13 @@ final class ReplyBackgroundExecution {
     static func notifyCompletion(title: String, body: String, conversationID: UUID) {
         guard !quietConversations.contains(conversationID) else { return }
         post(title: title.isEmpty ? String(localized: "Reply ready") : title,
-             body: body.isEmpty ? String(localized: "Your OpenChat reply is ready.") : body,
+             body: body.isEmpty ? String(localized: "Your OmniChat reply is ready.") : body,
              conversationID: conversationID)
     }
 
     /// A tool stopped at a robot check while the app is not in front. Tapping it opens the chat and the page.
     static func notifyRobotCheck(host: String, conversationID: UUID?, requestID: UUID) {
-        post(title: "OpenChat", body: String(localized: "\(host) wants a robot check. Tap to open the page."),
+        post(title: "OmniChat", body: String(localized: "\(host) wants a robot check. Tap to open the page."),
              conversationID: conversationID, extra: [ReplyNotificationRouter.robotCheckKey: requestID.uuidString])
     }
 

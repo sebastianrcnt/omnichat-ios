@@ -2,14 +2,14 @@ import AppIntents
 import Foundation
 import SwiftData
 
-/// Ask OpenChat: sends a message and returns the answer, so a shortcut can pass it on and Siri can read it out.
+/// Ask OmniChat: sends a message and returns the answer, so a shortcut can pass it on and Siri can read it out.
 ///
 /// Runs in the background where it can: the reply is an ordinary run in its chat, the chat's tool switches apply,
 /// and the answer comes back without the app opening. A reply that takes longer than `IntentChat.backgroundWait`
 /// (long tool runs; the browser and Python tools also need the app's window) asks to continue in the app, where it
 /// is waited for longer; declining leaves it running, and its notification says when it's ready.
-struct AskOpenChatIntent: AppIntent {
-    static let title: LocalizedStringResource = "Ask OpenChat"
+struct AskOmniChatIntent: AppIntent {
+    static let title: LocalizedStringResource = "Ask OmniChat"
     static let description = IntentDescription("Sends a message to a model and returns its answer. Leave Chat empty to start a new chat.",
                                                categoryName: "Chats")
     static let supportedModes: IntentModes = [.background, .foreground(.dynamic)]
@@ -24,7 +24,7 @@ struct AskOpenChatIntent: AppIntent {
     @Parameter(title: "Chat", description: "The chat to continue. Leave empty to start a new chat.")
     var chat: ConversationEntity?
 
-    @Parameter(title: "Show in OpenChat", description: "Open the chat in the app while it answers.", default: false)
+    @Parameter(title: "Show in OmniChat", description: "Open the chat in the app while it answers.", default: false)
     var showInApp: Bool
 
     static var parameterSummary: some ParameterSummary {
@@ -63,7 +63,7 @@ struct SummarizeIntent: AppIntent {
     @Parameter(title: "Model", description: "The model to answer. Leave empty for the one a new chat uses.")
     var model: ChatModelEntity?
 
-    @Parameter(title: "Show in OpenChat", description: "Open the chat in the app while it answers.", default: false)
+    @Parameter(title: "Show in OmniChat", description: "Open the chat in the app while it answers.", default: false)
     var showInApp: Bool
 
     static var parameterSummary: some ParameterSummary {
@@ -88,7 +88,7 @@ struct SummarizeIntent: AppIntent {
     }
 }
 
-/// The flow Ask OpenChat and Summarize share.
+/// The flow Ask OmniChat and Summarize share.
 @MainActor
 enum IntentReply {
     static func run(prompt: String, existing: UUID?, model: ModelSelection.Choice?, requiredTools: Set<ToolGroup>,
@@ -106,7 +106,7 @@ enum IntentReply {
         return try await chat.answer(conversation, inApp: inApp, canContinueInForeground: mode.canContinueInForeground,
                                      continueInForeground: {
                                          try await intent.continueInForeground(
-                                             IntentDialog("Still working on it. Continue in OpenChat?"), alwaysConfirm: true)
+                                             IntentDialog("Still working on it. Continue in OmniChat?"), alwaysConfirm: true)
                                      },
                                      show: { IntentRouter.shared.open($0) })
     }
@@ -115,7 +115,7 @@ enum IntentReply {
 /// New Chat: opens the app to an empty chat, with text in the composer when given.
 struct NewChatIntent: AppIntent {
     static let title: LocalizedStringResource = "New Chat"
-    static let description = IntentDescription("Opens OpenChat to a new chat, optionally with text ready to send.",
+    static let description = IntentDescription("Opens OmniChat to a new chat, optionally with text ready to send.",
                                                categoryName: "Chats")
     static let supportedModes: IntentModes = .foreground(.immediate)
 
@@ -142,7 +142,7 @@ struct NewChatIntent: AppIntent {
 /// Open Chat: opens the app to a chat. Also what Spotlight runs when a chat found there is opened.
 struct OpenChatIntent: OpenIntent {
     static let title: LocalizedStringResource = "Open Chat"
-    static let description = IntentDescription("Opens a chat in OpenChat.", categoryName: "Chats")
+    static let description = IntentDescription("Opens a chat in OmniChat.", categoryName: "Chats")
     static let supportedModes: IntentModes = .foreground(.immediate)
 
     @Parameter(title: "Chat", requestValueDialog: "Which chat?")

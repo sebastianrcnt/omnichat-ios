@@ -1,11 +1,11 @@
 {
   "format": 1,
-  "id": "app.openchat.wikipedia",
+  "id": "app.omnichat.wikipedia",
   "name": "Wikipedia",
   "namespace": "wiki",
   "version": "1.0.0",
   "description": "Read the lead and infobox of a Wikipedia article, in any language.",
-  "publisher": { "name": "OpenChat" },
+  "publisher": { "name": "OmniChat" },
   "license": "MIT",
   "requires": { "groups": ["web"] },
   "permissions": { "network": ["*.wikipedia.org"] },

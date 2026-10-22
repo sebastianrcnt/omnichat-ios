@@ -19,13 +19,13 @@ enum OpenCodeAPI {
     static let consoleURL = URL(string: "https://opencode.ai/console")!
     /// Our own client id. The docs invite other CLIs to use the flow with their own id; the Console accepts any id here
     /// (checked live: `strata` gets a code, while `opencode-cli` is refused for this app). Kept from before the app was
-    /// named OpenChat: the refresh grant sends it too, so a new id could strand every existing sign-in. Only the client
-    /// name below says OpenChat.
+    /// named OmniChat: the refresh grant sends it too, so a new id could strand every existing sign-in. Only the client
+    /// name below says OmniChat.
     static let clientID = "strata"
     /// Sent as `x-opencode-client` (Go asks clients to name themselves).
-    static let clientName = "openchat"
+    static let clientName = "omnichat"
     /// The product part of the User-Agent: the app's name, not a generic HTTP library's.
-    static let productName = "OpenChat"
+    static let productName = "OmniChat"
     /// models.dev: per-model API family (`provider.npm`), limits, modalities and reasoning options. The opencode CLI and
     /// the docs' model tables come from it; the gateways' own `/models` lists only ids.
     static let metadataURL = URL(string: "https://models.dev/api.json")!

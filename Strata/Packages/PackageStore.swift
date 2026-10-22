@@ -3,7 +3,7 @@ import Observation
 
 /// How far a package is trusted, which decides what it may do without asking (docs/PACKAGES.md 5.5).
 enum PackageTrust: String, Codable, Sendable {
-    /// Shipped in the app bundle: the OpenChat-known publisher.
+    /// Shipped in the app bundle: the OmniChat-known publisher.
     case builtIn
     /// Signed by a company key from MDM or policy (phase 3; nothing installs at this level yet).
     case company
@@ -162,6 +162,11 @@ final class PackageStore: @unchecked Sendable {
         guard let directory, let data = try? Data(contentsOf: directory.appendingPathComponent("registry.json")),
               let saved = try? Self.decoder.decode(Registry.self, from: data) else { return }
         registry = saved
+        // Built-in defaults saved under a legacy id (before the rename to OmniChat) carry over to the current id.
+        for (id, on) in saved.builtInDefaults where BuiltInPackages.canonicalID(id) != id {
+            registry.builtInDefaults[id] = nil
+            registry.builtInDefaults[BuiltInPackages.canonicalID(id)] = registry.builtInDefaults[BuiltInPackages.canonicalID(id)] ?? on
+        }
         for record in saved.packages {
             if let bundle = try? PackageBundle.load(folder: folder(record.id, record.version)) { bundles[record.id] = bundle }
         }
@@ -207,7 +212,10 @@ final class PackageStore: @unchecked Sendable {
         }
     }
 
-    func package(id: String) -> InstalledPackage? { all.first { $0.id == id } }
+    func package(id: String) -> InstalledPackage? {
+        let id = BuiltInPackages.canonicalID(id)
+        return all.first { $0.id == id }
+    }
 
     func package(namespace: String) -> InstalledPackage? { all.first { $0.namespace == namespace } }
 
@@ -220,7 +228,10 @@ final class PackageStore: @unchecked Sendable {
         Set(BuiltInPackages.replacedPlugins.filter { packages.contains($0.value) && isBuiltIn($0.value) }.keys)
     }
 
-    func isBuiltIn(_ id: String) -> Bool { builtIn.contains { $0.manifest.id == id } }
+    func isBuiltIn(_ id: String) -> Bool {
+        let id = BuiltInPackages.canonicalID(id)
+        return builtIn.contains { $0.manifest.id == id }
+    }
 
     func isTrustedKey(_ key: String) -> Bool { lock.withLock { loadIfNeeded(); return registry.trustedKeys.contains(key) } }
 
@@ -246,7 +257,7 @@ final class PackageStore: @unchecked Sendable {
 
         var errorDescription: String? {
             switch self {
-            case .builtIn(let id): String(localized: "\(id) is built into OpenChat and can't be replaced or removed.")
+            case .builtIn(let id): String(localized: "\(id) is built into OmniChat and can't be replaced or removed.")
             case .notInstalled(let id): String(localized: "\(id) isn't installed.")
             case .nothingToRevert(let id): String(localized: "\(id) has no earlier version to go back to.")
             }
@@ -319,6 +330,7 @@ final class PackageStore: @unchecked Sendable {
     }
 
     func setOnInNewChats(_ on: Bool, id: String) {
+        let id = BuiltInPackages.canonicalID(id)
         lock.withLock {
             loadIfNeeded()
             if builtIn.contains(where: { $0.manifest.id == id }) {
@@ -345,9 +357,20 @@ final class PackagesVersion {
 
 /// The ids of the packages that ship in the app.
 enum BuiltInPackages {
-    static let wikipedia = "app.openchat.wikipedia"
-    static let korea = "app.openchat.korea"
-    static let connections = "app.openchat.connections"
+    static let wikipedia = "app.omnichat.wikipedia"
+    static let korea = "app.omnichat.korea"
+    static let connections = "app.omnichat.connections"
+
+    /// The ids they had before the rename to OmniChat. Chats (their switches and snapshots, synced through iCloud) and
+    /// the registry may still hold them, so every id read back goes through `canonicalID`.
+    static let legacyIDs = [
+        "app.openchat.wikipedia": wikipedia,
+        "app.openchat.korea": korea,
+        "app.openchat.connections": connections,
+    ]
+
+    /// The current id of a package: a legacy built-in id maps to its new one, any other id is returned unchanged.
+    static func canonicalID(_ id: String) -> String { legacyIDs[id] ?? id }
 
     /// Site plugins a built-in package took over: new chats list the package instead (chats that froze the plugin
     /// list keep it, and `run_plugin` still runs it).

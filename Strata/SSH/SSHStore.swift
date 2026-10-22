@@ -173,7 +173,7 @@ final class SSHStore: Sendable {
         c.name = try Self.validate(c.name)
         if c.kind == .privateKey {
             guard let key = c.privateKey, let info = SSHKeyFormat.inspect(key) else {
-                throw SSHStoreError.invalid("The private key isn't one OpenChat can read: paste the whole key, from -----BEGIN to -----END.")
+                throw SSHStoreError.invalid("The private key isn't one OmniChat can read: paste the whole key, from -----BEGIN to -----END.")
             }
             if info.format == .putty {
                 throw SSHStoreError.invalid("PuTTY keys aren't supported. Convert it first, for example with puttygen key.ppk -O private-openssh -o key.")

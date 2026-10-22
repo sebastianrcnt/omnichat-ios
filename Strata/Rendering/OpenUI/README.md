@@ -14,7 +14,7 @@ native SwiftUI in place of a code block. Only the language comes from OpenUI. Th
 | File | What it does |
 | --- | --- |
 | `OpenUILang.swift` | Lexer, lenient Pratt parser, statement splitter and the incremental `OUIStreamParser`. |
-| `OpenUIEvaluator.swift` | Values, the component library (`OUILibrary.openChat`), and the evaluator. The evaluator handles references, `$state`, `@` builtins and actions. |
+| `OpenUIEvaluator.swift` | Values, the component library (`OUILibrary.omniChat`), and the evaluator. The evaluator handles references, `$state`, `@` builtins and actions. |
 | `OpenUIRuntime.swift` | Per-view state, fields, validation, actions turned into the follow-up message, saved state on `Message`, and plain text for Copy. |
 | `OpenUIBlockView.swift` | The block view, the host environment (`OpenUIHost`), the failure note and source sheet, and dispatch by type. |
 | `OpenUIViews.swift`, `OpenUICharts.swift`, `OpenUIControls.swift` | The component views. |

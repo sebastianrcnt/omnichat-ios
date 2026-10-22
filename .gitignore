@@ -8,7 +8,7 @@ build-*/
 Tools/.build-libssh2/
 .build/
 Packages/*/.build/
-Tools/openchat-pkg/.build/
+Tools/omnichat-pkg/.build/
 .swiftpm/
 /build
 /build-*

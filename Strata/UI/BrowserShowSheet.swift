@@ -104,7 +104,7 @@ struct BrowserShowSheet: View {
     /// What the user is asked to do, above the page.
     private var note: String? {
         if case .browse = request.mode { return nil }
-        if holdsSession { return String(localized: "OpenChat waits while you use the page. Tap Done to hand it back.") }
+        if holdsSession { return String(localized: "OmniChat waits while you use the page. Tap Done to hand it back.") }
         return request.reason.isEmpty ? nil : request.reason
     }
 
@@ -116,7 +116,7 @@ struct BrowserShowSheet: View {
     private var watchBanner: some View {
         HStack(spacing: DS.Spacing.sm) {
             ProgressView().controlSize(.small).tint(.white)
-            Text("OpenChat is using this page · view only")
+            Text("OmniChat is using this page · view only")
                 .font(DS.Typography.uiSmall)
                 .foregroundStyle(.white)
             Spacer(minLength: 0)
@@ -204,7 +204,7 @@ struct BrowserCookiesView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Spacing.xl) {
                 if loaded && cookies.isEmpty {
-                    GroupedSection(footer: "Sites you sign in to or pass a robot check on in OpenChat's browser keep their cookies here.") {
+                    GroupedSection(footer: "Sites you sign in to or pass a robot check on in OmniChat's browser keep their cookies here.") {
                         SettingsRow(title: "No cookies")
                     }
                 }

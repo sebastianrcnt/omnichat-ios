@@ -109,7 +109,7 @@ struct ShareComposeView: View {
                 }
             }
             .background(theme.background.ignoresSafeArea())
-            .navigationTitle("OpenChat")
+            .navigationTitle("OmniChat")
             .inlineNavigationTitle()
             .toolbar { toolbar }
         }
@@ -286,8 +286,8 @@ struct ShareComposeView: View {
                 .padding(.horizontal, DS.Spacing.lg)
                 .accessibilityElement(children: .combine)
             } else {
-                Label(context.hasConnection ? "No model yet: open OpenChat to load the model list."
-                                            : "No connection yet: add one in OpenChat to get a reply.",
+                Label(context.hasConnection ? "No model yet: open OmniChat to load the model list."
+                                            : "No connection yet: add one in OmniChat to get a reply.",
                       systemImage: "exclamationmark.triangle.fill")
                     .font(DS.Typography.uiCaption)
                     .foregroundStyle(theme.warning)
@@ -303,8 +303,8 @@ struct ShareComposeView: View {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: DS.IconSize.lg * 2))
                 .foregroundStyle(theme.accent)
-            Text("Ready in OpenChat").font(DS.Typography.title).foregroundStyle(theme.textPrimary)
-            Text("Open OpenChat to continue. The chat starts as soon as it opens.")
+            Text("Ready in OmniChat").font(DS.Typography.title).foregroundStyle(theme.textPrimary)
+            Text("Open OmniChat to continue. The chat starts as soon as it opens.")
                 .foregroundStyle(theme.textSecondary)
                 .multilineTextAlignment(.center)
         }
@@ -317,7 +317,7 @@ struct ShareComposeView: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: DS.IconSize.lg * 2))
                 .foregroundStyle(theme.destructive)
-            Text("Couldn't share to OpenChat").font(DS.Typography.title).foregroundStyle(theme.textPrimary)
+            Text("Couldn't share to OmniChat").font(DS.Typography.title).foregroundStyle(theme.textPrimary)
             Text(verbatim: message).foregroundStyle(theme.textSecondary).multilineTextAlignment(.center)
         }
         .padding(DS.Spacing.xl)
@@ -435,7 +435,7 @@ private struct ShareFileRow: View {
         case .pdf: String(localized: "PDF · its text is sent")
         case .text: String(localized: "Text file")
         case .other: String(localized: "Only the name is sent")
-        case .package: String(localized: "Package · OpenChat opens it for review")
+        case .package: String(localized: "Package · OmniChat opens it for review")
         }
         guard let bytes = file.byteCount else { return kind }
         return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file) + " · " + kind

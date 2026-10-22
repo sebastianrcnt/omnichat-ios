@@ -127,7 +127,7 @@ struct ChatGPTOAuthTests {
         #expect(url.absoluteString.hasPrefix("https://auth.openai.com/api/accounts/authorize?"))
         let q = query(url)
         #expect(q["client_id"] == "dynamic_agent_client")
-        #expect(q["agent_name_hint"] == "OpenChat")
+        #expect(q["agent_name_hint"] == "OmniChat")
         #expect(q["ext_agent_host_id"] == "urn:uuid:abc")
         #expect(q["response_type"] == "code")
         #expect(q["redirect_uri"] == "http://127.0.0.1:54321/auth/callback")

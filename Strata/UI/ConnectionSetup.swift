@@ -33,7 +33,7 @@ final class ConnectionLinks {
 
     var pending: Pending?
 
-    /// Takes an `openchat://add-connection` link; false for any other URL.
+    /// Takes an `omnichat://add-connection` link; false for any other URL.
     @discardableResult
     func receive(_ url: URL) -> Bool {
         guard AddConnectionLink.isAddLink(url) else { return false }
@@ -42,7 +42,7 @@ final class ConnectionLinks {
     }
 }
 
-/// Opens `openchat://add-connection` links in their confirmation sheet, at the root of the window. A sheet that is open
+/// Opens `omnichat://add-connection` links in their confirmation sheet, at the root of the window. A sheet that is open
 /// (`closing`, Settings on the phone) is closed first: one sheet can't open on top of another from the root.
 private struct ConnectionLinkHandler: ViewModifier {
     @Environment(\.theme) private var theme
@@ -134,7 +134,7 @@ struct ConnectionSetupSheet: View {
 
     private var presets: some View {
         Group {
-            Text("Pick the service OpenChat talks to. You'll enter its API key or sign in next. Keys stay in the Keychain on this device.")
+            Text("Pick the service OmniChat talks to. You'll enter its API key or sign in next. Keys stay in the Keychain on this device.")
                 .font(DS.Typography.ui)
                 .foregroundStyle(theme.textSecondary)
                 .padding(.horizontal, DS.Spacing.lg)
@@ -266,7 +266,7 @@ struct NoConnectionState: View {
             Text("Add a connection to start")
                 .font(DS.Typography.title)
                 .foregroundStyle(theme.textPrimary)
-            Text("OpenChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.")
+            Text("OmniChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.")
                 .font(DS.Typography.ui)
                 .foregroundStyle(theme.textSecondary)
                 .multilineTextAlignment(.center)

@@ -1,11 +1,11 @@
 {
   "format": 1,
-  "id": "app.openchat.connections",
+  "id": "app.omnichat.connections",
   "name": "Connection presets",
   "namespace": "connections",
   "version": "1.0.0",
   "description": "The OpenAI-compatible services the add-connection screen offers.",
-  "publisher": { "name": "OpenChat" },
+  "publisher": { "name": "OmniChat" },
   "license": "MIT",
   "contents": {
     "connections": [

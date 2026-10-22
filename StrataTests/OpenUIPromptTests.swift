@@ -26,7 +26,7 @@ struct OpenUIPromptTextTests {
         })
         #expect(names.count > 30)
         for name in names.subtracting(["Action"]) {
-            #expect(OUILibrary.openChat.spec(name) != nil, "\(name) is in the library")
+            #expect(OUILibrary.omniChat.spec(name) != nil, "\(name) is in the library")
         }
     }
 

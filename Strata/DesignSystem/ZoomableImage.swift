@@ -79,7 +79,7 @@ final class ZoomingScrollView: UIScrollView, UIScrollViewDelegate {
 enum PhotoLibrarySaver {
     enum Failure: LocalizedError {
         case denied
-        var errorDescription: String? { String(localized: "OpenChat isn't allowed to add photos. You can allow it in Settings.") }
+        var errorDescription: String? { String(localized: "OmniChat isn't allowed to add photos. You can allow it in Settings.") }
     }
 
     static func save(fileURL: URL) async throws {

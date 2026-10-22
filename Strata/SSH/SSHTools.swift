@@ -276,7 +276,7 @@ enum SSHTargetResolver {
         var auths: [SSHAuth] = []
         if let key = args.raw("private_key") {
             guard SSHKeyFormat.isPrivateKey(key) else {
-                throw SSHStoreError.invalid("private_key isn't a private key OpenChat can read: pass the whole text, from -----BEGIN to -----END.")
+                throw SSHStoreError.invalid("private_key isn't a private key OmniChat can read: pass the whole text, from -----BEGIN to -----END.")
             }
             auths.append(.privateKey(key, passphrase: args.raw("passphrase")))
         }
@@ -567,7 +567,7 @@ struct SSHTool: Sendable {
             let backgrounded = await guardian.wentToBackground
             await guardian.end()
             if backgrounded, !(error is CancellationError), (error as? SSHError) != .cancelled {
-                throw SSHError.disconnected("OpenChat went to the background, and iOS stops its network connections soon after (\((error as? SSHError)?.errorDescription ?? error.localizedDescription)). Run long jobs with nohup or in tmux and check on them later")
+                throw SSHError.disconnected("OmniChat went to the background, and iOS stops its network connections soon after (\((error as? SSHError)?.errorDescription ?? error.localizedDescription)). Run long jobs with nohup or in tmux and check on them later")
             }
             throw error
         }

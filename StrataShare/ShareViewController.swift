@@ -5,11 +5,11 @@ import LinkPresentation
 @preconcurrency import UserNotifications
 
 /// The share extension: shows `ShareComposeView` for what another app shared, saves the share into the App Group
-/// (`ShareInbox`) on Send and opens OpenChat, which starts the chat.
+/// (`ShareInbox`) on Send and opens OmniChat, which starts the chat.
 ///
 /// Opening the app: a share extension has no supported API for it (`NSExtensionContext.open` works for widgets only),
 /// so the request goes up the responder chain to the UIApplication, which works on iOS 26 but is not promised. When it
-/// fails, the share is still saved: the sheet says to open OpenChat, a notification (if allowed) leads there, and the
+/// fails, the share is still saved: the sheet says to open OmniChat, a notification (if allowed) leads there, and the
 /// app picks the share up whenever it comes to the foreground.
 final class ShareViewController: UIViewController {
     private let inbox = ShareInbox.shared
@@ -46,7 +46,7 @@ final class ShareViewController: UIViewController {
     private func load() async {
         defer { model.isLoading = false }
         guard let inbox, let folder = try? inbox.makeIncoming(model.id) else {
-            model.phase = .failed(String(localized: "OpenChat's shared storage isn't available. Open OpenChat once, then try again."))
+            model.phase = .failed(String(localized: "OmniChat's shared storage isn't available. Open OmniChat once, then try again."))
             return
         }
         let items = extensionContext?.inputItems.compactMap { $0 as? NSExtensionItem } ?? []
@@ -133,7 +133,7 @@ final class ShareViewController: UIViewController {
         center.getNotificationSettings { settings in
             guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
             let content = UNMutableNotificationContent()
-            content.title = String(localized: "Ready in OpenChat")
+            content.title = String(localized: "Ready in OmniChat")
             content.body = String(localized: "Tap to start the chat with what you shared.")
             center.add(UNNotificationRequest(identifier: "share-ready", content: content, trigger: nil))
         }

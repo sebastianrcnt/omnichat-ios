@@ -147,7 +147,7 @@ struct SidebarView: View {
             .onAppear { searchFocused = true }
         } else {
             HStack {
-                Text(verbatim: "OpenChat")
+                Text(verbatim: "OmniChat")
                     .font(DS.Typography.largeTitle)
                     .foregroundStyle(theme.textPrimary)
                 Spacer()

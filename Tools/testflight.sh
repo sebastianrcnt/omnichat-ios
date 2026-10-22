@@ -26,15 +26,15 @@ cat > "$WORK/ExportOptions.plist" <<EOF
 </dict></plist>
 EOF
 
-rm -rf "$WORK/OpenChat.xcarchive" "$WORK/export"
+rm -rf "$WORK/OmniChat.xcarchive" "$WORK/export"
 xcodebuild -project "$REPO/Strata.xcodeproj" -scheme Strata -configuration Release -destination 'generic/platform=iOS' \
-  -allowProvisioningUpdates -derivedDataPath "$WORK/dd" -archivePath "$WORK/OpenChat.xcarchive" archive \
+  -allowProvisioningUpdates -derivedDataPath "$WORK/dd" -archivePath "$WORK/OmniChat.xcarchive" archive \
   CURRENT_PROJECT_VERSION=$BUILD \
   | grep -a "ARCHIVE SUCCEEDED\|ARCHIVE FAILED\|error: [^t]" || true
-[[ -d "$WORK/OpenChat.xcarchive" ]] || { echo "archive failed" >&2; exit 1; }
+[[ -d "$WORK/OmniChat.xcarchive" ]] || { echo "archive failed" >&2; exit 1; }
 
 # Homebrew rsync on PATH breaks the IPA copy step ("Copy failed"): export with the system tools.
-PATH=/usr/bin:/bin:/usr/sbin:/sbin xcodebuild -exportArchive -archivePath "$WORK/OpenChat.xcarchive" -exportPath "$WORK/export" \
+PATH=/usr/bin:/bin:/usr/sbin:/sbin xcodebuild -exportArchive -archivePath "$WORK/OmniChat.xcarchive" -exportPath "$WORK/export" \
   -exportOptionsPlist "$WORK/ExportOptions.plist" -allowProvisioningUpdates 2>&1 \
   | grep -av "IDEDistributionLogging\|^\s*$" | tail -25
 echo "build $BUILD ($(git -C "$REPO" log -1 --format=%h))"

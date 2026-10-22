@@ -78,8 +78,12 @@ struct PackageSnapshot: Codable, Sendable, Equatable {
         PackageSnapshot(entries: entries.filter { $0.id != entry.id } + [entry])
     }
 
+    /// Built-in ids from before the rename to OmniChat read as the current ones (`BuiltInPackages.canonicalID`). The
+    /// entries keep their stored order, so the bytes the chat sends don't move.
     static func decode(_ data: Data?) -> PackageSnapshot? {
-        data.flatMap { try? JSONDecoder().decode(PackageSnapshot.self, from: $0) }
+        guard var snapshot = data.flatMap({ try? JSONDecoder().decode(PackageSnapshot.self, from: $0) }) else { return nil }
+        for i in snapshot.entries.indices { snapshot.entries[i].id = BuiltInPackages.canonicalID(snapshot.entries[i].id) }
+        return snapshot
     }
 
     var encoded: Data? {
@@ -106,11 +110,11 @@ enum ToolSwitch: Hashable, Sendable {
         return (ToolGroup.allCases.filter(groups.contains).map(\.rawValue) + entries).joined(separator: ",")
     }
 
-    /// The packages a field holds; nil when it holds the defaults marker.
+    /// The packages a field holds; nil when it holds the defaults marker. Legacy built-in ids read as the current ones.
     static func packages(in raw: String) -> Set<String>? {
         let entries = raw.split(separator: ",").filter { $0.hasPrefix(packagePrefix) }
         if entries.contains(where: { $0 == defaultsMarker }) { return nil }
-        return Set(entries.map { String($0.dropFirst(packagePrefix.count)) })
+        return Set(entries.map { BuiltInPackages.canonicalID(String($0.dropFirst(packagePrefix.count))) })
     }
 
     /// "[Package Acme Jira: off]": the note on a user message after the switch changed (`Message.apiNote`).
