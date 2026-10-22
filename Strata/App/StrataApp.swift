@@ -48,7 +48,7 @@ struct StrataApp: App {
                 .modelContainer(container)
                 #if DEBUG
                 // The hidden web views attach to the key window, which exists once the first scene is up.
-                .task { try? await Task.sleep(for: .seconds(1)); DebugHooks.runWebSelfTest(); DebugHooks.runVideoSelfTest() }
+                .task { try? await Task.sleep(for: .seconds(1)); DebugHooks.runWebSelfTest(); DebugHooks.runVideoSelfTest(); HealthSeed.runIfRequested() }
                 #endif
         }
     }
