@@ -61,6 +61,23 @@ enum ImageProcessor {
         return jpegData(from: image)
     }
 
+    /// Decode a bounded thumbnail directly from disk, without first allocating the encoded file in memory.
+    static func jpegData(fromFile url: URL, maxBytes: Int64) -> Data? {
+        guard let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, Int64(size) <= maxBytes,
+              let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+              let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                  kCGImageSourceCreateThumbnailFromImageAlways: true,
+                  kCGImageSourceCreateThumbnailWithTransform: true,
+                  kCGImageSourceShouldCacheImmediately: true,
+                  kCGImageSourceThumbnailMaxPixelSize: maxLongSide,
+              ] as CFDictionary) else { return nil }
+        #if canImport(UIKit)
+        return jpegData(from: UIImage(cgImage: cg))
+        #else
+        return jpegData(from: NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height)))
+        #endif
+    }
+
     /// Long side of a stored preview: about twice the largest size a bubble draws, on a 3x screen.
     static let thumbnailLongSide: CGFloat = 240
 

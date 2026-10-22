@@ -57,6 +57,8 @@ struct SharePayload: Codable, Identifiable, Equatable, Sendable {
     var images: [String] = []
     var files: [File] = []
     var destination: Destination = .newChat
+    /// The recipient shown when Send was tapped; nil for shares from older versions.
+    var recipient: ShareRecipient?
 
     var isEmpty: Bool {
         links.isEmpty && texts.allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } && images.isEmpty
@@ -168,14 +170,28 @@ struct ShareContext: Codable, Equatable, Sendable {
     struct Chat: Codable, Equatable, Sendable {
         var id: UUID
         var title: String
+        var recipient: ShareRecipient?
     }
 
+    var recipient: ShareRecipient?
     var accentHex: String?
     /// Nil when there is no connection with a model.
     var modelTitle: String?
     var connectionName: String?
     var hasConnection = false
     var currentChat: Chat?
+}
+
+/// No credentials cross into the extension. The app compares a digest of the route, not just a mutable connection ID.
+struct ShareRecipient: Codable, Equatable, Sendable {
+    var connectionID: UUID
+    var modelID: String
+    var routeDigest: String
+    var modelTitle: String
+    var connectionName: String
+    var serviceHost: String?
+
+    var displayName: String { modelTitle + " · " + connectionName + (serviceHost.map { " (" + $0 + ")" } ?? "") }
 }
 
 // MARK: - The inbox
