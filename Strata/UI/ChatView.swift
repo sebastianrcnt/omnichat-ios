@@ -56,6 +56,8 @@ struct ChatView: View {
     @State private var sourcesItem: SourceListItem?
     @State private var showRename = false
     @State private var loadingModels = false
+    /// The model fetch a send is waiting on; cancelled when this chat view goes away.
+    @State private var modelFetch: Task<Void, Never>?
     /// The add-connection sheet, from the empty chat shown while there is no connection.
     @State private var showAddConnection = false
     /// Where "Add a connection" opens: the presets, or straight into a new connection's editor (first-run shortcuts).
@@ -316,6 +318,7 @@ struct ChatView: View {
             .task(id: run?.messageID) { await debugTimeline() }
             #endif
             .onChange(of: connections.allModels.count) { _, _ in persistAutoSelection() }
+            .onDisappear { modelFetch?.cancel() }
             #if os(macOS)
             .onChange(of: conversation?.activePath.last?.id, initial: true) { _, _ in installMenuActions() }
             .onChange(of: isStreamingHere) { _, _ in installMenuActions() }
@@ -888,11 +891,14 @@ struct ChatView: View {
         // send goes on and the chat says what's missing.
         if !afterFetch, needsModelList {
             loadingModels = true
-            Task { @MainActor in
+            let origin = conversation?.id
+            modelFetch = Task { @MainActor in
                 for c in connections.connections where c.models.isEmpty {
                     _ = try? await connections.refreshModels(for: c.id)
                 }
                 loadingModels = false
+                // The binding follows the sidebar: a draft typed here never goes into a chat opened meanwhile.
+                guard !Task.isCancelled, conversation?.id == origin else { return }
                 send(afterFetch: true)
             }
             return
