@@ -51,24 +51,12 @@ targets:
         embed: false
       - target: OpenChatWidgets # the Live Activity and the New Chat control, embedded in PlugIns
       - target: StrataShare
-    entitlements:
-      path: Strata/Strata.entitlements
-      properties:
-        com.apple.security.application-groups:
-          - group.cc.coolservices.strata
-        # iCloud sync (`Strata/Sync`): chats and skills in CloudKit, settings and connections in key-value storage,
-        # secrets in iCloud Keychain. The Mac app names the same container, store and access group.
-        com.apple.developer.icloud-container-identifiers:
-          - iCloud.cc.coolservices.strata
-        com.apple.developer.icloud-services:
-          - CloudKit
-        com.apple.developer.ubiquity-kvstore-identifier: $(TeamIdentifierPrefix)cc.coolservices.strata
-        aps-environment: development # CloudKit's change pushes; exporting for distribution makes it production
-        keychain-access-groups:
-          - $(AppIdentifierPrefix)cc.coolservices.strata
+    # Separate checked-in signing files keep Debug Health access out of Release. XcodeGen's entitlements block
+    # would overwrite a configuration-specific CODE_SIGN_ENTITLEMENTS setting with its single generated path.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cc.coolservices.strata
+        CODE_SIGN_ENTITLEMENTS: Strata/Strata.entitlements
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
