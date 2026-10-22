@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// The editor for a connection: ChatGPT and OpenCode accounts have their own, every other connection the server editor.
+/// The editor for a connection: ChatGPT and OpenCode accounts have their own, every other connection (Anthropic too)
+/// the server editor.
 struct ConnectionDestination: View {
     @Environment(\.connectionStore) private var connections
     let connectionID: UUID
@@ -140,6 +141,7 @@ struct ConnectionSetupSheet: View {
             OnDeviceOfferSection { id in path = [id] }
             let builtIn = PackageStore.shared.package(id: BuiltInPackages.connections)?.manifest.connections ?? []
             GroupedSection(header: "With an API key") {
+                row(.anthropic)
                 ForEach(builtIn.filter { !$0.isLocal }) { row($0) }
             }
             GroupedSection(header: "On your computer", footer: localFooter) {
@@ -197,10 +199,14 @@ struct ConnectionSetupSheet: View {
             GroupedSection {
                 SettingsRow(title: "Name", value: link.name)
                 SettingsRow(title: "", verbatimTitle: String(localized: "Server"), detail: link.baseURL.absoluteString)
-                SettingsRow(title: "API", value: link.api?.title ?? String(localized: "Automatic"))
-                SettingsRow(title: "Images", value: link.images ? String(localized: "On") : String(localized: "Off"))
-                SettingsRow(title: "Reasoning effort", value: link.effort ? String(localized: "On") : String(localized: "Off"))
-                SettingsRow(title: "Resumable replies", value: link.resumable ? String(localized: "On") : String(localized: "Off"))
+                if link.anthropic {
+                    SettingsRow(title: "API", value: String(localized: "Anthropic Messages"))
+                } else {
+                    SettingsRow(title: "API", value: link.api?.title ?? String(localized: "Automatic"))
+                    SettingsRow(title: "Images", value: link.images ? String(localized: "On") : String(localized: "Off"))
+                    SettingsRow(title: "Reasoning effort", value: link.effort ? String(localized: "On") : String(localized: "Off"))
+                    SettingsRow(title: "Resumable replies", value: link.resumable ? String(localized: "On") : String(localized: "Off"))
+                }
             }
             ForEach(warnings(link), id: \.self) { warning in
                 Label { Text(verbatim: warning) } icon: { Image(systemName: "exclamationmark.triangle.fill") }
@@ -260,7 +266,7 @@ struct NoConnectionState: View {
             Text("Add a connection to start")
                 .font(DS.Typography.title)
                 .foregroundStyle(theme.textPrimary)
-            Text("OpenChat talks to the AI service you choose: OpenAI, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.")
+            Text("OpenChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.")
                 .font(DS.Typography.ui)
                 .foregroundStyle(theme.textSecondary)
                 .multilineTextAlignment(.center)

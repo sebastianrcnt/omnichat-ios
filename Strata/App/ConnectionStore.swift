@@ -108,11 +108,13 @@ final class ConnectionStore {
         save()
     }
 
-    /// Drops OpenAI-compatible connections that were added but never set up (no address, key or models), so a tap on
-    /// "Add" that was backed out of doesn't leave a "New connection" in the list.
+    /// Drops OpenAI-compatible and Anthropic connections that were added but never set up (no address, key or models),
+    /// so a tap on "Add" that was backed out of doesn't leave a "New connection" in the list. An Anthropic connection
+    /// has its address from the start: no key and no models is enough (it isn't synced before it has models).
     func removeUnconfigured() {
         let empty = connections.filter { c in
-            guard c.kind == .openAICompatible, c.models.isEmpty, keys.key(for: c.id) == nil else { return false }
+            guard c.kind == .openAICompatible || c.kind == .anthropic, c.models.isEmpty, keys.key(for: c.id) == nil else { return false }
+            if c.kind == .anthropic { return true }
             let url = c.baseURL.trimmingCharacters(in: .whitespaces).lowercased()
             return url.isEmpty || url == "https://" || url == "http://"
         }
@@ -166,6 +168,11 @@ final class ConnectionStore {
         guard let base = conn.normalizedBaseURL else { return nil }
         var headers: [String: String] = [:]
         for h in conn.parsedHeaders { headers[h.name] = h.value }
+        if conn.isAnthropic {
+            // The Messages API can't replay a stream: never resumable, whatever the connection says.
+            return Endpoint(connectionID: conn.id, connectionName: conn.name, baseURL: base, apiKey: keys.key(for: conn.id),
+                            headers: headers, model: model, supportsResumable: false, kind: .anthropic)
+        }
         // Chat Completions unless the model is known to need the Responses API, which is never resumable (the gateway
         // replays Chat Completions streams only).
         let api = conn.chatAPI(forModel: modelID)
@@ -260,6 +267,7 @@ final class ConnectionStore {
 
     private func fetchModels(for id: UUID) async throws -> Int {
         if connection(id)?.isChatGPT == true { return try await refreshChatGPTModels(for: id) }
+        if connection(id)?.isAnthropic == true { return try await refreshAnthropicModels(for: id) }
         guard let conn = connection(id), let base = conn.normalizedBaseURL else { throw APIError.invalidBaseURL }
         var headers: [String: String] = [:]
         for h in conn.parsedHeaders { headers[h.name] = h.value }
@@ -301,6 +309,31 @@ final class ConnectionStore {
             if !model.supportsImagesUserSet, let images = entry.supportsImages { model.supportsImages = images }
             return model
         }
+        upsert(updated)
+        return entries.count
+    }
+
+    /// The key's models from `GET /v1/models` (every page), merged like `/models` of other connections: user-set flags,
+    /// aliases and hidden models stay, a model added by hand stays, models that dropped out of the list go.
+    private func refreshAnthropicModels(for id: UUID) async throws -> Int {
+        guard let conn = connection(id), let base = conn.normalizedBaseURL else { throw APIError.invalidBaseURL }
+        var headers: [String: String] = [:]
+        for h in conn.parsedHeaders { headers[h.name] = h.value }
+        let probe = Endpoint(connectionID: id, connectionName: conn.name, baseURL: base, apiKey: keys.key(for: id),
+                             headers: headers, model: ModelInfo(id: ""), kind: .anthropic)
+        let entries = try await AnthropicModelsAPI.fetch(endpoint: probe, session: session)
+        guard var updated = connection(id) else { return entries.count }
+        let manual = updated.models.filter { m in m.isManual && !entries.contains { $0.id == m.id } }
+        updated.models = entries.map { entry in
+            var model = updated.models.first { $0.id == entry.id } ?? AnthropicModels.model(id: entry.id)
+            model.fetchedDisplayName = entry.displayName
+            model.fetchedContextLength = entry.contextLength ?? model.fetchedContextLength
+            model.maxOutputTokens = entry.maxOutputTokens ?? model.maxOutputTokens
+            model.anthropic = entry.info
+            if !model.supportsImagesUserSet, let images = entry.supportsImages { model.supportsImages = images }
+            if !model.supportsEffortUserSet { model.supportsEffort = !entry.info.pickerLevels.isEmpty }
+            return model
+        } + manual
         upsert(updated)
         return entries.count
     }

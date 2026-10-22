@@ -149,9 +149,11 @@ final class ConnectionSync {
     /// The ids this device has seen in the cloud (this device only): one of them missing there was deleted elsewhere.
     static let seenKey = "sync.connectionsSeen"
 
-    /// The on-device connection stays, and so does one still being set up (no address yet: Settings removes those).
+    /// The on-device connection stays, and so does one still being set up (no address yet, or an Anthropic connection
+    /// without models: Settings removes those, and another device must not remove one being set up here).
     nonisolated static func syncs(_ connection: Connection) -> Bool {
         guard connection.kind != .appleOnDevice else { return false }
+        if connection.kind == .anthropic { return !connection.models.isEmpty }
         let url = connection.baseURL.trimmingCharacters(in: .whitespaces).lowercased()
         return connection.kind != .openAICompatible || !connection.models.isEmpty || !(url.isEmpty || url == "https://" || url == "http://")
     }

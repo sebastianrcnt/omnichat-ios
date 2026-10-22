@@ -4,6 +4,9 @@ enum TurnEvent: Sendable {
     case reasoning(String)
     case content(String)
     case toolsRequested([ToolCall])
+    /// The signed thinking that led to the calls about to be announced (an Anthropic connection only), kept with their
+    /// step for later turns (`StepThinking`).
+    case stepThinking(StepThinking)
     case toolFinished(ToolCallRecord)
     case usage(Usage)
     /// A new request is about to start (round 0 is the first).
@@ -235,6 +238,9 @@ struct TurnRunner: Sendable {
                                    lastUsage: lastUsage, hitToolCap: hitCap)
             }
 
+            let thinking = endpoint.kind == .anthropic && !acc.reasoningItems.isEmpty
+                ? StepThinking(model: endpoint.model.id, items: acc.reasoningItems) : nil
+            if let thinking { try onEvent(.stepThinking(thinking)) }
             try onEvent(.toolsRequested(calls))
             // Calls run side by side, a few at a time. Results are numbered and appended in call order, so the
             // history and the source ids are what a one-by-one run would produce; a result that finishes early waits
@@ -298,7 +304,7 @@ struct TurnRunner: Sendable {
                                              readsImages: readsImages, reasoningItems: acc.reasoningItems)
             // The reported usage already counts the assistant message that made the calls; the results are new.
             for m in messages[before...] where !(usageCounted && m.role == "assistant") { meter.append(m) }
-            steps.append(ToolStep(assistantContent: acc.content, calls: records))
+            steps.append(ToolStep(assistantContent: acc.content, calls: records, thinking: thinking))
             round += 1
             let priorReasoning = checkpoint.priorReasoning + acc.reasoning + "\n\n"
             checkpoint = TurnCheckpoint()

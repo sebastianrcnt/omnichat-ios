@@ -141,6 +141,7 @@ struct SettingsView: View {
     /// The base URL, or for a ChatGPT account the signed-in email, or for an OpenCode account its plan.
     private func subtitle(for c: Connection) -> String {
         if c.isAppleOnDevice { return String(localized: "On this device · \(OnDevice.system.availability.shortStatus)") }
+        if c.isAnthropic { return "Anthropic · \(c.normalizedBaseURL?.host(percentEncoded: false) ?? c.baseURL)" }
         if c.isOpenCode {
             guard connections.isOpenCodeSignedIn(c.id) else { return String(localized: "OpenCode · Signed out") }
             return "OpenCode · \((c.openCodeGateway ?? .go).title)"
@@ -219,31 +220,35 @@ struct ConnectionEditor: View {
                                          multiline: true)
                     }
 
-                    GroupedSection(header: "New models", footer: "Used when the server's model list doesn't say what a model can do. Change a single model under Models.") {
-                        SettingsToggleRow(title: "Images", subtitle: "New models take image attachments.",
-                                          isOn: binding(\.imagesByDefault, fallback: false))
-                        SettingsToggleRow(title: "Reasoning effort", subtitle: "New models are sent reasoning_effort.",
-                                          isOn: binding(\.effortByDefault, fallback: false))
-                        HStack {
-                            Text("API").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
-                            Spacer()
-                            Picker("API", selection: binding(\.defaultChatAPI, fallback: nil)) {
-                                Text("Automatic").tag(ChatAPI?.none)
-                                ForEach(ChatAPI.allCases, id: \.self) { Text($0.title).tag(ChatAPI?.some($0)) }
+                    // An Anthropic connection's models say what they take, and its API can't resume a reply.
+                    if !connection.isAnthropic {
+                        GroupedSection(header: "New models", footer: "Used when the server's model list doesn't say what a model can do. Change a single model under Models.") {
+                            SettingsToggleRow(title: "Images", subtitle: "New models take image attachments.",
+                                              isOn: binding(\.imagesByDefault, fallback: false))
+                            SettingsToggleRow(title: "Reasoning effort", subtitle: "New models are sent reasoning_effort.",
+                                              isOn: binding(\.effortByDefault, fallback: false))
+                            HStack {
+                                Text("API").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
+                                Spacer()
+                                Picker("API", selection: binding(\.defaultChatAPI, fallback: nil)) {
+                                    Text("Automatic").tag(ChatAPI?.none)
+                                    ForEach(ChatAPI.allCases, id: \.self) { Text($0.title).tag(ChatAPI?.some($0)) }
+                                }
+                                .labelsHidden()
+                                .tint(theme.textSecondary)
                             }
-                            .labelsHidden()
-                            .tint(theme.textSecondary)
+                            .padding(.horizontal, DS.Spacing.lg)
+                            .padding(.vertical, DS.Spacing.sm)
                         }
-                        .padding(.horizontal, DS.Spacing.lg)
-                        .padding(.vertical, DS.Spacing.sm)
+
+                        GroupedSection(header: "Stream recovery") {
+                            SettingsToggleRow(title: "Resumable replies", subtitle: "Enable only for gateways supporting Strata stream replay.", isOn: binding(\.supportsResumable, fallback: false))
+                        }
                     }
 
-                    GroupedSection(header: "Stream recovery") {
-                        SettingsToggleRow(title: "Resumable replies", subtitle: "Enable only for gateways supporting Strata stream replay.", isOn: binding(\.supportsResumable, fallback: false))
-                    }
-
-                    GroupedSection(header: "API key", footer: hasKey ? "A key is saved in the Keychain. Enter a new one to replace it." : "Pasted keys are stored in the Keychain, never in the app's files.") {
-                        SettingsFieldRow(title: "Key", prompt: hasKey ? "Saved" : "sk-…", text: $apiKeyText, isSecure: true)
+                    GroupedSection(header: "API key", footer: keyFooter(anthropic: connection.isAnthropic)) {
+                        SettingsFieldRow(title: "Key", prompt: hasKey ? "Saved" : connection.isAnthropic ? "sk-ant-…" : "sk-…",
+                                         text: $apiKeyText, isSecure: true)
                         SettingsRow(systemImage: "key", title: "Save key") { saveKey() }
                             .disabled(apiKeyText.trimmingCharacters(in: .whitespaces).isEmpty)
                         if hasKey {
@@ -301,6 +306,12 @@ struct ConnectionEditor: View {
     }
 
     private struct ModelRef: Identifiable { let id: String }
+
+    private func keyFooter(anthropic: Bool) -> LocalizedStringKey {
+        if hasKey { return "A key is saved in the Keychain. Enter a new one to replace it." }
+        return anthropic ? "Create a key at console.anthropic.com. It is stored in the Keychain, never in the app's files."
+                         : "Pasted keys are stored in the Keychain, never in the app's files."
+    }
 
     /// Plain http to a host outside the local network sends the API key unencrypted. Local servers (a Mac on the same
     /// Wi-Fi, Tailscale) are the usual reason for http, so those aren't flagged.
@@ -389,7 +400,9 @@ struct ModelEditor: View {
                 }
                 GroupedSection(header: "Capabilities") {
                     SettingsToggleRow(title: "Supports images", isOn: Binding(get: { model.supportsImages }, set: { v in update { $0.supportsImages = v; $0.supportsImagesUserSet = true } }))
-                    SettingsToggleRow(title: "Supports reasoning effort", subtitle: "Sends reasoning_effort with each request.",
+                    SettingsToggleRow(title: "Supports reasoning effort",
+                                      subtitle: connections.connection(connectionID)?.isAnthropic == true
+                                          ? "Sends the chat's level as the model's thinking and effort." : "Sends reasoning_effort with each request.",
                                       isOn: Binding(get: { model.supportsEffort }, set: { v in update { $0.supportsEffort = v; $0.supportsEffortUserSet = true } }))
                     SettingsToggleRow(title: "Supports tools", subtitle: "Lets the model use web search, Python, the browser and plugins.",
                                       isOn: Binding(get: { model.supportsTools }, set: { v in update { $0.supportsTools = v } }))

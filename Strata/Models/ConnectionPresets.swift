@@ -1,17 +1,17 @@
 import Foundation
 
 /// A starting point for a new connection: the add-connection screen lists these, and each prefills the connection's
-/// editor. Anthropic is not here: its Messages API is only spoken through an OpenCode account, not to a server of its own.
-/// The OpenAI-compatible services (OpenAI, OpenRouter, Groq, Ollama, LM Studio) are data: the presets of the built-in
-/// package `app.openchat.connections` (`PackageConnectionPreset`), listed with those of installed packages. Only the
-/// accounts, which sign in with code of their own, and "Other server" are here.
+/// editor. The OpenAI-compatible services (OpenAI, OpenRouter, Groq, Ollama, LM Studio) are data: the presets of the
+/// built-in package `app.openchat.connections` (`PackageConnectionPreset`), listed with those of installed packages. Only
+/// the connections with code of their own (Anthropic's Messages API, the accounts that sign in) and "Other server" are here.
 enum ConnectionPreset: String, CaseIterable, Identifiable, Sendable {
-    case chatGPT, openCode, custom
+    case anthropic, chatGPT, openCode, custom
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
+        case .anthropic: String(localized: "Anthropic")
         case .chatGPT: String(localized: "ChatGPT account")
         case .openCode: String(localized: "OpenCode account")
         case .custom: String(localized: "Other server")
@@ -20,6 +20,7 @@ enum ConnectionPreset: String, CaseIterable, Identifiable, Sendable {
 
     var subtitle: String {
         switch self {
+        case .anthropic: String(localized: "Claude models, API key from console.anthropic.com")
         case .chatGPT: String(localized: "Sign in to use your ChatGPT plan")
         case .openCode: String(localized: "Sign in to use OpenCode Go or pay as you go")
         case .custom: String(localized: "Any OpenAI-compatible API: enter its URL")
@@ -28,6 +29,7 @@ enum ConnectionPreset: String, CaseIterable, Identifiable, Sendable {
 
     var systemImage: String {
         switch self {
+        case .anthropic: "key"
         case .chatGPT, .openCode: "person.badge.plus"
         case .custom: "server.rack"
         }
@@ -36,6 +38,7 @@ enum ConnectionPreset: String, CaseIterable, Identifiable, Sendable {
     /// The new connection, ready for its editor (which asks for the key or the sign-in).
     func makeConnection() -> Connection {
         switch self {
+        case .anthropic: .anthropic(name: String(localized: "Anthropic"))
         case .chatGPT: .chatGPT(name: String(localized: "ChatGPT"))
         case .openCode: .openCode(name: String(localized: "OpenCode"))
         case .custom: Connection(name: String(localized: "New connection"), baseURL: "https://")
@@ -80,8 +83,9 @@ extension PackageConnectionPreset {
 }
 
 /// `openchat://add-connection?name=…&url=…&api=openai|responses&images=1&effort=1&resumable=1`: a link that offers to
-/// add an OpenAI-compatible connection. It never carries a key (a `key` parameter is dropped and the confirmation says
-/// so); after the user confirms, the editor asks for one.
+/// add an OpenAI-compatible connection. `api=anthropic` adds an Anthropic connection instead, at `url` or, without one,
+/// at Anthropic's own API; its models say what they take, so the flags are ignored. It never carries a key (a `key`
+/// parameter is dropped and the confirmation says so); after the user confirms, the editor asks for one.
 struct AddConnectionLink: Equatable, Sendable {
     static let scheme = "openchat"
     static let host = "add-connection"
@@ -90,6 +94,8 @@ struct AddConnectionLink: Equatable, Sendable {
     var baseURL: URL
     /// Nil is Automatic (Chat Completions, switching when a model needs the Responses API).
     var api: ChatAPI?
+    /// `api=anthropic`: an Anthropic Messages connection (`api` is nil then).
+    var anthropic = false
     var images: Bool
     var effort: Bool
     var resumable: Bool
@@ -107,10 +113,7 @@ struct AddConnectionLink: Equatable, Sendable {
             case .notAnAddLink: String(localized: "This link isn't an OpenChat add-connection link.")
             case .missingURL: String(localized: "The link doesn't say which server to add.")
             case .invalidURL: String(localized: "The server address in the link isn't an http or https URL.")
-            case .unsupportedAPI(let api):
-                api == "anthropic"
-                    ? String(localized: "The link asks for Anthropic's Messages API, which OpenChat can't use with a server yet.")
-                    : String(localized: "The link asks for an API OpenChat doesn't know (\(api)).")
+            case .unsupportedAPI(let api): String(localized: "The link asks for an API OpenChat doesn't know (\(api)).")
             }
         }
     }
@@ -127,19 +130,29 @@ struct AddConnectionLink: Equatable, Sendable {
         for item in components.queryItems ?? [] where query[item.name.lowercased()] == nil {
             query[item.name.lowercased()] = item.value ?? ""
         }
-        guard let raw = query["url"]?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+        let api: ChatAPI?
+        var anthropic = false
+        switch query["api"]?.lowercased() ?? "" {
+        case "", "openai", "chat", "chat_completions": api = nil
+        case "responses": api = .responses
+        case "anthropic", "messages": api = nil; anthropic = true
+        case let other: return .failure(.unsupportedAPI(other))
+        }
+        let given = query["url"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard let raw = given.isEmpty ? (anthropic ? AnthropicModels.defaultBaseURL : nil) : given else {
             return .failure(.missingURL)
         }
         let candidate = Connection(name: "", baseURL: raw)
         guard let base = candidate.normalizedBaseURL, base.user == nil, base.password == nil else { return .failure(.invalidURL) }
-        let api: ChatAPI?
-        switch query["api"]?.lowercased() ?? "" {
-        case "", "openai", "chat", "chat_completions": api = nil
-        case "responses": api = .responses
-        case let other: return .failure(.unsupportedAPI(other))
-        }
         func flag(_ name: String) -> Bool { ["1", "true", "yes", "on"].contains(query[name]?.lowercased() ?? "") }
-        let name = ModelAlias.normalized(query["name"]) ?? base.host(percentEncoded: false) ?? base.absoluteString
+        let name = ModelAlias.normalized(query["name"])
+            ?? (anthropic && given.isEmpty ? String(localized: "Anthropic") : nil)
+            ?? base.host(percentEncoded: false) ?? base.absoluteString
+        if anthropic {
+            // The API can't resume a reply, and each model's own capabilities decide images and effort.
+            return .success(AddConnectionLink(name: name, baseURL: base, api: nil, anthropic: true, images: false, effort: false,
+                                              resumable: false, droppedKey: query["key"] != nil))
+        }
         return .success(AddConnectionLink(name: name, baseURL: base, api: api, images: flag("images"), effort: flag("effort"),
                                           resumable: flag("resumable"), droppedKey: query["key"] != nil))
     }
@@ -155,6 +168,7 @@ struct AddConnectionLink: Equatable, Sendable {
 
     /// The connection the link describes, with no key and no models yet.
     func makeConnection() -> Connection {
+        if anthropic { return .anthropic(name: name, baseURL: baseURL.absoluteString) }
         var c = Connection(name: name, baseURL: baseURL.absoluteString, supportsResumable: resumable)
         c.defaultChatAPI = api
         c.imagesByDefault = images

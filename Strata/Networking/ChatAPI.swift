@@ -454,6 +454,8 @@ enum APIError: Error, LocalizedError, Equatable {
     case chatGPTSignInRequired(connection: String)
     /// An OpenCode connection that is signed out, whose session ended, or whose API key was refused.
     case openCodeSignInRequired(connection: String)
+    /// The server refused the connection's API key (an Anthropic connection: 401).
+    case rejectedAPIKey(connection: String)
     case http(status: Int, message: String)
     case server(String)
     case transport(String)
@@ -461,7 +463,7 @@ enum APIError: Error, LocalizedError, Equatable {
     /// Errors fixed in Settings; the chat shows an "Open Settings" button for these.
     var needsSettings: Bool {
         switch self {
-        case .missingModel, .missingAPIKey, .invalidBaseURL, .chatGPTSignInRequired, .openCodeSignInRequired: true
+        case .missingModel, .missingAPIKey, .invalidBaseURL, .chatGPTSignInRequired, .openCodeSignInRequired, .rejectedAPIKey: true
         default: false
         }
     }
@@ -473,6 +475,7 @@ enum APIError: Error, LocalizedError, Equatable {
         case .missingAPIKey(let name): String(localized: "Add an API key for \(name) in Settings.")
         case .chatGPTSignInRequired(let name): String(localized: "Sign in with ChatGPT for \(name) in Settings.")
         case .openCodeSignInRequired(let name): String(localized: "Sign in with OpenCode, or enter a valid API key, for \(name) in Settings.")
+        case .rejectedAPIKey(let name): String(localized: "The API key for \(name) was not accepted. Check it in Settings.")
         case .http(let status, let message):
             message.isEmpty ? String(localized: "The server returned HTTP \(status).")
                             : String(localized: "HTTP \(status): \(message)")

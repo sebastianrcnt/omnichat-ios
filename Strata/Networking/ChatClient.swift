@@ -37,7 +37,8 @@ struct ChatClient: ChatStreaming {
     var openCodeTokens: any OpenCodeTokenProviding = OpenCodeAuth.shared
 
     /// Chat Completions (or the Responses API for a model that needs it, see `ResponsesFallback`), or for a ChatGPT
-    /// connection the ChatGPT Responses route, or for an OpenCode connection the model's API.
+    /// connection the ChatGPT Responses route, or for an OpenCode connection the model's API, or for an Anthropic
+    /// connection the Messages API.
     /// Routing here means every request that goes through the app's streamer (turns, compaction, titles) reaches the
     /// right API.
     func stream(_ request: ChatRequest, endpoint: Endpoint) -> AsyncThrowingStream<ChatDelta, Error> {
@@ -48,6 +49,7 @@ struct ChatClient: ChatStreaming {
             return OpenCodeClient(session: session, tokens: openCodeTokens).stream(request, endpoint: endpoint)
         }
         if endpoint.kind == .appleOnDevice { return OnDeviceClient().stream(request, endpoint: endpoint) }
+        if endpoint.kind == .anthropic { return AnthropicClient(session: session).stream(request, endpoint: endpoint) }
         let request = ToolChoiceFallback.isRefused(endpoint) && request.toolChoice == "none"
             ? ToolChoiceFallback.adapted(request) : request
         return AsyncThrowingStream { continuation in

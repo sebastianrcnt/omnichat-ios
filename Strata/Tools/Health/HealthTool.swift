@@ -59,12 +59,13 @@ enum HealthPrivacy {
     /// Whether a connection's model runs on this device or the user's own network: the one check "Only send health
     /// data to on-device or local models" makes. A loopback, private (RFC 1918, link-local, unique local IPv6) or
     /// Tailscale (100.64.0.0/10, `.ts.net`) address, or a `.local` name; Apple's on-device model always. Account
-    /// connections (ChatGPT, OpenCode) are remote. Extend it here for new connection kinds.
+    /// connections (ChatGPT, OpenCode) and Anthropic are remote, an Anthropic proxy too (its requests end at Anthropic).
+    /// Extend it here for new connection kinds.
     static func isLocal(_ destination: ToolDestination?) -> Bool {
         guard let destination else { return false }
         switch destination.kind {
         case .appleOnDevice: return true
-        case .chatGPT, .openCode: return false
+        case .chatGPT, .openCode, .anthropic: return false
         case .openAICompatible:
             guard let host = destination.baseURL?.host(percentEncoded: false) else { return false }
             return isLocalHost(host)
