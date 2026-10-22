@@ -25,9 +25,11 @@ Everything else those reviews reported was fixed in that commit. Each entry: whe
 
 ## Robustness
 
-- **A timed-out `browser_eval` script keeps running** (`Tools/HiddenWebView.swift` evaluate/callAsync). `stopLoading()`
-  doesn't stop a running promise; a delayed click can land after the timeout or after Stop. Fix: reload or replace the
-  page on timeout (the model loses that page's state).
+- **A script stuck in a synchronous loop blocks its page** (`Tools/HiddenWebView.swift` `discardAbortedScript`). A
+  timed-out or stopped script call now has its document replaced with `about:blank` before the session's slot is
+  released, so its timers and promises can't act later. A script that never yields (`while(true){}`) keeps the
+  WebContent process busy and the blank load gives up after 5 s; nothing it scheduled can run meanwhile, but the page
+  stays stuck until the session is closed. Fix: close the session when the replacement fails.
 - **Malformed chunks are skipped silently** (`ChatChunkDecoder.decode`, Responses and Anthropic decoders). An event that
   fails to decode becomes an empty delta, so a piece of text or tool arguments can go missing. Lenient on purpose
   (unknown event shapes); could fail only for events that carry content.

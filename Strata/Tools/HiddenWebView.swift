@@ -425,10 +425,36 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
         cont.resume(with: result)
     }
 
+    /// A script call ran out of time or was cancelled. `stopLoading()` doesn't stop its promises or timers, so it may
+    /// still act on the page later (a delayed click, a POST); `discardAbortedScript` replaces the document.
+    private(set) var hasAbortedScript = false
+
+    private func abortScript() {
+        hasAbortedScript = true
+        webView.stopLoading()
+    }
+
+    /// After an aborted script, loads a blank document and waits for it (a few seconds at most), so nothing the script
+    /// left pending can run. The page is lost. Not cancellable: Stop browsing is what usually gets here. True when the
+    /// document was replaced.
+    func discardAbortedScript() async -> Bool {
+        guard hasAbortedScript else { return false }
+        hasAbortedScript = false
+        return await Task { @MainActor [weak self] in
+            guard let self else { return false }
+            do {
+                try await self.wait(timeout: .seconds(5)) { self.webView.load(URLRequest(url: URL(string: "about:blank")!)) }
+                return true
+            } catch {
+                return false
+            }
+        }.value
+    }
+
     /// Evaluates JavaScript in the page and returns the result as a string. A page that never answers ends with
     /// `WebToolError.timeout` after `timeout` (the load is stopped), and cancelling returns at once.
     func evaluate(_ js: String, timeout: Duration) async throws -> String {
-        try await Deadline.run(timeout, timeoutError: WebToolError.timeout, onAbort: { [weak self] in self?.webView.stopLoading() }) { [webView] in
+        try await Deadline.run(timeout, timeoutError: WebToolError.timeout, onAbort: { [weak self] in self?.abortScript() }) { [webView] in
             do {
                 let value = try await webView.evaluateJavaScript(js)
                 return (value as? String) ?? ""
@@ -442,7 +468,7 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
     func callAsync(_ body: String, timeout: Duration) async throws -> String {
         rememberFocus()
         defer { releaseFocus() }
-        return try await Deadline.run(timeout, timeoutError: WebToolError.timeout, onAbort: { [weak self] in self?.webView.stopLoading() }) { [webView] in
+        return try await Deadline.run(timeout, timeoutError: WebToolError.timeout, onAbort: { [weak self] in self?.abortScript() }) { [webView] in
             do {
                 let value = try await webView.callAsyncJavaScript(body, contentWorld: .page)
                 return (value as? String) ?? ""
@@ -459,7 +485,7 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
     func callAgent(_ body: String, input: String, timeout: Duration) async throws -> String {
         rememberFocus()
         defer { releaseFocus() }
-        return try await Deadline.run(timeout, timeoutError: WebToolError.timeout, onAbort: { [weak self] in self?.webView.stopLoading() }) { [webView] in
+        return try await Deadline.run(timeout, timeoutError: WebToolError.timeout, onAbort: { [weak self] in self?.abortScript() }) { [webView] in
             do {
                 let value = try await webView.callAsyncJavaScript(body, arguments: ["input": input], in: nil, contentWorld: Self.agentWorld)
                 return (value as? String) ?? ""

@@ -154,6 +154,23 @@ struct BrowserAgentPageTests {
         #expect(!text.contains("*["), "a first look marks nothing new")
     }
 
+    /// From the audit: a timed-out `browser_eval` left its promise and timers in the page, so a delayed click or POST
+    /// could land after the tool reported failure. The document is replaced before the session's slot is released.
+    @Test func aTimedOutScriptLosesItsPage() async throws {
+        let sessions = BrowserSessions()
+        defer { sessions.closeAll() }
+        let page = try await open("<p>Account</p>", sessions: sessions)
+        let eval = BrowserEvalTool(timeout: .milliseconds(300), sessions: sessions, robotCheck: { _, _ in false })
+        let out = await eval.run(code: "await new Promise(r => setTimeout(r, 1500)); document.title = 'acted'; return 1", conversation: chat)
+        #expect(out.isError && out.text.contains("did not finish") && out.text.contains("call browser_open"), "\(out.text)")
+        #expect(page.currentURL?.absoluteString == "about:blank")
+        #expect(!page.hasAbortedScript)
+        try await Task.sleep(for: .seconds(2))
+        #expect(try await page.evaluate("document.title", timeout: .seconds(2)) != "acted")
+        let next = await eval.run(code: "return 1", conversation: chat)
+        #expect(next.text.contains("no page is open"))
+    }
+
     @Test func clickingFindsWhatAppearedAndMarksItNew() async throws {
         let sessions = BrowserSessions()
         defer { sessions.closeAll() }

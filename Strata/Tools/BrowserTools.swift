@@ -27,6 +27,9 @@ protocol BrowserPage: PluginPage {
     func freeze()
     /// Back in the window before the page is used.
     func thaw()
+    /// Replaces the document if a script call on it was cut short (its timers and promises keep running otherwise).
+    /// True when it did.
+    func discardAbortedScript() async -> Bool
 }
 
 extension BrowserPage {
@@ -37,6 +40,7 @@ extension BrowserPage {
     func snapshotPNG(width: Int) async throws -> Data { throw WebToolError.script("this page can't take screenshots.") }
     func acceptPopups(for duration: Duration) {}
     func releaseFocus() {}
+    func discardAbortedScript() async -> Bool { false }
     var isOnScreen: Bool { false }
     var isFrozen: Bool { false }
     func freeze() {}
@@ -229,6 +233,8 @@ final class BrowserSessions {
         /// The last index the index tools handed out on this page: indices never repeat in a session, so one from an
         /// earlier page can't land on an element of the next.
         var agentIndex = 0
+        /// The last call's script was cut short and its page replaced: its failure says so.
+        fileprivate var pageCleared = false
 
         init(page: any BrowserPage) { self.page = page }
     }
@@ -364,7 +370,12 @@ final class BrowserSessions {
             session.busy += 1
             defer { session.busy -= 1; session.lastUsed = self.clock() }
             session.page.thaw()
-            do { return .success(try await operation(session)) } catch { return .failure(error) }
+            let result: Result<T, Error>
+            do { result = .success(try await operation(session)) } catch { result = .failure(error) }
+            // A script cut short (time limit, Stop browsing) keeps its timers and promises: the document goes before
+            // the next call, or another chat, gets the page's slot.
+            session.pageCleared = await session.page.discardAbortedScript()
+            return result
         }
         session.running[id] = { task.cancel() }
         let tail = Task { @MainActor in _ = await task.value }
@@ -631,6 +642,11 @@ extension BrowserSessions {
     /// (it is listed in `KeptPages` for the failed row's "Open this page" too).
     func failure(_ message: String, conversation: UUID?, error: Error) -> ToolOutput {
         var text = "Error: " + message
+        if let session = existingSession(conversation ?? Self.defaultKey), session.pageCleared {
+            session.pageCleared = false
+            return ToolOutput(text: text + " The page was closed so the unfinished script can't act on it later; call browser_open to open it again.",
+                              isError: true)
+        }
         if KeptPages.shouldKeep(after: error), let page = existingSession(conversation ?? Self.defaultKey)?.page as? HiddenWebView,
            page.currentURL?.scheme?.hasPrefix("http") == true {
             KeptPages.shared.keep(page, callID: ToolContext.callID, owned: false)
