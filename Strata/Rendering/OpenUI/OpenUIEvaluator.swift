@@ -405,7 +405,8 @@ struct OUIEvaluator {
             let key = eval(i, locals: locals) ?? .null
             switch base {
             case .array(let a):
-                let n = Int(key.toNumber)
+                // `Int(exactly:)`: NaN, infinities and numbers past Int ("[1e100]") index nothing instead of trapping.
+                guard let n = Int(exactly: key.toNumber.rounded(.towardZero)) else { return .null }
                 return a.indices.contains(n) ? a[n] : .null
             case .object(let o):
                 return key.isNull ? .null : (o[key.stringForm] ?? .null)

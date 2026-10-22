@@ -169,7 +169,7 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
         guard let data = arguments.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return 0 }
         if let n = obj["offset"] as? Int { return n }
-        if let d = obj["offset"] as? Double { return Int(d) }
+        if let d = obj["offset"] as? Double { return Int(exactly: d.rounded(.down)) ?? 0 }
         if let s = obj["offset"] as? String, let n = Int(s) { return n }
         return 0
     }

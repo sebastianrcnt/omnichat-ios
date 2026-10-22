@@ -216,11 +216,12 @@ enum OUIValidation {
         if rules["numeric"]?.truthy == true, Double(text.trimmingCharacters(in: .whitespaces).prefix { "0123456789.-+eE".contains($0) }) == nil {
             return String(localized: "Enter a number")
         }
-        if let n = rules["minLength"]?.numberValue, text.count < Int(n) {
-            return String(localized: "Use at least \(Int(n)) characters")
+        // The model writes these numbers: one past Int's range is ignored rather than trapping.
+        if let n = rules["minLength"]?.numberValue.flatMap({ Int(exactly: $0.rounded(.towardZero)) }), text.count < n {
+            return String(localized: "Use at least \(n) characters")
         }
-        if let n = rules["maxLength"]?.numberValue, text.count > Int(n) {
-            return String(localized: "Use at most \(Int(n)) characters")
+        if let n = rules["maxLength"]?.numberValue.flatMap({ Int(exactly: $0.rounded(.towardZero)) }), text.count > n {
+            return String(localized: "Use at most \(n) characters")
         }
         let number = (v.arrayValue?.first ?? v).numberValue
         if let n = rules["min"]?.numberValue, let x = number, x < n { return String(localized: "Must be at least \(OUIValue.format(n))") }

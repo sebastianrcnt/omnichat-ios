@@ -66,12 +66,23 @@ struct OpenUIActionTests {
                 "defaults are saved so the locked view shows them")
     }
 
+    @Test func anIndexPastIntShowsNothingInsteadOfCrashing() {
+        // From a review: `[1][1e100]` trapped in Int(), so the chat crashed again each time it was opened.
+        for source in ["root = TextContent([1][1e100])", "root = TextContent([1][0/0])", "root = TextContent([1][-1e300])"] {
+            _ = page(source)
+        }
+        let ok = page("root = TextContent([\"a\", \"b\"][1])")
+        #expect(ok.root != nil)
+    }
+
     @Test func validationRules() {
         func rules(_ pairs: [String: OUIValue]) -> OUIObject { OUIObject(keys: Array(pairs.keys), values: pairs) }
         #expect(OUIValidation.error(.string("a@b.co"), rules: rules(["email": .bool(true)])) == nil)
         #expect(OUIValidation.error(.string("nope"), rules: rules(["email": .bool(true)])) == "Enter a valid email address")
         #expect(OUIValidation.error(.string(""), rules: rules(["email": .bool(true)])) == nil, "only required checks empty fields")
         #expect(OUIValidation.error(.string("a"), rules: rules(["minLength": .number(2)])) == "Use at least 2 characters")
+        // Numbers past Int are ignored, not a crash.
+        #expect(OUIValidation.error(.string("a"), rules: rules(["minLength": .number(1e100), "maxLength": .number(-.infinity)])) == nil)
         #expect(OUIValidation.error(.array([.number(12)]), rules: rules(["max": .number(10)])) == "Must be at most 10")
         #expect(OUIValidation.error(.string("abc"), rules: rules(["numeric": .bool(true)])) == "Enter a number")
         #expect(OUIValidation.error(.object(OUIObject(keys: ["a"], values: ["a": .bool(false)])), rules: rules(["required": .bool(true)])) == "Required",

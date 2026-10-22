@@ -158,6 +158,41 @@ struct SSHArgumentTests {
         }
     }
 
+    @Test func aChangedAddressIsNotTheSavedServer() throws {
+        let s = SSHStore(vault: InMemorySSHVault())
+        try s.save(SSHCredential(name: "nas-pw", kind: .password, password: "pw"))
+        try s.save(SSHServer(name: "nas", host: "10.0.0.5", user: "admin", credential: "nas-pw"))
+
+        // The review's case: the server's name with another host must not keep its approvals or its password.
+        let moved = try SSHTargetResolver.resolve(SSHArguments(["server": "nas", "host": "attacker.example"]), store: s)
+        #expect(moved.key == "admin@attacker.example:22" && moved.label == "admin@attacker.example")
+        #expect(moved.hops.last?.auths.isEmpty == true, "the saved credential stays with the saved address")
+        let port = try SSHTargetResolver.resolve(SSHArguments(["server": "nas", "port": "2222"]), store: s)
+        #expect(port.key == "admin@10.0.0.5:2222" && port.hops.last?.auths.isEmpty == true)
+        let user = try SSHTargetResolver.resolve(SSHArguments(["server": "nas", "user": "root"]), store: s)
+        #expect(user.key == "root@10.0.0.5:22")
+        let jump = try SSHTargetResolver.resolve(SSHArguments(["server": "nas", "jump": "x@evil.example"]), store: s)
+        #expect(jump.key == "x@evil.example:22 > admin@10.0.0.5:22")
+        #expect(jump.hops.allSatisfy { $0.auths.isEmpty }, "an unsaved jump host never gets the saved password")
+        // An explicit credential is the call's own choice: it goes, but to an address the approval names.
+        let explicit = try SSHTargetResolver.resolve(SSHArguments(["server": "nas", "host": "other", "credential": "nas-pw"]), store: s)
+        #expect(explicit.key == "admin@other:22" && explicit.hops.last?.auths == [.password("pw")])
+        // Restating the saved values changes nothing.
+        let same = try SSHTargetResolver.resolve(SSHArguments(["server": "nas", "host": "10.0.0.5", "port": "22", "user": "admin"]), store: s)
+        #expect(same.key == "nas" && same.hops.last?.auths == [.password("pw")])
+    }
+
+    @Test func numbersPastIntAreErrorsNotCrashes() {
+        #expect(SSHArguments(["port": "1e100"]).int("port") == nil)
+        #expect(SSHArguments(["timeout": "nan"]).int("timeout") == nil)
+        #expect(SSHArguments(["offset": "-inf"]).int("offset") == nil)
+        #expect(SSHArguments(["port": "22.0"]).int("port") == 22)
+        let s = SSHStore(vault: InMemorySSHVault())
+        #expect(throws: SSHStoreError.self) { try SSHTargetResolver.resolve(SSHArguments(["host": "h", "user": "u", "port": "1e100"]), store: s) }
+        #expect(ToolCallRecord.fetchOffset(in: #"{"offset":1e100}"#) == 0)
+        #expect(BrowserAction.index(1e100) == nil)
+    }
+
     @Test func importsSSHConfig() {
         let config = """
         Host *

@@ -133,7 +133,7 @@ enum BrowserAction: Equatable, Sendable {
     static func index(_ value: Any?) -> Int? {
         switch value {
         case let n as Int: return n >= 0 ? n : nil
-        case let d as Double: return d >= 0 && d == d.rounded() ? Int(d) : nil
+        case let d as Double: return d >= 0 ? Int(exactly: d) : nil
         case let s as String:
             let digits = s.trimmingCharacters(in: CharacterSet(charactersIn: " *[]"))
             return Int(digits).flatMap { $0 >= 0 ? $0 : nil }
@@ -154,7 +154,7 @@ enum BrowserAction: Equatable, Sendable {
         switch value {
         case let s as String: return s
         case let n as Int: return String(n)
-        case let d as Double: return d == d.rounded() ? String(Int(d)) : String(d)
+        case let d as Double: return Int(exactly: d).map(String.init) ?? String(d)
         default: return nil
         }
     }

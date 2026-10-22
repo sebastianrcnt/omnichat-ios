@@ -177,7 +177,8 @@ struct SSHArguments: Sendable, Equatable {
 
     func int(_ key: String) -> Int? {
         guard let s = string(key) else { return nil }
-        return Int(s) ?? Double(s).map { Int($0) }
+        // `Int(exactly:)`: a number too big for Int ("1e100") is no number, not a crash.
+        return Int(s) ?? Double(s).flatMap { Int(exactly: $0.rounded(.towardZero)) }
     }
 
     /// A list given as an array, or comma- or newline-separated text.
@@ -240,24 +241,37 @@ enum SSHTargetResolver {
                        : "Saved servers: \(names.joined(separator: ", ")).") )
             }
         }
-        let credentialName = args.string("credential") ?? server?.credential
-        var credential: SSHCredential?
-        if let credentialName {
-            guard let saved = store.credential(named: credentialName) else {
+        func savedCredential(_ name: String) throws -> SSHCredential {
+            guard let saved = store.credential(named: name) else {
                 let names = store.credentials.map(\.name)
-                throw SSHStoreError.missing("No saved credential is named \"\(credentialName)\". "
+                throw SSHStoreError.missing("No saved credential is named \"\(name)\". "
                     + (names.isEmpty ? "None are saved yet." : "Saved credentials: \(names.joined(separator: ", ")).") )
             }
-            credential = saved
+            return saved
         }
+        let named = try args.string("credential").map(savedCredential)
         guard let host = args.string("host") ?? server?.host else {
             throw SSHStoreError.missing("Say where to connect: a saved server's name (server), or host and user.")
         }
+        if args.values["port"] != nil, args.int("port") == nil { throw SSHStoreError.invalid("The port must be a number between 1 and 65535.") }
+        let port = args.int("port") ?? server?.port ?? 22
+        guard (1...65535).contains(port) else { throw SSHStoreError.invalid("The port must be between 1 and 65535.") }
+        let jumpsGiven = args.values["jump"] != nil ? args.list("jump") : nil
+        // A saved server's name stands for its address, user and jump hosts. A call that names the server but changes
+        // any of them goes somewhere else: it is not that server (not its approvals, not its saved credential), so its
+        // key and label are the real address and it is asked about anew.
+        if let saved = server, !saved.name.isEmpty {
+            let user = args.string("user") ?? saved.user
+            if host.lowercased() != saved.host.lowercased() || port != saved.port || user != saved.user
+                || (jumpsGiven.map { $0 != saved.jump } ?? false) {
+                server = SSHServer(name: "", host: host, port: port, user: user)
+            }
+        }
+        var credential = named
+        if credential == nil, let name = server?.credential { credential = try savedCredential(name) }
         guard let user = args.string("user") ?? server?.user ?? credential?.username else {
             throw SSHStoreError.missing("Say which user to sign in as (user).")
         }
-        let port = args.int("port") ?? server?.port ?? 22
-        guard (1...65535).contains(port) else { throw SSHStoreError.invalid("The port must be between 1 and 65535.") }
 
         var auths: [SSHAuth] = []
         if let key = args.raw("private_key") {
@@ -272,7 +286,7 @@ enum SSHTargetResolver {
             auths += credential.auths
         }
 
-        let jumps = args.values["jump"] != nil ? args.list("jump") : server?.jump ?? []
+        let jumps = jumpsGiven ?? server?.jump ?? []
         var hops: [SSHHop] = []
         for jump in jumps {
             if let saved = store.server(named: jump) {
@@ -286,9 +300,14 @@ enum SSHTargetResolver {
         }
         let target = SSHHop(host: host, port: port, user: user, auths: auths)
         hops.append(target)
-        let named = server.map { !$0.name.isEmpty } ?? false
-        return SSHTarget(hops: hops, key: named ? server!.name : "\(user)@\(host.lowercased()):\(port)",
-                         label: named ? server!.name : (port == 22 ? "\(user)@\(host)" : "\(user)@\(host):\(port)"))
+        if let server, !server.name.isEmpty {
+            return SSHTarget(hops: hops, key: server.name, label: server.name)
+        }
+        // Unsaved: the key names every hop, so an approval for one route never covers another through other jump hosts.
+        let via = hops.dropLast().map { "\($0.user)@\($0.host.lowercased()):\($0.port)" }
+        let key = (via + ["\(user)@\(host.lowercased()):\(port)"]).joined(separator: " > ")
+        let address = port == 22 ? "\(user)@\(host)" : "\(user)@\(host):\(port)"
+        return SSHTarget(hops: hops, key: key, label: via.isEmpty ? address : String(localized: "\(address) via \(jumps.joined(separator: ", "))"))
     }
 }
 
