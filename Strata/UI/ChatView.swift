@@ -395,7 +395,10 @@ struct ChatView: View {
         messageList
             .overlay {
                 if conversation == nil && connections.connections.isEmpty {
-                    NoConnectionState { composerFocused = false; showAddConnection = true }
+                    NoConnectionState(onUseOnDevice: OnDevice.system.availability.isSupported
+                                      ? { connections.addOnDeviceConnection() } : nil) {
+                        composerFocused = false; showAddConnection = true
+                    }
                 }
             }
             .overlay(alignment: .top) { readyBanner }
