@@ -19,6 +19,7 @@ struct StrataApp: App {
             fatalError("Could not create the SwiftData container: \(error)")
         }
         IntentDependencies.register(container: container)
+        ReplyLiveActivities.install(controller: SharedModels.controller, settings: SharedModels.settings)
     }
 
     var body: some Scene {
@@ -29,6 +30,8 @@ struct StrataApp: App {
                     ActivityGallery()
                 } else if OpenUIGallery.isRequested {
                     OpenUIGallery()
+                } else if ReplyActivityGallery.isRequested {
+                    ReplyActivityGallery()
                 } else {
                     RootView()
                 }
@@ -46,6 +49,7 @@ struct StrataApp: App {
                 .dsLeading(.ui)
                 .modifier(TextSizeOverride(size: settings.dynamicTypeOverride))
                 .modelContainer(container)
+                .replyActivityLinks()
                 #if DEBUG
                 // The hidden web views attach to the key window, which exists once the first scene is up.
                 .task { try? await Task.sleep(for: .seconds(1)); DebugHooks.runWebSelfTest(); DebugHooks.runVideoSelfTest(); HealthSeed.runIfRequested() }

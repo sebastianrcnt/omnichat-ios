@@ -41,6 +41,7 @@ targets:
       - package: MarkdownUI
       - framework: Vendor/CLibSSH2.xcframework # libssh2 + OpenSSL libcrypto, static (Tools/build-libssh2.sh)
         embed: false
+      - target: OpenChatWidgets # the Live Activity and the New Chat control, embedded in PlugIns
       - target: StrataShare
     entitlements:
       path: Strata/Strata.entitlements
@@ -79,6 +80,7 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false
+        NSSupportsLiveActivities: true
         BGTaskSchedulerPermittedIdentifiers:
           - cc.coolservices.strata.reply.*
         UIBackgroundModes:
@@ -100,6 +102,33 @@ targets:
               - openchat
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+  # Widget extension: the Live Activity of running replies (`Strata/LiveActivity`) and the New Chat control. Named
+  # for widgets in general, so Home Screen widgets and more controls can join it.
+  OpenChatWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Widgets
+      - path: Strata/LiveActivity/ReplyActivityAttributes.swift
+      - path: Strata/LiveActivity/ReplyActivityViews.swift
+      - path: Strata/Intents/NewChatControl.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cc.coolservices.strata.widgets
+        PRODUCT_NAME: OpenChatWidgets
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: OpenChat
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) WIDGET_EXTENSION
+    info:
+      path: Widgets/Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
   StrataShare:
     # The share extension: "Share to OpenChat" from Safari, YouTube, Photos, Files and the rest (Strata/Share).
     type: app-extension

@@ -71,6 +71,11 @@ final class ReplyBackgroundExecution {
     /// Every delta advances the count, but the system's progress object is written about once a second.
     private var progressLimiter = RateLimiter(interval: .seconds(1))
     private var active: Bool { ledger.isHeld }
+    /// The running replies in words (`ReplyLiveActivities`: "Searching the web", the chat's title): while the continued
+    /// task holds the app, the system's task list says this instead of "Preparing reply".
+    var liveStatus: (title: String, subtitle: String)? {
+        didSet { if ledger.isHeld { updateRunningTitle() } }
+    }
 
     /// A run starts: the first one takes the lease, a later one joins it.
     func begin(_ run: UUID) {
@@ -105,7 +110,8 @@ final class ReplyBackgroundExecution {
                             Self.hasContinuedLease = false
                         }
                     }
-                    if self.holderCount > 1 { self.updateRunningTitle() } // more chats started before the task did
+                    // More chats started, or a phase was reported, before the task did.
+                    if self.holderCount > 1 || self.liveStatus != nil { self.updateRunningTitle() }
                     self.endFallback()
                 }
             }
@@ -131,7 +137,9 @@ final class ReplyBackgroundExecution {
     /// The task list says how many chats are replying.
     private func updateRunningTitle() {
         guard let continued else { return }
-        if holderCount > 1 {
+        if let liveStatus {
+            continued.updateTitle(liveStatus.title, subtitle: liveStatus.subtitle)
+        } else if holderCount > 1 {
             continued.updateTitle(String(localized: "Preparing replies"), subtitle: String(localized: "OpenChat is replying in \(holderCount) chats"))
         } else {
             continued.updateTitle(String(localized: "Preparing reply"), subtitle: String(localized: "OpenChat is replying"))
@@ -162,6 +170,7 @@ final class ReplyBackgroundExecution {
         }
         continued = nil
         Self.hasContinuedLease = false
+        liveStatus = nil
         if let identifier { BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: identifier) }
         identifier = nil
         endFallback()
@@ -174,6 +183,7 @@ final class ReplyBackgroundExecution {
     // A Mac app keeps running while another app is in front: there is no lease to hold.
     // The ledger still counts, so the rules are the same on both.
     func begin(_ run: UUID) { _ = ledger.begin(run) }
+    var liveStatus: (title: String, subtitle: String)?
     var stateDescription: String { "not needed on macOS" }
     func advance(by count: Int = 1) {}
     func end(_ run: UUID, success: Bool, title: String? = nil, subtitle: String? = nil) {
