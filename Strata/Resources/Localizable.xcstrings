@@ -370,6 +370,7 @@
     "Checkpoint saves": {},
     "Choose": {},
     "Choose a model": {},
+    "Choose the model and effort": {},
     "Choosing%@…": {},
     "Chose%@": {},
     "Clear": {},
@@ -730,13 +731,21 @@
     "Missing resumable event sequence.": {},
     "Missing stream event; replay is not contiguous.": {},
     "Model": {},
+    "Model %@": {},
+    "Model %@, effort %@": {},
     "Model and effort": {
       "extractionState": "stale"
     },
     "Model and reasoning effort": {},
-    "Model and reasoning effort, %@": {},
-    "Model, %@": {},
-    "Model: %@": {},
+    "Model and reasoning effort, %@": {
+      "extractionState": "stale"
+    },
+    "Model, %@": {
+      "extractionState": "stale"
+    },
+    "Model: %@": {
+      "extractionState": "stale"
+    },
     "Models": {},
     "More": {},
     "Must be at least %@": {},
@@ -892,8 +901,12 @@
     "Opens OpenChat to a new chat, optionally with text ready to send.": {},
     "Opens OpenChat to a new chat.": {},
     "Opens a chat in OpenChat.": {},
-    "Opens settings.": {},
-    "Opens settings. Touch and hold to change the effort.": {},
+    "Opens settings.": {
+      "extractionState": "stale"
+    },
+    "Opens settings. Touch and hold to change the effort.": {
+      "extractionState": "stale"
+    },
     "Opens the artifact": {},
     "Opens the chat": {},
     "Opens the map full screen": {},
@@ -1020,7 +1033,9 @@
     "Reasons longer on hard problems": {},
     "Recent": {},
     "Recent requests": {},
-    "Recommended · %@": {},
+    "Recommended · %@": {
+      "extractionState": "stale"
+    },
     "Recovery attempts": {},
     "Recovery loops": {},
     "Red": {},

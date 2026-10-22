@@ -29,8 +29,8 @@ flows through `DSTheme(accent:)`; `accentOnTint` is the accent re-balanced to re
 | File | Components |
 | --- | --- |
 | `Buttons.swift` | `GlassIconButton`, `GlassIconMenu`, `GlassIconMenuPlain`, `StreamingIndicator`, `ContextRing`, `ContextRingButton`, `AttachmentThumbnail`, `QuietLinkButtonStyle` (`.quietLink`, `.quietLink(.accent)`: text links with no chrome and a 44 pt hit target) |
-| `Composer.swift` | `ComposerBar` (idle pill or two rows: text field, attach, settings accessory, mic, send/stop; dictation in place), `ModelSettingsButton` and `EffortGaugeIcon` (the effort dial), `ComposerAttachment`, `ComposerToolSwitch` (with switches, plus is a menu: Add photos, then the chat's tool toggles) |
-| `Dictation.swift` | `DictationWaveform` (static with Reduce Motion), `DictationElapsed`, `DictationLiveLine`, `DictationStatusLine` (preparing, failures with a Settings link), `DictationConfirmButton`; the state machine and on-device engine live in `Dictation/` |
+| `Composer.swift` | `ComposerBar` (always two rows: text field, then attach, the settings accessory, mic, send/stop; dictation in place), `ModelSettingsButton` (the model-and-effort chip), `ComposerAttachment`, `ComposerToolSwitch` (with switches, plus is a menu: Add photos, then the chat's tool toggles) |
+| `Dictation.swift` | `DictationWaveform` (static with Reduce Motion), `DictationElapsed`, `DictationStatusLine` (preparing, failures with a Settings link), `DictationConfirmButton`; the state machine and on-device engine live in `Dictation/` |
 | `Messages.swift` | `MessageBubble`, `AssistantMessage` (+ `AssistantContent`), `MessageActionBar`, the MarkdownUI `Theme` for tables and complex blocks |
 | `ProcessSegments.swift` | `ThinkingCard`, `ActivityCard`, `LiveThinkingTail`, `LiveToolsTail`, `ProcessDivider` |
 | `ActivityFeedViews.swift` | `ThoughtLine`, `FeedLine` / `FeedSymbol` / `FeedSpinner` (the feed's quiet line: icon in `DS.Feed.iconColumn`, text at `DS.Feed.textInset`), `ActivityFeedView`, `FeedCardView`, `FeedRowView` |

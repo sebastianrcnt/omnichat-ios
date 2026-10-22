@@ -8,33 +8,9 @@ import SwiftUI
 struct ChatSettingsTests {
     private func freshDefaults() -> UserDefaults { UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")! }
 
-    // MARK: Effort gauge
+    // MARK: Effort
 
-    @Test(arguments: [1, 2, 3, 5, 7, 12])
-    func gaugeFractionStepsEvenlyForAnyLevelCount(count: Int) {
-        let fractions = (0..<count).map { EffortScale.fraction(index: $0, count: count) }
-        #expect(fractions.first == 1 / Double(count)) // the lowest level still shows a sliver
-        #expect(fractions.last == 1)
-        for (a, b) in zip(fractions, fractions.dropFirst()) {
-            #expect(b > a)
-            #expect(abs((b - a) - 1 / Double(count)) < 1e-9)
-        }
-    }
-
-    @Test func gaugeFractionClampsAndHandlesNoLevels() {
-        #expect(EffortScale.fraction(index: 0, count: 0) == 0)
-        #expect(EffortScale.fraction(index: -3, count: 4) == 0.25)
-        #expect(EffortScale.fraction(index: 9, count: 4) == 1)
-    }
-
-    @Test func gaugeFractionForEffortLevels() {
-        let all = Effort.allCases
-        #expect(EffortScale.fraction(of: .low, in: all) == 0.2)
-        #expect(EffortScale.fraction(of: .high, in: all) == 0.6)
-        #expect(EffortScale.fraction(of: .max, in: all) == 1)
-        #expect(EffortScale.fraction(of: .high, in: []) == 0)
-        // A level the model does not offer reads as the default's position.
-        #expect(EffortScale.fraction(of: .max, in: [.low, .medium, .high]) == EffortScale.fraction(index: 1, count: 3))
+    @Test func effortLevelsFollowTheModelAndStyle() {
         #expect(ModelInfo(id: "m", supportsEffort: false).effortLevels(.tokenCaps).isEmpty)
         #expect(ModelInfo(id: "m", supportsEffort: true).effortLevels(.tokenCaps) == Effort.allCases)
         // OpenAI's models top out at xhigh: Max would send the same, so it isn't offered, and a chat set to Max reads as Extra.
@@ -99,15 +75,5 @@ struct ChatSettingsTests {
         let decoded = try JSONDecoder().decode(Connection.self, from: Data(old.utf8))
         #expect(decoded.hiddenModelIDs.isEmpty)
         #expect(decoded.showsInPicker("x"))
-    }
-
-    @Test func composerExpandsWhenFocusedOrHoldingADraft() {
-        #if os(iOS)
-        #expect(!ComposerBar<EmptyView>.isExpanded(focused: false, text: "", hasAttachments: false, isEditing: false))
-        #endif
-        #expect(ComposerBar<EmptyView>.isExpanded(focused: true, text: "", hasAttachments: false, isEditing: false))
-        #expect(ComposerBar<EmptyView>.isExpanded(focused: false, text: "hi", hasAttachments: false, isEditing: false))
-        #expect(ComposerBar<EmptyView>.isExpanded(focused: false, text: "", hasAttachments: true, isEditing: false))
-        #expect(ComposerBar<EmptyView>.isExpanded(focused: false, text: "", hasAttachments: false, isEditing: true))
     }
 }

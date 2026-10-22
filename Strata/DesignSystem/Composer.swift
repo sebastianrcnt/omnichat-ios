@@ -1,117 +1,32 @@
 import SwiftUI
 
-/// A small dial: a track, an accent arc filled to `fraction` (0...1) and a needle. Drawn with shapes, so it shows any
-/// number of effort levels.
-struct EffortGaugeIcon: View {
+/// The composer's model-and-effort chip: the model's name and, when it takes one, the effort level in secondary text
+/// ("GPT-5.5 High"), so both show at a glance. Tap opens the chat settings (models, then Effort). A long name gives way
+/// first; the effort word stays whole.
+struct ModelSettingsButton: View {
     @Environment(\.theme) private var theme
-    var fraction: Double
-    var size: CGFloat = DS.IconSize.gauge
-
-    var body: some View {
-        let line = max(1.5, size * 0.12)
-        ZStack {
-            GaugeArc(progress: 1).stroke(theme.textSecondary.opacity(0.35), style: StrokeStyle(lineWidth: line, lineCap: .round))
-            GaugeArc(progress: fraction).stroke(theme.accent, style: StrokeStyle(lineWidth: line, lineCap: .round))
-            GaugeNeedle(progress: fraction).stroke(theme.textPrimary, style: StrokeStyle(lineWidth: line * 0.85, lineCap: .round))
-            Circle().fill(theme.textPrimary).frame(width: line * 1.6, height: line * 1.6)
-                .offset(y: size * GaugeArc.centerDrop)
-        }
-        .frame(width: size, height: size)
-        .animation(DS.Motion.spring, value: fraction)
-        .accessibilityHidden(true)
-    }
-}
-
-/// The dial's arc: 270 degrees, open at the bottom, from lower left clockwise to lower right.
-struct GaugeArc: Shape {
-    var progress: Double
-    /// The dial sits a little low in its square, since the open bottom is empty. Kept small: the hub is what the eye
-    /// centers on, and a larger drop made the dial look low in its round button.
-    static let centerDrop: CGFloat = 0.04
-    static let start = 135.0
-    static let sweep = 270.0
-
-    var animatableData: Double {
-        get { progress }
-        set { progress = newValue }
-    }
-
-    static func geometry(in rect: CGRect) -> (center: CGPoint, radius: CGFloat) {
-        let r = min(rect.width, rect.height) * 0.42
-        return (CGPoint(x: rect.midX, y: rect.midY + rect.height * centerDrop), r)
-    }
-
-    func path(in rect: CGRect) -> Path {
-        let p = min(1, max(0, progress))
-        var path = Path()
-        guard p > 0 else { return path }
-        let g = Self.geometry(in: rect)
-        path.addArc(center: g.center, radius: g.radius, startAngle: .degrees(Self.start),
-                    endAngle: .degrees(Self.start + Self.sweep * p), clockwise: false)
-        return path
-    }
-}
-
-/// The dial's needle, pointing at `progress` along the arc.
-struct GaugeNeedle: Shape {
-    var progress: Double
-
-    var animatableData: Double {
-        get { progress }
-        set { progress = newValue }
-    }
-
-    func path(in rect: CGRect) -> Path {
-        let g = GaugeArc.geometry(in: rect)
-        let angle = Angle.degrees(GaugeArc.start + GaugeArc.sweep * min(1, max(0, progress))).radians
-        let length = g.radius * 0.62
-        var path = Path()
-        path.move(to: g.center)
-        path.addLine(to: CGPoint(x: g.center.x + cos(angle) * length, y: g.center.y + sin(angle) * length))
-        return path
-    }
-}
-
-/// The composer's model-and-effort control. Tap opens the chat settings; when the model takes an effort, a long press
-/// offers the levels as a quick switch and the dial shows the current one. Otherwise a plain model icon.
-struct ModelSettingsButton<QuickMenu: View>: View {
-    @Environment(\.theme) private var theme
-    /// The effort's place on the dial, or nil when the model does not support effort.
-    let effortFraction: Double?
-    /// Spoken after "Model and reasoning effort": the effort level, or the model name.
-    let valueDescription: String
+    let model: String
+    /// Nil when the model does not support effort.
+    let effort: String?
     let action: () -> Void
-    @ViewBuilder var quickMenu: () -> QuickMenu
-
-    private var label: some View {
-        let d = DS.IconSize.compactControlDiameter
-        return Group {
-            if let effortFraction {
-                EffortGaugeIcon(fraction: effortFraction)
-            } else {
-                Image(systemName: "cpu").font(.system(size: DS.IconSize.composerIcon, weight: .medium))
-            }
-        }
-        .frame(width: d, height: d)
-        .background(theme.composerControl, in: Circle()) // on the composer's glass: flat, no glass of its own
-        .contentShape(Circle().inset(by: -max(0, (DS.IconSize.minHitTarget - d) / 2)))
-    }
 
     var body: some View {
-        Group {
-            if effortFraction != nil {
-                Menu(content: quickMenu) { label } primaryAction: { action() }
-                    .menuIndicator(.hidden)
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(Text("Model and reasoning effort, \(valueDescription)"))
-                    .accessibilityHint(Text("Opens settings. Touch and hold to change the effort."))
-            } else {
-                Button(action: action) { label }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(Text("Model, \(valueDescription)"))
-                    .accessibilityHint(Text("Opens settings."))
+        Button(action: action) {
+            HStack(spacing: DS.Spacing.xs) {
+                Text(verbatim: model).foregroundStyle(theme.textPrimary).lineLimit(1).truncationMode(.middle)
+                if let effort {
+                    Text(verbatim: effort).foregroundStyle(theme.textSecondary).lineLimit(1).fixedSize()
+                }
             }
+            .font(DS.Typography.uiCaption)
+            .padding(.horizontal, DS.Spacing.md)
+            .frame(height: DS.IconSize.compactControlDiameter)
+            .background(theme.composerControl, in: Capsule()) // on the composer's glass: flat, no glass of its own
+            .contentShape(Capsule().inset(by: -max(0, (DS.IconSize.minHitTarget - DS.IconSize.compactControlDiameter) / 2)))
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(effort.map { "Model \(model), effort \($0)" } ?? "Model \(model)"))
+        .accessibilityHint(Text("Choose the model and effort"))
         #if os(macOS)
         .help(Text("Model and reasoning effort"))
         #endif
@@ -172,13 +87,12 @@ struct ComposerToolSwitch: Identifiable, Equatable {
     var isOn: Bool
 }
 
-/// Floating glass composer. Idle (empty, not focused) it is a one-line pill: plus, the placeholder, and the microphone
-/// (stop while a reply runs). Focused or holding a draft it grows to two rows: the text on top, then plus, the settings
-/// accessory (the model and effort gauge), the microphone and send. On a Mac it always shows both rows: there is room,
-/// and no keyboard to make.
+/// Floating glass composer, always two rows as in Claude's app: the text on top, then plus, the settings accessory
+/// (the model and effort chip), the microphone and send (stop while a reply runs). The model and effort stay in
+/// sight whether or not the keyboard is up.
 ///
-/// Dictation from the pill turns it into cancel, a waveform, the live words, the time and a check that puts the words
-/// into the field. From the two rows the words are appended to the text, in the accent color until confirmed.
+/// Dictation turns the controls into cancel, a waveform, the time and a check; the words heard are appended to the
+/// text, in the accent color until confirmed.
 struct ComposerBar<Accessory: View>: View {
     @Environment(\.theme) private var theme
 
@@ -202,7 +116,7 @@ struct ComposerBar<Accessory: View>: View {
     var onNotice: (() -> Void)?
     var onSend: () -> Void
     var onStop: () -> Void
-    /// Shown in the expanded row, between plus and send.
+    /// Shown in the controls row, after plus.
     @ViewBuilder var accessory: () -> Accessory
     #if os(macOS)
     /// A Mac composer is an NSTextView, which SwiftUI's focus system does not drive: focus is plain state.
@@ -216,26 +130,8 @@ struct ComposerBar<Accessory: View>: View {
     @State private var dictation = DictationController(engine: ConfiguredDictationEngine())
     /// Dictation started with the keyboard up: it comes back afterwards.
     @State private var refocusAfterDictation = false
-    /// When the bar last changed shape. Controls move then, so a touch meant for another one can land on the microphone.
-    @State private var reshapedAt = Date.distantPast
-
-    /// Two rows (text, then controls) rather than the one-line pill.
-    static func isExpanded(focused: Bool, text: String, hasAttachments: Bool, isEditing: Bool) -> Bool {
-        #if os(macOS)
-        return true
-        #else
-        return focused || !text.isEmpty || hasAttachments || isEditing
-        #endif
-    }
-
-    private var expanded: Bool {
-        // Dictation keeps the shape it started in, although starting it lowers the keyboard.
-        if dictation.isActive { return dictation.isExpandedStyle }
-        return Self.isExpanded(focused: focused, text: text, hasAttachments: !attachments.isEmpty, isEditing: onCancelEdit != nil)
-    }
 
     var body: some View {
-        let expanded = expanded
         // Spacing under the gap between controls: neighboring glass buttons stay separate shapes. Merged, the effort
         // gauge and the microphone were one interactive glass, and pressing the gauge could start dictation.
         GlassEffectContainer(spacing: DS.Spacing.xs) {
@@ -278,61 +174,35 @@ struct ComposerBar<Accessory: View>: View {
                         }
                     }
                 }
-                // One row in both states, so the text field keeps its identity (and its focus) while the bar grows.
+                fieldArea
                 HStack(spacing: DS.Spacing.sm) {
-                    if !expanded {
-                        if dictation.isActive {
-                            cancelDictationButton
-                            if dictation.showsTranscript { DictationWaveform(levels: dictation.levels) }
-                        } else {
-                            plusButton
-                        }
-                    }
-                    fieldArea(expanded: expanded)
-                    if !expanded {
-                        if dictation.isActive {
-                            if dictation.showsTranscript { dictationTrailing }
-                        } else if !isStreaming && text.isEmpty && attachments.isEmpty {
-                            micButton(expanded: false)
-                        } else {
-                            sendButton.matchedGeometryEffect(id: "send", in: controls)
-                        }
-                    }
-                }
-                if expanded {
-                    HStack(spacing: DS.Spacing.sm) {
-                        if dictation.isActive {
-                            cancelDictationButton
-                            if dictation.showsTranscript {
-                                DictationWaveform(levels: dictation.levels)
-                                Spacer(minLength: DS.Spacing.sm)
-                                dictationTrailing
-                            } else {
-                                DictationStatusLine(phase: dictation.phase)
-                            }
-                        } else {
-                            plusButton
+                    if dictation.isActive {
+                        cancelDictationButton
+                        if dictation.showsTranscript {
+                            DictationWaveform(levels: dictation.levels)
                             Spacer(minLength: DS.Spacing.sm)
-                            accessory()
-                            micButton(expanded: true)
-                            sendButton.matchedGeometryEffect(id: "send", in: controls)
+                            dictationTrailing
+                        } else {
+                            DictationStatusLine(phase: dictation.phase)
                         }
+                    } else {
+                        plusButton
+                        accessory()
+                        Spacer(minLength: DS.Spacing.sm)
+                        micButton
+                        sendButton.matchedGeometryEffect(id: "send", in: controls)
                     }
-                    .padding(.top, DS.Spacing.sm) // the text field is the main area; buttons are a separate row
-                    .transition(.opacity)
                 }
+                .padding(.top, DS.Spacing.sm) // the text field is the main area; buttons are a separate row
             }
-            .padding(.top, expanded ? DS.Spacing.sm + DS.Spacing.xs : DS.Spacing.sm)
-            .padding(.bottom, expanded ? DS.Spacing.md : DS.Spacing.sm)
-            .padding(.horizontal, expanded ? DS.Spacing.md : DS.Spacing.sm)
-            // Idle, the bar is 52pt tall, so this radius makes it a capsule.
+            .padding(.top, DS.Spacing.sm + DS.Spacing.xs)
+            .padding(.bottom, DS.Spacing.md)
+            .padding(.horizontal, DS.Spacing.md)
             .glassEffect(.regular, in: RoundedRectangle(cornerRadius: DS.Radius.composer))
         }
         .padding(.horizontal, DS.Spacing.md)
         .padding(.bottom, DS.Spacing.xs)
-        .animation(DS.Motion.spring, value: expanded)
         .animation(DS.Motion.snappy, value: dictation.phase)
-        .onChange(of: expanded) { reshapedAt = .now }
         .onChange(of: scenePhase) { _, phase in
             // Going to the background stops the microphone; what was heard so far is kept.
             if phase == .background, dictation.isActive { insert(dictation.stopKeepingText()) }
@@ -346,27 +216,17 @@ struct ComposerBar<Accessory: View>: View {
     }
 
     /// The text field, hidden (but kept, with its identity) under the live words while dictating.
-    private func fieldArea(expanded: Bool) -> some View {
-        ZStack(alignment: expanded ? .topLeading : .leading) {
+    private var fieldArea: some View {
+        ZStack(alignment: .topLeading) {
             field
                 .padding(.horizontal, DS.Spacing.xs)
-                .frame(minHeight: expanded ? nil : DS.IconSize.compactControlDiameter)
                 .opacity(dictation.isActive ? 0 : 1)
                 .allowsHitTesting(!dictation.isActive)
                 .accessibilityHidden(dictation.isActive)
             if dictation.isActive {
-                Group {
-                    if expanded {
-                        appendedWords
-                    } else if dictation.showsTranscript {
-                        DictationLiveLine(text: dictation.transcript,
-                                          placeholder: dictation.isTranscribing ? "Transcribing…" : "Listening…")
-                    } else {
-                        DictationStatusLine(phase: dictation.phase)
-                    }
-                }
-                .padding(.horizontal, DS.Spacing.xs)
-                .transition(.opacity)
+                appendedWords
+                    .padding(.horizontal, DS.Spacing.xs)
+                    .transition(.opacity)
             }
         }
     }
@@ -411,9 +271,9 @@ struct ComposerBar<Accessory: View>: View {
             .matchedGeometryEffect(id: "plus", in: controls)
     }
 
-    private func micButton(expanded: Bool) -> some View {
+    private var micButton: some View {
         GlassIconButton(systemName: "mic", label: "Dictate", diameter: DS.IconSize.compactControlDiameter,
-                        iconSize: DS.IconSize.composerIcon, flat: true) { startDictation(expanded: expanded) }
+                        iconSize: DS.IconSize.composerIcon, flat: true, action: startDictation)
             .matchedGeometryEffect(id: "mic", in: controls)
             #if os(macOS)
             .help(Text("Dictate"))
@@ -439,11 +299,10 @@ struct ComposerBar<Accessory: View>: View {
         }
     }
 
-    private func startDictation(expanded: Bool) {
-        guard Date.now.timeIntervalSince(reshapedAt) > 0.6 else { return }
-        refocusAfterDictation = expanded && focused
+    private func startDictation() {
+        refocusAfterDictation = focused
         focused = false
-        dictation.start(expanded: expanded)
+        dictation.start(expanded: true)
     }
 
     private func confirmDictation() {
@@ -603,9 +462,7 @@ private struct ComposerPreview: View {
                         toolSwitches: ToolGroup.supported.map { ComposerToolSwitch(id: $0.rawValue, title: $0.title, systemImage: $0.systemImage, isOn: $0 != .python) },
                         onSend: {}, onStop: {},
                         accessory: {
-                            ModelSettingsButton(effortFraction: 0.6, valueDescription: "Medium", action: {}) {
-                                Button("Low") {}
-                            }
+                            ModelSettingsButton(model: "GPT-5.5", effort: "Medium", action: {})
                         },
                         isFocused: $focused)
         }

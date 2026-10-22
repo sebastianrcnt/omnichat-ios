@@ -321,34 +321,19 @@ struct ChatView: View {
         GlassEffectContainer(spacing: DS.Spacing.sm) {
             HStack(spacing: DS.Spacing.sm) {
                 GlassIconButton(systemName: "line.3.horizontal", label: "Sidebar") { composerFocused = false; onOpenSidebar() }
-                VStack(alignment: .leading, spacing: 0) {
-                    TitlingText(conversation?.displayTitle ?? String(localized: "New chat"),
-                                isTitling: controller.isTitling(conversation?.id))
-                        .font(DS.Typography.title)
-                        .foregroundStyle(theme.textPrimary)
-                        .lineLimit(1)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            // The title renames the chat, as in the menu.
-                            guard let c = conversation else { return }
-                            renameText = c.displayTitle
-                            showRename = true
-                        }
-                    // Which model this chat talks to, without opening the picker; tapping it opens the picker.
-                    if let model = selectedModelTitle {
-                        Button { composerFocused = false; showChatSettings = true } label: {
-                            HStack(spacing: 2) {
-                                Text(verbatim: model).lineLimit(1)
-                                Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
-                            }
-                            .font(DS.Typography.uiCaption)
-                            .foregroundStyle(theme.textSecondary)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(Text("Model: \(model)"))
-                        .accessibilityHint(Text("Choose a model"))
+                // The model and effort are in the composer's chip; the header names the chat.
+                TitlingText(conversation?.displayTitle ?? String(localized: "New chat"),
+                            isTitling: controller.isTitling(conversation?.id))
+                    .font(DS.Typography.title)
+                    .foregroundStyle(theme.textPrimary)
+                    .lineLimit(1)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        // The title renames the chat, as in the menu.
+                        guard let c = conversation else { return }
+                        renameText = c.displayTitle
+                        showRename = true
                     }
-                }
                 // Its own glass capsule, as tall as the buttons: the title never sits on the bare page, so the list's
                 // top edge can stay soft (no band across the screen).
                 .padding(.horizontal, DS.Spacing.md)
@@ -787,17 +772,14 @@ struct ChatView: View {
         }
     }
 
-    /// The gauge: tap for the chat settings, touch and hold for the effort levels.
+    /// The model and effort chip: tap for the chat settings (models, then Effort).
     private var settingsButton: some View {
         let style = connections.connection(selection.connectionID)?.effortStyle ?? .tokenCaps
         let levels = selectedModel?.effortLevels(style) ?? []
-        let effort = selection.effort.resolved(in: levels)
         return ModelSettingsButton(
-            effortFraction: levels.isEmpty ? nil : EffortScale.fraction(of: effort, in: levels),
-            valueDescription: levels.isEmpty ? (selectedModelTitle ?? String(localized: "None")) : effort.title,
-            action: { composerFocused = false; showChatSettings = true }) {
-            EffortMenuItems(levels: levels, selected: effort, style: style, onSelect: apply(effort:))
-        }
+            model: selectedModelTitle ?? String(localized: "Choose a model"),
+            effort: levels.isEmpty ? nil : selection.effort.resolved(in: levels).title,
+            action: { composerFocused = false; showChatSettings = true })
         #if os(macOS)
         .popover(isPresented: $showChatSettings, arrowEdge: .top) { chatSettings }
         #endif

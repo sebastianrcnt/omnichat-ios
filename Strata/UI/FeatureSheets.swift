@@ -231,24 +231,6 @@ struct ModelPickerSheet: View {
     }
 }
 
-/// The effort levels as menu items with a check on the current one and the thinking-token cap underneath.
-/// Used by the settings sheet and by the gauge's long-press menu.
-struct EffortMenuItems: View {
-    let levels: [Effort]
-    let selected: Effort
-    var style: EffortStyle = .tokenCaps
-    let onSelect: (Effort) -> Void
-
-    var body: some View {
-        ForEach(levels) { e in
-            Toggle(isOn: Binding(get: { e == selected }, set: { _ in onSelect(e) })) {
-                Text(e.title)
-                Text(e.isRecommended ? String(localized: "Recommended · \(e.hint(style))") : e.hint(style))
-            }
-        }
-    }
-}
-
 // MARK: - Model rename
 
 /// A model whose display name is being edited.

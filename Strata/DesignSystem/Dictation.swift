@@ -52,28 +52,6 @@ struct DictationElapsed: View {
     }
 }
 
-/// The live transcript on one line, cut at the start so the newest words stay in view.
-struct DictationLiveLine: View {
-    @Environment(\.theme) private var theme
-    var text: String
-    var placeholder: LocalizedStringKey = "Listening…"
-
-    var body: some View {
-        Group {
-            if text.isEmpty {
-                Text(placeholder).foregroundStyle(theme.textSecondary)
-            } else {
-                Text(verbatim: text).foregroundStyle(theme.textPrimary)
-            }
-        }
-        .font(DS.Typography.ui)
-        .lineLimit(1)
-        .truncationMode(.head)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityLabel(text.isEmpty ? Text(placeholder) : Text(verbatim: text))
-    }
-}
-
 /// "Preparing dictation…" while the language model downloads (`.preparing`), or why dictation could not start
 /// (`.failed`).
 struct DictationStatusLine: View {
@@ -191,7 +169,6 @@ private struct DictationPreview: View {
                 GlassIconButton(systemName: "xmark", label: "Cancel dictation", diameter: DS.IconSize.compactControlDiameter,
                                 iconSize: DS.IconSize.composerIcon) {}
                 DictationWaveform(levels: [0.1, 0.4, 0.8, 0.6, 0.9, 0.3, 0.5])
-                DictationLiveLine(text: "Tell me how the national university plan began and why people protested")
                 DictationElapsed(start: .now.addingTimeInterval(-4))
                 DictationConfirmButton {}
             }

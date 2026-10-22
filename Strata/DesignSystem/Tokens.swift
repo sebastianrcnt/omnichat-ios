@@ -54,8 +54,6 @@ enum DS {
         /// Minimum touch target, kept via `contentShape` even where the visual is smaller.
         static let minHitTarget: CGFloat = 44
         static let ring: CGFloat = 22
-        /// The effort dial inside the composer's settings button.
-        static let gauge: CGFloat = 22
         /// Height of a small floating capsule ("Answer now"); grows with the text size.
         static let capsuleHeight: CGFloat = 30
         /// Site icon in a source chip.
