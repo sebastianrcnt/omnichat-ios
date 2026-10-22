@@ -134,15 +134,17 @@ struct ShowHTMLToolTests {
         let tool = ShowHTMLTool(store: store)
         let first = tool.run(arguments: ["title": "Mortgage calculator", "html": "<h1>Hi</h1>"], conversationID: chat, callID: "c1")
         #expect(!first.isError)
-        #expect(first.text == #"Shown to the user as artifact "Mortgage calculator" (id: a1, version 1). To change it, call show_html again with id "a1" and the full new HTML."#)
-        #expect(first.artifact == ArtifactRef(conversationID: chat, id: "a1", title: "Mortgage calculator", version: 1))
-        let second = tool.run(arguments: ["title": "Mortgage calculator", "html": "<h1>Hi again</h1>", "id": "a1"], conversationID: chat, callID: "c2")
-        #expect(second.text.hasPrefix(#"Shown to the user as artifact "Mortgage calculator" (id: a1, version 2)."#))
-        #expect(store.artifact(id: "a1", conversationID: chat)?.callID == "c2")
+        let id = first.artifact?.id ?? ""
+        #expect(id.hasPrefix("a1-"))
+        #expect(first.text == #"Shown to the user as artifact "Mortgage calculator" (id: \#(id), version 1). To change it, call show_html again with id "\#(id)" and the full new HTML."#)
+        #expect(first.artifact == ArtifactRef(conversationID: chat, id: id, title: "Mortgage calculator", version: 1))
+        let second = tool.run(arguments: ["title": "Mortgage calculator", "html": "<h1>Hi again</h1>", "id": id], conversationID: chat, callID: "c2")
+        #expect(second.text.hasPrefix(#"Shown to the user as artifact "Mortgage calculator" (id: \#(id), version 2)."#))
+        #expect(store.artifact(id: "a1", conversationID: chat)?.callID == "c2", "the short form finds it")
         let byNumber = tool.run(arguments: ["title": "", "html": "<h1>3</h1>", "id": 1], conversationID: chat, callID: nil)
         #expect(byNumber.artifact?.version == 3)
         let blankID = tool.run(arguments: ["title": "Other", "html": "<p/>", "id": " "], conversationID: chat, callID: nil)
-        #expect(blankID.artifact?.id == "a2", "a blank id makes a new artifact")
+        #expect(blankID.artifact?.id.hasPrefix("a2-") == true, "a blank id makes a new artifact")
     }
 
     @Test func badArgumentsAreErrors() {
