@@ -115,7 +115,7 @@ struct AddConnectionLink: Equatable, Sendable {
             case .notAnAddLink: String(localized: "This link isn't an OpenChat add-connection link.")
             case .missingURL: String(localized: "The link doesn't say which server to add.")
             case .invalidURL: String(localized: "The server address in the link isn't an http or https URL.")
-            case .credentialsInURL: String(localized: "The server address in the link contains a key, token or password. Add the connection without it and enter the key in OpenChat.")
+            case .credentialsInURL: String(localized: "The server address in the link contains a key, token or password. Add the connection without it, then enter the key in its settings.")
             case .unsupportedAPI(let api): String(localized: "The link asks for an API OpenChat doesn't know (\(api)).")
             }
         }
