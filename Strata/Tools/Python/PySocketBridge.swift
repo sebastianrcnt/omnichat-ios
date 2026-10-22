@@ -127,6 +127,9 @@ struct PySocketActivity: Sendable, Equatable {
 /// delivered there too), and calls that wait register a condition that each change re-checks.
 final class PySocketBridge: @unchecked Sendable {
     static let maxSockets = 64
+    /// UDP peers across all sockets. Each is its own `NWConnection` (outbound per destination, inbound per sender),
+    /// so the socket count alone doesn't bound them.
+    static let maxFlows = 128
     /// Bytes in and out per run, like the web proxy's limit.
     static let maxRunBytes = PyNetwork.maxBytes
     /// Received bytes held per socket before reading from the network pauses.
@@ -209,6 +212,9 @@ final class PySocketBridge: @unchecked Sendable {
     }
 
     var openCount: Int { queue.sync { sockets.count } }
+
+    /// UDP peers with a live flow (tests).
+    var openFlows: Int { queue.sync { flowCount } }
 
     // MARK: Requests
 
@@ -425,6 +431,22 @@ final class PySocketBridge: @unchecked Sendable {
         sockets[sock.id] = nil
         if sock.listening { publishActivity(now: true) }
         signal()
+    }
+
+    private var flowCount: Int { sockets.values.reduce(0) { $0 + $1.flows.count } }
+
+    /// Starts a UDP flow and drops it from its socket once it fails or is cancelled.
+    private func start(_ flow: Flow, on sock: Sock) {
+        let key = "\(flow.host)|\(flow.port)"
+        flow.connection.stateUpdateHandler = { [weak sock] state in
+            switch state {
+            case .failed, .cancelled:
+                if let sock, sock.flows[key] === flow { sock.flows[key] = nil }
+            default: break
+            }
+        }
+        flow.connection.start(queue: queue)
+        readDatagrams(sock, flow)
     }
 
     private func closeAllNow() {
@@ -931,10 +953,10 @@ final class PySocketBridge: @unchecked Sendable {
     private func inbound(_ conn: NWConnection, to sock: Sock) {
         if sock.kind == .udp {
             let (host, port) = Self.describe(conn.endpoint)
+            guard flowCount < Self.maxFlows else { conn.cancel(); return }
             let flow = Flow(connection: conn, host: host, port: port, inbound: true)
             sock.flows["\(host)|\(port)"] = flow
-            conn.start(queue: queue)
-            readDatagrams(sock, flow)
+            start(flow, on: sock)
             return
         }
         guard sock.accepted.count < 128 else { conn.cancel(); return }
@@ -1020,6 +1042,9 @@ final class PySocketBridge: @unchecked Sendable {
         return await sync {
             guard let sock = self.sockets[id], sock.state != .closed else { return .failure(.error("EBADF")) }
             if let existing = sock.flows[key] { return .success(existing) }
+            guard self.flowCount < Self.maxFlows else {
+                return .failure(.error("ENOBUFS", note: "Python can talk UDP with at most \(Self.maxFlows) peers at once. Close sockets you no longer need."))
+            }
             guard let nwPort = NWEndpoint.Port(rawValue: UInt16(port)) else { return .failure(.error("EINVAL")) }
             let params = NWParameters.udp
             if sock.boundPort > 0, let local = NWEndpoint.Port(rawValue: UInt16(sock.boundPort)) {
@@ -1029,8 +1054,7 @@ final class PySocketBridge: @unchecked Sendable {
             let conn = NWConnection(host: NWEndpoint.Host(addresses[0]), port: nwPort, using: params)
             let flow = Flow(connection: conn, host: host, port: port, inbound: false)
             sock.flows[key] = flow
-            conn.start(queue: self.queue)
-            self.readDatagrams(sock, flow)
+            self.start(flow, on: sock)
             return .success(flow)
         }
     }

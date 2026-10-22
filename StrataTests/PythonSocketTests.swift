@@ -342,6 +342,26 @@ struct PySocketBridgeTests {
         _ = bridge.endRun()
     }
 
+    /// One UDP socket used to add a native connection per destination without limit (audit).
+    @Test func udpPeersAreCappedPerInterpreter() async throws {
+        let bridge = PySocketBridge(approve: { _, _, _ in true })
+        bridge.beginRun(conversationID: UUID(), callID: "call_1")
+        defer { bridge.closeAll(); _ = bridge.endRun() }
+        // Nothing listens on these ports; a datagram to a closed loopback port just goes nowhere.
+        for i in 0..<PySocketBridge.maxFlows {
+            let (reply, _) = await call(bridge, ["op": "sendto", "id": 1, "host": "127.0.0.1", "port": 41_000 + i], Data("x".utf8))
+            #expect(reply["errno"] == nil, "\(i): \(reply)")
+        }
+        let (over, _) = await call(bridge, ["op": "sendto", "id": 2, "host": "127.0.0.1", "port": 40_999], Data("x".utf8))
+        #expect(over["errno"] as? String == "ENOBUFS")
+        #expect((over["note"] as? String)?.contains("UDP") == true)
+        // An existing peer still works.
+        let (again, _) = await call(bridge, ["op": "sendto", "id": 1, "host": "127.0.0.1", "port": 41_000], Data("x".utf8))
+        #expect(again["errno"] == nil, "\(again)")
+        bridge.closeAll()
+        #expect(bridge.openFlows == 0)
+    }
+
     @Test func localHostsAreAskedOncePerRunAndARefusalSticks() async throws {
         let server = try LocalTestServer(handle: LocalTestServer.echo)
         let port = try await server.start()

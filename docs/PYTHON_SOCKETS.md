@@ -113,6 +113,8 @@ OpenSSL package in the lock file. So TLS runs in the app:
 - Listening sockets: on the device and the LAN. The run's network line says "listening on TCP port N (192.168.x.y)".
 - Limits:
   - At most 64 open sockets per interpreter (`EMFILE`; enforced in the worker and the bridge).
+  - At most 128 UDP peers per interpreter across all sockets (`ENOBUFS` with a note; an inbound datagram from a new
+    peer beyond that is dropped). Each peer is a native connection; failed ones are dropped.
   - A per-run byte budget of `PyNetwork.maxBytes` in and out (`ENOBUFS` with a note).
   - Every socket closes when the interpreter resets (time limit, memory, chat switch, idle) or the turn is stopped.
 - Payloads are never logged. The run card shows host:port, protocol and bytes each way, live while it runs and as the
