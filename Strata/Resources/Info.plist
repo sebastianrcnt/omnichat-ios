@@ -60,6 +60,7 @@
 	<array>
 		<string>processing</string>
 		<string>audio</string>
+		<string>remote-notification</string>
 	</array>
 	<key>UIFileSharingEnabled</key>
 	<true/>

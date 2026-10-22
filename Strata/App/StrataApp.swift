@@ -10,15 +10,18 @@ struct StrataApp: App {
     private let controller = SharedModels.controller
 
     init() {
+        DeviceIdentity.prime()
         MemoryPurge.install()
         HighlightService.registerForPurge()
         DS.applyBarAppearance()
         do {
-            container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self, CompactionRecord.self)
+            container = try StrataStore.makeContainer()
         } catch {
             fatalError("Could not create the SwiftData container: \(error)")
         }
         IntentDependencies.register(container: container)
+        CloudSync.shared.start(container: container, settings: SharedModels.settings, connections: SharedModels.connections,
+                               controller: SharedModels.controller)
         ReplyLiveActivities.install(controller: SharedModels.controller, settings: SharedModels.settings)
     }
 
