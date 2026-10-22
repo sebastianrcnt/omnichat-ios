@@ -145,10 +145,20 @@ final class CloudSync {
 
     // MARK: Switches
 
-    /// "Sync chats and skills": the store opens with or without CloudKit, so it applies at the next launch.
+    /// "Sync chats and skills": the store opens with or without CloudKit, so it applies at the next launch. Turning it
+    /// on turns Apple Health off on this device and removes what Health tools read from the stored chats first
+    /// (`HealthSettings.blockedBySync`, `HealthRedaction`).
     var chatSyncSwitch: Bool {
         get { _ = switchVersion; return StrataStore.syncEnabled(defaults) }
-        set { defaults.set(newValue, forKey: StrataStore.syncEnabledKey); switchVersion += 1 }
+        set {
+            if newValue && !StrataStore.syncEnabled(defaults) {
+                settings?.healthEnabled = false
+                HealthRequests.shared.declineAll()
+                if let container { try? HealthRedaction.redact(container.mainContext) }
+            }
+            defaults.set(newValue, forKey: StrataStore.syncEnabledKey)
+            switchVersion += 1
+        }
     }
 
     /// Whether the chat switch differs from how the store was opened.

@@ -545,3 +545,52 @@ struct HealthToolSwitchTests {
         #expect(controller.toolSwitches(fresh).contains(.health))
     }
 }
+
+/// Apple Health and chat sync exclude each other, so health data never goes to iCloud.
+@MainActor
+struct HealthSyncExclusionTests {
+    private func defaults() -> UserDefaults {
+        let name = "health-sync-\(UUID().uuidString)"
+        let d = UserDefaults(suiteName: name)!
+        d.removePersistentDomain(forName: name)
+        return d
+    }
+
+    @Test func chatSyncIsOffByDefault() {
+        let d = defaults()
+        #expect(!StrataStore.syncEnabled(d))
+        #expect(!HealthSettings.blockedBySync(d))
+    }
+
+    @Test func chatSyncBlocksHealth() {
+        let d = defaults()
+        d.set(true, forKey: StrataStore.syncEnabledKey)
+        #expect(HealthSettings.blockedBySync(d))
+        d.set(false, forKey: StrataStore.syncEnabledKey)
+        #expect(!HealthSettings.blockedBySync(d))
+    }
+
+    @Test func turningSyncOnRemovesWhatHealthRead() throws {
+        let container = try ModelContainer(for: StrataStore.schema,
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
+        let context = container.mainContext
+        let message = Message(role: .assistant, text: "Your resting heart rate averaged 58.", sortIndex: 0)
+        message.steps = [ToolStep(assistantContent: "", calls: [
+            ToolCallRecord(id: "a", name: ToolNames.healthQuery, arguments: "{\"metric\":\"resting_heart_rate\"}",
+                           result: "date | bpm\n2026-10-20 | 58", isError: false),
+            ToolCallRecord(id: "b", name: ToolNames.webSearch, arguments: "{}", result: "results", isError: false),
+        ])]
+        let other = Message(role: .assistant, text: "Hello", sortIndex: 1)
+        context.insert(message)
+        context.insert(other)
+        try context.save()
+
+        #expect(try HealthRedaction.redact(context) == 1)
+        let calls = message.steps[0].calls
+        #expect(calls[0].result == HealthSettings.removedResult)
+        #expect(calls[0].arguments.contains("resting_heart_rate"))
+        #expect(calls[1].result == "results")
+        #expect(message.text == "Your resting heart rate averaged 58.")
+        #expect(try HealthRedaction.redact(context) == 0)
+    }
+}

@@ -892,7 +892,7 @@ final class ChatController {
             : freeze ? conversation.frozenSkillIndex(current: skills.index) : conversation.skillIndexSnapshot ?? skills.index
         let base = [AppPrompt.text(tools: tools, python: offered.contains(.python), browser: offered.contains(.browser),
                                    skills: offered.contains(.browser), video: offered.contains(.video), ssh: offered.contains(.ssh),
-                                   health: offered.contains(.health), views: offered.contains(.views)),
+                                   health: offered.contains(.health) && ToolGroup.health.isSupported, views: offered.contains(.views)),
                     skillIndex,
                     tools ? chatPackages(conversation)?.promptSections ?? "" : "",
                     AppPrompt.preferences(freeze ? conversation.frozenPreferences(current: settings.userPreferences)

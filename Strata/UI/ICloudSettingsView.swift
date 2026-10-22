@@ -3,6 +3,7 @@ import SwiftUI
 /// Settings > iCloud: the account, the last sync, and what syncs (`CloudSync`).
 struct ICloudSettingsView: View {
     @Environment(\.theme) private var theme
+    @State private var confirmChatSync = false
 
     var body: some View {
         @Bindable var sync = CloudSync.shared
@@ -19,7 +20,7 @@ struct ICloudSettingsView: View {
                 GroupedSection(footer: chatFooter) {
                     SettingsToggleRow(title: "Sync chats and skills",
                                       subtitle: "Messages, images, figures, artifacts and the skills you saved.",
-                                      isOn: $sync.chatSyncSwitch)
+                                      isOn: chatSyncBinding)
                     SettingsToggleRow(title: "Sync settings and connections",
                                       subtitle: "Preferences, tool defaults, plugins and your connection list.",
                                       isOn: $sync.settingsSyncSwitch)
@@ -44,6 +45,21 @@ struct ICloudSettingsView: View {
         .navigationTitle("iCloud")
         .inlineNavigationTitle()
         .task { sync.refreshAccount() }
+        .confirmationDialog("Turn on chat sync?", isPresented: $confirmChatSync, titleVisibility: .visible) {
+            Button("Turn On Chat Sync") { CloudSync.shared.chatSyncSwitch = true }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Apple Health can't be used on this device while chat sync is on, so no health data goes to iCloud. Health data the assistant already read is removed from your chats first; the replies stay.")
+        }
+    }
+
+    /// Where Apple Health exists, turning chat sync on asks first: the two exclude each other (`HealthSettings.blockedBySync`).
+    private var chatSyncBinding: Binding<Bool> {
+        Binding {
+            CloudSync.shared.chatSyncSwitch
+        } set: { on in
+            if on && HealthSettings.isSupported { confirmChatSync = true } else { CloudSync.shared.chatSyncSwitch = on }
+        }
     }
 
     private var accountStatus: String {
@@ -69,6 +85,8 @@ struct ICloudSettingsView: View {
     private var chatFooter: LocalizedStringKey {
         CloudSync.shared.needsRelaunch
             ? "Chat sync changes the next time OpenChat opens. Close and reopen it to apply."
-            : "Chats sync in the background. Turning chat sync off or on applies the next time OpenChat opens; nothing is deleted either way."
+            : HealthSettings.isSupported
+                ? "Off by default. Chats sync in the background; turning chat sync off or on applies the next time OpenChat opens. While it is on, Apple Health can't be used on this device."
+                : "Off by default. Chats sync in the background; turning chat sync off or on applies the next time OpenChat opens."
     }
 }

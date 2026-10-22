@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import Observation
 
 // `health_query`: reads Apple Health for the user's own questions about their health. Read-only. The first read of a
@@ -104,13 +105,59 @@ enum HealthSettings {
 
     static var localOnly: Bool { UserDefaults.standard.bool(forKey: localOnlyKey) }
 
-    /// The Mac has no HealthKit: the group is never offered there.
+    /// The Mac has no HealthKit: the group is never offered there, and Settings has no Health page.
     static var isSupported: Bool {
         #if os(iOS)
         true
         #else
         false
         #endif
+    }
+
+    /// Apple Health and chat sync exclude each other on a device, so health data never goes to iCloud (App Store
+    /// guideline 5.1.3(ii)). Blocked while "Sync chats and skills" is on, and while the store opened with sync keeps
+    /// syncing until the next launch.
+    static func blockedBySync(_ defaults: UserDefaults = .standard) -> Bool {
+        StrataStore.syncEnabled(defaults) || StrataStore.openedSyncing
+    }
+
+    /// Whether chats here can offer and run `health_query`.
+    static var isAvailable: Bool { isSupported && !blockedBySync() }
+
+    /// Put in place of a `health_query` result when chat sync is turned on (`HealthRedaction`).
+    static let removedResult = "Health data removed from this chat when chat sync was turned on."
+}
+
+/// Turning chat sync on removes what `health_query` read from the stored chats first, so none of it reaches iCloud:
+/// each call's result becomes `HealthSettings.removedResult`. The replies written from it stay.
+enum HealthRedaction {
+    /// Returns how many results were removed. Saves when it changed anything.
+    @MainActor
+    @discardableResult
+    static func redact(_ context: ModelContext) throws -> Int {
+        var removed = 0
+        var dirty = false
+        for message in try context.fetch(FetchDescriptor<Message>()) {
+            // An unfinished turn's checkpoint holds its results too; the turn just can't resume.
+            if let data = message.resumeData, data.range(of: Data(ToolNames.healthQuery.utf8)) != nil {
+                message.clearResume()
+                dirty = true
+            }
+            guard let data = message.stepsData, data.range(of: Data(ToolNames.healthQuery.utf8)) != nil else { continue }
+            var steps = message.steps
+            var changed = false
+            for s in steps.indices {
+                for c in steps[s].calls.indices where steps[s].calls[c].name == ToolNames.healthQuery
+                    && steps[s].calls[c].result != HealthSettings.removedResult {
+                    steps[s].calls[c].result = HealthSettings.removedResult
+                    changed = true
+                    removed += 1
+                }
+            }
+            if changed { message.steps = steps }
+        }
+        if removed > 0 || dirty { try context.save() }
+        return removed
     }
 }
 
@@ -154,6 +201,11 @@ final class HealthRequests {
         }
     }
 
+    /// Every waiting card answered "no" (chat sync was turned on).
+    func declineAll() {
+        for request in queue.map(\.request) { answer(request.id, allowed: false) }
+    }
+
     /// Ignored for a request already answered.
     func answer(_ id: UUID, allowed: Bool) {
         guard let i = queue.firstIndex(where: { $0.request.id == id }) else { return }
@@ -175,6 +227,9 @@ struct HealthQueryTool {
         switch HealthArguments.parse(arguments, now: now, calendar: calendar) {
         case .failure(let problem): return ToolOutput(text: problem.message, isError: true)
         case .success(let parsed): request = parsed
+        }
+        guard !HealthSettings.blockedBySync() else {
+            return ToolOutput(text: "Error: Apple Health is off on this device while chat sync is on, so health data never goes to iCloud. Don't try again in this chat. Tell the user they can turn off \"Sync chats and skills\" in Settings > iCloud to use Apple Health.", isError: true)
         }
         guard source.isAvailable else {
             return ToolOutput(text: "Error: Apple Health isn't available on this device. Tell the user it works in OpenChat on iPhone.", isError: true)

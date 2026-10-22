@@ -1,14 +1,16 @@
 import Foundation
+import os
 import SwiftData
 
-/// The SwiftData store: chats, saved skills and the files synced chats show. With chat sync on (the default) it is
-/// mirrored to the private database of the iCloud container both apps share; off, it stays on this device.
+/// The SwiftData store: chats, saved skills and the files synced chats show. With chat sync on it is mirrored to the
+/// private database of the iCloud container both apps share; off (the default), it stays on this device.
 ///
 /// Every model in `models` syncs, so each stored property must follow CloudKit's rules (see the top of
 /// `Conversation.swift`). A new model joins `models`; a new property needs a default or must be optional.
 enum StrataStore {
     static let cloudKitContainer = "iCloud.cc.coolservices.strata"
-    /// The Settings switch "Sync chats and skills" (this device only, on by default). Read at launch.
+    /// The Settings switch "Sync chats and skills" (this device only, off by default). Read at launch. While it is on,
+    /// or the store still syncs until the next launch, Apple Health can't be used here (`HealthSettings.blockedBySync`).
     static let syncEnabledKey = "sync.chats"
     /// Set once the store from before sync was migrated and stamped (`prepare`).
     static let preparedKey = "sync.storePrepared.v1"
@@ -20,8 +22,13 @@ enum StrataStore {
     static var schema: Schema { Schema(models) }
 
     static func syncEnabled(_ defaults: UserDefaults = .standard) -> Bool {
-        defaults.object(forKey: syncEnabledKey) as? Bool ?? true
+        defaults.object(forKey: syncEnabledKey) as? Bool ?? false
     }
+
+    /// Whether this run's store opened with CloudKit (`makeContainer`). It keeps syncing until the next launch even
+    /// after the switch goes off.
+    static var openedSyncing: Bool { openedSyncingState.withLock { $0 } }
+    private static let openedSyncingState = OSAllocatedUnfairLock(initialState: false)
 
     /// Unit tests never sync, whatever the switch says.
     static var isRunningTests: Bool { ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil }
@@ -36,6 +43,7 @@ enum StrataStore {
     /// The app's container. Opening it migrates an older store in place (lightweight: nothing is dropped).
     static func makeContainer(defaults: UserDefaults = .standard) throws -> ModelContainer {
         let sync = syncEnabled(defaults) && !isRunningTests
+        openedSyncingState.withLock { $0 = sync }
         try prepare(url: nil, defaults: defaults)
         return try ModelContainer(for: schema, configurations: configuration(cloudKit: sync))
     }

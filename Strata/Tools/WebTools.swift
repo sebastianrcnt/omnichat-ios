@@ -486,7 +486,9 @@ struct ToolRouter: ToolExecuting {
             return ShowHTMLTool(store: artifacts).run(arguments: args, conversationID: ToolContext.conversationID,
                                                       callID: ToolContext.callID)
         case ToolNames.healthQuery:
-            return await HealthQueryTool().run(arguments: arguments)
+            let output = await HealthQueryTool().run(arguments: arguments)
+            // Chat sync was turned on while it read: the result isn't kept (`HealthRedaction`).
+            return HealthSettings.blockedBySync() && !output.isError ? ToolOutput(text: HealthSettings.removedResult, isError: true) : output
         case let tool where SSHToolNames.covers(tool):
             return await SSHTool().run(name: tool, arguments: arguments, conversation: ToolContext.conversationID,
                                        callID: ToolContext.callID)

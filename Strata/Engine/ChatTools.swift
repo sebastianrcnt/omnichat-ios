@@ -17,7 +17,7 @@ enum ToolGroup: String, CaseIterable, Codable, Sendable, Identifiable {
     var id: String { rawValue }
 
     /// Whether the group exists on this platform: the Mac has no HealthKit.
-    var isSupported: Bool { self != .health || HealthSettings.isSupported }
+    var isSupported: Bool { self != .health || HealthSettings.isAvailable }
 
     /// The groups the "+" menu lists here.
     static var supported: [ToolGroup] { allCases.filter(\.isSupported) }
