@@ -593,4 +593,60 @@ struct HealthSyncExclusionTests {
         #expect(message.text == "Your resting heart rate averaged 58.")
         #expect(try HealthRedaction.redact(context) == 0)
     }
+
+    private func healthCall(_ id: String = "a") -> ToolCallRecord {
+        ToolCallRecord(id: id, name: ToolNames.healthQuery, arguments: "{}", result: "date | bpm\n2026-10-20 | 58", isError: false)
+    }
+
+    /// The feed's segments keep the table, and a compaction keeps the tool group it carried over: both are copies.
+    @Test func segmentsAndCompactionsLoseTheirCopiesToo() throws {
+        let container = try ModelContainer(for: StrataStore.schema,
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
+        let context = container.mainContext
+        let message = Message(role: .assistant, text: "", sortIndex: 0)
+        message.segments = [ProcessSegment(index: 0, kind: .toolRound, calls: [healthCall()])]
+        context.insert(message)
+        let replacement: [APIMessage] = [
+            .user("How did I sleep?"),
+            APIMessage(role: "assistant", content: .text(""), toolCalls: [ToolCall(id: "h1", name: ToolNames.healthQuery, arguments: "{}"),
+                                                                       ToolCall(id: "w1", name: ToolNames.webSearch, arguments: "{}")]),
+            .tool(callID: "h1", content: "date | bpm\n2026-10-20 | 58"),
+            .tool(callID: "w1", content: "results"),
+        ]
+        let record = try CompactionRecord(anchorMessageID: message.id, notes: "n", replacement: replacement, tokensBefore: 10,
+                                          tokensAfter: 5, isAutomatic: true)
+        context.insert(record)
+        try context.save()
+
+        #expect(try HealthRedaction.redact(context) == 2)
+        #expect(message.segments[0].calls[0].result == HealthSettings.removedResult)
+        let kept = record.replacement
+        #expect(kept[2].content == .text(HealthSettings.removedResult))
+        #expect(kept[3].content == .text("results"))
+        #expect(!String(decoding: record.replacementData, as: UTF8.self).contains("2026-10-20"))
+    }
+
+    /// A turn that was running when sync went on writes its steps afterwards: they arrive without the result.
+    @Test func writesWhileSyncBlocksHealthDropTheResult() throws {
+        let message = Message(role: .assistant, text: "", sortIndex: 0)
+        HealthRedaction.$forcedActive.withValue(true) {
+            message.steps = [ToolStep(assistantContent: "", calls: [healthCall()])]
+            message.segments = [ProcessSegment(index: 0, kind: .toolRound, calls: [healthCall()])]
+        }
+        #expect(message.steps[0].calls[0].result == HealthSettings.removedResult)
+        #expect(message.segments[0].calls[0].result == HealthSettings.removedResult)
+        let record = try HealthRedaction.$forcedActive.withValue(true) {
+            try CompactionRecord(anchorMessageID: message.id, notes: "n",
+                                 replacement: [APIMessage(role: "assistant", content: .text(""),
+                                                          toolCalls: [ToolCall(id: "h1", name: ToolNames.healthQuery, arguments: "{}")]),
+                                               .tool(callID: "h1", content: "58 bpm")],
+                                 tokensBefore: 1, tokensAfter: 1, isAutomatic: true)
+        }
+        #expect(record.replacement[1].content == .text(HealthSettings.removedResult))
+
+        // Off, nothing changes.
+        let plain = Message(role: .assistant, text: "", sortIndex: 1)
+        HealthRedaction.$forcedActive.withValue(false) { plain.steps = [ToolStep(assistantContent: "", calls: [healthCall()])] }
+        #expect(plain.steps[0].calls[0].result != HealthSettings.removedResult)
+    }
 }

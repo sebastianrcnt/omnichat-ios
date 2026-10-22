@@ -171,6 +171,9 @@ actor OpenCodeAuth: OpenCodeTokenProviding {
                 Self.log.debug("poll approved")
                 var session = try response.session(receivedAt: now())
                 session.email = await email(token: session.accessToken)
+                // Cancelled while the token or the email was on its way: nothing is saved, so a key entered meanwhile
+                // stays (a session replaces it).
+                if Task.isCancelled { throw OpenCodeAuthError.cancelled }
                 try store.setSession(session, id)
                 return session
             }

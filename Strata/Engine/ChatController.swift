@@ -1022,6 +1022,13 @@ final class ChatController {
 
     /// One throttled checkpoint write: the large half only when it changed, the small half always, together.
     private func persist(_ snapshot: CheckpointPersister.Snapshot, run: ChatRun, message: Message, conversation: Conversation, context: ModelContext) {
+        // While chat sync blocks Health, a checkpoint holding a health result isn't stored: that turn can't resume. The
+        // large half is written only when it changes, so one dropped earlier (by `HealthRedaction`) stays missing.
+        if HealthRedaction.isActive, (snapshot.staticData == nil && !message.hasResume)
+            || HealthRedaction.mentionsHealth(snapshot.staticData) || HealthRedaction.mentionsHealth(snapshot.dynamicData) {
+            if message.hasResume { message.clearResume() }
+            return
+        }
         if let data = snapshot.staticData { message.resumeData = data }
         if !message.hasResume { message.hasResume = true }
         if message.resumeDeviceID != DeviceIdentity.current { message.resumeDeviceID = DeviceIdentity.current }

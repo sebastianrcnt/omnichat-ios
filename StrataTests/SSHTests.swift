@@ -286,6 +286,24 @@ struct SSHApprovalTests {
         #expect(await SSHApprovalPolicy.approve(approval, asks: false, store: store) { _ in .deny }, "the switch is off")
     }
 
+    @Test func changingWhereAServerLeadsForgetsAlways() throws {
+        // From a review: "always" stayed with the name, so a server pointed elsewhere ran commands without asking.
+        let store = SSHStore(vault: InMemorySSHVault())
+        let nas = SSHServer(name: "nas", host: "10.0.0.5", port: 22, user: "admin")
+        try store.save(nas)
+        try store.setAlwaysAllowed(true, target: "nas")
+        try store.save(nas) // saved again unchanged: still allowed
+        #expect(store.isAlwaysAllowed("nas"))
+        for change in [{ (s: inout SSHServer) in s.host = "203.0.113.9" }, { $0.port = 2222 }, { $0.user = "root" }, { $0.jump = ["bastion"] }] {
+            try store.setAlwaysAllowed(true, target: "nas")
+            var moved = nas
+            change(&moved)
+            try store.save(moved)
+            #expect(!store.isAlwaysAllowed("nas"))
+            try store.save(nas)
+        }
+    }
+
     @Test func aDeniedCommandNeverConnects() async throws {
         let store = SSHStore(vault: InMemorySSHVault())
         try store.save(SSHServer(name: "nas", host: "203.0.113.1", user: "u"))

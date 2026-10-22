@@ -223,6 +223,30 @@ struct FileSyncTests {
         sync.waitForPendingWork()
         #expect(try ModelContext(container).fetch(FetchDescriptor<SyncedFile>()).map(\.path) == ["Artifacts/\(chat.uuidString)/a1.html"])
     }
+
+    /// A version made elsewhere before this device downloaded the older one still replaces it when it arrives.
+    @MainActor
+    @Test func aNewerVersionThatArrivesLateReplacesTheFile() throws {
+        let container = try syncedStore()
+        let root = try tempDirectory()
+        let chat = UUID()
+        let path = "Artifacts/\(chat.uuidString)/a1.html"
+        let context = ModelContext(container)
+        let record = SyncedFile(path: path, conversationID: chat, data: Data("v1".utf8), origin: "other")
+        record.updatedAt = .now.addingTimeInterval(-600)
+        context.insert(record)
+        try context.save()
+        let sync = FileSync(container: container, root: root)
+        #expect(sync.materializeNow() == 1)
+
+        // v2 was saved on the other device five minutes ago, after v1 but before v1 came down here.
+        record.data = Data("v2".utf8)
+        record.updatedAt = .now.addingTimeInterval(-300)
+        try context.save()
+        #expect(sync.materializeNow() == 1)
+        #expect(try Data(contentsOf: root.appendingPathComponent(path)) == Data("v2".utf8))
+        #expect(sync.materializeNow() == 0)
+    }
 }
 
 // MARK: - Settings and connections
@@ -362,6 +386,39 @@ struct ConnectionSyncTests {
         macSync.pull()
         #expect(Set(phone.connections.map(\.name)) == ["renamed-on-mac", "touched-on-phone"])
         #expect(Set(mac.connections.map(\.name)) == ["renamed-on-mac", "touched-on-phone"])
+        phoneSync.stop()
+        macSync.stop()
+    }
+
+    /// iCloud Keychain brings a new header without a key-value change, so the other device's copy in memory is stale.
+    /// Saving something unrelated there must not write the stale header back.
+    @Test func anUnrelatedSaveDoesNotRestoreAnOldHeader() throws {
+        let cloud = InMemoryKeyValueStore()
+        let headers = InMemoryKeyStore() // iCloud Keychain, shared by both
+        let phone = ConnectionStore(defaults: defaults(), keys: InMemoryKeyStore())
+        let mac = ConnectionStore(defaults: defaults(), keys: InMemoryKeyStore())
+        let c = connection("org", headers: "Authorization: Bearer old")
+        phone.upsert(c)
+        let phoneSync = ConnectionSync(store: phone, cloud: cloud, defaults: defaults(), headers: headers)
+        let macSync = ConnectionSync(store: mac, cloud: cloud, defaults: defaults(), headers: headers)
+        phoneSync.start()
+        macSync.start()
+        #expect(mac.connection(c.id)?.customHeaders == "Authorization: Bearer old")
+
+        var rotated = try #require(phone.connection(c.id))
+        rotated.customHeaders = "Authorization: Bearer new"
+        phone.upsert(rotated)
+        #expect(headers.key(for: c.id) == "Authorization: Bearer new")
+
+        // The Mac saves an unrelated change while it still holds the old header.
+        mac.upsert(connection("other"))
+        #expect(headers.key(for: c.id) == "Authorization: Bearer new")
+
+        // A header changed on the Mac itself still goes up.
+        var edited = try #require(mac.connection(c.id))
+        edited.customHeaders = "Authorization: Bearer mac"
+        mac.upsert(edited)
+        #expect(headers.key(for: c.id) == "Authorization: Bearer mac")
         phoneSync.stop()
         macSync.stop()
     }

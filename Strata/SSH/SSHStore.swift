@@ -207,6 +207,10 @@ final class SSHStore: Sendable {
         guard (1...65535).contains(s.port) else { throw SSHStoreError.invalid("The port must be between 1 and 65535.") }
         s.jump = s.jump.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         guard !s.jump.contains(s.name) else { throw SSHStoreError.invalid("A server can't be its own jump host.") }
+        // "Always allow" was given for where the name led: a new address, user or route asks again.
+        if let old = server(named: s.name), old.host != s.host || old.port != s.port || old.user != s.user || old.jump != s.jump {
+            try setAlwaysAllowed(false, target: s.name)
+        }
         try encode(s, Self.serverPrefix + s.name)
     }
 

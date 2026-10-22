@@ -165,6 +165,8 @@ final class ConnectionSync {
 
     /// A connection as another device decodes it (decoding fills in some flags), for comparing what was sent. Values,
     /// not bytes: JSON of the same connection can come out in a different key order.
+    nonisolated static func trimmed(_ headers: String) -> String { headers.trimmingCharacters(in: .whitespacesAndNewlines) }
+
     nonisolated static func normalized(_ connection: Connection) -> Connection? {
         encode(connection).flatMap { try? JSONDecoder().decode(Connection.self, from: $0) }
     }
@@ -214,6 +216,9 @@ final class ConnectionSync {
     /// Each connection as this device last sent or received it: only one changed here since goes up, so a save here
     /// never sends back an older copy of one another device just changed.
     private var lastSynced: [UUID: Connection] = [:]
+    /// Each connection's headers as this device last read or wrote them. Only a change made here goes to the Keychain:
+    /// iCloud Keychain may have brought a newer value meanwhile, which a stale copy in memory must not overwrite.
+    private var lastHeaders: [UUID: String] = [:]
 
     init(store: ConnectionStore, cloud: any CloudKeyValueStoring = NSUbiquitousKeyValueStore.default,
          defaults: UserDefaults = .standard, headers: any KeyStoring = KeychainKeyStore(service: KeychainSync.headersService)) {
@@ -263,6 +268,7 @@ final class ConnectionSync {
         let merged = Self.merge(local: store.connections, cloud: remote, order: order, seen: seen, headers: { headers.key(for: $0) })
         seen.formUnion(remote.keys)
         for (id, connection) in remote { lastSynced[id] = Self.normalized(connection) }
+        for c in merged where remote[c.id] != nil { lastHeaders[c.id] = Self.trimmed(c.customHeaders) }
         guard merged != store.connections else { return }
         applying = true
         store.replaceAll(merged)
@@ -284,14 +290,16 @@ final class ConnectionSync {
                 cloud.set(data, forKey: Self.keyPrefix + c.id.uuidString)
                 lastSynced[c.id] = sent
             }
-            let stored = headers.key(for: c.id) ?? ""
-            if stored != c.customHeaders.trimmingCharacters(in: .whitespacesAndNewlines) { try? headers.setKey(c.customHeaders, for: c.id) }
+            let local = Self.trimmed(c.customHeaders)
+            if local != lastHeaders[c.id] ?? Self.trimmed(headers.key(for: c.id) ?? "") { try? headers.setKey(c.customHeaders, for: c.id) }
+            lastHeaders[c.id] = local
         }
         let ids = Set(synced.map(\.id))
         // Only what this device had and no longer has is removed: a connection another device just added is not.
         for id in remote.keys where !ids.contains(id) && known.contains(id) {
             cloud.removeObject(forKey: Self.keyPrefix + id.uuidString)
             try? headers.setKey(nil, for: id)
+            lastHeaders[id] = nil
             known.remove(id)
             lastSynced[id] = nil
         }

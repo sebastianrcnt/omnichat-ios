@@ -282,7 +282,8 @@ struct OUIInput: View {
         fieldBox(
             Group {
                 if multiline {
-                    let rows = max(2, Int(component.number("rows") ?? 3))
+                    // Clamped before the conversion: a model's 1e100 must not reach Int().
+                    let rows = Int(min(max(component.number("rows") ?? 3, 2), 8))
                     TextField(placeholder, text: text, axis: .vertical).lineLimit(rows...max(rows, 8))
                 } else if type == "password" {
                     SecureField(placeholder, text: text)
@@ -437,7 +438,9 @@ struct OUIInput: View {
     private var slider: some View {
         let lower = component.number("min") ?? 0
         let upper = max(component.number("max") ?? 100, lower + 1)
-        let step = component.number("step") ?? (component.string("variant") == "discrete" ? 1 : nil)
+        // A step must be positive and fit the range, or the slider has no stops to land on.
+        let step = (component.number("step").flatMap { $0 > 0 && $0 <= upper - lower ? $0 : nil })
+            ?? (component.string("variant") == "discrete" ? 1 : nil)
         let value = Binding<Double>(
             get: { min(max((current?.arrayValue?.first ?? current)?.toNumber ?? lower, lower), upper) },
             set: { set(.array([.number(step == nil ? ($0 * 100).rounded() / 100 : $0)])) })

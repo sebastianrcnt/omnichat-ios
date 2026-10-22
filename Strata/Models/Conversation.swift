@@ -393,7 +393,11 @@ final class Message {
             guard let data = stepsData else { return [] }
             return DecodeCache.steps.value(for: id, source: data) { try? JSONDecoder().decode([ToolStep].self, from: data) } ?? []
         }
-        set { stepsData = newValue.isEmpty ? nil : try? JSONEncoder().encode(newValue) }
+        set {
+            // While chat sync blocks Health, a running turn's health results never reach the store (`HealthRedaction`).
+            let steps = HealthRedaction.isActive ? HealthRedaction.redacted(newValue) : newValue
+            stepsData = steps.isEmpty ? nil : try? JSONEncoder().encode(steps)
+        }
     }
 
     /// Persisted segments, or a derivation from `steps` and `reasoning` for older messages. Segments keep display data
@@ -409,7 +413,10 @@ final class Message {
                 ProcessSegments.derive(steps: self.steps, reasoning: self.reasoning, thinkingSeconds: self.thinkingSeconds)
             } ?? []
         }
-        set { segmentsData = newValue.isEmpty ? nil : try? JSONEncoder().encode(newValue) }
+        set {
+            let segments = HealthRedaction.isActive ? HealthRedaction.redacted(newValue) : newValue
+            segmentsData = segments.isEmpty ? nil : try? JSONEncoder().encode(segments)
+        }
     }
 
     var sortedAttachments: [Attachment] {

@@ -159,6 +159,25 @@ struct OpenCodeDeviceFlowTests {
         #expect(http.count == 2)
     }
 
+    /// Cancelled after approval, while the account email is fetched: no session is saved, and a key entered
+    /// meanwhile stays.
+    @Test func cancellingDuringTheLastStepSavesNothing() async throws {
+        let clock = FakeClock()
+        let http = FakeAuthHTTP { request in
+            if request.url?.path == "/console/api/user" {
+                withUnsafeCurrentTask { $0?.cancel() } // the user taps Cancel now
+                return (json(["id": "u1", "email": "me@example.com"]), 200)
+            }
+            return (json(["access_token": "acc", "refresh_token": "ref", "expires_in": 3600]), 200)
+        }
+        let auth = OpenCodeAuth(store: .inMemory(), http: http, now: { clock.now }, sleep: FakeSleeper(clock: clock).sleep)
+        let id = UUID()
+        try auth.saveAPIKey("sk-entered-meanwhile", connectionID: id)
+        await #expect(throws: OpenCodeAuthError.cancelled) { try await auth.completeSignIn(connectionID: id, device: device(clock)) }
+        #expect(auth.store.session(id) == nil)
+        #expect(auth.store.apiKey(id) == "sk-entered-meanwhile")
+    }
+
     @Test func requestDeviceCodeReportsTheServerTag() async throws {
         let refused = OpenCodeAuth(store: .inMemory(), http: FakeAuthHTTP { _ in
             (json(["_tag": "DeviceAuthFailed", "message": "Device authorization failed"]), 400)

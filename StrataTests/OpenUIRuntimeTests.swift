@@ -75,6 +75,14 @@ struct OpenUIActionTests {
         #expect(ok.root != nil)
     }
 
+    @Test func numbersThatArentFiniteReadAsMissing() {
+        // From a review: TextArea's rows went straight into Int(), so 1e400 or 0/0 crashed the app.
+        let c = OUIComponent(type: "TextArea", props: ["rows": .number(.infinity), "min": .number(.nan), "max": .number(5)])
+        #expect(c.number("rows") == nil)
+        #expect(c.number("min") == nil)
+        #expect(c.number("max") == 5)
+    }
+
     @Test func validationRules() {
         func rules(_ pairs: [String: OUIValue]) -> OUIObject { OUIObject(keys: Array(pairs.keys), values: pairs) }
         #expect(OUIValidation.error(.string("a@b.co"), rules: rules(["email": .bool(true)])) == nil)

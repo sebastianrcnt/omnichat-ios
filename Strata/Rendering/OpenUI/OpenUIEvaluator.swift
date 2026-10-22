@@ -29,7 +29,8 @@ struct OUIComponent: Equatable, Sendable {
 
     subscript(_ prop: String) -> OUIValue? { props[prop] }
     func string(_ prop: String) -> String? { props[prop]?.text }
-    func number(_ prop: String) -> Double? { props[prop]?.numberValue }
+    /// Nil for NaN and infinity too (0/0, 1e400): sizes, ranges and counts made from them would trap.
+    func number(_ prop: String) -> Double? { props[prop]?.numberValue.flatMap { $0.isFinite ? $0 : nil } }
     func list(_ prop: String) -> [OUIValue] { props[prop]?.arrayValue ?? [] }
     func components(_ prop: String) -> [OUIComponent] { props[prop].map(OUIValue.components) ?? [] }
 }

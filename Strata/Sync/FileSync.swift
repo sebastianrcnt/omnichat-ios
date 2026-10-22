@@ -131,7 +131,12 @@ final class FileSync: FileMirroring, @unchecked Sendable {
             }
             guard let data = record.data else { continue }
             try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            if (try? data.write(to: url, options: .atomic)) != nil { written += 1 }
+            if (try? data.write(to: url, options: .atomic)) != nil {
+                // The file is dated by the version it holds, not when it arrived: a newer version that syncs in late
+                // (made before this copy was downloaded) must still replace it.
+                try? FileManager.default.setAttributes([.modificationDate: record.updatedAt], ofItemAtPath: url.path)
+                written += 1
+            }
         }
         return written
     }

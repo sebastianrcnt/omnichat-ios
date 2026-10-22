@@ -129,35 +129,80 @@ enum HealthSettings {
 }
 
 /// Turning chat sync on removes what `health_query` read from the stored chats first, so none of it reaches iCloud:
-/// each call's result becomes `HealthSettings.removedResult`. The replies written from it stay.
+/// each call's result becomes `HealthSettings.removedResult` in the steps sent to the model, the segments the feed shows
+/// and the tool groups a compaction kept, and checkpoints holding a result are dropped (that turn can't resume). While
+/// sync blocks Health, the same happens on every write (`Message.steps`, `Message.segments`, `CompactionRecord`,
+/// checkpoints), so a turn that was running when sync went on can't put a result back. The replies stay.
 enum HealthRedaction {
-    /// Returns how many results were removed. Saves when it changed anything.
+    static var isActive: Bool { forcedActive ?? HealthSettings.blockedBySync() }
+    /// Tests set it instead of turning on the real chat sync switch.
+    @TaskLocal static var forcedActive: Bool?
+
+    static func mentionsHealth(_ data: Data?) -> Bool {
+        guard let data else { return false }
+        return data.range(of: Data(ToolNames.healthQuery.utf8)) != nil
+    }
+
+    static func redacted(_ calls: [ToolCallRecord]) -> [ToolCallRecord] {
+        calls.map { call in
+            guard call.name == ToolNames.healthQuery, call.result != HealthSettings.removedResult else { return call }
+            var c = call
+            c.result = HealthSettings.removedResult
+            return c
+        }
+    }
+
+    static func redacted(_ steps: [ToolStep]) -> [ToolStep] {
+        steps.map { var s = $0; s.calls = redacted(s.calls); return s }
+    }
+
+    static func redacted(_ segments: [ProcessSegment]) -> [ProcessSegment] {
+        segments.map { var s = $0; s.calls = redacted(s.calls); return s }
+    }
+
+    /// API messages: the answers to the assistant's `health_query` calls.
+    static func redacted(_ messages: [APIMessage]) -> [APIMessage] {
+        let ids = Set(messages.flatMap(\.toolCalls).filter { $0.name == ToolNames.healthQuery }.map(\.id))
+        guard !ids.isEmpty else { return messages }
+        return messages.map { m in
+            guard m.role == "tool", let id = m.toolCallID, ids.contains(id) else { return m }
+            var out = m
+            out.content = .text(HealthSettings.removedResult)
+            return out
+        }
+    }
+
+    /// Returns how many stored copies changed (messages and compactions). Saves when it changed anything.
     @MainActor
     @discardableResult
     static func redact(_ context: ModelContext) throws -> Int {
-        var removed = 0
-        var dirty = false
+        var changed = 0
         for message in try context.fetch(FetchDescriptor<Message>()) {
+            var touched = false
             // An unfinished turn's checkpoint holds its results too; the turn just can't resume.
-            if let data = message.resumeData, data.range(of: Data(ToolNames.healthQuery.utf8)) != nil {
+            if mentionsHealth(message.resumeData) || mentionsHealth(message.resumeDynamicData) {
                 message.clearResume()
-                dirty = true
+                touched = true
             }
-            guard let data = message.stepsData, data.range(of: Data(ToolNames.healthQuery.utf8)) != nil else { continue }
-            var steps = message.steps
-            var changed = false
-            for s in steps.indices {
-                for c in steps[s].calls.indices where steps[s].calls[c].name == ToolNames.healthQuery
-                    && steps[s].calls[c].result != HealthSettings.removedResult {
-                    steps[s].calls[c].result = HealthSettings.removedResult
-                    changed = true
-                    removed += 1
-                }
+            if mentionsHealth(message.stepsData) {
+                let steps = message.steps, clean = redacted(steps)
+                if clean != steps { message.steps = clean; touched = true }
             }
-            if changed { message.steps = steps }
+            if mentionsHealth(message.segmentsData) {
+                let segments = message.segments, clean = redacted(segments)
+                if clean != segments { message.segments = clean; touched = true }
+            }
+            if touched { changed += 1 }
         }
-        if removed > 0 || dirty { try context.save() }
-        return removed
+        for record in try context.fetch(FetchDescriptor<CompactionRecord>()) where mentionsHealth(record.replacementData) {
+            let messages = record.replacement, clean = redacted(messages)
+            if clean != messages, let data = try? ChatRequest.encoder.encode(clean) {
+                record.replacementData = data
+                changed += 1
+            }
+        }
+        if changed > 0 { try context.save() }
+        return changed
     }
 }
 

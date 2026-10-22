@@ -28,7 +28,7 @@ final class CompactionRecord {
         self.anchorMessageID = anchorMessageID
         self.anchorSteps = anchorSteps
         self.notes = notes
-        self.replacementData = try ChatRequest.encoder.encode(replacement)
+        self.replacementData = try ChatRequest.encoder.encode(HealthRedaction.isActive ? HealthRedaction.redacted(replacement) : replacement)
         self.tokensBefore = tokensBefore
         self.tokensAfter = tokensAfter
         self.isAutomatic = isAutomatic
