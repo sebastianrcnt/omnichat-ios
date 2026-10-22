@@ -397,6 +397,7 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
         self.resolver = resolver
         self.guardNavigations = guardNavigations
         activeNavigation = nil
+        hasAbortedScript = false // the page goes anyway
         webView.load(URLRequest(url: URL(string: "about:blank")!))
     }
 
@@ -447,8 +448,9 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
         cont.resume(with: result)
     }
 
-    /// A script call ran out of time or was cancelled. `stopLoading()` doesn't stop its promises or timers, so it may
-    /// still act on the page later (a delayed click, a POST); `discardAbortedScript` replaces the document.
+    /// A `callAsync` or `callAgent` call (the model's script, a click or typing) ran out of time or was cancelled.
+    /// `stopLoading()` doesn't stop its promises or timers, so it may still act on the page later (a delayed click, a
+    /// POST); `discardAbortedScript` replaces the document.
     private(set) var hasAbortedScript = false
 
     private func abortScript() {
@@ -476,7 +478,8 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
     /// Evaluates JavaScript in the page and returns the result as a string. A page that never answers ends with
     /// `WebToolError.timeout` after `timeout` (the load is stopped), and cancelling returns at once.
     func evaluate(_ js: String, timeout: Duration) async throws -> String {
-        try await Deadline.run(timeout, timeoutError: WebToolError.timeout, onAbort: { [weak self] in self?.abortScript() }) { [webView] in
+        // The app's own probes and readers run here: they schedule nothing, so a cut-short one leaves the page be.
+        try await Deadline.run(timeout, timeoutError: WebToolError.timeout, onAbort: { [weak self] in self?.webView.stopLoading() }) { [webView] in
             do {
                 let value = try await webView.evaluateJavaScript(js)
                 return (value as? String) ?? ""
