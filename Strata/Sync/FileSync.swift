@@ -141,6 +141,35 @@ final class FileSync: FileMirroring, @unchecked Sendable {
         return written
     }
 
+    /// Removes the figure and artifact folders of chats that are gone, after an import (`CloudSync`).
+    func removeOrphans() {
+        queue.async { [self] in removeOrphansNow() }
+    }
+
+    /// A chat deleted on another device leaves its conversation and `SyncedFile` records here, and with them the files
+    /// written from them (a deletion here removes its own files, `ConversationDeletion`). A folder stays while its chat
+    /// or any of its records exists: records that arrive before their conversation keep theirs, and so do this device's
+    /// browser screenshots and pending writes of a chat that still exists. Returns how many folders were removed.
+    @discardableResult
+    func removeOrphansNow() -> Int {
+        let context = ModelContext(container)
+        var chats = FetchDescriptor<Conversation>()
+        chats.propertiesToFetch = [\.id]
+        var records = FetchDescriptor<SyncedFile>()
+        records.propertiesToFetch = [\.conversationID]
+        guard let conversations = try? context.fetch(chats), let files = try? context.fetch(records) else { return 0 }
+        let live = Set(conversations.map(\.id)).union(files.compactMap(\.conversationID))
+        var removed = 0
+        for area in Self.areas.sorted() {
+            let folder = root.appendingPathComponent(area, isDirectory: true)
+            for name in (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [] {
+                guard let id = UUID(uuidString: name), !live.contains(id) else { continue }
+                if (try? FileManager.default.removeItem(at: folder.appendingPathComponent(name, isDirectory: true))) != nil { removed += 1 }
+            }
+        }
+        return removed
+    }
+
     // MARK: Disk to store, once
 
     /// The figures and artifacts saved before sync, of chats that still exist, become records once.

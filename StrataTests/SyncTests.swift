@@ -224,6 +224,38 @@ struct FileSyncTests {
         #expect(try ModelContext(container).fetch(FetchDescriptor<SyncedFile>()).map(\.path) == ["Artifacts/\(chat.uuidString)/a1.html"])
     }
 
+    /// A chat deleted on another device takes its downloaded files with it; folders of chats that exist, or whose
+    /// records are still here, stay.
+    @MainActor
+    @Test func filesOfChatsDeletedElsewhereGo() throws {
+        let container = try syncedStore()
+        let root = try tempDirectory()
+        let context = ModelContext(container)
+        let kept = Conversation(title: "Kept")
+        context.insert(kept)
+        let arriving = UUID(), deleted = UUID()
+        context.insert(SyncedFile(path: "ToolImages/\(arriving.uuidString)/figure-1.png", conversationID: arriving, data: Data("png".utf8)))
+        try context.save()
+        let fm = FileManager.default
+        for (area, chat) in [(FileSync.toolImages, kept.id), (FileSync.artifacts, kept.id), (FileSync.toolImages, arriving),
+                             (FileSync.toolImages, deleted), (FileSync.artifacts, deleted)] {
+            let folder = root.appendingPathComponent("\(area)/\(chat.uuidString)", isDirectory: true)
+            try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+            try Data("x".utf8).write(to: folder.appendingPathComponent("screenshot-1.png"))
+        }
+        try fm.createDirectory(at: root.appendingPathComponent("Artifacts/not-a-chat", isDirectory: true), withIntermediateDirectories: true)
+
+        let sync = FileSync(container: container, root: root)
+        #expect(sync.removeOrphansNow() == 2)
+        #expect(!fm.fileExists(atPath: root.appendingPathComponent("ToolImages/\(deleted.uuidString)").path))
+        #expect(!fm.fileExists(atPath: root.appendingPathComponent("Artifacts/\(deleted.uuidString)").path))
+        #expect(fm.fileExists(atPath: root.appendingPathComponent("ToolImages/\(kept.id.uuidString)/screenshot-1.png").path))
+        #expect(fm.fileExists(atPath: root.appendingPathComponent("Artifacts/\(kept.id.uuidString)").path))
+        #expect(fm.fileExists(atPath: root.appendingPathComponent("ToolImages/\(arriving.uuidString)").path))
+        #expect(fm.fileExists(atPath: root.appendingPathComponent("Artifacts/not-a-chat").path))
+        #expect(sync.removeOrphansNow() == 0)
+    }
+
     /// A version made elsewhere before this device downloaded the older one still replaces it when it arrives.
     @MainActor
     @Test func aNewerVersionThatArrivesLateReplacesTheFile() throws {

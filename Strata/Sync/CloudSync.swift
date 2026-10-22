@@ -132,6 +132,7 @@ final class CloudSync {
             self.tidyStore()
             self.skills?.apply()
             self.files?.materialize()
+            self.files?.removeOrphans() // chats deleted on another device
         }
     }
 
