@@ -18,7 +18,7 @@ struct ChatDelta: Equatable, Sendable {
     var isDone = false
     var requestID: String?
     var sequence: Int?
-    /// Reasoning items to send back with this turn's tool results (Responses API only).
+    /// Reasoning items to send back with this turn's tool results (the Responses API's, Anthropic's signed thinking).
     var reasoningItems: [ReasoningItem] = []
 
     var isEmpty: Bool {

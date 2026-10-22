@@ -109,7 +109,7 @@ struct MessagesStreamTests {
         #expect(acc.reasoningItems == [ReasoningItem(summary: ["Need to search."], encryptedContent: "sig")])
         #expect(acc.toolCalls == [ToolCall(id: "tu_1", name: "web_search", arguments: #"{"query":"swift"}"#),
                                   ToolCall(id: "tu_2", name: "web_fetch", arguments: #"{"url":"https://a.test"}"#)])
-        #expect(acc.usage == Usage(promptTokens: 1000, completionTokens: 42, cachedTokens: 900))
+        #expect(acc.usage == Usage(promptTokens: 1000, completionTokens: 42, cachedTokens: 900, cacheWriteTokens: 0))
         #expect(acc.finishReason == "tool_calls")
     }
 
@@ -138,7 +138,7 @@ struct MessagesStreamTests {
 
     @Test func errorEventsThrow() {
         var decoder = MessagesEventDecoder()
-        #expect(throws: APIError.server("Overloaded")) {
+        #expect(throws: APIError.server(MessagesEventDecoder.errorText(type: "overloaded_error", message: "Overloaded"))) {
             try decoder.decode(#"{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}"#)
         }
         #expect(throws: Never.self) { try decoder.decode("not json") }

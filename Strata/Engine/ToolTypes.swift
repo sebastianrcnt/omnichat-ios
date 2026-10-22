@@ -246,11 +246,14 @@ struct ToolStep: Codable, Hashable, Sendable {
     var calls: [ToolCallRecord]
     /// How many reasoning paragraphs preceded this step (places the step in the timeline).
     var reasoningParagraphs: Int = 0
+    /// The signed thinking blocks that led to the calls, on an Anthropic connection only (`StepThinking`).
+    var thinking: StepThinking?
 
-    init(assistantContent: String, calls: [ToolCallRecord], reasoningParagraphs: Int = 0) {
+    init(assistantContent: String, calls: [ToolCallRecord], reasoningParagraphs: Int = 0, thinking: StepThinking? = nil) {
         self.assistantContent = assistantContent
         self.calls = calls
         self.reasoningParagraphs = reasoningParagraphs
+        self.thinking = thinking
     }
 
     init(from decoder: Decoder) throws {
@@ -258,7 +261,18 @@ struct ToolStep: Codable, Hashable, Sendable {
         assistantContent = try c.decode(String.self, forKey: .assistantContent)
         calls = try c.decode([ToolCallRecord].self, forKey: .calls)
         reasoningParagraphs = try c.decodeIfPresent(Int.self, forKey: .reasoningParagraphs) ?? 0
+        thinking = try? c.decodeIfPresent(StepThinking.self, forKey: .thinking)
     }
+}
+
+/// The thinking blocks (text and signature, as `ReasoningItem`s) of an Anthropic answer that called tools, kept with
+/// the step so later turns send them back unchanged. Anthropic recommends passing every thinking block back: newer
+/// models keep earlier turns' thinking in context, and a later turn's request then repeats the earlier one byte for byte
+/// up to its last tool results, so the prompt cache reads all of it instead of writing the turn's tool loop again.
+/// Tagged with the model that wrote them: another model can't read them, and they are left out for it.
+struct StepThinking: Codable, Hashable, Sendable {
+    var model: String
+    var items: [ReasoningItem]
 }
 
 enum ToolNames {
@@ -329,8 +343,10 @@ enum MessageAssembler {
     /// - Parameter replacing: messages that stand for the history before `history` (a compaction's replacement).
     /// - Parameter readsImages: false for a model without image input (the chat switched to one after images were
     ///   attached): each image becomes a fixed note, so the request isn't rejected and the model knows one was there.
+    /// - Parameter thinkingModel: an Anthropic model: steps whose thinking it wrote send that thinking back
+    ///   (`StepThinking`). Nil everywhere else, so other APIs' requests are what they always were.
     static func apiMessages(from history: [HistoryMessage], systemPrompt: String = "", replacing: [APIMessage] = [],
-                            readsImages: Bool = true) -> [APIMessage] {
+                            readsImages: Bool = true, thinkingModel: String? = nil) -> [APIMessage] {
         var out: [APIMessage] = []
         let trimmedPrompt = systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedPrompt.isEmpty { out.append(.system(trimmedPrompt)) }
@@ -351,9 +367,10 @@ enum MessageAssembler {
                 }
             case "assistant":
                 for step in m.steps {
+                    let thinking = step.thinking.flatMap { $0.model == thinkingModel ? $0.items : nil } ?? []
                     appendToolRound(to: &out, assistantContent: step.assistantContent,
                                     calls: step.calls.map(\.toolCall),
-                                    results: step.calls.map(\.output), readsImages: readsImages)
+                                    results: step.calls.map(\.output), readsImages: readsImages, reasoningItems: thinking)
                 }
                 if !m.text.isEmpty || m.steps.isEmpty { out.append(.assistant(m.text)) }
             default:

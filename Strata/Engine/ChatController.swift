@@ -190,11 +190,12 @@ final class ChatController {
         renderStates = renderStates.filter { keep.contains($0.key) || live.contains($0.key) }
     }
 
-    /// A ChatGPT or OpenCode connection needs a sign-in (or, for OpenCode, a key); an OpenAI-compatible one may be
-    /// keyless (local servers), so its server says when a key is missing.
+    /// A ChatGPT or OpenCode connection needs a sign-in (or, for OpenCode, a key), an Anthropic one its API key; an
+    /// OpenAI-compatible one may be keyless (local servers), so its server says when a key is missing.
     static func needsKey(_ endpoint: Endpoint, connections: ConnectionStore) -> Bool {
         if endpoint.kind == .chatGPT { return !connections.isChatGPTSignedIn(endpoint.connectionID) }
         if endpoint.kind == .openCode { return !connections.isOpenCodeSignedIn(endpoint.connectionID) }
+        if endpoint.kind == .anthropic { return (endpoint.apiKey ?? "").isEmpty }
         return false
     }
 
@@ -203,7 +204,7 @@ final class ChatController {
         switch endpoint.kind {
         case .chatGPT: .chatGPTSignInRequired(connection: endpoint.connectionName)
         case .openCode: .openCodeSignInRequired(connection: endpoint.connectionName)
-        case .openAICompatible: .missingAPIKey(connection: endpoint.connectionName)
+        case .openAICompatible, .anthropic: .missingAPIKey(connection: endpoint.connectionName)
         case .appleOnDevice: .server(OnDeviceAvailability.deviceNotEligible.message) // never: it needs no key
         }
     }
@@ -287,7 +288,8 @@ final class ChatController {
                                    messages: apiHistory(path: path, conversation: conversation, endpoint: endpoint))
             if endpoint.model.supportsEffort { base.reasoningEffort = conversation.effort.apiValue }
             if endpoint.model.supportsTools { base.tools = requestTools(endpoint, conversation: conversation) }
-            followUp = AutoRename.followUp(base, replacing: force ? conversation.displayTitle : nil)
+            followUp = AutoRename.followUp(base, replacing: force ? conversation.displayTitle : nil,
+                                           forbidTools: endpoint.kind != .anthropic)
         }
         let streamer = streamer
         let ring = requestRing
@@ -718,6 +720,8 @@ final class ChatController {
         case .content(let c):
             tracker.addContent(c)
             if run.phase != .writing { run.phase = .writing }
+        case .stepThinking(let thinking):
+            tracker.stepThinking = thinking
         case .toolsRequested(let calls):
             tracker.finishThinking()
             tracker.beginTools(calls)
@@ -899,12 +903,15 @@ final class ChatController {
                                                   : conversation.preferencesSnapshot ?? settings.userPreferences)]
             .filter { !$0.isEmpty }.joined(separator: "\n\n")
         let system = ConversationDate.systemPrompt(base: base, day: conversation.systemDay, plugins: plugins)
+        // An Anthropic model gets its own thinking back on the steps of earlier turns (`StepThinking`).
+        let thinkingModel = endpoint.kind == .anthropic ? endpoint.model.id : nil
         if let compacted = conversation.compactedHistory(path: path) {
             return MessageAssembler.apiMessages(from: compacted.rest, systemPrompt: system, replacing: compacted.replacement,
-                                                readsImages: endpoint.model.supportsImages)
+                                                readsImages: endpoint.model.supportsImages, thinkingModel: thinkingModel)
         }
         let history = path.filter { $0.role == .user || !$0.text.isEmpty || !$0.steps.isEmpty }.map(\.historyMessage)
-        return MessageAssembler.apiMessages(from: history, systemPrompt: system, readsImages: endpoint.model.supportsImages)
+        return MessageAssembler.apiMessages(from: history, systemPrompt: system, readsImages: endpoint.model.supportsImages,
+                                            thinkingModel: thinkingModel)
     }
 
     /// The tools the chat's requests send (see `ToolDefinition.available`).
@@ -1166,6 +1173,8 @@ final class TurnTracker {
     private var requested: [ToolCall] = []
     private var stepParagraphs = 0
     private var finishedRecords: [ToolCallRecord] = []
+    /// The signed thinking of the round whose calls run now (Anthropic), for its step.
+    var stepThinking: StepThinking?
     private(set) var completedSteps: [ToolStep] = []
     // Ordered process segments, appended as the stream produces them.
     private var segments: [ProcessSegment] = []
@@ -1237,7 +1246,9 @@ final class TurnTracker {
     func completeTool(_ record: ToolCallRecord) {
         finishedRecords.append(record)
         if finishedRecords.count == requested.count {
-            completedSteps.append(ToolStep(assistantContent: roundContent, calls: finishedRecords, reasoningParagraphs: stepParagraphs))
+            completedSteps.append(ToolStep(assistantContent: roundContent, calls: finishedRecords, reasoningParagraphs: stepParagraphs,
+                                           thinking: stepThinking))
+            stepThinking = nil
             message.steps = completedSteps
             append(.init(index: 0, kind: .toolRound, calls: finishedRecords.map(\.displayOnly)))
         }
@@ -1247,7 +1258,10 @@ final class TurnTracker {
     /// (a call without a result cannot be sent back). A round with nothing finished is dropped whole.
     func keepFinishedCallsOfOpenRound() {
         guard !requested.isEmpty, !finishedRecords.isEmpty, finishedRecords.count < requested.count else { return }
-        completedSteps.append(ToolStep(assistantContent: roundContent, calls: finishedRecords, reasoningParagraphs: stepParagraphs))
+        // The thinking stays: it is bound to the history before it, which is unchanged.
+        completedSteps.append(ToolStep(assistantContent: roundContent, calls: finishedRecords, reasoningParagraphs: stepParagraphs,
+                                       thinking: stepThinking))
+        stepThinking = nil
         message.steps = completedSteps
         append(.init(index: 0, kind: .toolRound, calls: finishedRecords.map(\.displayOnly)))
         requested = []

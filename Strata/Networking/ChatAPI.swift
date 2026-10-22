@@ -408,6 +408,9 @@ struct Usage: Codable, Sendable, Equatable {
     var completionTokens: Int
     var cachedTokens: Int?
     var reasoningTokens: Int?
+    /// Prompt tokens written to the cache by this request (Anthropic's `cache_creation_input_tokens`, OpenRouter's
+    /// `cache_write_tokens`): billed above plain input, read cheaply by the next request. Part of `promptTokens`.
+    var cacheWriteTokens: Int?
 
     var totalTokens: Int { ContextLimits.add(promptTokens, completionTokens) }
 
@@ -417,23 +420,27 @@ struct Usage: Codable, Sendable, Equatable {
         case promptDetails = "prompt_tokens_details"
         case completionDetails = "completion_tokens_details"
     }
-    private struct PromptDetails: Codable { var cachedTokens: Int?
-        enum CodingKeys: String, CodingKey { case cachedTokens = "cached_tokens" } }
+    private struct PromptDetails: Codable { var cachedTokens: Int?; var cacheWriteTokens: Int?
+        enum CodingKeys: String, CodingKey { case cachedTokens = "cached_tokens", cacheWriteTokens = "cache_write_tokens" } }
     private struct CompletionDetails: Codable { var reasoningTokens: Int?
         enum CodingKeys: String, CodingKey { case reasoningTokens = "reasoning_tokens" } }
 
-    init(promptTokens: Int, completionTokens: Int, cachedTokens: Int? = nil, reasoningTokens: Int? = nil) {
+    init(promptTokens: Int, completionTokens: Int, cachedTokens: Int? = nil, reasoningTokens: Int? = nil,
+         cacheWriteTokens: Int? = nil) {
         self.promptTokens = promptTokens
         self.completionTokens = completionTokens
         self.cachedTokens = cachedTokens
         self.reasoningTokens = reasoningTokens
+        self.cacheWriteTokens = cacheWriteTokens
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         promptTokens = try c.decodeIfPresent(Int.self, forKey: .promptTokens) ?? 0
         completionTokens = try c.decodeIfPresent(Int.self, forKey: .completionTokens) ?? 0
-        cachedTokens = try c.decodeIfPresent(PromptDetails.self, forKey: .promptDetails)?.cachedTokens
+        let details = try c.decodeIfPresent(PromptDetails.self, forKey: .promptDetails)
+        cachedTokens = details?.cachedTokens
+        cacheWriteTokens = details?.cacheWriteTokens
         reasoningTokens = try c.decodeIfPresent(CompletionDetails.self, forKey: .completionDetails)?.reasoningTokens
     }
 
@@ -441,7 +448,9 @@ struct Usage: Codable, Sendable, Equatable {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(promptTokens, forKey: .promptTokens)
         try c.encode(completionTokens, forKey: .completionTokens)
-        if let cachedTokens { try c.encode(PromptDetails(cachedTokens: cachedTokens), forKey: .promptDetails) }
+        if cachedTokens != nil || cacheWriteTokens != nil {
+            try c.encode(PromptDetails(cachedTokens: cachedTokens, cacheWriteTokens: cacheWriteTokens), forKey: .promptDetails)
+        }
         if let reasoningTokens { try c.encode(CompletionDetails(reasoningTokens: reasoningTokens), forKey: .completionDetails) }
     }
 }
@@ -454,6 +463,8 @@ enum APIError: Error, LocalizedError, Equatable {
     case chatGPTSignInRequired(connection: String)
     /// An OpenCode connection that is signed out, whose session ended, or whose API key was refused.
     case openCodeSignInRequired(connection: String)
+    /// The server refused the connection's API key (an Anthropic connection: 401).
+    case rejectedAPIKey(connection: String)
     case http(status: Int, message: String)
     case server(String)
     case transport(String)
@@ -461,7 +472,7 @@ enum APIError: Error, LocalizedError, Equatable {
     /// Errors fixed in Settings; the chat shows an "Open Settings" button for these.
     var needsSettings: Bool {
         switch self {
-        case .missingModel, .missingAPIKey, .invalidBaseURL, .chatGPTSignInRequired, .openCodeSignInRequired: true
+        case .missingModel, .missingAPIKey, .invalidBaseURL, .chatGPTSignInRequired, .openCodeSignInRequired, .rejectedAPIKey: true
         default: false
         }
     }
@@ -473,6 +484,7 @@ enum APIError: Error, LocalizedError, Equatable {
         case .missingAPIKey(let name): String(localized: "Add an API key for \(name) in Settings.")
         case .chatGPTSignInRequired(let name): String(localized: "Sign in with ChatGPT for \(name) in Settings.")
         case .openCodeSignInRequired(let name): String(localized: "Sign in with OpenCode, or enter a valid API key, for \(name) in Settings.")
+        case .rejectedAPIKey(let name): String(localized: "The API key for \(name) was not accepted. Check it in Settings.")
         case .http(let status, let message):
             message.isEmpty ? String(localized: "The server returned HTTP \(status).")
                             : String(localized: "HTTP \(status): \(message)")

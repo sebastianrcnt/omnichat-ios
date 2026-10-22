@@ -125,6 +125,7 @@ struct ConversationDetailsSheet: View {
                 SettingsRow(title: "Prompt tokens", value: p.formatted())
                 SettingsRow(title: "Completion tokens", value: c.formatted())
                 SettingsRow(title: "Cached", value: d.context.cachedTokens.map { "\($0.formatted())" + (d.context.cacheHitPercent.map { " (\($0)%)" } ?? "") } ?? "—")
+                if let written = d.context.cacheWriteTokens { SettingsRow(title: "Written to cache", value: written.formatted()) }
             } else {
                 SettingsRow(title: "Last usage", value: "—")
             }
@@ -169,7 +170,8 @@ struct RequestRowView: View {
             Text("\(DiagnosticsFormat.bytes(request.bodyBytes)) · \(request.messageCount ?? 0) messages")
                 .font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary)
             if let p = request.promptTokens, let c = request.completionTokens {
-                Text("\(p.formatted()) in · \(c.formatted()) out" + (request.cachedTokens.map { " · \($0.formatted()) cached" } ?? ""))
+                Text("\(p.formatted()) in · \(c.formatted()) out" + (request.cachedTokens.map { " · \($0.formatted()) cached" } ?? "")
+                     + (request.cacheWriteTokens.map { " · \($0.formatted()) written" } ?? ""))
                     .font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary)
             }
             if let note = request.note {

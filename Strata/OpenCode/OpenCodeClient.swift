@@ -118,7 +118,8 @@ struct OpenCodeClient: ChatStreaming {
             try await ResponsesClient.consume(bytes, into: continuation,
                                               incomplete: String(localized: "The OpenCode response ended before it was complete. Try again."))
         case .messages:
-            try await MessagesEventDecoder.consume(bytes, into: continuation)
+            try await MessagesEventDecoder.consume(bytes, incomplete: String(localized: "The OpenCode response ended before it was complete. Try again."),
+                                                   into: continuation)
         case .chatCompletions, .gemini:
             // An interleaved-reasoning model gets this answer's reasoning back with its tool results: it rides on the
             // assistant message as a reasoning item, like the Responses API's.

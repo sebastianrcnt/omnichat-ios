@@ -22,6 +22,8 @@ struct ModelInfo: Codable, Identifiable, Hashable, Sendable {
     var fetchedDisplayName: String?
     /// An OpenCode model's API family and effort levels; nil on other connections.
     var openCode: OpenCodeModelInfo?
+    /// An Anthropic model's thinking mode and effort levels (`GET /v1/models` capabilities); nil on other connections.
+    var anthropic: AnthropicModelInfo?
 
     init(id: String,
          fetchedContextLength: Int? = nil,
@@ -56,13 +58,16 @@ struct ModelInfo: Codable, Identifiable, Hashable, Sendable {
         isManual = try c.decodeIfPresent(Bool.self, forKey: .isManual) ?? false
         fetchedDisplayName = try c.decodeIfPresent(String.self, forKey: .fetchedDisplayName)
         openCode = try c.decodeIfPresent(OpenCodeModelInfo.self, forKey: .openCode)
+        anthropic = try? c.decodeIfPresent(AnthropicModelInfo.self, forKey: .anthropic)
     }
 
     /// The reasoning effort levels this model offers, lowest first (none when it takes no `reasoning_effort`). An
-    /// OpenCode model offers the levels its catalog lists.
+    /// OpenCode model offers the levels its catalog lists, an Anthropic model those its capabilities list (every level for
+    /// a model that thinks against a budget: the level picks the budget).
     func effortLevels(_ style: EffortStyle) -> [Effort] {
         guard supportsEffort else { return [] }
         if let listed = openCode?.efforts, !listed.isEmpty { return listed }
+        if let listed = anthropic?.pickerLevels, !listed.isEmpty { return listed }
         return Effort.levels(style)
     }
 
@@ -81,8 +86,8 @@ struct ModelInfo: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
-/// An OpenAI-compatible endpoint, a ChatGPT account, or an OpenCode account. The API key (or the sign-in) lives in the
-/// Keychain, keyed by `id`.
+/// An OpenAI-compatible endpoint, a ChatGPT account, an OpenCode account, Anthropic's API, or Apple's on-device model. The
+/// API key (or the sign-in) lives in the Keychain, keyed by `id`.
 struct Connection: Codable, Identifiable, Hashable, Sendable {
     /// What the connection talks to, which decides the API the requests use.
     enum Kind: String, Codable, Sendable {
@@ -95,6 +100,10 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
         case openCode
         /// Apple's on-device model (Foundation Models): no key, no network (`OnDeviceClient`).
         case appleOnDevice
+        /// Anthropic's Messages API at `baseURL` (`https://api.anthropic.com/v1`, or a proxy), with the user's API key
+        /// (`AnthropicClient`). Versions before it can't decode this kind: they skip the connection, in their list and
+        /// in sync, and never delete it.
+        case anthropic
     }
 
     var id: UUID
@@ -169,16 +178,23 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
         return c
     }
 
+    /// A new Anthropic connection: the key is asked for in its editor.
+    static func anthropic(name: String = "Anthropic", baseURL: String = AnthropicModels.defaultBaseURL) -> Connection {
+        Connection(kind: .anthropic, name: name, baseURL: baseURL, supportsResumable: false)
+    }
+
     var isChatGPT: Bool { kind == .chatGPT }
     var isOpenCode: Bool { kind == .openCode }
     var isAppleOnDevice: Bool { kind == .appleOnDevice }
-    var effortStyle: EffortStyle { isChatGPT || isOpenCode ? .modelDecides : .tokenCaps }
+    var isAnthropic: Bool { kind == .anthropic }
+    var effortStyle: EffortStyle { isChatGPT || isOpenCode || isAnthropic ? .modelDecides : .tokenCaps }
 
     /// Defaults for newly discovered models on this connection: what `/models` said, else the connection's settings.
-    /// ChatGPT models read images, reason and call tools.
+    /// ChatGPT models read images, reason and call tools; an Anthropic model gets what its family takes.
     func defaultModel(id modelID: String, fetchedContextLength: Int?, fetchedImages: Bool? = nil,
                       fetchedEffort: Bool? = nil) -> ModelInfo {
-        ModelInfo(id: modelID,
+        if isAnthropic { return AnthropicModels.model(id: modelID) }
+        return ModelInfo(id: modelID,
                   fetchedContextLength: fetchedContextLength,
                   supportsImages: fetchedImages ?? (imagesByDefault || isChatGPT),
                   supportsEffort: fetchedEffort ?? (effortByDefault || isChatGPT),
@@ -279,7 +295,7 @@ struct Endpoint: Sendable {
     var model: ModelInfo
     var supportsResumable: Bool = false
     /// Chat Completions, or the Responses API for a ChatGPT account (whose token comes from `ChatGPTAuth`, not `apiKey`),
-    /// or the model's API for an OpenCode account (token from `OpenCodeAuth`).
+    /// or the model's API for an OpenCode account (token from `OpenCodeAuth`), or Anthropic's Messages API (`apiKey`).
     var kind: Connection.Kind = .openAICompatible
     /// For an OpenAI-compatible connection: Chat Completions or the Responses API, and whether a refused Chat
     /// Completions request may switch (see `ResponsesFallback`). Nil means Chat Completions, never switching.
@@ -295,6 +311,7 @@ struct Endpoint: Sendable {
         case .openCode: baseURL.appendingPathComponent(openCodeAPI.path(model: model.id))
         case .openAICompatible: baseURL.appendingPathComponent(chatAPI == .responses ? "responses" : "chat/completions")
         case .appleOnDevice: baseURL
+        case .anthropic: baseURL.appendingPathComponent("messages")
         }
     }
 

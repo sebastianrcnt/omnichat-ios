@@ -71,6 +71,7 @@ enum SyncDedupe {
             keep.lastCompletionTokens = extra.lastCompletionTokens
             keep.lastCachedTokens = extra.lastCachedTokens
             keep.lastReasoningTokens = extra.lastReasoningTokens
+            keep.lastCacheWriteTokens = extra.lastCacheWriteTokens
             keep.lastUsageMessageID = extra.lastUsageMessageID
             keep.toolSwitchesRaw = extra.toolSwitchesRaw
             keep.announcedToolsRaw = extra.announcedToolsRaw
