@@ -120,7 +120,8 @@ extension MarkdownUI.Theme {
             .heading2 { c in c.label.markdownMargin(top: 0, bottom: 0).markdownTextStyle { FontWeight(.semibold); FontSize(.em(1.25)) } }
             .heading3 { c in c.label.markdownMargin(top: 0, bottom: 0).markdownTextStyle { FontWeight(.semibold); FontSize(.em(1.1)) } }
             .paragraph { c in
-                c.label.fixedSize(horizontal: false, vertical: true).relativeLineSpacing(.em(DS.Leading.answer.em)).markdownMargin(top: 0, bottom: 0)
+                c.label.fixedSize(horizontal: false, vertical: true).relativeLineSpacing(.em(DS.Leading.answer.em))
+                    .markdownMargin(top: 0, bottom: DS.Spacing.md) // only between blocks nested in a list or quote
             }
             .listItem { c in c.label.markdownMargin(top: .em(0.35)) }
             .blockquote { c in
@@ -131,7 +132,7 @@ extension MarkdownUI.Theme {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(t.quoteFill, in: UnevenRoundedRectangle(bottomTrailingRadius: DS.Radius.quote, topTrailingRadius: DS.Radius.quote))
                     .overlay(alignment: .leading) { Rectangle().fill(t.textSecondary).frame(width: 3) }
-                    .markdownMargin(top: 0, bottom: 0)
+                    .markdownMargin(top: DS.Spacing.md, bottom: DS.Spacing.md)
             }
             .codeBlock { c in
                 ScrollView(.horizontal) {
@@ -144,7 +145,9 @@ extension MarkdownUI.Theme {
                         .padding(DS.Spacing.md)
                 }
                 .background(t.surface, in: RoundedRectangle(cornerRadius: DS.Radius.md))
-                .markdownMargin(top: 0, bottom: 0)
+                // Room above and below when it sits among a list's items or paragraphs in one block (MarkdownUI
+                // spaces blocks by these margins; a top-level block's own spacing comes from `DS.blockSpacing`).
+                .markdownMargin(top: DS.Spacing.md, bottom: DS.Spacing.md)
             }
             .table { c in
                 // Natural-width columns, horizontally scrollable when wider than the screen.
@@ -157,7 +160,7 @@ extension MarkdownUI.Theme {
                 .scrollBounceBehavior(.basedOnSize)
                 .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
                 .overlay { RoundedRectangle(cornerRadius: DS.Radius.md).stroke(t.separator, lineWidth: 1) }
-                .markdownMargin(top: 0, bottom: 0)
+                .markdownMargin(top: DS.Spacing.md, bottom: DS.Spacing.md)
             }
             .tableCell { c in
                 c.label
