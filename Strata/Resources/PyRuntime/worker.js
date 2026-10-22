@@ -4,6 +4,7 @@
 //   { id, type: "run", code }     -> { id, status: "ok", output, result, error, figures: [{ png }], truncated }
 // Network access goes only to the app's own scheme (the page's CSP blocks any other origin): absolute http(s) URLs, from
 // fetch or XMLHttpRequest (what pyodide-http and open_url use), are sent through its proxy, which carries them anywhere.
+// Sockets (TCP, UDP, TLS) go to strata-py://app/sock through sockets.js; strata_net.py adds ssl and asyncio on top.
 
 import { loadPyodide } from "./pyodide/pyodide.mjs";
 import { hookInstantiate, installSockets } from "./sockets.js";
