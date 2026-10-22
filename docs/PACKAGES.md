@@ -229,7 +229,7 @@ optional sources.
 
 ```jsonc
 {
-  "name": "search",                              // [a-z][a-z0-9_]{0,39}; full tool name "jira_search"
+  "name": "search",                              // [a-z][a-z0-9_]{0,39}; full tool name "jira__search"
   "kind": "http",
   "title": "Search issues",                      // feed card title
   "description": "Search Acme Jira issues with a JQL query. Returns key, summary, status and assignee.",  // to the model, ≤ 1024
@@ -386,7 +386,7 @@ latest message, and only when no reply is running.
 These are composer prompt templates, pi's commands without code.
 
 ```jsonc
-{ "name": "triage", "title": "Triage an issue", "template": "Triage {{issue}}: read it with jira_get, find duplicates with jira_search, and propose priority and owner.",
+{ "name": "triage", "title": "Triage an issue", "template": "Triage {{issue}}: read it with jira__get, find duplicates with jira__search, and propose priority and owner.",
   "args": [ { "name": "issue", "label": "Issue key", "placeholder": "OPS-123" } ] }
 ```
 
@@ -457,7 +457,7 @@ JS hooks (`message.beforeSend` with a 300 ms budget, company trust only) are a p
 | `PackageStore` | `Strata/Packages/PackageStore.swift` | Installed packages on disk, the registry, active and previous versions, enablement defaults. Thread-safe in the style of `SkillStore`, with an observable `PackagesVersion` for UI. |
 | `PackageInstaller` | `Strata/Packages/PackageInstaller.swift` | Download or import, unzip (with zip-slip checks), normalize, verify, diff against the installed version, and hand off to the review sheet. |
 | `PackageSecretStore` | `Strata/Packages/PackageSecrets.swift` | Keychain service `cc.coolservices.strata.package`, account `<id>/<secret>`. Includes `scrub(_:)`. |
-| `PackageToolRouter` | `Strata/Packages/PackageToolRouter.swift` | A `ToolExecuting` that handles `<namespace>_<tool>` names and delegates everything else to `ToolRouter`. |
+| `PackageToolRouter` | `Strata/Packages/PackageToolRouter.swift` | A `ToolExecuting` that handles `<namespace>__<tool>` names and delegates everything else to `ToolRouter`. |
 | `HTTPToolRunner` | `Strata/Packages/HTTPToolRunner.swift` | Declarative tools. |
 | `PackageJSHost` | `Strata/Packages/PackageJSHost.swift` + `Resources/PackageHost/host.html`, `bootstrap.js` (MIT) | The JS sandbox (phase 2). |
 | `ToolApprovals` | `Strata/Engine/ToolApprovals.swift` | `SSHRequests` generalized: (chat, call) cards, "Always" policies, background notification, Live Activity input. |
@@ -563,7 +563,7 @@ one cache miss (`applyToolSwitches`). Packages follow exactly these rules.
 
 **Names**
 
-- A tool's full name is `<namespace>_<tool>`, at most 64 characters, matching the OpenAI `^[a-zA-Z0-9_-]{1,64}$` rule.
+- A tool's full name is `<namespace>__<tool>`, at most 64 characters, matching the OpenAI `^[a-zA-Z0-9_-]{1,64}$` rule.
 - Reserved namespaces: `web`, `browser`, `run`, `view`, `load`, `save`, `show`, `current`, `video`, `ssh`, `python`,
   `openchat`, `app`, `test`, `pkg`. A full name may not equal anything in `ToolNames` or `SSHToolNames.all`.
 - If two installed packages want the same namespace, the second install asks for a local alias (`jira2`). The alias is
@@ -961,7 +961,7 @@ Enforcement points:
   (default 30 days). Each line is one event:
 
   ```json
-  {"t":"2026-10-22T09:14:03Z","ev":"tool.call","chat":"<uuid>","pkg":"com.acme.jira","ver":"1.4.0","tool":"jira_search",
+  {"t":"2026-10-22T09:14:03Z","ev":"tool.call","chat":"<uuid>","pkg":"com.acme.jira","ver":"1.4.0","tool":"jira__search",
    "host":"acme.atlassian.net","status":200,"ms":412,"approved":"never","argsSha256":"…","resultChars":3810}
   ```
 - Events:
@@ -1290,3 +1290,19 @@ Tests (Swift Testing, as in `StrataTests/`):
     (`PythonRuntime`), but its per-chat interpreter and package downloads complicate isolation.
 11. **App Intents.** Is a user-built "Run package command" shortcut worth phase 3, given that App Shortcuts can't be
     added at runtime?
+
+### Decisions (2026-10-22)
+
+The product owner took the recommended answer to each question above:
+
+1. Ask App Review about 4.7 before the MVP ships, with the Wikipedia built-in as the demo.
+2. No health or location data reaches packages in the MVP (no `data` permissions).
+3. Only company packages are on in new chats by default; user-installed packages start off.
+4. The budgets stay: 24 tools per package, 64 package tools per chat, a 4k-character prompt fragment.
+5. Tool names use a double underscore: `jira__search`.
+6. A signed, gateway-published policy without MDM is allowed; the user confirms the key fingerprint once.
+7. Audit level `full` is only available through a company policy.
+8. A public directory comes later, not in the MVP.
+9. Counsel reviews the CLA and the exception text before the first external contribution.
+10. Python package tools come in phase 2.
+11. "Run package command" App Shortcuts come in phase 3.
