@@ -175,6 +175,7 @@ struct BuiltInPackageTests {
         #expect(PackageStore(directory: nil, builtIn: bundled, builtInDefault: { _ in false }).defaultOn.isEmpty)
         // The connections package adds nothing to chats, so it never has a switch.
         #expect(kr.package(id: BuiltInPackages.connections)?.addsToChats == false)
-        #expect(kr.replacedPlugins == ["wikipedia_summary"])
+        #expect(kr.replacedPlugins(by: [BuiltInPackages.wikipedia]) == ["wikipedia_summary"])
+        #expect(kr.replacedPlugins(by: [BuiltInPackages.korea]).isEmpty)
     }
 }

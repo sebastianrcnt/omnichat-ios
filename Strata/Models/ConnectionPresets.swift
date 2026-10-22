@@ -44,9 +44,7 @@ enum ConnectionPreset: String, CaseIterable, Identifiable, Sendable {
 }
 
 /// A package's connection preset in the add-connection screen.
-extension PackageConnectionPreset: Identifiable {
-    public var id: String { name + " " + url }
-
+extension PackageConnectionPreset {
     /// On this device or another computer (`localhost`, a `.local` name or a private address): listed under "On your
     /// computer".
     var isLocal: Bool {
@@ -65,9 +63,9 @@ extension PackageConnectionPreset: Identifiable {
     /// A phone can't reach `localhost` on the Mac, so it says to use the Mac's address on the network instead.
     private static func localNote(port: Int) -> String {
         #if os(macOS)
-        String(localized: "Runs on this Mac (port \(port))")
+        String(localized: "Runs on this Mac (port \(String(port)))")
         #else
-        String(localized: "On your Mac: replace localhost with the Mac's network address (port \(port))")
+        String(localized: "On your Mac: replace localhost with the Mac's network address (port \(String(port)))")
         #endif
     }
 

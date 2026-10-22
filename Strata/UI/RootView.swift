@@ -44,6 +44,7 @@ struct RootView: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .sheet(isPresented: $showSettings) { SettingsView().inAppLinks() }
         .connectionLinks(closing: $showSettings)
+        .packageLinks(closing: $showSettings)
         .inAppLinks()
         .chatLifecycle(selected: $selected)
         .intentRoutes(newChat: newChat)

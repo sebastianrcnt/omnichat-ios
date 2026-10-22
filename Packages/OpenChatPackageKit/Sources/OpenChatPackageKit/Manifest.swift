@@ -419,6 +419,10 @@ extension PackageManifest {
     }
 }
 
+extension PackageConnectionPreset: Identifiable {
+    public var id: String { name + " " + url }
+}
+
 public enum PackageFormat {
     /// The newest manifest format this kit understands.
     public static let newest = 1

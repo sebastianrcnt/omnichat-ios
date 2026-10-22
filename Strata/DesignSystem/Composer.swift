@@ -512,19 +512,27 @@ struct ComposerBar<Accessory: View>: View {
         }
     }
 
+    private func toggle(_ item: ComposerToolSwitch) -> some View {
+        Toggle(isOn: Binding(get: { item.isOn }, set: { onToolSwitch(item, $0) })) {
+            Label { Text(verbatim: item.title) } icon: { Image(systemName: item.systemImage) }
+        }
+        #if os(iOS)
+        .menuActionDismissBehavior(.disabled)
+        #endif
+    }
+
     /// Add photos, then the chat's tools as toggles; a toggle leaves the menu open, so several can be flipped.
     private var plusMenu: some View {
         let d = DS.IconSize.compactControlDiameter
         return Menu {
             Button("Add photos", systemImage: "photo.on.rectangle", action: onAttach)
             Section("Tools in this chat") {
-                ForEach(toolSwitches) { item in
-                    Toggle(isOn: Binding(get: { item.isOn }, set: { onToolSwitch(item, $0) })) {
-                        Label(item.title, systemImage: item.systemImage)
-                    }
-                    #if os(iOS)
-                    .menuActionDismissBehavior(.disabled)
-                    #endif
+                ForEach(toolSwitches.filter { !$0.id.hasPrefix(ToolSwitch.packagePrefix) }) { toggle($0) }
+            }
+            let packages = toolSwitches.filter { $0.id.hasPrefix(ToolSwitch.packagePrefix) }
+            if !packages.isEmpty {
+                Section("Packages") {
+                    ForEach(packages) { toggle($0) }
                 }
             }
         } label: {

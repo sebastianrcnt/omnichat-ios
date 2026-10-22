@@ -144,6 +144,7 @@ struct ShareItemLoader {
     }
 
     static func kind(_ type: UTType) -> SharePayload.File.Kind {
+        if type.identifier == "cc.coolservices.openchat.package" || type.preferredFilenameExtension == "ocpkg" { return .package }
         if type.conforms(to: .pdf) { return .pdf }
         if type.conforms(to: .text) || type.conforms(to: .sourceCode) || type.conforms(to: .json) || type.conforms(to: .xml) { return .text }
         return .other

@@ -30,6 +30,14 @@ final class ShareImporter {
         for payload in waiting {
             claimed.insert(payload.id)
             let contents = await Task.detached(priority: .userInitiated) { Self.read(payload, from: inbox) }.value
+            // A shared package opens in its review sheet (never installed from here); the rest of the share is a chat.
+            for file in payload.files where file.kind == .package {
+                let copy = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ocpkg")
+                if (try? FileManager.default.copyItem(at: inbox.fileURL(file.storedName, in: payload.id), to: copy)) != nil {
+                    PackageLinks.shared.receive(copy)
+                    try? FileManager.default.removeItem(at: copy)
+                }
+            }
             inbox.remove(payload.id)
             if let conversation = await send(contents, controller: controller, connections: connections,
                                              settings: settings, context: context) {
@@ -50,7 +58,7 @@ final class ShareImporter {
             case .pdf: texts[file.storedName] = pdfText(url)
             case .text: texts[file.storedName] = (try? String(contentsOf: url, encoding: .utf8))
                 ?? (try? String(contentsOf: url, encoding: .isoLatin1))
-            case .other: break
+            case .other, .package: break
             }
         }
         return Contents(payload: payload, images: images, fileTexts: texts)

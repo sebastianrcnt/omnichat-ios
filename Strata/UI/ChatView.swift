@@ -33,6 +33,8 @@ struct ChatView: View {
     @State private var showAttach = false
     /// The "+" menu's tool switches of a new chat before its first message creates it (nil: the defaults in Settings).
     @State private var newChatTools: Set<ToolGroup>?
+    /// A new chat's package switches, once changed in the "+" menu (the defaults until then).
+    @State private var newChatPackages: Set<String>?
     #if os(macOS)
     @State private var showNoImageSupport = false
     #endif
@@ -290,7 +292,7 @@ struct ChatView: View {
             }
             .task(id: conversation?.id) { // opening a chat: link one saved before branching; leaving one ends an edit
                 cancelEdit()
-                if conversation == nil { newChatTools = nil } // a new chat starts from the defaults
+                if conversation == nil { newChatTools = nil; newChatPackages = nil } // a new chat starts from the defaults
                 conversation?.ensureTree()
                 #if os(macOS)
                 try? await Task.sleep(for: .milliseconds(250)) // the window has to exist before it can focus anything
@@ -700,6 +702,7 @@ struct ChatView: View {
             onAttach: attach,
             toolSwitches: toolSwitchItems,
             onToolSwitch: setTool,
+            commands: PackageCommandItem.all(controller.packages),
             onSend: { send() },
             onStop: { if let c = conversation { controller.stop(c) } },
             onCancelEdit: editing == nil ? nil : { withAnimation(DS.Motion.snappy) { cancelEdit() } },
@@ -719,11 +722,33 @@ struct ChatView: View {
             else if selectedModel?.supportsTools ?? true { ToolGroup.supported }
             else { [.views] }
         let on = conversation.map { controller.toolSwitches($0) } ?? newChatTools ?? settings.defaultToolGroups
-        return groups.map { ComposerToolSwitch(id: $0.rawValue, title: $0.title, systemImage: $0.systemImage, isOn: on.contains($0)) }
+        let items = groups.map { ComposerToolSwitch(id: $0.rawValue, title: $0.title, systemImage: $0.systemImage, isOn: on.contains($0)) }
+        // Packages that add something to chats, by name, below the groups (not for a model without tools or on device).
+        guard groups.count > 1 else { return items }
+        let _ = PackagesVersion.shared.value
+        let packagesOn = conversation.map { controller.packageSwitches($0) } ?? newChatPackages ?? controller.defaultPackages(groups: on)
+        let packages = controller.packages.all.filter(\.addsToChats).sorted { $0.name.localizedCompare($1.name) == .orderedAscending }
+        return items + packages.map {
+            ComposerToolSwitch(id: ToolSwitch.packagePrefix + $0.id, title: $0.name, systemImage: PackageToolNames.icon, isOn: packagesOn.contains($0.id))
+        }
     }
 
     /// Applies from the next message.
     private func setTool(_ item: ComposerToolSwitch, on: Bool) {
+        if item.id.hasPrefix(ToolSwitch.packagePrefix) {
+            let id = String(item.id.dropFirst(ToolSwitch.packagePrefix.count))
+            if let conversation {
+                controller.setPackage(id, on: on, conversation: conversation)
+                try? context.save()
+            } else {
+                var tools = newChatTools ?? settings.defaultToolGroups
+                var packages = newChatPackages ?? controller.defaultPackages(groups: tools)
+                controller.applyPackage(id, on: on, groups: &tools, packages: &packages)
+                newChatTools = tools
+                newChatPackages = packages
+            }
+            return
+        }
         guard let group = ToolGroup(rawValue: item.id) else { return }
         if let conversation {
             controller.setTool(group, on: on, conversation: conversation)
@@ -860,8 +885,13 @@ struct ChatView: View {
             }
         } else {
             target = Conversation(connectionID: sel.connectionID, modelID: sel.modelID, effort: sel.effort)
-            target.toolSwitches = newChatTools
+            if let newChatPackages {
+                target.setSwitches(groups: newChatTools ?? settings.defaultToolGroups, packages: newChatPackages)
+            } else {
+                target.toolSwitches = newChatTools
+            }
             newChatTools = nil
+            newChatPackages = nil
             context.insert(target)
             conversation = target
         }
@@ -1094,6 +1124,8 @@ private struct ComposerHost<Accessory: View>: View {
     let onAttach: () -> Void
     var toolSwitches: [ComposerToolSwitch] = []
     var onToolSwitch: (ComposerToolSwitch, Bool) -> Void = { _, _ in }
+    /// Package commands, offered while the draft is a `/` word.
+    var commands: [PackageCommandItem] = []
     let onSend: () -> Void
     let onStop: () -> Void
     var onCancelEdit: (() -> Void)?
@@ -1106,6 +1138,17 @@ private struct ComposerHost<Accessory: View>: View {
     #endif
 
     var body: some View {
+        VStack(spacing: DS.Spacing.sm) {
+            let matches = PackageCommandItem.matches(commands, draft: draft.text)
+            if !matches.isEmpty {
+                PackageCommandList(commands: matches) { draft.text = $0.template.expanded() }
+                    .transition(.opacity)
+            }
+            composer
+        }
+    }
+
+    private var composer: some View {
         ComposerBar(
             text: $draft.text,
             attachments: draft.attachments,

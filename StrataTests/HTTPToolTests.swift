@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import SwiftData
 @testable import Strata
 
 /// Package HTTP tools end to end against a URLProtocol stub: requests, hosts, redirects, errors, secrets, approvals and
@@ -196,5 +197,140 @@ struct PackageSkillTests {
         #expect(!out.isError && out.text.hasPrefix("Skill: kr:triage"))
         #expect(router.resolveSkill("kr:triage")?.name == "kr:triage")
         #expect(router.resolveSkill("nothing") == nil)
+    }
+}
+
+/// The built-in Wikipedia package's page tool runs the old plugin script, and a chat with it lists it instead of the
+/// plugin.
+@MainActor
+struct WikipediaPackageTests {
+    private func store() throws -> PackageStore {
+        PackageStore(directory: nil, builtIn: PackageStore.bundled().filter { $0.manifest.id == BuiltInPackages.wikipedia },
+                     builtInDefault: { _ in true })
+    }
+
+    @Test func thePageToolRunsLikeThePlugin() async throws {
+        let s = try store()
+        let p = try #require(s.package(id: BuiltInPackages.wikipedia))
+        let seen = LockedValue<(String, String)?>(nil)
+        var router = PackageToolRouter(base: FakeTools(), snapshot: PackageSnapshot(packages: [p]), store: s, audit: PackageAudit(directory: nil))
+        router.pageExecutor = { plugin, url, args in
+            seen.set((url.absoluteString, args))
+            #expect(plugin.script.contains("strataPlugin") && plugin.manifest.hosts == ["wikipedia.org"])
+            return #"{"kind":"json","body":"{\n  \"title\": \"Alan Turing\"\n}","total":24,"title":"Alan Turing","url":"https://en.wikipedia.org/wiki/Alan_Turing"}"#
+        }
+        let out = await router.execute(name: "wiki__summary", arguments: #"{"title":"Alan Turing","lang":"ko"}"#)
+        #expect(!out.isError, "\(out.text)")
+        #expect(seen.get()?.0 == "https://ko.wikipedia.org/wiki/Alan%20Turing")
+        #expect(seen.get()?.1.contains(#""paragraphs":"3""#) == true, "defaults fill in, as plugin args")
+        #expect(out.sources.first?.url == "https://en.wikipedia.org/wiki/Alan_Turing")
+        // The host stays within the package's network.
+        let off = await router.execute(name: "wiki__summary", arguments: #"{"title":"x","lang":"evil.example/"}"#)
+        #expect(off.isError)
+    }
+
+    @Test func aChatWithWikipediaListsItInsteadOfThePlugin() async throws {
+        let key = AppSettings.enabledPluginsKey
+        let saved = UserDefaults.standard.object(forKey: key)
+        defer { UserDefaults.standard.set(saved, forKey: key) }
+        UserDefaults.standard.set(["wikipedia_summary"], forKey: key)
+        let rig = try PackageRigForWiki(store: try store())
+        let chat = rig.chat()
+        await rig.send("hi", in: chat)
+        let request = try #require(rig.streamer.requests.last)
+        #expect((request.tools ?? []).map(\.function.name).contains("wiki__summary"))
+        guard case .text(let system) = request.messages.first?.content else { Issue.record("no system prompt"); return }
+        #expect(!system.contains("- wikipedia_summary:"))
+        // With the package off in the chat, the plugin is listed as before.
+        let other = rig.chat()
+        rig.controller.setPackage(BuiltInPackages.wikipedia, on: false, conversation: other)
+        await rig.send("hi", in: other)
+        guard case .text(let plain) = rig.streamer.requests.last?.messages.first?.content else { Issue.record("no system prompt"); return }
+        #expect(plain.contains("- wikipedia_summary:"))
+    }
+}
+
+@MainActor
+private struct PackageRigForWiki {
+    let container: ModelContainer
+    let controller: ChatController
+    let streamer = ProgrammableStreamer([])
+
+    init(store: PackageStore) throws {
+        container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
+                                       configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
+        let connections = ConnectionStore(defaults: defaults, keys: InMemoryKeyStore())
+        try connections.setAPIKey("k", for: Connection.testID)
+        var gateway = connections.testGateway()
+        gateway.models = [ModelInfo(id: "m", supportsTools: true)]
+        connections.upsert(gateway)
+        let settings = AppSettings(defaults: defaults)
+        settings.generateTitles = false
+        controller = ChatController(connections: connections, settings: settings, streamer: streamer, tools: FakeTools())
+        controller.skills = SkillStore(builtIn: [], directory: nil)
+        controller.packages = store
+    }
+
+    func chat() -> Conversation {
+        let chat = Conversation(connectionID: Connection.testID, modelID: "m", effort: .medium)
+        chat.toolSwitches = [.web]
+        container.mainContext.insert(chat)
+        return chat
+    }
+
+    func send(_ text: String, in chat: Conversation) async {
+        controller.send(text: text, images: [], conversation: chat, context: container.mainContext)
+        await controller.waitUntilIdle()
+    }
+}
+
+/// Approvals share one queue: SSH cards go through `SSHRequests`, a view of `ToolApprovals`.
+@MainActor
+struct ToolApprovalQueueTests {
+    @Test func sshAndPackageCardsShareTheQueue() async throws {
+        let approvals = ToolApprovals()
+        let ssh = SSHRequests(approvals: approvals)
+        let chat = UUID()
+        let approval = PackageApproval(packageID: "p", packageName: "P", trust: .unsigned, toolTitle: "Create", toolName: "p__create",
+                                       host: "api.example.com", request: "POST https://api.example.com", arguments: "{}", level: .first)
+        async let packageAnswer = approvals.askPackage(approval, conversation: chat, callID: "call_1")
+        async let sshAnswer = ssh.askApproval(SSHApproval(target: "nas", server: "nas", action: .exec(command: "ls")), conversation: chat, callID: "call_2")
+        while approvals.all.count < 2 { await Task.yield() }
+        #expect(ssh.all.count == 1 && ssh.request(forCall: "call_2", conversation: chat) != nil)
+        #expect(approvals.request(forCall: "call_1", conversation: UUID()) == nil, "call ids repeat across chats")
+        let packageCard = try #require(approvals.request(forCall: "call_1", conversation: chat))
+        approvals.answer(packageCard.id, .package(.allowInChat))
+        ssh.answer(try #require(ssh.request(forCall: "call_2", conversation: chat)).id, .approval(.run))
+        #expect(await packageAnswer == .allowInChat)
+        #expect(await sshAnswer == .run)
+        #expect(approvals.all.isEmpty)
+    }
+
+    @Test func aCancelledTurnDenies() async {
+        let approvals = ToolApprovals()
+        let approval = PackageApproval(packageID: "p", packageName: "P", trust: .unsigned, toolTitle: "Create", toolName: "p__create",
+                                       host: "h", request: "", arguments: "{}", level: .always)
+        let task = Task { await approvals.askPackage(approval, conversation: UUID(), callID: "c") }
+        while approvals.all.isEmpty { await Task.yield() }
+        task.cancel()
+        #expect(await task.value == .deny)
+    }
+}
+
+/// Package tools on the on-device model: only those that opted in, at most two.
+struct OnDevicePackageToolTests {
+    @Test func optedInToolsAreOfferedOnDevice() throws {
+        var tools: [[String: Any]] = (0..<3).map { i in
+            TestPackages.getTool("t\(i)", extra: ["onDevice": ["description": "Search \(i).", "parameters": ["q"]]])
+        }
+        tools.append(TestPackages.getTool("plain"))
+        let b = try TestPackages.bundle(TestPackages.manifest(extra: ["contents": ["tools": tools], "permissions": ["network": ["api.example.com"]]]))
+        let store = PackageStore(directory: nil, builtIn: [], builtInDefault: { _ in false })
+        try store.install(b, trust: .unsigned, onInNewChats: false)
+        let names = ["web_search", "demo__plain", "demo__t0", "demo__t1", "demo__t2"]
+        let specs = OnDevicePromptBuilder.packageTools(names, packages: store)
+        #expect(specs.map(\.name) == ["demo__t0", "demo__t1"])
+        #expect(specs[0].description == "Search 0." && specs[0].parameters.map(\.name) == ["q"] && !specs[0].parameters[0].optional)
     }
 }

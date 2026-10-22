@@ -214,9 +214,10 @@ final class PackageStore: @unchecked Sendable {
     /// The packages a new chat turns on.
     var defaultOn: Set<String> { Set(all.filter { $0.record.onInNewChats && $0.addsToChats }.map(\.id)) }
 
-    /// The site plugins left out of new chats' plugin lists, because the built-in package that replaced them is here.
-    var replacedPlugins: Set<String> {
-        Set(BuiltInPackages.replacedPlugins.filter { isBuiltIn($0.value) }.keys)
+    /// The site plugins a chat with `packages` on leaves out of its plugin list: the built-in package that replaced
+    /// each offers it instead.
+    func replacedPlugins(by packages: Set<String>) -> Set<String> {
+        Set(BuiltInPackages.replacedPlugins.filter { packages.contains($0.value) && isBuiltIn($0.value) }.keys)
     }
 
     func isBuiltIn(_ id: String) -> Bool { builtIn.contains { $0.manifest.id == id } }

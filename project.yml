@@ -105,9 +105,24 @@ targets:
           - nmap
         LSSupportsOpeningDocumentsInPlace: true
         CFBundleURLTypes:
-          - CFBundleURLName: OpenChat add-connection links
+          - CFBundleURLName: OpenChat links
             CFBundleURLSchemes:
               - openchat
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: cc.coolservices.openchat.package
+            UTTypeDescription: OpenChat package
+            UTTypeConformsTo:
+              - public.zip-archive
+              - public.data
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - ocpkg
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: OpenChat package
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - cc.coolservices.openchat.package
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
   # Widget extension: the Live Activity of running replies (`Strata/LiveActivity`) and the New Chat control. Named
@@ -237,9 +252,24 @@ targets:
       path: StrataMac/Info.plist
       properties:
         CFBundleURLTypes:
-          - CFBundleURLName: OpenChat add-connection links
+          - CFBundleURLName: OpenChat links
             CFBundleURLSchemes:
               - openchat
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: cc.coolservices.openchat.package
+            UTTypeDescription: OpenChat package
+            UTTypeConformsTo:
+              - public.zip-archive
+              - public.data
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - ocpkg
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: OpenChat package
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - cc.coolservices.openchat.package
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
   StrataTests:

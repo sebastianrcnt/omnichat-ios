@@ -782,18 +782,21 @@ final class ChatController {
     func setPackage(_ id: String, on: Bool, conversation: Conversation) {
         var groups = toolSwitches(conversation)
         var ids = packageSwitches(conversation)
-        if on, let package = packages.package(id: id) {
-            ids.insert(id)
-            groups.formUnion(package.requiredGroups)
-            groups.subtract(package.exclusiveGroups)
-            ids = ids.filter { other in
-                guard other != id, let p = packages.package(id: other) else { return true }
-                return p.requiredGroups.isSubset(of: groups) && p.exclusiveGroups.isDisjoint(with: groups)
-            }
-        } else {
-            ids.remove(id)
-        }
+        applyPackage(id, on: on, groups: &groups, packages: &ids)
         conversation.setSwitches(groups: groups, packages: ids)
+    }
+
+    /// `setPackage` on plain switches (a new chat's, before it exists).
+    func applyPackage(_ id: String, on: Bool, groups: inout Set<ToolGroup>, packages ids: inout Set<String>) {
+        guard on, let package = packages.package(id: id) else { ids.remove(id); return }
+        ids.insert(id)
+        groups.formUnion(package.requiredGroups)
+        groups.subtract(package.exclusiveGroups)
+        let now = groups
+        ids = ids.filter { other in
+            guard other != id, let p = packages.package(id: other) else { return true }
+            return p.requiredGroups.isSubset(of: now) && p.exclusiveGroups.isDisjoint(with: now)
+        }
     }
 
     /// The snapshot of `ids` as installed now, in id order, leaving out a package whose tools would pass the chat's
@@ -872,8 +875,11 @@ final class ChatController {
         // A model without tools is offered no tool group, only the views (a prompt section, no tools).
         let offered = tools ? offeredTools(conversation, freeze: freeze) : offeredTools(conversation, freeze: freeze).intersection([.views])
         // Like the skill list: a chat keeps the plugin section it first had with web tools on.
-        // A plugin a built-in package replaced (Wikipedia) is left out of new chats' lists: the package offers it.
-        let currentPlugins = { PluginRegistry.bundled.promptSection(enabled: AppSettings.currentEnabledPlugins.subtracting(self.packages.replacedPlugins)) }
+        // A plugin a built-in package replaced (Wikipedia) is left out when the chat has that package: it offers it.
+        let currentPlugins = {
+            let replaced = self.packages.replacedPlugins(by: self.chatPackages(conversation)?.ids ?? [])
+            return PluginRegistry.bundled.promptSection(enabled: AppSettings.currentEnabledPlugins.subtracting(replaced))
+        }
         let plugins = !offered.contains(.web) ? ""
             : freeze ? conversation.frozenPluginSection(current: currentPlugins()) : conversation.pluginSectionSnapshot ?? currentPlugins()
         // A chat keeps the skill list it first had with the browser on, like its preferences.
