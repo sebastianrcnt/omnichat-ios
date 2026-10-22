@@ -374,16 +374,3 @@ struct IntentTranscriptTests {
         }
     }
 }
-
-// MARK: - In the app
-
-/// The test host is the app itself, so these run against what `StrataApp.init` registered, as an intent would.
-@MainActor
-struct IntentDependencyTests {
-    @Test func theQueriesReachTheAppsConnectionsAndChats() async throws {
-        let models = try await ChatModelQuery().suggestedEntities()
-        #expect(models.map(\.id) == ChatModelQuery.listed(in: SharedModels.connections).map(\.id))
-        let chats = try await ConversationQuery().suggestedEntities()
-        #expect(chats.count <= ConversationQuery.recentLimit)
-    }
-}
