@@ -517,6 +517,15 @@ struct CodeBlockContentTests {
         #expect(c.fileExtension == "swift")
     }
 
+    @Test func copyWhileStreamingTakesTheWholeBlock() {
+        // From the audit: Copy on a long block still being written copied only its last 40 lines.
+        let text = "```python\n" + code(lines: 100)
+        let streaming = CodeBlockContent.streaming(blockText: text)
+        #expect(!streaming.code.hasPrefix("line 1\n"), "the view draws only the tail")
+        #expect(CodeBlockView.copyText(streaming, blockText: text) == code(lines: 100))
+        #expect(CodeBlockView.copyText(CodeBlockContent(code: "a"), blockText: nil) == "a")
+    }
+
     @Test func openFenceWhileStreamingKeepsPartialBody() {
         let c = CodeBlockContent(blockText: "~~~py\nx = 1\ny = ")
         #expect(c.language == "py" && c.code == "x = 1\ny = ")
