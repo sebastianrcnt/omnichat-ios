@@ -95,6 +95,14 @@ importlib.import_module = bundled_import_module
 namespace = {"__name__": "__main__"}
 run_count = 0
 MAX_FIGURES = 8
+# The result and error text, and the figures' PNG data, that cross into the app per run (like OUTPUT_LIMIT for output).
+TEXT_LIMIT = 400000
+FIGURE_BYTES = 12000000
+
+def clip(text):
+    if text is None or len(text) <= TEXT_LIMIT:
+        return text
+    return text[:TEXT_LIMIT] + f"\\n[{len(text) - TEXT_LIMIT} more characters were not kept.]"
 
 def format_error(e, filename):
     tb = e.__traceback__
@@ -135,11 +143,17 @@ def figures(value):
             add(fig, True)
     out = []
     try:
+        size = 0
         for fig in picked[:MAX_FIGURES]:
             buf = io.BytesIO()
             fig.savefig(buf, format="png", dpi=100)
-            out.append(base64.b64encode(buf.getvalue()).decode("ascii"))
+            png = base64.b64encode(buf.getvalue()).decode("ascii")
             fig.stale = False  # saving doesn't clear it; a later change sets it again
+            if size + len(png) > FIGURE_BYTES:
+                print("[A figure was too large to keep: make it smaller or use a lower dpi.]")
+                continue
+            size += len(png)
+            out.append(png)
     finally:
         plt.close("all")
     if len(picked) > MAX_FIGURES:
@@ -173,7 +187,7 @@ async def run(code):
         sys.stderr.flush()
     except Exception:
         pass
-    return [result, error, figs]
+    return [clip(result), clip(error), figs]
 `;
 
 async function init() {

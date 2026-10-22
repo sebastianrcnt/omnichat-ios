@@ -40,6 +40,19 @@ struct PythonIntegrationTests {
         #expect(!failed.text.contains("_pyodide"), "\(failed.text)")
     }
 
+    /// A huge last value is cut in the worker, before it is copied into the app.
+    @Test func aLargeLastValueIsClippedBeforeItReachesTheApp() async throws {
+        let (python, _) = runtime()
+        defer { python.dispose() }
+        _ = await python.run(code: "1", conversationID: UUID(), canView: false)
+        let host = try #require(python.testHost)
+        let json = try await host.run(code: "'x' * 5_000_000", limits: PythonLimits(run: .seconds(60), setup: .seconds(120)))
+        #expect(json.utf8.count < 1_000_000)
+        #expect(json.contains("more characters were not kept"))
+        let failed = try await host.run(code: "raise ValueError('y' * 5_000_000)", limits: PythonLimits(run: .seconds(60), setup: .seconds(120)))
+        #expect(failed.utf8.count < 1_000_000)
+    }
+
     @Test func aRunPastTheLimitIsStoppedAndTheSessionResets() async {
         let (python, _) = runtime()
         defer { python.dispose() }

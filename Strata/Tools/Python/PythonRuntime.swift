@@ -449,6 +449,10 @@ final class PythonRuntime {
         } ?? ToolOutput(text: "Error: cancelled.", isError: true)
     }
 
+    /// The most a run's reply may be: the worker keeps output, the result and the error to 400 000 characters each
+    /// and the figures to 12 MB.
+    static let replyLimit = 24_000_000
+
     private func runNow(code: String, conversationID: UUID, limits: PythonLimits, outputLimit: Int, canView: Bool) async -> ToolOutput {
         if Task.isCancelled { return ToolOutput(text: "Error: cancelled.", isError: true) }
         let generation = runGeneration
@@ -480,7 +484,9 @@ final class PythonRuntime {
                     host.resetWorker()
                 }
             }
-            if let reply = try? JSONDecoder().decode(PythonReply.self, from: Data(json.utf8)) {
+            if json.utf8.count > Self.replyLimit { // the worker caps each part; this is the backstop
+                outcome = .failed("the run's reply was too large")
+            } else if let reply = try? JSONDecoder().decode(PythonReply.self, from: Data(json.utf8)) {
                 fresh = reply.fresh ?? true
                 outcome = PythonOutcome(reply: reply, limits: limits)
                 pngs = reply.figures?.map(\.png) ?? []
