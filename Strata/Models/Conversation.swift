@@ -46,6 +46,10 @@ final class Conversation {
     /// Two copies of one conversation (the same store restored onto two devices, both uploading it) are told apart by it,
     /// the same way on every device (`SyncDedupe`).
     var syncOrigin: String?
+    /// A `health_query` result entered this chat (`HealthTaint`). Its replies, summaries and files may repeat what was
+    /// read, so the whole chat counts: it isn't sent to a remote model while "Only send health data to on-device or local
+    /// models" is on, and chat sync can't be turned on while it exists. Never cleared.
+    var healthTainted: Bool = false
 
     init(title: String = "", connectionID: UUID? = nil, modelID: String? = nil, effort: Effort = .default) {
         self.id = UUID()

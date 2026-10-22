@@ -232,7 +232,8 @@ struct AddConnectionLinkTests {
         let encoded = String(decoding: try JSONEncoder().encode(c), as: UTF8.self)
         #expect(!encoded.contains("sk-secret"))
         // Credentials inside the URL are refused too.
-        #expect(parse("omnichat://add-connection?url=https%3A%2F%2Fuser%3Apass%40x.example%2Fv1") == .failure(.invalidURL))
+        #expect(parse("omnichat://add-connection?url=https%3A%2F%2Fuser%3Apass%40x.example%2Fv1") == .failure(.credentialsInURL))
+        #expect(parse("omnichat://add-connection?url=https%3A%2F%2Fx.example%2Fv1%3Fapi_key%3Dsecret") == .failure(.credentialsInURL))
     }
 
     @Test func flagsPlainHTTPAndPrivateAddresses() throws {

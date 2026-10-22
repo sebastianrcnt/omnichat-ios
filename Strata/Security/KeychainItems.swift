@@ -3,8 +3,8 @@ import Security
 
 // The app's Keychain items: generic passwords, one service per kind of secret (API keys, ChatGPT and OpenCode sign-ins,
 // SSH), one account per record. With "Sync secrets with iCloud Keychain" on (the default) they are synchronizable and
-// readable after first unlock; off, this device keeps its own copies, readable on this device only. Values are never
-// logged.
+// readable after first unlock; off, this device keeps its own copies, readable on this device only. ChatGPT and OpenCode
+// sign-ins are always this device's own (`KeychainSync.deviceOnlyServices`). Values are never logged.
 
 /// The switch and the services it covers.
 enum KeychainSync {
@@ -16,8 +16,6 @@ enum KeychainSync {
     static let services = [
         "cc.coolservices.strata.apikey",
         "cc.coolservices.strata.chatgpt.registration",
-        "cc.coolservices.strata.chatgpt.tokens",
-        "cc.coolservices.strata.opencode.session",
         "cc.coolservices.strata.opencode.apikey",
         "cc.coolservices.strata.ssh",
         "cc.coolservices.strata.package", // package secrets and "Always" approvals (`PackageSecretStore`)
@@ -26,6 +24,20 @@ enum KeychainSync {
 
     /// Custom headers of synced connections, which may hold credentials (`ConnectionSync`).
     static let headersService = "cc.coolservices.strata.headers"
+
+    /// Rotating OAuth sign-ins: ChatGPT tokens and OpenCode sessions. Each refresh spends the refresh token, and iCloud
+    /// Keychain brings the replacement to the other devices only eventually, so two devices sharing one sign-in would
+    /// spend it twice and end (for OpenCode, revoke) each other's session; the one that lost would then delete the
+    /// shared item. These stay on the device that signed in, whatever the switch says (`KeychainItems.deviceOnly`), and
+    /// each device signs in on its own. The ChatGPT registration (client id and account) still follows the switch.
+    static let deviceOnlyServices = [
+        "cc.coolservices.strata.chatgpt.tokens",
+        "cc.coolservices.strata.opencode.session",
+    ]
+
+    /// Set per device-only service once this device has its own copies of the sign-ins that came through iCloud Keychain
+    /// before they stopped syncing (`KeychainItems.adoptSyncedIfNeeded`).
+    static let adoptedKeyPrefix = "sync.deviceOnlyAdopted."
 
     static func isEnabled(_ defaults: UserDefaults = .standard) -> Bool {
         defaults.object(forKey: enabledKey) as? Bool ?? true
@@ -53,18 +65,22 @@ extension KeychainSync {
     /// "Remove Secrets from iCloud" (offered with the switch off): every iCloud Keychain item gets a device-only copy
     /// unless this device already has one (written since sync went off, so newer), then the iCloud copies are deleted,
     /// which removes them from every device signed in to the account. A service where a copy couldn't be made keeps
-    /// its iCloud items, so nothing is lost. Returns how many iCloud items were deleted and how many services kept theirs.
+    /// its iCloud items, so nothing is lost. Sign-ins from before they stopped syncing go too, once this device has taken
+    /// its copies (an iCloud copy is not copied again: this device may have signed out since). Returns how many iCloud
+    /// items were deleted and how many services kept theirs.
     @discardableResult
-    static func removeFromICloud(backend: any KeychainBackend = SystemKeychain()) -> (removed: Int, kept: Int) {
+    static func removeFromICloud(backend: any KeychainBackend = SystemKeychain(),
+                                 defaults: UserDefaults = .standard) -> (removed: Int, kept: Int) {
         var removed = 0, kept = 0
-        for service in services {
-            let items = KeychainItems(service: service, backend: backend, synchronizable: { false })
+        for service in services + deviceOnlyServices {
+            let deviceOnly = deviceOnlyServices.contains(service)
+            let items = KeychainItems(service: service, backend: backend, synchronizable: { false }, deviceOnly: deviceOnly)
             var listing = items.match(nil, synchronizable: true)
             listing[kSecReturnAttributes as String] = true
             listing[kSecMatchLimit as String] = kSecMatchLimitAll
             let accounts = ((backend.copy(listing).result as? [[String: Any]]) ?? []).compactMap { $0[kSecAttrAccount as String] as? String }
             guard !accounts.isEmpty else { continue }
-            let copied = accounts.allSatisfy { account in
+            let copied = deviceOnly ? items.adoptSyncedIfNeeded(defaults: defaults) : accounts.allSatisfy { account in
                 if items.read(account, synchronizable: false) != nil { return true }
                 guard let data = items.read(account, synchronizable: true) else { return false }
                 return backend.add(items.attributes(account, data: data, synchronizable: false)) == errSecSuccess
@@ -110,6 +126,10 @@ struct KeychainItems: Sendable {
     var synchronizable: @Sendable () -> Bool = { KeychainSync.isEnabled() }
     /// The Mac's file keychain holds items from before sync.
     var hasFileKeychain: Bool = Self.isMac
+    /// A rotating sign-in (`KeychainSync.deviceOnlyServices`): written device-only whatever `synchronizable` says, and
+    /// only this device's copy is read or deleted, so a refresh or sign-out here never touches a copy another device
+    /// may still use. Its copies from before are taken once (`adoptSyncedIfNeeded`).
+    var deviceOnly: Bool = false
 
     static var isMac: Bool {
         #if os(macOS)
@@ -148,6 +168,10 @@ struct KeychainItems: Sendable {
     // MARK: Reading and writing
 
     func read(_ account: String) -> Data? {
+        if deviceOnly {
+            adoptSyncedIfNeeded()
+            return data(match(account, synchronizable: false)) ?? (hasFileKeychain ? data(fileKeychainMatch(account)) : nil)
+        }
         // The switch's own mode first: while items move, an account can briefly have both.
         let preferred = synchronizable()
         for mode in [preferred, !preferred] {
@@ -160,13 +184,13 @@ struct KeychainItems: Sendable {
     /// Saving with sync off leaves the copy in iCloud Keychain to the other devices that still use it.
     func write(_ data: Data?, account: String) throws {
         guard let data else {
-            for query in [match(account, synchronizable: nil)] + (hasFileKeychain ? [fileKeychainMatch(account)] : []) {
+            for query in [match(account, synchronizable: deviceOnly ? false : nil)] + (hasFileKeychain ? [fileKeychainMatch(account)] : []) {
                 let status = backend.delete(query)
                 if status != errSecSuccess && status != errSecItemNotFound { throw KeychainError(status: status) }
             }
             return
         }
-        let sync = synchronizable()
+        let sync = !deviceOnly && synchronizable()
         let status = backend.update(match(account, synchronizable: sync), [kSecValueData as String: data])
         var inFileKeychain = false
         if status == errSecItemNotFound || (hasFileKeychain && status == errSecMissingEntitlement) {
@@ -184,7 +208,7 @@ struct KeychainItems: Sendable {
     func read(_ account: String, synchronizable mode: Bool) -> Data? { data(match(account, synchronizable: mode)) }
 
     func accounts() -> [String] {
-        var queries = [match(nil, synchronizable: nil)]
+        var queries = [match(nil, synchronizable: deviceOnly ? false : nil)]
         if hasFileKeychain { queries.append(fileKeychainMatch(nil)) }
         var seen = Set<String>()
         var out: [String] = []
@@ -202,6 +226,28 @@ struct KeychainItems: Sendable {
     }
 
     // MARK: Moving
+
+    /// Once per device-only service on this device: each sign-in that came through iCloud Keychain (saved before sign-ins
+    /// stopped syncing) gets a device-only copy here, unless this device has its own. The iCloud copy is left for the
+    /// other devices that still use it, and is never read here afterwards. Returns whether every copy was made (or none
+    /// was needed); otherwise the next read tries again.
+    @discardableResult
+    func adoptSyncedIfNeeded(defaults: UserDefaults = .standard) -> Bool {
+        let key = KeychainSync.adoptedKeyPrefix + service
+        guard deviceOnly, !defaults.bool(forKey: key) else { return true }
+        var listing = match(nil, synchronizable: true)
+        listing[kSecReturnAttributes as String] = true
+        listing[kSecMatchLimit as String] = kSecMatchLimitAll
+        let (status, result) = backend.copy(listing)
+        var complete = status == errSecSuccess || status == errSecItemNotFound
+        for account in ((result as? [[String: Any]]) ?? []).compactMap({ $0[kSecAttrAccount as String] as? String })
+        where data(match(account, synchronizable: false)) == nil && !(hasFileKeychain && data(fileKeychainMatch(account)) != nil) {
+            let copied = data(match(account, synchronizable: true)).map { (try? add(account, data: $0, synchronizable: false)) != nil }
+            if copied != true { complete = false }
+        }
+        if complete { defaults.set(true, forKey: key) }
+        return complete
+    }
 
     /// Moves every item of the service to `sync`: device-only items (and the Mac's file keychain items) become
     /// synchronizable, or synchronizable ones get a device-only copy. Turning sync off never deletes the iCloud copy,

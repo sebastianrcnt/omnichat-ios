@@ -158,10 +158,12 @@ final class ConnectionSync {
         return connection.kind != .openAICompatible || !connection.models.isEmpty || !(url.isEmpty || url == "https://" || url == "http://")
     }
 
-    /// A connection as the cloud keeps it: no custom headers.
+    /// A connection as the cloud keeps it: no custom headers, and no credentials in its base URL (the app refuses such a
+    /// URL, `BaseURLCredentials`; one saved before that never leaves the device with them).
     nonisolated static func encode(_ connection: Connection) -> Data? {
         var c = connection
         c.customHeaders = ""
+        c.baseURL = BaseURLCredentials.stripped(c.baseURL)
         return try? JSONEncoder().encode(c)
     }
 
@@ -245,6 +247,7 @@ final class ConnectionSync {
         pull()
         push(store.connections)
         store.onSave = { [weak self] connections in self?.push(connections) }
+        store.changedHeaders = { [weak self] id in self?.changedHeaders(id) }
         if let ubiquitous = cloud as? NSUbiquitousKeyValueStore {
             observer = NotificationCenter.default.addObserver(forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
                                                               object: ubiquitous, queue: .main) { [weak self] note in
@@ -261,6 +264,17 @@ final class ConnectionSync {
         if let observer { NotificationCenter.default.removeObserver(observer) }
         observer = nil
         store.onSave = nil
+        store.changedHeaders = nil
+    }
+
+    /// Headers another device changed: iCloud Keychain brings them with no key-value change, so this device's copy in
+    /// memory stays as it was until the next pull. Requests read them here (`ConnectionStore.changedHeaders`), and
+    /// nothing is written back: the stale copy matches what this device last saw, so `push` leaves the Keychain alone.
+    /// Nil when nothing changed elsewhere since this device last read or wrote them.
+    func changedHeaders(_ id: UUID) -> String? {
+        guard let seen = lastHeaders[id] else { return nil }
+        let now = headers.key(for: id) ?? ""
+        return Self.trimmed(now) == seen ? nil : now
     }
 
     /// Takes the cloud's list.
@@ -288,7 +302,9 @@ final class ConnectionSync {
         let synced = connections.filter { Self.syncs($0) && (remote[$0.id] != nil || !known.contains($0.id)) }
         for c in synced {
             let sent = Self.normalized(c)
-            if let data = Self.encode(c), lastSynced[c.id] != sent {
+            // A copy an older version uploaded with credentials in its URL is replaced even when nothing changed here.
+            let leaked = remote[c.id].map { BaseURLCredentials.contains($0.baseURL) } ?? false
+            if let data = Self.encode(c), lastSynced[c.id] != sent || leaked {
                 cloud.set(data, forKey: Self.keyPrefix + c.id.uuidString)
                 lastSynced[c.id] = sent
             }

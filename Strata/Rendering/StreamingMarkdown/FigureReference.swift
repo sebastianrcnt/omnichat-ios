@@ -8,7 +8,7 @@ enum FigureReference {
         var caption: String
     }
 
-    private static var pattern: Regex<(Substring, Substring, Substring)> { /!\[([^\]\n]*)\]\(\s*([Ff]igure-\d+)\s*\)/ }
+    private static var pattern: Regex<(Substring, Substring, Substring)> { /!\[([^\]\n]*)\]\(\s*([Ff]igure-\d+(?:-[0-9A-Fa-f]{8})?)\s*\)/ }
 
     /// The figures a paragraph shows, when every non-blank line of it is one reference; nil otherwise.
     static func block(_ text: String) -> [Ref]? {
@@ -32,14 +32,26 @@ enum FigureReference {
         return ids
     }
 
-    /// The turn's figures the answer did not place, in the order they were made.
+    /// The turn's figures the answer did not place, in the order they were made. A figure placed by the short form of
+    /// its id (`figure-3` for `figure-3-3f9a2c1b`) counts as placed.
     static func unplaced(_ figures: [ToolImage], text: String) -> [ToolImage] {
         let placed = placedIDs(in: text)
-        return figures.filter { !placed.contains($0.id) }
+        return figures.filter { !placed.contains($0.id) && !placed.contains(shortID($0.id)) }
     }
 
-    /// A stored figure of the conversation, by id (size unknown until it loads).
-    static func image(id: String, conversationID: UUID) -> ToolImage {
-        ToolImage(id: id, width: 0, height: 0, file: conversationID.uuidString + "/" + id + ".png")
+    /// `figure-3` from `figure-3-3f9a2c1b`; an id without the random part as it is.
+    static func shortID(_ id: String) -> String {
+        guard let n = ToolImageStore.number(of: id, prefix: ToolImageStore.figurePrefix) else { return id }
+        return ToolImageStore.figurePrefix + String(n)
+    }
+
+    /// A stored figure of the conversation, by id (size unknown until it loads). A short id whose file isn't there
+    /// stands for the conversation's only figure with that number (`ToolImageStore.resolve`).
+    static func image(id: String, conversationID: UUID, store: ToolImageStore = .shared) -> ToolImage {
+        var stored = id
+        if shortID(id) == id, !store.exists(file: conversationID.uuidString + "/" + id + ".png") {
+            stored = store.resolve(id: id, conversationID: conversationID) ?? id
+        }
+        return ToolImage(id: stored, width: 0, height: 0, file: conversationID.uuidString + "/" + stored + ".png")
     }
 }

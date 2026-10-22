@@ -68,6 +68,11 @@ Everything else those reviews reported was fixed in that commit. Each entry: whe
   Take over finishes in the page while they use it. Fix: cancel it with a "the user took over" result.
 - **Malformed `content_block_start` input** and other Anthropic edge cases beyond block-start text are untested
   against real gateways.
+- **A chat's artifact index is last-writer-wins across devices** (`Tools/Artifacts.swift`, `Sync/FileSync.swift`). New
+  artifact ids are unique across devices, so two devices adding one to the same synced chat before either has the
+  other's keep both pages; but each rewrites `index.json` with only its own new entry, and the newer index replaces the
+  older. The lost entry's card still opens its page; the gallery misses it and `show_html` can't update it by id. Fix:
+  merge the indexes by id when materializing, or list pages without an entry from the folder.
 
 ## UX not done
 

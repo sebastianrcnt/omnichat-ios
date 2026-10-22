@@ -3,7 +3,8 @@ import Foundation
 // HTML artifacts (`show_html`): pages the model writes that the user opens full screen from a card in the chat. Stored
 // per conversation under Application Support, like the figures of `ToolImageStore`; only the newest version is kept.
 
-/// One artifact as its chat's index lists it. The id (`a<n>`) is what the model passes to update it.
+/// One artifact as its chat's index lists it. The id (`a<n>-<8 hex digits>`, `ArtifactStore.newID`; `a<n>` in chats
+/// from before) is what the model passes to update it.
 struct Artifact: Codable, Hashable, Sendable, Identifiable {
     var id: String
     var title: String
@@ -79,7 +80,7 @@ final class ArtifactStore: @unchecked Sendable {
 
     /// The page file of an artifact (it exists once the artifact is saved).
     func fileURL(id: String, conversationID: UUID) -> URL? {
-        guard let id = Self.normalizedID(id) else { return nil }
+        guard let id = Self.resolve(id, in: artifacts(conversationID: conversationID)) else { return nil }
         return folder(conversationID).appendingPathComponent(id + ".html")
     }
 
@@ -96,7 +97,7 @@ final class ArtifactStore: @unchecked Sendable {
         var index = readIndex(conversationID)
         var artifact: Artifact
         if let id {
-            guard let key = Self.normalizedID(id), let i = index.firstIndex(where: { $0.id == key }) else {
+            guard let key = Self.resolve(id, in: index), let i = index.firstIndex(where: { $0.id == key }) else {
                 throw .unknownID(id.trimmingCharacters(in: .whitespacesAndNewlines), known: index.map(\.id))
             }
             artifact = index[i]
@@ -106,8 +107,8 @@ final class ArtifactStore: @unchecked Sendable {
             if !title.isEmpty { artifact.title = title }
             index[i] = artifact
         } else {
-            let n = (index.compactMap { Self.number($0.id) }.max() ?? 0) + 1
-            artifact = Artifact(id: Self.idPrefix + String(n), title: title.isEmpty ? "Untitled" : title,
+            artifact = Artifact(id: Self.newID(after: index.compactMap { Self.number($0.id) }.max() ?? 0),
+                                title: title.isEmpty ? "Untitled" : title,
                                 version: 1, created: now, updated: now, callID: callID)
             index.append(artifact)
         }
@@ -126,8 +127,9 @@ final class ArtifactStore: @unchecked Sendable {
     }
 
     func artifact(id: String, conversationID: UUID) -> Artifact? {
-        guard let key = Self.normalizedID(id) else { return nil }
-        return artifacts(conversationID: conversationID).first { $0.id == key }
+        let index = artifacts(conversationID: conversationID)
+        guard let key = Self.resolve(id, in: index) else { return nil }
+        return index.first { $0.id == key }
     }
 
     /// The current HTML of an artifact.
@@ -182,15 +184,39 @@ final class ArtifactStore: @unchecked Sendable {
 
     // MARK: Ids
 
-    /// "a3" from "a3", " A3 " or "3"; nil for anything else (so an id never names a path).
-    static func normalizedID(_ raw: String) -> String? {
-        let t = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if let n = Int(t), n > 0 { return idPrefix + String(n) }
-        return number(t).map { idPrefix + String($0) }
+    /// A new artifact's id: `a<n>-<8 hex digits>`, n one more than the chat's highest. The random part keeps two
+    /// devices adding an artifact to the same synced chat before either has the other's from writing the same page
+    /// (`FileSync` treats one path as one file).
+    static func newID(after highest: Int) -> String {
+        idPrefix + String(highest + 1) + "-" + UUID().uuidString.lowercased().replacingOccurrences(of: "-", with: "").prefix(8)
     }
 
+    /// "a3" from "a3", " A3 " or "3", "a3-3f9a2c1b" from itself in any case; nil for anything else (so an id never names
+    /// a path).
+    static func normalizedID(_ raw: String) -> String? {
+        let t = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if let n = Int(t), n > 0, t.allSatisfy(\.isNumber) { return idPrefix + String(n) }
+        guard number(t) != nil else { return nil }
+        return t.contains("-") ? t : number(t).map { idPrefix + String($0) }
+    }
+
+    /// The index's id `raw` names: the same id, or for a short one ("a3", "3") the chat's only artifact with that number
+    /// (the model may leave out the random part).
+    static func resolve(_ raw: String, in index: [Artifact]) -> String? {
+        guard let key = normalizedID(raw) else { return nil }
+        if index.contains(where: { $0.id == key }) || key.contains("-") { return key }
+        let n = number(key)
+        let matches = index.filter { number($0.id) == n }
+        return matches.count == 1 ? matches[0].id : key
+    }
+
+    /// The number of `a3` or `a3-3f9a2c1b`.
     private static func number(_ id: String) -> Int? {
-        guard id.hasPrefix(idPrefix), let n = Int(id.dropFirst(idPrefix.count)), n > 0 else { return nil }
+        guard id.hasPrefix(idPrefix) else { return nil }
+        let parts = id.dropFirst(idPrefix.count).split(separator: "-", omittingEmptySubsequences: false)
+        guard let n = Int(parts[0]), n > 0, parts[0].allSatisfy(\.isNumber) else { return nil }
+        if parts.count == 1 { return n }
+        guard parts.count == 2, parts[1].count == 8, parts[1].allSatisfy(\.isHexDigit) else { return nil }
         return n
     }
 

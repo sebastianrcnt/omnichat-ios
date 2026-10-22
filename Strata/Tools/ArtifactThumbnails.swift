@@ -35,7 +35,8 @@ struct ArtifactThumbnailKey: Hashable, Sendable {
     var identity: String { Self.identity(conversationID: conversationID, artifactID: artifactID) }
 
     static func identity(conversationID: UUID, artifactID: String) -> String {
-        // Ids are "a<n>"; anything else is reduced to letters and digits so it never names a path.
+        // Ids are "a<n>-<hex>" (or "a<n>"): reduced to letters and digits so they never name a path, and so "a3" is never
+        // a prefix of another artifact's identity.
         let safe = String(artifactID.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) && $0.isASCII })
         return conversationID.uuidString + "-" + safe + "-"
     }

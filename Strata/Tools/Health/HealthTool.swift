@@ -72,6 +72,17 @@ enum HealthPrivacy {
         }
     }
 
+    /// Why a request from `conversation` may not go to `destination`: the chat holds health data (`HealthTaint`), "Only
+    /// send health data to on-device or local models" is on, and the model is remote. Nil when it may go. Checked
+    /// before every request a chat makes, so switching the chat's model can't carry earlier health data away: each
+    /// round of a turn (resumed, retried and regenerated ones too, and the compaction before it), "Summarize now" and
+    /// the title.
+    static func blockedRequest(_ conversation: Conversation, to destination: ToolDestination?,
+                               localOnly: Bool = HealthSettings.localOnly) -> APIError? {
+        guard localOnly, !isLocal(destination), HealthTaint.isTainted(conversation) else { return nil }
+        return .healthLocalOnly(connection: destination?.name ?? "")
+    }
+
     static func isLocalHost(_ rawHost: String) -> Bool {
         let host = rawHost.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "[]."))
         if host == "localhost" || host.hasSuffix(".localhost") || host.hasSuffix(".local") || host.hasSuffix(".ts.net") { return true }
@@ -129,11 +140,41 @@ enum HealthSettings {
     static let removedResult = "Health data removed from this chat when chat sync was turned on."
 }
 
+/// Chats that hold health data: a `health_query` result entered them (`Conversation.healthTainted`). Removing the
+/// results isn't enough (`HealthRedaction` keeps the replies, and compaction notes, figures and artifacts can repeat
+/// them), so the whole chat counts. It isn't sent to a remote model while "Only send health data to on-device or local
+/// models" is on (`HealthPrivacy.blockedRequest`), and chat sync can't be turned on while one exists (`CloudSync`).
+enum HealthTaint {
+    /// A call that read Apple Health: any result but an error, a result `HealthRedaction` removed too (the answers after
+    /// it may still repeat what it read). An error never carried health data.
+    static func readsHealth(_ call: ToolCallRecord) -> Bool { call.name == ToolNames.healthQuery && !call.isError }
+
+    static func holdsHealthData(_ message: Message) -> Bool {
+        guard HealthRedaction.mentionsHealth(message.stepsData) else { return false }
+        return message.steps.contains { $0.calls.contains(where: readsHealth) }
+    }
+
+    /// The flag, or for a chat from before it existed (or from an older version on another device) a look through its
+    /// messages, which sets it.
+    static func isTainted(_ conversation: Conversation) -> Bool {
+        if conversation.healthTainted { return true }
+        guard conversation.messages.contains(where: holdsHealthData) else { return false }
+        conversation.healthTainted = true
+        return true
+    }
+
+    static func conversations(in context: ModelContext) throws -> [Conversation] {
+        try context.fetch(FetchDescriptor<Conversation>()).filter(isTainted)
+    }
+}
+
 /// Turning chat sync on removes what `health_query` read from the stored chats first, so none of it reaches iCloud:
 /// each call's result becomes `HealthSettings.removedResult` in the steps sent to the model, the segments the feed shows
 /// and the tool groups a compaction kept, and checkpoints holding a result are dropped (that turn can't resume). While
 /// sync blocks Health, the same happens on every write (`Message.steps`, `Message.segments`, `CompactionRecord`,
-/// checkpoints), so a turn that was running when sync went on can't put a result back. The replies stay.
+/// checkpoints), so a turn that was running when sync went on can't put a result back. The replies stay, which is why
+/// this is only a backstop: chat sync turns on only once no chat holds health data (`HealthTaint`), and a result that
+/// arrives after it went on ends its turn unused (`ChatController`).
 enum HealthRedaction {
     static var isActive: Bool { forcedActive ?? HealthSettings.blockedBySync() }
     /// Tests set it instead of turning on the real chat sync switch.

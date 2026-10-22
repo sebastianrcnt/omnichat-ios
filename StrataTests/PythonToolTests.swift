@@ -414,19 +414,21 @@ struct PythonToolListTests {
 struct ViewImageTests {
     private func store() -> ToolImageStore { ToolImageStore(root: tempDir("images")) }
 
-    @Test func figuresGetIdsThatAreUniqueWithinTheChat() {
+    @Test func figuresGetIdsThatAreUniqueWithinTheChat() throws {
         let store = store()
         let chat = UUID(), other = UUID()
         let one = store.addFigure(png: png(width: 640, height: 480), conversationID: chat)
         let two = store.addFigure(png: png(width: 800, height: 600), conversationID: chat)
         let elsewhere = store.addFigure(png: png(width: 10, height: 10), conversationID: other)
-        #expect(one?.id == "figure-1")
-        #expect(two?.id == "figure-2")
-        #expect(two?.listing == "figure-2 (800x600)")
-        #expect(elsewhere?.id == "figure-1")
-        #expect(store.image(id: "figure-2", conversationID: chat) == two)
-        #expect(store.image(id: "figure-2", conversationID: other) == nil)
+        let ids = try #require([one, two, elsewhere].map { $0?.id } as? [String])
+        #expect(ids[0].hasPrefix("figure-1-") && ids[1].hasPrefix("figure-2-") && ids[2].hasPrefix("figure-1-"))
+        #expect(two?.listing == "\(ids[1]) (800x600)")
+        #expect(store.image(id: ids[1], conversationID: chat) == two)
+        #expect(store.image(id: "figure-2", conversationID: chat) == two, "the short form finds the only figure-2")
+        #expect(store.image(id: ids[1], conversationID: other) == nil)
         #expect(store.image(id: "../figure-1", conversationID: chat) == nil)
+        #expect(store.image(id: "figure-1-../../x", conversationID: chat) == nil)
+        #expect(store.figureIDs(conversationID: chat) == [ids[0], ids[1]])
         store.removeAll(conversationID: chat)
         #expect(store.figureIDs(conversationID: chat).isEmpty)
     }
@@ -437,11 +439,11 @@ struct ViewImageTests {
         let figure = try #require(store.addFigure(png: png(width: 640, height: 480), conversationID: chat))
         let tool = ViewImageTool(store: store)
         let out = tool.run(id: "figure-1", conversationID: chat, readsImages: true)
-        #expect(out.text == "figure-1 (640x480) is attached in the next message.")
+        #expect(out.text == "\(figure.id) (640x480) is attached in the next message.")
         #expect(out.viewedImage == figure)
         let missing = tool.run(id: "figure-7", conversationID: chat, readsImages: true)
         #expect(missing.isError)
-        #expect(missing.text.contains("Available: figure-1."))
+        #expect(missing.text.contains("Available: \(figure.id)."))
         let blind = tool.run(id: "figure-1", conversationID: chat, readsImages: false)
         #expect(blind.isError)
     }
@@ -459,7 +461,7 @@ struct ViewImageTests {
         #expect(live.map(\.role) == ["user", "assistant", "tool", "tool", "user"])
         let url = try #require(store.dataURL(file: figure.file))
         #expect(url.hasPrefix("data:image/png;base64,"))
-        #expect(live[4].content == .parts([.text("[view_image: figure-1, 640x480]"), .imageURL(url)]))
+        #expect(live[4].content == .parts([.text("[view_image: \(figure.id), 640x480]"), .imageURL(url)]))
 
         // Saved records replay to the same bytes on every later request.
         var records = zip(calls, outputs).map { call, out in
@@ -483,7 +485,7 @@ struct ViewImageTests {
         var messages: [APIMessage] = []
         MessageAssembler.appendToolRound(to: &messages, assistantContent: "", calls: [ToolCall(id: "c", name: "view_image", arguments: "{}")],
                                          results: [ToolOutput(text: "attached", viewedImage: figure)], readsImages: false, images: store)
-        #expect(messages.last == .user("[view_image: figure-1, 64x48]\n" + MessageAssembler.omittedImageNote))
+        #expect(messages.last == .user("[view_image: \(figure.id), 64x48]\n" + MessageAssembler.omittedImageNote))
     }
 
     @Test func historyGoesThroughTheAssemblerWithTheSameRules() throws {
@@ -499,7 +501,7 @@ struct ViewImageTests {
         #expect(seeing.map(\.role) == ["user", "assistant", "tool", "user", "assistant"])
         if case .parts(let parts) = seeing[3].content { #expect(parts.count == 2) } else { Issue.record("expected parts") }
         let blind = MessageAssembler.apiMessages(from: history, readsImages: false)
-        #expect(blind[3] == .user("[view_image: figure-1, 64x48]\n" + MessageAssembler.omittedImageNote))
+        #expect(blind[3] == .user("[view_image: \(figure.id), 64x48]\n" + MessageAssembler.omittedImageNote))
     }
 
     @Test func aFailedCallOrAMissingFileAddsNoImage() throws {

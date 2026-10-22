@@ -91,8 +91,9 @@ struct PythonIntegrationTests {
 
         let plot = await python.run(code: "import matplotlib.pyplot as plt\nplt.plot([1, 2, 3])\nplt.show()", conversationID: chat,
                                     limits: PythonLimits(run: .seconds(60), setup: .seconds(240)), canView: true)
-        #expect(plot.figures.map(\.id) == ["figure-1"], "\(plot.text)")
-        #expect(plot.text.contains("figure-1 (640x480)"), "\(plot.text)")
+        let id = plot.figures.first?.id ?? ""
+        #expect(plot.figures.count == 1 && id.hasPrefix("figure-1-"), "\(plot.text)")
+        #expect(plot.text.contains("\(id) (640x480)"), "\(plot.text)")
         let file = try #require(plot.figures.first?.file)
         #expect(store.data(file: file).flatMap(ToolImageStore.pngSize)?.0 == 640)
     }
@@ -106,13 +107,13 @@ struct PythonIntegrationTests {
         let limits = PythonLimits(run: .seconds(60), setup: .seconds(240))
         let first = await python.run(code: "import matplotlib.pyplot as plt\nfig, ax = plt.subplots()\nax.plot([1, 2, 3])",
                                      conversationID: chat, limits: limits, canView: true)
-        #expect(first.figures.map(\.id) == ["figure-1"], "\(first.text)")
+        #expect(first.figures.map { FigureReference.shortID($0.id) } == ["figure-1"], "\(first.text)")
         let edited = await python.run(code: "ax.set_title('Growth')", conversationID: chat, limits: limits, canView: true)
-        #expect(edited.figures.map(\.id) == ["figure-2"], "\(edited.text)")
+        #expect(edited.figures.map { FigureReference.shortID($0.id) } == ["figure-2"], "\(edited.text)")
         let untouched = await python.run(code: "n = 1", conversationID: chat, limits: limits, canView: true)
         #expect(untouched.figures.isEmpty, "\(untouched.text)")
         let shown = await python.run(code: "fig", conversationID: chat, limits: limits, canView: true)
-        #expect(shown.figures.map(\.id) == ["figure-3"], "\(shown.text)")
+        #expect(shown.figures.map { FigureReference.shortID($0.id) } == ["figure-3"], "\(shown.text)")
 
         let many = await python.run(code: "for i in range(10):\n    plt.figure()\n    plt.plot([i])", conversationID: chat,
                                     limits: limits, canView: true)

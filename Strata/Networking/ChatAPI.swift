@@ -468,6 +468,9 @@ enum APIError: Error, LocalizedError, Equatable {
     /// A ChatGPT usage limit (`subscription_sharing_usage_limit_exceeded`, or 429 before the stream): the plan's or this
     /// app's limit in ChatGPT. Never retried; the chat offers "Manage usage" first.
     case chatGPTUsageLimit
+    /// The chat holds Apple Health data and the connection's model is remote, while Settings > Health allows health data
+    /// only on on-device or local models (`HealthPrivacy.blockedRequest`). Nothing was sent.
+    case healthLocalOnly(connection: String)
     case http(status: Int, message: String)
     case server(String)
     case transport(String)
@@ -493,6 +496,8 @@ enum APIError: Error, LocalizedError, Equatable {
         case .rejectedAPIKey(let name): String(localized: "The API key for \(name) was not accepted. Check it in Settings.")
         // No reset time: the limit may be the app's rather than the whole plan's (the errors-and-recovery docs).
         case .chatGPTUsageLimit: String(localized: "ChatGPT usage limit reached. The limit may be on your ChatGPT plan or on OmniChat's use of it.")
+        case .healthLocalOnly(let name):
+            String(localized: "This chat holds Apple Health data, which you allow only for on-device or local models, and \(name) runs on a remote server. Switch the chat to a local model, or turn off \"Only send health data to on-device or local models\" in Settings > Health.")
         case .http(let status, let message):
             message.isEmpty ? String(localized: "The server returned HTTP \(status).")
                             : String(localized: "HTTP \(status): \(message)")

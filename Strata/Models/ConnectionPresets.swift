@@ -107,6 +107,8 @@ struct AddConnectionLink: Equatable, Sendable {
         case notAnAddLink
         case missingURL
         case invalidURL
+        /// The server address carries a user name, password or key (`BaseURLCredentials`).
+        case credentialsInURL
         case unsupportedAPI(String)
 
         var errorDescription: String? {
@@ -114,6 +116,7 @@ struct AddConnectionLink: Equatable, Sendable {
             case .notAnAddLink: String(localized: "This link isn't an OmniChat add-connection link.")
             case .missingURL: String(localized: "The link doesn't say which server to add.")
             case .invalidURL: String(localized: "The server address in the link isn't an http or https URL.")
+            case .credentialsInURL: String(localized: "The server address in the link contains a key, token or password. Add the connection without it, then enter the key in its settings.")
             case .unsupportedAPI(let api): String(localized: "The link asks for an API OmniChat doesn't know (\(api)).")
             }
         }
@@ -143,6 +146,7 @@ struct AddConnectionLink: Equatable, Sendable {
         guard let raw = given.isEmpty ? (anthropic ? AnthropicModels.defaultBaseURL : nil) : given else {
             return .failure(.missingURL)
         }
+        guard !BaseURLCredentials.contains(raw) else { return .failure(.credentialsInURL) }
         let candidate = Connection(name: "", baseURL: raw)
         guard let base = candidate.normalizedBaseURL, base.user == nil, base.password == nil else { return .failure(.invalidURL) }
         func flag(_ name: String) -> Bool { ["1", "true", "yes", "on"].contains(query[name]?.lowercased() ?? "") }

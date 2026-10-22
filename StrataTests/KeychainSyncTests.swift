@@ -274,7 +274,49 @@ struct KeychainSyncTests {
         ]
         let services = stores.compactMap { ($0 as? KeychainKeyStore)?.service }
         #expect(services.count == stores.count)
-        #expect(Set(KeychainSync.services).isSuperset(of: services + [KeychainSSHVault().items.service, KeychainSync.headersService]))
+        #expect(Set(KeychainSync.services + KeychainSync.deviceOnlyServices)
+            .isSuperset(of: services + [KeychainSSHVault().items.service, KeychainSync.headersService]))
+        // The rotating sign-ins are device-only; the registration and API keys follow the switch.
+        let deviceOnly = stores.compactMap { ($0 as? KeychainKeyStore).map { $0.items.deviceOnly ? $0.service : nil } ?? nil }
+        #expect(Set(deviceOnly) == Set(KeychainSync.deviceOnlyServices))
+        #expect(Set(KeychainSync.services).isDisjoint(with: KeychainSync.deviceOnlyServices))
+    }
+
+    /// ChatGPT tokens and OpenCode sessions spend their refresh token on each refresh: they never sync, whatever the
+    /// switch says, and a refresh, a refused refresh or a sign-out here never touches a copy another device still uses.
+    @Test func rotatingSignInsStayOnTheDevice() throws {
+        let keychain = InMemoryKeychain()
+        let service = "cc.coolservices.strata.tests.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removeObject(forKey: KeychainSync.adoptedKeyPrefix + service) }
+        // A session saved before sign-ins stopped syncing, which another device may use too.
+        keychain.seed(.init(service: service, account: "a", sync: true, fileKeychain: false,
+                            accessible: kSecAttrAccessibleAfterFirstUnlock as String, data: Data("old".utf8)))
+        let store = KeychainItems(service: service, backend: keychain, synchronizable: { true }, hasFileKeychain: false, deviceOnly: true)
+        #expect(store.read("a") == Data("old".utf8)) // this device takes its own copy
+        #expect(keychain.snapshot.filter { !$0.sync }.map(\.data) == [Data("old".utf8)])
+        try store.write(Data("rotated".utf8), account: "a")
+        #expect(keychain.snapshot.first { $0.sync }?.data == Data("old".utf8))
+        #expect(keychain.snapshot.first { !$0.sync }?.accessible == kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String)
+        #expect(store.accounts() == ["a"])
+
+        try store.write(nil, account: "a") // signed out, or the refresh was refused
+        #expect(store.read("a") == nil) // the old iCloud copy isn't taken again
+        #expect(keychain.snapshot.contains { $0.sync && $0.account == "a" }) // still there for the other device
+
+        try store.write(Data("new".utf8), account: "b")
+        #expect(keychain.snapshot.first { $0.account == "b" }?.sync == false)
+    }
+
+    @Test func removingFromICloudTakesTheOldSignInsFirst() {
+        let keychain = InMemoryKeychain()
+        let session = KeychainSync.deviceOnlyServices[1]
+        keychain.seed(.init(service: session, account: "s", sync: true, fileKeychain: false,
+                            accessible: kSecAttrAccessibleAfterFirstUnlock as String, data: Data("session".utf8)))
+        let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
+        let result = KeychainSync.removeFromICloud(backend: keychain, defaults: defaults)
+        #expect(result.removed == 1 && result.kept == 0)
+        #expect(keychain.snapshot.map(\.sync) == [false])
+        #expect(keychain.snapshot.first?.data == Data("session".utf8))
     }
 
     @Test func apiKeysAreTrimmedAndBlankDeletes() throws {

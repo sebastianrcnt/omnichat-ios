@@ -224,6 +224,38 @@ struct FileSyncTests {
         #expect(try ModelContext(container).fetch(FetchDescriptor<SyncedFile>()).map(\.path) == ["Artifacts/\(chat.uuidString)/a1.html"])
     }
 
+    /// A chat deleted on another device takes its downloaded files with it; folders of chats that exist, or whose
+    /// records are still here, stay.
+    @MainActor
+    @Test func filesOfChatsDeletedElsewhereGo() throws {
+        let container = try syncedStore()
+        let root = try tempDirectory()
+        let context = ModelContext(container)
+        let kept = Conversation(title: "Kept")
+        context.insert(kept)
+        let arriving = UUID(), deleted = UUID()
+        context.insert(SyncedFile(path: "ToolImages/\(arriving.uuidString)/figure-1.png", conversationID: arriving, data: Data("png".utf8)))
+        try context.save()
+        let fm = FileManager.default
+        for (area, chat) in [(FileSync.toolImages, kept.id), (FileSync.artifacts, kept.id), (FileSync.toolImages, arriving),
+                             (FileSync.toolImages, deleted), (FileSync.artifacts, deleted)] {
+            let folder = root.appendingPathComponent("\(area)/\(chat.uuidString)", isDirectory: true)
+            try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+            try Data("x".utf8).write(to: folder.appendingPathComponent("screenshot-1.png"))
+        }
+        try fm.createDirectory(at: root.appendingPathComponent("Artifacts/not-a-chat", isDirectory: true), withIntermediateDirectories: true)
+
+        let sync = FileSync(container: container, root: root)
+        #expect(sync.removeOrphansNow() == 2)
+        #expect(!fm.fileExists(atPath: root.appendingPathComponent("ToolImages/\(deleted.uuidString)").path))
+        #expect(!fm.fileExists(atPath: root.appendingPathComponent("Artifacts/\(deleted.uuidString)").path))
+        #expect(fm.fileExists(atPath: root.appendingPathComponent("ToolImages/\(kept.id.uuidString)/screenshot-1.png").path))
+        #expect(fm.fileExists(atPath: root.appendingPathComponent("Artifacts/\(kept.id.uuidString)").path))
+        #expect(fm.fileExists(atPath: root.appendingPathComponent("ToolImages/\(arriving.uuidString)").path))
+        #expect(fm.fileExists(atPath: root.appendingPathComponent("Artifacts/not-a-chat").path))
+        #expect(sync.removeOrphansNow() == 0)
+    }
+
     /// A version made elsewhere before this device downloaded the older one still replaces it when it arrives.
     @MainActor
     @Test func aNewerVersionThatArrivesLateReplacesTheFile() throws {
@@ -421,5 +453,88 @@ struct ConnectionSyncTests {
         #expect(headers.key(for: c.id) == "Authorization: Bearer mac")
         phoneSync.stop()
         macSync.stop()
+    }
+
+    /// A header rotated on another device reaches this one's requests, though no key-value change announced it, and
+    /// is not overwritten by the stale copy in memory.
+    @Test func aHeaderChangedElsewhereReachesRequests() throws {
+        let cloud = InMemoryKeyValueStore()
+        let headers = InMemoryKeyStore() // iCloud Keychain, shared by both
+        let phone = ConnectionStore(defaults: defaults(), keys: InMemoryKeyStore())
+        let mac = ConnectionStore(defaults: defaults(), keys: InMemoryKeyStore())
+        let c = connection("org", headers: "Authorization: Bearer old")
+        phone.upsert(c)
+        let phoneSync = ConnectionSync(store: phone, cloud: cloud, defaults: defaults(), headers: headers)
+        let macSync = ConnectionSync(store: mac, cloud: cloud, defaults: defaults(), headers: headers)
+        phoneSync.start()
+        macSync.start()
+        #expect(mac.endpoint(connectionID: c.id, modelID: "m")?.headers["Authorization"] == "Bearer old")
+
+        var rotated = try #require(phone.connection(c.id))
+        rotated.customHeaders = "Authorization: Bearer new"
+        phone.upsert(rotated)
+        #expect(mac.connection(c.id)?.customHeaders == "Authorization: Bearer old") // no key-value change came
+        #expect(mac.endpoint(connectionID: c.id, modelID: "m")?.headers["Authorization"] == "Bearer new")
+        mac.upsert(connection("other"))
+        #expect(headers.key(for: c.id) == "Authorization: Bearer new")
+        macSync.stop()
+        #expect(mac.endpoint(connectionID: c.id, modelID: "m")?.headers["Authorization"] == "Bearer old") // sync off: its own copy
+        phoneSync.stop()
+    }
+
+    /// Credentials in a base URL never go to the key-value store, which syncs whatever the secret switch says.
+    @Test func credentialsInABaseURLNeverGoUp() throws {
+        var c = connection("proxy")
+        c.baseURL = "https://user:pw@proxy.example/v1?api_key=secret&api-version=2024-10-01"
+        let text = String(decoding: try #require(ConnectionSync.encode(c)), as: UTF8.self)
+        #expect(!text.contains("secret") && !text.contains("user:pw"))
+        #expect(text.contains("proxy.example") && text.contains("api-version=2024-10-01"))
+
+        // A copy an older version uploaded with its key is replaced at the next push, though nothing changed here.
+        let cloud = InMemoryKeyValueStore()
+        var legacy = connection("legacy")
+        legacy.baseURL = "https://legacy.example/v1?key=secret"
+        cloud.set(try JSONEncoder().encode(legacy), forKey: ConnectionSync.keyPrefix + legacy.id.uuidString)
+        cloud.set([legacy.id.uuidString], forKey: ConnectionSync.orderKey)
+        let store = ConnectionStore(defaults: defaults(), keys: InMemoryKeyStore())
+        let sync = ConnectionSync(store: store, cloud: cloud, defaults: defaults(), headers: InMemoryKeyStore())
+        sync.start()
+        #expect(ConnectionSync.cloudConnections(cloud)[legacy.id]?.baseURL == "https://legacy.example/v1")
+        sync.stop()
+    }
+}
+
+/// Base URLs that carry a user name, password or key are refused, and diagnostics hide what they carry.
+struct BaseURLCredentialTests {
+    @Test func credentialsAreFoundStrippedAndRedacted() {
+        for clean in ["https://api.example.com/v1", "http://192.168.1.5:8080/v1", "http://[::1]:11434/v1",
+                      "https://x.example/openai?api-version=2024-10-01", "https://", ""] {
+            #expect(!BaseURLCredentials.contains(clean), "\(clean)")
+            #expect(BaseURLCredentials.stripped(clean) == clean)
+        }
+        #expect(BaseURLCredentials.stripped("https://user:pw@x.example/v1") == "https://x.example/v1")
+        #expect(BaseURLCredentials.stripped("https://x.example/v1?key=s&api-version=1#top") == "https://x.example/v1?api-version=1#top")
+        #expect(BaseURLCredentials.stripped("https://x.example/v1?Access_Token=s") == "https://x.example/v1")
+        #expect(BaseURLCredentials.stripped("https://x.example/v1?x-api-key=s&token") == "https://x.example/v1")
+        // A password being typed, before its "@".
+        #expect(BaseURLCredentials.stripped("https://user:secr") == "https://user")
+        #expect(BaseURLCredentials.redacted("https://user:pw@x.example/v1?api_key=s&model=m")
+                == "https://<redacted>@x.example/v1?api_key=<redacted>&model=m")
+
+        #expect(Connection(name: "p", baseURL: "https://x.example/v1?api_key=s").normalizedBaseURL == nil)
+        #expect(Connection(name: "p", baseURL: "https://u:p@x.example/v1").normalizedBaseURL == nil)
+        #expect(Connection(name: "p", baseURL: "https://x.example/v1/").normalizedBaseURL?.absoluteString == "https://x.example/v1")
+    }
+
+    @MainActor
+    @Test func diagnosticsNeverShowThem() throws {
+        let ring = RequestRing()
+        let conv = UUID()
+        ring.record(conversationID: conv, url: "https://u:pw@x.example/v1/chat/completions?key=secret", body: Data("{}".utf8))
+        let url = try #require(ring.recent(for: conv).first?.url)
+        #expect(!url.contains("secret") && !url.contains("pw@"))
+        var summary = try #require(ConversationDiagnostics.requestSummaries(ring.recent(for: conv), conversation: conv).first)
+        summary.url = "https://x.example/v1?api_key=secret"
+        #expect(!DebugBundle.indexLine(summary).contains("secret"))
     }
 }
