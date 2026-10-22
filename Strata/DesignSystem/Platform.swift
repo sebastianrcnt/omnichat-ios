@@ -91,6 +91,7 @@ enum Pasteboard {
     }
 }
 
+#if !STRATA_EXTENSION // UIApplication.shared: not in the share extension
 /// App activation, as the platform reports it. iOS suspends an app that is not active; a Mac app keeps running.
 enum AppLifecycle {
     #if canImport(UIKit)
@@ -107,6 +108,7 @@ enum AppLifecycle {
     @MainActor static var isBackground: Bool { false }
     #endif
 }
+#endif
 
 // MARK: - Image encoding without UIKit
 

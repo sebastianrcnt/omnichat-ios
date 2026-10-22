@@ -457,6 +457,7 @@ extension View {
     func dsLeading(_ leading: DS.Leading) -> some View { modifier(LeadingModifier(leading)) }
 }
 
+#if !STRATA_EXTENSION // UIApplication.shared: not in the share extension
 /// Forces a Dynamic Type size on the whole app when the person chose one in Settings; otherwise the system decides.
 /// The size is set in the SwiftUI environment at the root and as a trait override on the app's windows, because a sheet
 /// is a separate hosting controller that takes its size from the window, not from the view that presented it.
@@ -519,3 +520,4 @@ struct TextSizeOverride: ViewModifier {
     }
     #endif
 }
+#endif
