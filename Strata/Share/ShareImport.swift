@@ -105,6 +105,10 @@ final class ShareImporter {
         let candidate = candidate(for: payload, controller: controller, connections: connections, settings: settings, context: context)
         guard let recipient = candidate.recipient, recipient == (approved ?? payload.recipient),
               approved != nil || candidate.destinationAvailable else { return nil }
+        // A confirmation can be postponed/discarded while thumbnails are prepared; never send its stale snapshot.
+        if approved != nil {
+            guard confirming.contains(payload.id), reviews.contains(where: { $0.id == payload.id }) else { return nil }
+        }
         let target: Conversation
         if let existing = candidate.chat {
             target = existing
@@ -131,6 +135,8 @@ final class ShareImporter {
         return (Self.recipient(connectionID: choice?.connectionID, modelID: choice?.modelID, connections: connections),
                 nil, payload.destination == .newChat)
     }
+
+    func isConfirming(_ review: Review) -> Bool { confirming.contains(review.id) }
 
     func postpone(_ review: Review) {
         claimed.remove(review.id)
@@ -237,12 +243,14 @@ private struct ShareImportHandler: ViewModifier {
                                         }
                                     }
                                 }
+                                .disabled(importer.isConfirming(review))
                             }
                         }
                         Section {
                             Button("Keep for later") { importer.postpone(review) }
                             Button("Discard share", role: .destructive) { importer.discard(review) }
                         }
+                        .disabled(importer.isConfirming(review))
                     }
                     .navigationTitle("Confirm recipient")
                 }

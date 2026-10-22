@@ -425,6 +425,25 @@ struct ShareTests {
         for review in importer.reviews { importer.discard(review) }
     }
 
+    @Test func postponedSharesStayOnDiskAndStaleConfirmationsCannotSendThem() async throws {
+        let r = try rig()
+        let importer = ShareImporter()
+        let inbox = tempInbox()
+        defer { try? FileManager.default.removeItem(at: inbox.root) }
+        var payload = SharePayload()
+        payload.note = "private draft"
+        try inbox.commit(payload)
+        _ = await importer.importPending(from: inbox, controller: r.controller, connections: r.connections,
+                                         settings: r.settings, context: r.context)
+        let review = try #require(importer.reviews.first)
+        let recipient = try #require(ShareImporter.recipient(connectionID: Connection.testID, modelID: "m", connections: r.connections))
+        importer.postpone(review)
+        #expect(importer.reviews.isEmpty && inbox.pending().count == 1)
+        #expect(await importer.confirm(review, recipient: recipient, controller: r.controller, connections: r.connections,
+                                       settings: r.settings, context: r.context) == nil)
+        #expect(try r.context.fetch(FetchDescriptor<Conversation>()).isEmpty)
+    }
+
     @Test func imageFilesAreSizeLimitedBeforeDecodeAndDownsampledFromDisk() async throws {
         let folder = FileManager.default.temporaryDirectory.appending(path: "share-image-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
