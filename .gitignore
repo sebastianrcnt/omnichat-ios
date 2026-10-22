@@ -10,3 +10,5 @@ Tools/.build-libssh2/
 Packages/*/.build/
 Tools/openchat-pkg/.build/
 .swiftpm/
+/build
+/build-*
