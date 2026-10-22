@@ -245,7 +245,13 @@ final class PySocketBridge: @unchecked Sendable {
     private struct Args: @unchecked Sendable {
         let raw: [String: Any]
         init(_ raw: [String: Any]) { self.raw = raw }
-        func int(_ key: String) -> Int { (raw[key] as? NSNumber)?.intValue ?? 0 }
+        /// Clamped to ±1e9: the values come from the code (ids, ports, sizes, timeouts in ms), and wider ones only
+        /// overflow later arithmetic.
+        func int(_ key: String) -> Int {
+            guard let n = raw[key] as? NSNumber else { return 0 }
+            let d = n.doubleValue
+            return d.isFinite ? Int(min(max(d, -1e9), 1e9)) : 0
+        }
         func string(_ key: String) -> String { raw[key] as? String ?? "" }
         func bool(_ key: String) -> Bool { (raw[key] as? NSNumber)?.boolValue ?? false }
     }
