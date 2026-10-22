@@ -64,6 +64,7 @@ struct ConversationDiagnostics: Codable, Equatable, Sendable {
         var completionTokens: Int?
         var cachedTokens: Int?
         var cacheHitPercent: Int?
+        var cacheWriteTokens: Int?
         var estimatedTokens = 0
         var windowTokens = 0
         /// Describes compaction once it exists.
@@ -81,6 +82,7 @@ struct ConversationDiagnostics: Codable, Equatable, Sendable {
         var promptTokens: Int?
         var completionTokens: Int?
         var cachedTokens: Int?
+        var cacheWriteTokens: Int?
         /// Relation to the previous request in the list; nil for the first.
         var note: String?
         var toolsDiffer = false
@@ -143,6 +145,7 @@ struct ConversationDiagnostics: Codable, Equatable, Sendable {
             c.promptTokens = u.promptTokens
             c.completionTokens = u.completionTokens
             c.cachedTokens = u.cachedTokens
+            c.cacheWriteTokens = u.cacheWriteTokens
             if let cached = u.cachedTokens, u.promptTokens > 0 {
                 c.cacheHitPercent = Int((Double(cached) / Double(u.promptTokens) * 100).rounded())
             }
@@ -170,7 +173,8 @@ struct ConversationDiagnostics: Codable, Equatable, Sendable {
                               bodyBytes: r.bodyBytes, storedBytes: r.storedBytes,
                               messageCount: r.messageCount ?? body.map { RequestInspection.messages(in: $0).count },
                               finishReason: r.finishReason, promptTokens: r.usage?.promptTokens,
-                              completionTokens: r.usage?.completionTokens, cachedTokens: r.usage?.cachedTokens)
+                              completionTokens: r.usage?.completionTokens, cachedTokens: r.usage?.cachedTokens,
+                              cacheWriteTokens: r.usage?.cacheWriteTokens)
             if let body, let result = PrefixNote.describe(previous: previousBody, current: body) {
                 req.note = result.note
                 req.toolsDiffer = result.toolsDiffer

@@ -253,7 +253,7 @@ struct AddConnectionLinkTests {
         #expect(parse("openchat://add-connection?url=javascript:alert(1)") == .failure(.invalidURL))
         #expect(parse("openchat://add-connection?url=file:///etc/passwd") == .failure(.invalidURL))
         #expect(parse("openchat://add-connection?url=not%20a%20url") == .failure(.invalidURL))
-        #expect(parse("openchat://add-connection?url=https://x.example/v1&api=anthropic") == .failure(.unsupportedAPI("anthropic")))
+        #expect((try? parse("openchat://add-connection?url=https://x.example/v1&api=anthropic").get())?.anthropic == true)
         #expect(parse("openchat://add-connection?url=https://x.example/v1&api=grpc") == .failure(.unsupportedAPI("grpc")))
         #expect(parse("openchat://other?url=https://x.example/v1") == .failure(.notAnAddLink))
         #expect(parse("https://add-connection?url=https://x.example/v1") == .failure(.notAnAddLink))

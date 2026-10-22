@@ -288,7 +288,8 @@ final class ChatController {
                                    messages: apiHistory(path: path, conversation: conversation, endpoint: endpoint))
             if endpoint.model.supportsEffort { base.reasoningEffort = conversation.effort.apiValue }
             if endpoint.model.supportsTools { base.tools = requestTools(endpoint, conversation: conversation) }
-            followUp = AutoRename.followUp(base, replacing: force ? conversation.displayTitle : nil)
+            followUp = AutoRename.followUp(base, replacing: force ? conversation.displayTitle : nil,
+                                           forbidTools: endpoint.kind != .anthropic)
         }
         let streamer = streamer
         let ring = requestRing

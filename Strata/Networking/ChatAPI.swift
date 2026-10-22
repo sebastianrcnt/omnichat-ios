@@ -408,6 +408,9 @@ struct Usage: Codable, Sendable, Equatable {
     var completionTokens: Int
     var cachedTokens: Int?
     var reasoningTokens: Int?
+    /// Prompt tokens written to the cache by this request (Anthropic's `cache_creation_input_tokens`, OpenRouter's
+    /// `cache_write_tokens`): billed above plain input, read cheaply by the next request. Part of `promptTokens`.
+    var cacheWriteTokens: Int?
 
     var totalTokens: Int { ContextLimits.add(promptTokens, completionTokens) }
 
@@ -417,23 +420,27 @@ struct Usage: Codable, Sendable, Equatable {
         case promptDetails = "prompt_tokens_details"
         case completionDetails = "completion_tokens_details"
     }
-    private struct PromptDetails: Codable { var cachedTokens: Int?
-        enum CodingKeys: String, CodingKey { case cachedTokens = "cached_tokens" } }
+    private struct PromptDetails: Codable { var cachedTokens: Int?; var cacheWriteTokens: Int?
+        enum CodingKeys: String, CodingKey { case cachedTokens = "cached_tokens", cacheWriteTokens = "cache_write_tokens" } }
     private struct CompletionDetails: Codable { var reasoningTokens: Int?
         enum CodingKeys: String, CodingKey { case reasoningTokens = "reasoning_tokens" } }
 
-    init(promptTokens: Int, completionTokens: Int, cachedTokens: Int? = nil, reasoningTokens: Int? = nil) {
+    init(promptTokens: Int, completionTokens: Int, cachedTokens: Int? = nil, reasoningTokens: Int? = nil,
+         cacheWriteTokens: Int? = nil) {
         self.promptTokens = promptTokens
         self.completionTokens = completionTokens
         self.cachedTokens = cachedTokens
         self.reasoningTokens = reasoningTokens
+        self.cacheWriteTokens = cacheWriteTokens
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         promptTokens = try c.decodeIfPresent(Int.self, forKey: .promptTokens) ?? 0
         completionTokens = try c.decodeIfPresent(Int.self, forKey: .completionTokens) ?? 0
-        cachedTokens = try c.decodeIfPresent(PromptDetails.self, forKey: .promptDetails)?.cachedTokens
+        let details = try c.decodeIfPresent(PromptDetails.self, forKey: .promptDetails)
+        cachedTokens = details?.cachedTokens
+        cacheWriteTokens = details?.cacheWriteTokens
         reasoningTokens = try c.decodeIfPresent(CompletionDetails.self, forKey: .completionDetails)?.reasoningTokens
     }
 
@@ -441,7 +448,9 @@ struct Usage: Codable, Sendable, Equatable {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(promptTokens, forKey: .promptTokens)
         try c.encode(completionTokens, forKey: .completionTokens)
-        if let cachedTokens { try c.encode(PromptDetails(cachedTokens: cachedTokens), forKey: .promptDetails) }
+        if cachedTokens != nil || cacheWriteTokens != nil {
+            try c.encode(PromptDetails(cachedTokens: cachedTokens, cacheWriteTokens: cacheWriteTokens), forKey: .promptDetails)
+        }
         if let reasoningTokens { try c.encode(CompletionDetails(reasoningTokens: reasoningTokens), forKey: .completionDetails) }
     }
 }

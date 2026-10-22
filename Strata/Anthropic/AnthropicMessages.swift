@@ -380,6 +380,7 @@ struct MessagesEventDecoder: Sendable {
     private var reasoningWritten = false
     private var inputTokens = 0
     private var cachedTokens: Int?
+    private var cacheWriteTokens: Int?
     private var stopReason: String?
     private(set) var finished = false
 
@@ -462,6 +463,7 @@ struct MessagesEventDecoder: Sendable {
             let usage = event.message?.usage
             inputTokens = ContextLimits.add(usage?.inputTokens ?? 0, usage?.cacheRead ?? 0, usage?.cacheCreation ?? 0)
             cachedTokens = usage?.cacheRead
+            cacheWriteTokens = usage?.cacheCreation
         case "content_block_start":
             guard let index = event.index, let block = event.contentBlock else { break }
             switch block.type {
@@ -533,7 +535,7 @@ struct MessagesEventDecoder: Sendable {
             // the part read from the cache is reported like other APIs' cached tokens.
             if let output = event.usage?.outputTokens {
                 delta.usage = Usage(promptTokens: inputTokens, completionTokens: output, cachedTokens: cachedTokens,
-                                    reasoningTokens: event.usage?.outputDetails?.thinkingTokens)
+                                    reasoningTokens: event.usage?.outputDetails?.thinkingTokens, cacheWriteTokens: cacheWriteTokens)
             }
             delta.finishReason = switch stopReason {
             case "tool_use": "tool_calls"

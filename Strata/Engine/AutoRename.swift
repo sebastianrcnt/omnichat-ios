@@ -145,10 +145,12 @@ enum AutoRename {
     /// and the model sees the whole conversation) with the title question appended. Tools stay listed, since changing
     /// them would change the prefix, but none may be called: the same `tool_choice` a capped round sends. The budget
     /// leaves room for thinking at the chat's effort.
-    static func followUp(_ base: ChatRequest, replacing current: String?) -> ChatRequest {
+    /// - Parameter forbidTools: false on an Anthropic connection, whose cache drops the messages when `tool_choice`
+    ///   changes. A tool call instead of a title is an empty reply, and the standalone request takes over.
+    static func followUp(_ base: ChatRequest, replacing current: String?, forbidTools: Bool = true) -> ChatRequest {
         var r = base
         r.messages.append(.user(followUpQuestion(replacing: current)))
-        if r.tools?.isEmpty == false { r.toolChoice = "none" }
+        if forbidTools, r.tools?.isEmpty == false { r.toolChoice = "none" }
         r.maxTokens = followUpMaxTokens
         return r
     }

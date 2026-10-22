@@ -31,6 +31,8 @@ final class Conversation {
     var lastCompletionTokens: Int?
     var lastCachedTokens: Int?
     var lastReasoningTokens: Int?
+    /// Of the last prompt, the tokens written to the cache (Anthropic); nil where the server doesn't say.
+    var lastCacheWriteTokens: Int?
     /// The answer whose request that usage belongs to, so a branch that did not produce it does not trust it.
     var lastUsageMessageID: UUID?
     /// JSON-encoded `[SourceInfo]`: web sources numbered across the whole conversation.
@@ -196,7 +198,8 @@ final class Conversation {
 
     var lastUsage: Usage? {
         guard let p = lastPromptTokens, let c = lastCompletionTokens else { return nil }
-        return Usage(promptTokens: p, completionTokens: c, cachedTokens: lastCachedTokens, reasoningTokens: lastReasoningTokens)
+        return Usage(promptTokens: p, completionTokens: c, cachedTokens: lastCachedTokens, reasoningTokens: lastReasoningTokens,
+                     cacheWriteTokens: lastCacheWriteTokens)
     }
 
     /// Texts for the naming request: answer text only (no reasoning or tool results), in order.
@@ -231,6 +234,7 @@ final class Conversation {
         lastCompletionTokens = usage.completionTokens
         lastCachedTokens = usage.cachedTokens
         lastReasoningTokens = usage.reasoningTokens
+        lastCacheWriteTokens = usage.cacheWriteTokens
     }
 
     /// Plain-text transcript for sharing.
