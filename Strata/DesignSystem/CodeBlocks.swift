@@ -193,7 +193,7 @@ private struct CodeBlockBody: View {
     private var header: some View {
         HStack(spacing: DS.Spacing.sm) {
             Text(content.displayLanguage).font(DS.Typography.uiCaption.weight(.medium)).foregroundStyle(theme.textSecondary)
-            Text(String(localized: "\(content.lineCount) lines")).font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
+            Text(content.lineCount == 1 ? String(localized: "1 line") : String(localized: "\(content.lineCount) lines")).font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
             Spacer(minLength: 0)
             Button { copy() } label: {
                 Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
@@ -358,7 +358,7 @@ struct CodeViewer: View {
             GlassIconButton(systemName: "xmark", label: "Close") { dismiss() }
             VStack(alignment: .leading, spacing: 0) {
                 Text(content.displayLanguage).font(DS.Typography.title).foregroundStyle(theme.textPrimary)
-                Text(String(localized: "\(content.lineCount) lines")).font(DS.Typography.uiCaption).foregroundStyle(theme.textSecondary)
+                Text(content.lineCount == 1 ? String(localized: "1 line") : String(localized: "\(content.lineCount) lines")).font(DS.Typography.uiCaption).foregroundStyle(theme.textSecondary)
             }
             Spacer(minLength: 0)
             GlassIconButton(systemName: "minus", label: "Smaller text") { fontSize = max(Self.sizes.lowerBound, fontSize - 1) }
