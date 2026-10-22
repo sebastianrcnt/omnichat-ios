@@ -1305,7 +1305,10 @@
     "Turn on \"Supports images\" for it in Settings > Connections, or choose another model.": {},
     "Turn on image support": {},
     "Typed into%@": {},
-    "Typing into%@…": {},
+    "Typing into%@…": {
+      "extractionState": "stale"
+    },
+    "Typing%@…": {},
     "UI small": {},
     "UI text": {},
     "Unavailable": {},
