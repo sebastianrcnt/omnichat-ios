@@ -14,6 +14,13 @@ POST /v1/chat/completions    -> SSE stream. Behaviour depends on the conversatio
   * otherwise, scripted tool loop: round 0 = reasoning + web_search tool call,
     round 1 = reasoning + web_fetch tool call, round 2 = final markdown answer that cites the
     <source id="N"> blocks found in the tool messages with [N].
+  With --showcase (App Store screenshots; see SHOWCASE below), /v1/models lists showcase model names, titles fit the
+  showcase chats, and these run instead (real tools, not -StrataFakeTools):
+  * "Lisbon"           -> web_search, three Wikipedia reads in parallel, then a cited answer with a table
+  * "invest"           -> run_python (numpy + matplotlib), then an answer that places the figure
+  * "Save my home server" -> ssh_credential_save + ssh_server_save for the local mock SSH host (setup chat)
+  * "home server"      -> ssh_exec on the saved server "homelab", then a short health summary
+  MOCK_SHOWCASE_PAUSE (seconds, default 1.4) paces the thought lines, so the live activity feed can be captured.
 Streaming is deliberately bursty (small and large chunks) and tool-call arguments are split across chunks.
 Model "strata-mock-responses" only answers the Responses API, like OpenAI's Responses-only models:
 POST /v1/chat/completions with it -> 404 "only supported in v1/responses"
@@ -34,6 +41,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 RESUMABLE = "--resumable" in sys.argv
+SHOWCASE = "--showcase" in sys.argv
 RESPONSES_ONLY = "strata-mock-responses"
 DROP_AFTER = int(os.environ.get("MOCK_DROP_AFTER", "0"))
 STREAMS = {}
@@ -230,6 +238,85 @@ PLAIN = """Sure. Here is a plain answer with **bold**, *italic*, `inline code` a
 Done."""
 
 
+# --- Showcase (App Store screenshots) ---------------------------------------------------------------------------
+
+SHOWCASE_MODELS = ["openai/gpt-oss-120b", "qwen/qwen3-235b-a22b", "deepseek/deepseek-v3.2", "moonshotai/kimi-k2",
+                   "z-ai/glm-4.6", "mistralai/mistral-medium-3.1"]
+
+SHOWCASE_TITLES = [("Lisbon", "Late-October city weather"), ("invest", "Investing $500 a month"),
+                   ("Save my home server", "Home server setup"), ("home server", "Home server check")]
+
+SSH_PORT = int(os.environ.get("MOCK_SSH_PORT", "18784"))
+# A throwaway password for the local mock SSH host (omnichat-store/tools/mock_ssh.py); not a real credential.
+SSH_PASSWORD = "showcase-only"
+SSH_COMMAND = ("uptime -p && df -h --output=target,size,used,pcent / /mnt/data && "
+               "docker ps --format 'table {{.Names}}\\t{{.Status}}'")
+
+
+def showcase_scenario(user_text):
+    if user_text.startswith("The conversation:") or "give this conversation a title" in user_text:
+        return "title"
+    if "Lisbon" in user_text:
+        return "research"
+    if "invest" in user_text.lower():
+        return "python"
+    if "Save my home server" in user_text:
+        return "ssh_setup"
+    if "home server" in user_text.lower():
+        return "ssh"
+    return None
+
+
+RESEARCH_ANSWER = """**Athens** is the warmest and driest of the three in late October, and the sea is still warm enough to swim [{ath}].
+
+| October | Lisbon | Barcelona | Athens |
+|---|---|---|---|
+| Avg high | 22 °C | 22 °C | 24 °C |
+| Sea | 19 °C | 21 °C | 22 °C |
+| Rainy days | ~9 | ~6 | ~5 |
+
+**Barcelona** is a close second; **Lisbon** is often wet, so pack a jacket [{bcn}][{lis}].
+"""
+
+PYTHON_CODE = """import numpy as np
+import matplotlib.pyplot as plt
+
+monthly, years = 500, 30
+months = np.arange(years * 12 + 1)
+
+plt.figure(figsize=(7, 4.2))
+for rate, color in [(0.04, "#9aa5b1"), (0.06, "#5b8def"), (0.08, "#7c4dff")]:
+    r = rate / 12
+    balance = monthly * ((1 + r) ** months - 1) / r
+    plt.plot(months / 12, balance / 1000, color=color, lw=2.6, label=f"{rate:.0%} a year")
+    print(f"{rate:.0%}: ${balance[-1]:,.0f}")
+
+plt.plot(months / 12, monthly * months / 1000, "--", color="#b0b0b0", lw=1.6, label="Paid in")
+plt.title("$500 a month for 30 years", loc="left", fontweight="bold")
+plt.xlabel("Years")
+plt.ylabel("Balance ($ thousands)")
+plt.grid(alpha=0.25)
+plt.legend(frameon=False)
+plt.gca().spines[["top", "right"]].set_visible(False)
+plt.tight_layout()
+"""
+
+PYTHON_ANSWER = """Your **$180,000** grows to **$347,025** at 4%, **$502,258** at 6% and **$745,180** at 8%.
+
+![Balance over 30 years]({figure})
+
+At 8%, **76%** of the balance is growth.
+"""
+
+SSH_ANSWER = """**homelab looks healthy.** It has been up for 23 days with a low load.
+
+- **Disk:** the system drive is 32% full; **/mnt/data is at 81%** of 3.6 TB, worth watching.
+- **Containers:** all four are running, and the three with health checks report *healthy*.
+
+Want me to find what's filling up the data disk?
+"""
+
+
 def sse(handler, obj):
     handler.wfile.write(b"data: " + json.dumps(obj, ensure_ascii=False).encode() + b"\n\n")
     handler.wfile.flush()
@@ -297,7 +384,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, {"state": stream.state, "last_seq": len(stream.events)})
             after = int(parse_qs(parsed.query).get("after", [self.headers.get("Last-Event-ID", "0")])[0])
             return self.replay(rid, stream, after)
-        if self.path.rstrip("/").endswith("/models"):
+        if self.path.rstrip("/").endswith("/models") and SHOWCASE:
+            self._json(200, {"object": "list", "data": [{"id": m, "object": "model", "max_model_len": 131072}
+                                                        for m in SHOWCASE_MODELS]})
+        elif self.path.rstrip("/").endswith("/models"):
             self._json(200, {"object": "list", "data": [{"id": "strata-mock", "object": "model", "max_model_len": 262144,
                       "architecture": {"input_modalities": ["text", "image"], "output_modalities": ["text"]}},
                       {"id": RESPONSES_ONLY, "object": "model", "max_model_len": 200000}]})
@@ -484,6 +574,18 @@ class Handler(BaseHTTPRequestHandler):
         prompt_tokens = 400 + 900 * rounds
         many = "many" in user_text.lower() and not plain  # 7 tool rounds with a preamble each, then the answer
         last_tool_round = 6 if many else 1
+        self.messages = req.get("messages", [])
+        showcase = showcase_scenario(user_text) if SHOWCASE else None
+        if showcase:
+            finished = self.showcase(showcase, user_text, tail, rounds)
+            usage = {"prompt_tokens": prompt_tokens, "completion_tokens": 240}
+            sse(self, chunk({}, finish="stop" if finished else "tool_calls"))
+            if req.get("stream_options", {}).get("include_usage"):
+                sse(self, {"id": "mock", "object": "chat.completion.chunk", "model": "mock", "choices": [], "usage": usage})
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush()
+            self.wfile.close()
+            return
         if user_text.startswith("The conversation:") or "give this conversation a title" in user_text:
             # A naming request; "Regenerate title" names the current title and asks for another.
             self.stream_content("A fresh title" if "The current title is" in user_text else "SQL NULL in aggregates")
@@ -637,6 +739,85 @@ class Handler(BaseHTTPRequestHandler):
                                                    bbc=cid("bbc"), korea=cid("korea.kr")))
             return True
         return False
+
+    def showcase(self, scenario, user_text, tail, rounds):
+        """One round of a showcase chat. Returns True on the final (answer) round."""
+        pause = float(os.environ.get("MOCK_SHOWCASE_PAUSE", "1.4"))
+        tool_text = "\n".join(str(m.get("content", "")) for m in tail if m.get("role") == "tool")
+        if scenario == "title":
+            # The naming request is either its own ("The conversation: ...") or a question after the whole chat.
+            everything = json.dumps(self.messages, ensure_ascii=False)
+            self.stream_content(next((t for k, t in SHOWCASE_TITLES if k in everything), "A quick question"))
+            return True
+        if scenario == "research":
+            if rounds == 0:
+                self.slow_thoughts(["Three cities, one week in late October.",
+                                    "I need the October climate normals for each, and the sea temperature for swimming."], pause)
+                self.stream_tool_call("call_r1", "web_search", json.dumps({"query": "Lisbon Barcelona Athens October weather sea temperature"}))
+                return False
+            if rounds == 1:
+                self.slow_thoughts(["Wikipedia's climate tables list monthly highs, lows, rainy days and sea temperatures.",
+                                    "I'll read all three city pages at once."], pause)
+                for i, city in enumerate(["Lisbon", "Barcelona", "Athens"]):
+                    self.stream_tool_call(f"call_r2{i}", "web_fetch", json.dumps({"url": f"https://en.wikipedia.org/wiki/{city}"}), index=i)
+                return False
+            # MOCK_SHOWCASE_DEEP=1: a second search, then the two best pages it found that aren't Wikipedia.
+            if os.environ.get("MOCK_SHOWCASE_DEEP") and rounds == 2:
+                self.slow_thoughts(["The tables agree on highs and lows.",
+                                    "Sea temperatures vary by source, so let me cross-check them."], pause)
+                self.stream_tool_call("call_r3", "web_search", json.dumps({"query": "average sea temperature late October Athens Barcelona Lisbon"}))
+                return False
+            if os.environ.get("MOCK_SHOWCASE_DEEP") and rounds == 3:
+                last = next((str(m.get("content", "")) for m in reversed(tail) if m.get("role") == "tool"), "")
+                urls = [u for u in re.findall(r'url="([^"]+)"', last) if "wikipedia.org" not in u][:2]
+                self.slow_thoughts(["Two of these results have month-by-month sea data.", "Reading both."], pause)
+                for i, url in enumerate(urls):
+                    self.stream_tool_call(f"call_r4{i}", "web_fetch", json.dumps({"url": url}), index=i)
+                if urls:
+                    return False
+            by_url = {}
+            for i, u in re.findall(r'<source id="(\d+)"[^>]*url="([^"]+)"', tool_text):
+                by_url.setdefault(u, int(i))
+            def cid(city):
+                return next((i for u, i in by_url.items() if u.rstrip("/").endswith("/wiki/" + city)), 1)
+            self.stream_content(RESEARCH_ANSWER.format(lis=cid("Lisbon"), bcn=cid("Barcelona"), ath=cid("Athens")))
+            return True
+        if scenario == "python":
+            if rounds == 0:
+                self.slow_thoughts(["This is a future-value calculation with monthly contributions.",
+                                    "I'll compute it exactly and plot all three rates."], pause / 2)
+                self.stream_content("I'll run the numbers on your phone and chart them.")
+                self.stream_tool_call("call_py1", "run_python", json.dumps({"code": PYTHON_CODE}))
+                return False
+            figure = re.search(r"figure-\d+(?:-[0-9a-f]{8})?", tool_text)
+            self.stream_content(PYTHON_ANSWER.format(figure=figure.group(0) if figure else "figure-1"))
+            return True
+        if scenario == "ssh_setup":
+            # One after the other: the server names the credential, which must exist first.
+            if rounds == 0:
+                self.stream_tool_call("call_ss1", "ssh_credential_save", json.dumps(
+                    {"name": "homelab", "username": "admin", "password": SSH_PASSWORD}))
+                return False
+            if rounds == 1:
+                self.stream_tool_call("call_ss2", "ssh_server_save", json.dumps(
+                    {"name": "homelab", "host": "127.0.0.1", "port": SSH_PORT, "user": "admin", "credential": "homelab",
+                     "note": "Home server"}))
+                return False
+            self.stream_content("Saved **homelab**. Ask me to check on it any time.")
+            return True
+        if scenario == "ssh":
+            if rounds == 0:
+                self.slow_thoughts(["One command can cover uptime, disk space and the containers.",
+                                    "I'll chain them so it's a single connection."], pause / 2)
+                self.stream_content("Checking **homelab** now.")
+                self.stream_tool_call("call_sx1", "ssh_exec", json.dumps({"server": "homelab", "command": SSH_COMMAND}))
+                return False
+            time.sleep(pause * 2)  # the command's output stays on screen a moment, for the screenshot
+            self.slow_thoughts(["Everything is up, and the three health checks pass.",
+                                "The data disk at 81% is the only thing worth flagging."], pause)
+            self.stream_content(SSH_ANSWER)
+            return True
+        return True
 
     def stream_reasoning(self, text):
         for p in pieces(text):

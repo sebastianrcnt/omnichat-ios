@@ -11,6 +11,7 @@ import SwiftData
 ///   -StrataDebugJump 1                             after the sends: scroll to the top, then press "Jump to bottom"
 ///   -StrataDebugBranch switch|editbar               after the first answer: edit + regenerate, or open edit mode
 ///   -StrataOpenSheet usage|model|settings|connection|attach|details|diagnostics   open a sheet right after launch
+///   -StrataSheetDetent large                       with "model": open the model picker full height
 ///   -StrataDraft "text"                            put text in the composer after launch (expanded composer)
 ///   -StrataOpenMenu 2                              then open the n-th pull-down menu on screen (top to bottom)
 ///   -StrataOpenSidebar 1                           open the chat list drawer after launch
