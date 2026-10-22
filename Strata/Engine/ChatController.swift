@@ -773,7 +773,7 @@ final class ChatController {
     /// group the chat has off or can't share it with one it has on. Read at the chat's first send.
     func defaultPackages(groups: Set<ToolGroup>) -> Set<String> {
         Set(packages.all.filter { p in
-            p.record.onInNewChats && p.requiredGroups.isSubset(of: groups) && p.exclusiveGroups.isDisjoint(with: groups)
+            p.record.onInNewChats && p.addsToChats && p.requiredGroups.isSubset(of: groups) && p.exclusiveGroups.isDisjoint(with: groups)
         }.map(\.id))
     }
 
@@ -801,7 +801,7 @@ final class ChatController {
     func packageSnapshot(for ids: Set<String>, adding base: PackageSnapshot = PackageSnapshot(entries: [])) -> PackageSnapshot {
         var snapshot = base
         var count = base.entries.reduce(0) { $0 + $1.tools.count }
-        for package in packages.all.filter({ ids.contains($0.id) && !base.ids.contains($0.id) }).sorted(by: { PackageJSON.byteOrder($0.id, $1.id) }) {
+        for package in packages.all.filter({ ids.contains($0.id) && !base.ids.contains($0.id) && $0.addsToChats }).sorted(by: { PackageJSON.byteOrder($0.id, $1.id) }) {
             guard count + package.tools.count <= PackageLimits.toolsPerChat else { continue }
             count += package.tools.count
             snapshot = snapshot.adding(PackageSnapshot.entry(package))

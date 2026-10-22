@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "id": "app.openchat.connections",
+  "name": "Connection presets",
+  "namespace": "connections",
+  "version": "1.0.0",
+  "description": "The OpenAI-compatible services the add-connection screen offers.",
+  "publisher": { "name": "OpenChat" },
+  "license": "MIT",
+  "contents": {
+    "connections": [
+      { "name": "OpenAI", "url": "https://api.openai.com/v1", "subtitle": "API key from platform.openai.com" },
+      { "name": "OpenRouter", "url": "https://openrouter.ai/api/v1", "subtitle": "One key for many providers' models" },
+      { "name": "Groq", "url": "https://api.groq.com/openai/v1", "subtitle": "API key from console.groq.com" },
+      { "name": "Ollama", "url": "http://localhost:11434/v1" },
+      { "name": "LM Studio", "url": "http://localhost:1234/v1" }
+    ]
+  }
+}

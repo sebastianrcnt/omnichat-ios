@@ -1,0 +1,34 @@
+{
+  "format": 1,
+  "id": "app.openchat.wikipedia",
+  "name": "Wikipedia",
+  "namespace": "wiki",
+  "version": "1.0.0",
+  "description": "Read the lead and infobox of a Wikipedia article, in any language.",
+  "publisher": { "name": "OpenChat" },
+  "license": "MIT",
+  "requires": { "groups": ["web"] },
+  "permissions": { "network": ["*.wikipedia.org"] },
+  "contents": {
+    "tools": [
+      {
+        "name": "summary",
+        "kind": "page",
+        "title": "Wikipedia article",
+        "description": "A Wikipedia article's title, lead paragraphs and infobox rows.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string", "description": "The article title, for example Alan Turing" },
+            "lang": { "type": "string", "description": "The Wikipedia language code, for example en or ko", "default": "en" },
+            "paragraphs": { "type": "integer", "description": "How many lead paragraphs to return, 1 to 10", "minimum": 1, "maximum": 10, "default": 3 }
+          },
+          "required": ["title"]
+        },
+        "page": { "url": "https://{lang}.wikipedia.org/wiki/{title}", "settle": 0, "waitFor": "#mw-content-text" },
+        "script": "tools/summary.js",
+        "display": { "argument": "title" }
+      }
+    ]
+  }
+}

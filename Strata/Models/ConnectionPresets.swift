@@ -2,18 +2,16 @@ import Foundation
 
 /// A starting point for a new connection: the add-connection screen lists these, and each prefills the connection's
 /// editor. Anthropic is not here: its Messages API is only spoken through an OpenCode account, not to a server of its own.
+/// The OpenAI-compatible services (OpenAI, OpenRouter, Groq, Ollama, LM Studio) are data: the presets of the built-in
+/// package `app.openchat.connections` (`PackageConnectionPreset`), listed with those of installed packages. Only the
+/// accounts, which sign in with code of their own, and "Other server" are here.
 enum ConnectionPreset: String, CaseIterable, Identifiable, Sendable {
-    case openAI, openRouter, groq, ollama, lmStudio, chatGPT, openCode, custom
+    case chatGPT, openCode, custom
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .openAI: "OpenAI"
-        case .openRouter: "OpenRouter"
-        case .groq: "Groq"
-        case .ollama: "Ollama"
-        case .lmStudio: "LM Studio"
         case .chatGPT: String(localized: "ChatGPT account")
         case .openCode: String(localized: "OpenCode account")
         case .custom: String(localized: "Other server")
@@ -22,11 +20,6 @@ enum ConnectionPreset: String, CaseIterable, Identifiable, Sendable {
 
     var subtitle: String {
         switch self {
-        case .openAI: String(localized: "API key from platform.openai.com")
-        case .openRouter: String(localized: "One key for many providers' models")
-        case .groq: String(localized: "API key from console.groq.com")
-        case .ollama: Self.localNote(port: 11434)
-        case .lmStudio: Self.localNote(port: 1234)
         case .chatGPT: String(localized: "Sign in to use your ChatGPT plan")
         case .openCode: String(localized: "Sign in to use OpenCode Go or pay as you go")
         case .custom: String(localized: "Any OpenAI-compatible API: enter its URL")
@@ -35,15 +28,41 @@ enum ConnectionPreset: String, CaseIterable, Identifiable, Sendable {
 
     var systemImage: String {
         switch self {
-        case .openAI, .openRouter, .groq: "key"
-        case .ollama, .lmStudio: "desktopcomputer"
         case .chatGPT, .openCode: "person.badge.plus"
         case .custom: "server.rack"
         }
     }
 
-    /// Runs on this device or another computer. A phone can't reach `localhost` on the Mac, so it says to use the
-    /// Mac's address on the network instead.
+    /// The new connection, ready for its editor (which asks for the key or the sign-in).
+    func makeConnection() -> Connection {
+        switch self {
+        case .chatGPT: .chatGPT(name: String(localized: "ChatGPT"))
+        case .openCode: .openCode(name: String(localized: "OpenCode"))
+        case .custom: Connection(name: String(localized: "New connection"), baseURL: "https://")
+        }
+    }
+}
+
+/// A package's connection preset in the add-connection screen.
+extension PackageConnectionPreset: Identifiable {
+    public var id: String { name + " " + url }
+
+    /// On this device or another computer (`localhost`, a `.local` name or a private address): listed under "On your
+    /// computer".
+    var isLocal: Bool {
+        guard let host = URL(string: url)?.host(percentEncoded: false)?.lowercased() else { return false }
+        return host == "localhost" || host.hasSuffix(".local") || URLGuard.isIPLiteralPrivate(host) || URLGuard.isBlockedHostname(host)
+    }
+
+    var subtitleText: String {
+        if let subtitle, !subtitle.isEmpty { return subtitle }
+        if isLocal, let port = URL(string: url)?.port { return Self.localNote(port: port) }
+        return URL(string: url)?.host(percentEncoded: false) ?? url
+    }
+
+    var systemImage: String { isLocal ? "desktopcomputer" : "key" }
+
+    /// A phone can't reach `localhost` on the Mac, so it says to use the Mac's address on the network instead.
     private static func localNote(port: Int) -> String {
         #if os(macOS)
         String(localized: "Runs on this Mac (port \(port))")
@@ -52,26 +71,13 @@ enum ConnectionPreset: String, CaseIterable, Identifiable, Sendable {
         #endif
     }
 
-    /// Where the API lives, or nil for an account (its address is fixed) or a custom server (the user types it).
-    var baseURL: String? {
-        switch self {
-        case .openAI: "https://api.openai.com/v1"
-        case .openRouter: "https://openrouter.ai/api/v1"
-        case .groq: "https://api.groq.com/openai/v1"
-        case .ollama: "http://localhost:11434/v1"
-        case .lmStudio: "http://localhost:1234/v1"
-        case .chatGPT, .openCode, .custom: nil
-        }
-    }
-
-    /// The new connection, ready for its editor (which asks for the key or the sign-in).
+    /// The new connection, ready for its editor (which asks for the key: presets never carry one).
     func makeConnection() -> Connection {
-        switch self {
-        case .chatGPT: return .chatGPT(name: String(localized: "ChatGPT"))
-        case .openCode: return .openCode(name: String(localized: "OpenCode"))
-        case .custom: return Connection(name: String(localized: "New connection"), baseURL: "https://")
-        default: return Connection(name: title, baseURL: baseURL ?? "https://")
-        }
+        var c = Connection(name: name, baseURL: url, supportsResumable: resumable ?? false)
+        c.defaultChatAPI = api == "responses" ? .responses : nil // "openai" is Automatic, as in `AddConnectionLink`
+        c.imagesByDefault = images ?? false
+        c.effortByDefault = effort ?? false
+        return c
     }
 }
 

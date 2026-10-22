@@ -259,15 +259,21 @@ struct AddConnectionLinkTests {
         #expect(parse("https://add-connection?url=https://x.example/v1") == .failure(.notAnAddLink))
     }
 
-    @Test func presetsPrefillTheEditors() {
-        #expect(ConnectionPreset.ollama.makeConnection().baseURL == "http://localhost:11434/v1")
-        #expect(ConnectionPreset.lmStudio.makeConnection().baseURL == "http://localhost:1234/v1")
-        #expect(ConnectionPreset.openAI.makeConnection().baseURL == "https://api.openai.com/v1")
+    @Test func presetsPrefillTheEditors() throws {
+        // The OpenAI-compatible services are the presets of the built-in connections package.
+        let presets = try #require(PackageStore.bundled().first { $0.manifest.id == BuiltInPackages.connections }).manifest.connections
+        #expect(presets.map(\.name) == ["OpenAI", "OpenRouter", "Groq", "Ollama", "LM Studio"])
+        let byName = Dictionary(uniqueKeysWithValues: presets.map { ($0.name, $0) })
+        #expect(byName["Ollama"]?.makeConnection().baseURL == "http://localhost:11434/v1")
+        #expect(byName["LM Studio"]?.makeConnection().baseURL == "http://localhost:1234/v1")
+        #expect(byName["OpenAI"]?.makeConnection().baseURL == "https://api.openai.com/v1")
+        #expect(byName["Ollama"]?.isLocal == true && byName["OpenAI"]?.isLocal == false)
+        #expect(byName["Groq"]?.subtitleText == "API key from console.groq.com")
+        #expect(byName["Ollama"]?.subtitleText.contains("11434") == true)
         #expect(ConnectionPreset.chatGPT.makeConnection().isChatGPT)
         #expect(ConnectionPreset.openCode.makeConnection().isOpenCode)
         #expect(ConnectionPreset.custom.makeConnection().baseURL == "https://")
-        for preset in ConnectionPreset.allCases {
-            let c = preset.makeConnection()
+        for c in ConnectionPreset.allCases.map({ $0.makeConnection() }) + presets.map({ $0.makeConnection() }) {
             #expect(!c.supportsResumable && !c.imagesByDefault && !c.effortByDefault)
             #expect(c.models.isEmpty)
         }

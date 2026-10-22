@@ -88,6 +88,10 @@ struct InstalledPackage: Sendable, Identifiable {
     var exclusiveGroups: Set<ToolGroup> { Set(manifest.exclusiveGroups.compactMap(ToolGroup.init(rawValue:))) }
 
     var icon: Data? { bundle.files["icon.png"] }
+
+    /// Whether it adds anything to a chat (tools, skills or a prompt): only those have a switch in the "+" menu. A
+    /// package of connection presets or commands doesn't.
+    var addsToChats: Bool { !tools.isEmpty || !bundle.skills.isEmpty || !(bundle.promptText ?? "").isEmpty }
 }
 
 /// The packages on this device: the built-in ones (`Resources/Packages`), then those the user installed
@@ -133,10 +137,21 @@ final class PackageStore: @unchecked Sendable {
         return folders.sorted { $0.lastPathComponent < $1.lastPathComponent }.compactMap { try? PackageBundle.load(folder: $0) }
     }
 
-    /// Built-in packages start off, except the Korea pack on a device set to Korea: its skills are about Korean
-    /// sites. Read when a new chat takes its defaults, so a chat that has sent never changes with it.
+    /// Whether a built-in package is on in new chats until the user says otherwise in Settings › Packages: Wikipedia
+    /// when its old site plugin is on (`AppSettings.enabledPlugins`), the Korea pack on a device set to Korea (its
+    /// skills are about Korean sites). Read when a new chat takes its defaults, so a chat that has sent never changes
+    /// with it. Off under unit tests, so a test's requests don't depend on the simulator's region.
     @Sendable static func builtInDefault(_ manifest: PackageManifest) -> Bool {
-        manifest.id == BuiltInPackages.korea && Locale.current.region?.identifier == "KR"
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return false }
+        return builtInDefault(manifest, region: Locale.current.region?.identifier, enabledPlugins: AppSettings.currentEnabledPlugins)
+    }
+
+    static func builtInDefault(_ manifest: PackageManifest, region: String?, enabledPlugins: Set<String>) -> Bool {
+        switch manifest.id {
+        case BuiltInPackages.wikipedia: enabledPlugins.contains("wikipedia_summary")
+        case BuiltInPackages.korea: region == "KR"
+        default: false
+        }
     }
 
     // MARK: Loading
@@ -145,7 +160,7 @@ final class PackageStore: @unchecked Sendable {
         guard !loaded else { return }
         loaded = true
         guard let directory, let data = try? Data(contentsOf: directory.appendingPathComponent("registry.json")),
-              let saved = try? JSONDecoder().decode(Registry.self, from: data) else { return }
+              let saved = try? Self.decoder.decode(Registry.self, from: data) else { return }
         registry = saved
         for record in saved.packages {
             if let bundle = try? PackageBundle.load(folder: folder(record.id, record.version)) { bundles[record.id] = bundle }
@@ -153,6 +168,12 @@ final class PackageStore: @unchecked Sendable {
         // A package whose files went missing or no longer verify is dropped from the registry.
         registry.packages.removeAll { bundles[$0.id] == nil }
     }
+
+    private static let decoder: JSONDecoder = {
+        let d = JSONDecoder()
+        d.dateDecodingStrategy = .iso8601
+        return d
+    }()
 
     private func folder(_ id: String, _ version: String) -> URL {
         (directory ?? FileManager.default.temporaryDirectory).appendingPathComponent(id, isDirectory: true)
@@ -191,7 +212,7 @@ final class PackageStore: @unchecked Sendable {
     func package(namespace: String) -> InstalledPackage? { all.first { $0.namespace == namespace } }
 
     /// The packages a new chat turns on.
-    var defaultOn: Set<String> { Set(all.filter(\.record.onInNewChats).map(\.id)) }
+    var defaultOn: Set<String> { Set(all.filter { $0.record.onInNewChats && $0.addsToChats }.map(\.id)) }
 
     /// The site plugins left out of new chats' plugin lists, because the built-in package that replaced them is here.
     var replacedPlugins: Set<String> {

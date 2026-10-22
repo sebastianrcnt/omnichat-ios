@@ -99,7 +99,7 @@ final class Conversation {
     /// The groups among the switches. Setting them keeps the package switches (`packageSwitches`).
     var toolSwitches: Set<ToolGroup>? {
         get { toolSwitchesRaw.map(ToolGroup.decode) }
-        set { toolSwitchesRaw = newValue.map { ToolSwitch.encode(groups: $0, packages: packageSwitches ?? []) } }
+        set { toolSwitchesRaw = newValue.map { ToolSwitch.encode(groups: $0, packages: packageSwitches) } }
     }
 
     /// The packages switched on in the chat (`pkg:<id>` entries of the same field): nil while it follows the defaults.

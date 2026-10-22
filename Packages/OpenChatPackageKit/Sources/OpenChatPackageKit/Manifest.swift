@@ -410,7 +410,8 @@ extension PackageManifest {
         for (i, tool) in (raw["contents"]?["tools"]?.arrayValue ?? []).enumerated() {
             let path = "contents.tools[\(i)]"
             check(tool, ["name", "kind", "title", "description", "parameters", "request", "response", "readOnly", "confirm",
-                         "timeout", "display", "onDevice", "schemaVersion", "optional", "script"], path)
+                         "timeout", "display", "onDevice", "schemaVersion", "optional", "script", "page"], path)
+            check(tool["page"], ["url", "settle", "waitFor"], path + ".page")
             check(tool["request"], ["method", "url", "query", "headers", "auth", "body"], path + ".request")
             check(tool["response"], ["each", "fields", "sources", "maxCharacters"], path + ".response")
         }

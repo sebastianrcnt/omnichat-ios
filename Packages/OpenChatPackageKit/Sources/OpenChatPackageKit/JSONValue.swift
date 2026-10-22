@@ -171,3 +171,13 @@ extension JSONValue {
         out += "\""
     }
 }
+
+extension JSONValue: ExpressibleByStringLiteral, ExpressibleByIntegerLiteral, ExpressibleByBooleanLiteral, ExpressibleByFloatLiteral,
+    ExpressibleByArrayLiteral, ExpressibleByDictionaryLiteral {
+    public init(stringLiteral value: String) { self = .string(value) }
+    public init(integerLiteral value: Int64) { self = .int(value) }
+    public init(booleanLiteral value: Bool) { self = .bool(value) }
+    public init(floatLiteral value: Double) { self = .double(value) }
+    public init(arrayLiteral elements: JSONValue...) { self = .array(elements) }
+    public init(dictionaryLiteral elements: (String, JSONValue)...) { self = .object(Dictionary(elements, uniquingKeysWith: { $1 })) }
+}

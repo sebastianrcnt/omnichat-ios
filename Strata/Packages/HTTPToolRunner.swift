@@ -102,6 +102,8 @@ struct HTTPToolRunner: Sendable {
         } catch let error as URLError where error.code == .timedOut {
             return fail("\(built.host) did not answer within \(tool.timeoutSeconds) seconds.")
         } catch {
+            // A refused redirect can end the task with an error instead of the 3xx response.
+            if let host = blockedHost.get() { return fail(Self.blocked(host: host, package: package.name)) }
             return fail("The request to \(built.host) failed: \(error.localizedDescription)")
         }
         guard let http = response as? HTTPURLResponse else { return fail("The request to \(built.host) failed: no HTTP response.") }
