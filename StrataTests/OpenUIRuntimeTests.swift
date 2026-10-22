@@ -258,3 +258,19 @@ struct OpenUITextTests {
         #expect(!OUITree.isBlank(try #require(OUIRendered.make(source: "root = Card([a])\na = Separator()").root)))
     }
 }
+
+/// From the audit: an `openui` ImageBlock fetched any http(s) URL, the device itself and the LAN included, just by
+/// being shown.
+struct OpenUIImageTests {
+    @Test func imagesOnlyComeFromPublicHosts() async {
+        await #expect(throws: URLGuardError.blockedHost("127.0.0.1")) {
+            try await OUIImageLoader.data(URL(string: "http://127.0.0.1:8080/action")!, resolver: PackageTestResolver(address: "127.0.0.1"))
+        }
+        await #expect(throws: URLGuardError.blockedHost("nas.example.com")) {
+            try await OUIImageLoader.data(URL(string: "https://nas.example.com/a.png")!, resolver: PackageTestResolver(address: "192.168.1.5"))
+        }
+        await #expect(throws: URLGuardError.blockedHost("printer.local")) {
+            try await OUIImageLoader.data(URL(string: "http://printer.local/a.png")!, resolver: PackageTestResolver())
+        }
+    }
+}
