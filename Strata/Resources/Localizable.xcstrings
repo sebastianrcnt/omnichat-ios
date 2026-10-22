@@ -898,9 +898,7 @@
     "OpenChat isn't allowed to add photos. You can allow it in Settings.": {},
     "OpenChat stops at a robot check (CAPTCHA) and asks you to solve it on the page; it never solves one itself. With this off, a page that shows one isn't read.": {},
     "OpenChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.": {},
-    "OpenChat talks to the AI service you choose: OpenAI, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.": {
-      "extractionState": "stale"
-    },
+    "OpenChat talks to the AI service you choose: OpenAI, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.": {},
     "OpenChat waits while you use the page. Tap Done to hand it back.": {},
     "OpenCode": {},
     "OpenCode Go": {},
@@ -1364,9 +1362,7 @@
     "The language the microphone in the composer listens for, sent as a hint. The recording is sent to the connection's /audio/transcriptions when you tap Done, and the words appear then. Works with OpenAI (whisper-1, gpt-4o-transcribe), Groq (whisper-large-v3) and local whisper servers; add one under Connections if it isn't there.": {},
     "The language the microphone in the composer listens for. Speech in another language comes out garbled. Apple on-device shows the words as you speak; nothing leaves the device.": {},
     "The last %lld request bodies, kept compressed in memory.": {},
-    "The link asks for Anthropic's Messages API, which OpenChat can't use with a server yet.": {
-      "extractionState": "stale"
-    },
+    "The link asks for Anthropic's Messages API, which OpenChat can't use with a server yet.": {},
     "The link asks for an API OpenChat doesn't know (%@).": {},
     "The link doesn't say which server to add.": {},
     "The link included an API key. It was ignored: enter the key yourself.": {},
