@@ -117,6 +117,9 @@ final class AppSettings {
     var recentModels: [String] { didSet { defaults.set(recentModels, forKey: "recentModels") } }
     /// A notification when a reply finishes while the app is in the background (`ReplyBackgroundExecution` reads the key).
     var notifyReplies: Bool { didSet { defaults.set(notifyReplies, forKey: "notifyReplies") } }
+    /// A Live Activity for running replies on the Lock Screen and in the Dynamic Island (`ReplyLiveActivities`). On by default.
+    var liveActivities: Bool { didSet { defaults.set(liveActivities, forKey: Self.liveActivitiesKey) } }
+    static let liveActivitiesKey = "liveActivities"
     /// How many lines a thought line may take (1...4, default 2).
     var thinkingLines: Int { didSet { defaults.set(thinkingLines, forKey: "thinkingLines") } }
     /// Translate English thinking into Korean on the device (`ThoughtTranslator`). Off by default.
@@ -187,6 +190,7 @@ final class AppSettings {
         thinkingLines = Self.thinkingLineOptions.contains(lines) ? lines : Self.defaultThinkingLines
         translateThinking = defaults.bool(forKey: "translateThinking")
         notifyReplies = defaults.object(forKey: "notifyReplies") as? Bool ?? true
+        liveActivities = defaults.object(forKey: Self.liveActivitiesKey) as? Bool ?? true
         webSearchEnabled = defaults.object(forKey: Self.webSearchEnabledKey) == nil ? true : defaults.bool(forKey: Self.webSearchEnabledKey)
         pythonEnabled = defaults.object(forKey: PythonSettings.enabledKey) == nil ? true : defaults.bool(forKey: PythonSettings.enabledKey)
         let limit = defaults.integer(forKey: PythonSettings.timeLimitKey)
