@@ -105,6 +105,12 @@ final class ChatController {
     var backgroundStateDescription: String { background.stateDescription }
     /// Runs holding the background lease (tests).
     var backgroundHolderCount: Int { background.holderCount }
+    /// The running replies in words, for the system's task list while the continued task holds the app
+    /// (`ReplyLiveActivities`).
+    var backgroundStatus: (title: String, subtitle: String)? {
+        get { background.liveStatus }
+        set { background.liveStatus = newValue }
+    }
     /// The running chats' ids, for the diagnostics panel.
     var activeTurnsDescription: String? {
         runs.isEmpty ? nil : runs.keys.map(\.uuidString).sorted().joined(separator: ",")

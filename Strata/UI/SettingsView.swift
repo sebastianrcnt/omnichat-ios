@@ -869,6 +869,11 @@ private struct ChatSettingsView: View {
                     SettingsToggleRow(title: "Notify when a reply finishes",
                                       subtitle: "When OpenChat is in the background: the chat's title and the start of the answer.",
                                       isOn: $settings.notifyReplies)
+                    #if os(iOS)
+                    SettingsToggleRow(title: "Live Activities",
+                                      subtitle: "A running reply on the Lock Screen and in the Dynamic Island when iOS isn't showing its own progress for it.",
+                                      isOn: $settings.liveActivities)
+                    #endif
                     SettingsToggleRow(title: "Generate chat titles",
                                       subtitle: "After the first answer, ask the model for a short title.",
                                       isOn: $settings.generateTitles)
