@@ -18,7 +18,6 @@ struct SettingsView: View {
 
     @State private var path: [UUID] = []
     @State private var showDiagnostics = false
-    @State private var showSoundTest = false
     @State private var showLicenses = false
     @State private var showAppearance = false
     @State private var showTools = false
@@ -86,9 +85,6 @@ struct SettingsView: View {
                         SettingsToggleRow(title: "Developer mode", isOn: $settings.developerMode)
                         if settings.developerMode {
                             SettingsRow(systemImage: "gauge.with.dots.needle.50percent", title: "Diagnostics", showsChevron: true) { showDiagnostics = true }
-                            #if os(iOS)
-                            SettingsRow(systemImage: "speaker.wave.2", title: "Background sound test", showsChevron: true) { showSoundTest = true }
-                            #endif
                         }
                     }
                 }
@@ -104,9 +100,6 @@ struct SettingsView: View {
             #endif
             .navigationDestination(for: UUID.self) { id in ConnectionDestination(connectionID: id, path: $path) }
             .navigationDestination(isPresented: $showDiagnostics) { AppDiagnosticsView() }
-            #if os(iOS)
-            .navigationDestination(isPresented: $showSoundTest) { BackgroundSoundTestView() }
-            #endif
             .navigationDestination(isPresented: $showLicenses) { LicensesView() }
             .onChange(of: SettingsRoute.shared.connection, initial: true) { _, id in
                 guard let id else { return }
@@ -126,9 +119,6 @@ struct SettingsView: View {
         #if DEBUG
         .task {
             if DebugHooks.openSheet == "diagnostics" { settings.developerMode = true; showDiagnostics = true }
-            #if os(iOS)
-            if DebugHooks.openSheet == "bgsoundtest" { settings.developerMode = true; showSoundTest = true }
-            #endif
             if DebugHooks.openSheet == "licenses" { showLicenses = true }
             if DebugHooks.openSheet == "health" { showHealth = true }
             if DebugHooks.openSheet == "icloud" { showICloud = true }
@@ -777,11 +767,6 @@ private struct ToolSettingsView: View {
                     .padding(.vertical, DS.Spacing.sm)
                 }
 
-                #if os(iOS)
-                GroupedSection(footer: "With this off, web searches and browsing can stop while OpenChat is in the background. The sound plays only while the model is using the web and OpenChat is not on screen, even in silent mode, and may pause other audio until it ends.") {
-                    SettingsToggleRow(title: "Play a sound while browsing in the background", isOn: $settings.backgroundLoadingSound)
-                }
-                #endif
 
                 GroupedSection(header: "Plugins", footer: "Site plugins the model can run with run_plugin. A plugin that is on is listed in the system prompt.") {
                     if PluginRegistry.bundled.plugins.isEmpty {

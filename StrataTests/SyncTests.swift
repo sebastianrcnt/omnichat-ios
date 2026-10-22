@@ -273,7 +273,7 @@ struct SettingsSyncTests {
         #expect(cloud.object(forKey: "settings.healthTool") == nil)
         #expect(SettingsSync.push(from: d, to: cloud).isEmpty) // nothing changed
         for key in ["textSizeStep", "useSystemTextSize", "developerMode", "notifyReplies", AppSettings.liveActivitiesKey,
-                    AppSettings.healthEnabledKey, BackgroundLoadingSound.enabledKey, DictationSettings.engineKey, "lastModelID",
+                    AppSettings.healthEnabledKey, DictationSettings.engineKey, "lastModelID",
                     StrataStore.syncEnabledKey, KeychainSync.enabledKey, SettingsSync.enabledKey] {
             #expect(!SettingsSync.keys.contains(key), "\(key) belongs to one device")
         }

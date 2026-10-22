@@ -309,8 +309,8 @@ enum ToolNames {
     /// The index tools (`BrowserAction`): one card each, with the page live while the reply works.
     static func isBrowserAction(_ name: String) -> Bool { BrowserAction.tools.contains(name) }
 
-    /// Tools that load or script pages in hidden web views, which iOS stops while the app is in the background unless
-    /// they play sound (`BackgroundLoadingSound`). `browser_show` puts its page on screen, so it is not one.
+    /// Tools that use hidden web pages, which may pause while iOS suspends the app.
+    /// `browser_show` puts its page on screen, so it is not one.
     static func usesWebPage(_ name: String) -> Bool {
         [webSearch, webFetch, runPlugin, browserOpen, browserEval, runSkillScript].contains(name) || isBrowserAction(name)
     }

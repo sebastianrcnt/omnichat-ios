@@ -161,9 +161,6 @@ final class AppSettings {
     var interactiveViewsEnabled: Bool { didSet { defaults.set(interactiveViewsEnabled, forKey: Self.interactiveViewsEnabledKey) } }
     /// `health_query` in new chats (off by default: a chat turns Apple Health on from the + menu). iPhone only.
     var healthEnabled: Bool { didSet { defaults.set(healthEnabled, forKey: Self.healthEnabledKey) } }
-    /// A soft sound while web tools run in the background, which keeps their pages running (`BackgroundLoadingSound`
-    /// reads the key). On by default.
-    var backgroundLoadingSound: Bool { didSet { defaults.set(backgroundLoadingSound, forKey: BackgroundLoadingSound.enabledKey) } }
     /// A page showing a robot check is handed to the user (`RobotCheck.asksUser` reads the key). On by default.
     var askRobotChecks: Bool { didSet { defaults.set(askRobotChecks, forKey: RobotCheck.askKey) } }
 
@@ -209,8 +206,6 @@ final class AppSettings {
         interactiveViewsEnabled = defaults.object(forKey: Self.interactiveViewsEnabledKey) == nil
             ? true : defaults.bool(forKey: Self.interactiveViewsEnabledKey)
         healthEnabled = defaults.bool(forKey: Self.healthEnabledKey)
-        backgroundLoadingSound = defaults.object(forKey: BackgroundLoadingSound.enabledKey) == nil
-            ? true : defaults.bool(forKey: BackgroundLoadingSound.enabledKey)
         askRobotChecks = defaults.object(forKey: RobotCheck.askKey) == nil ? true : defaults.bool(forKey: RobotCheck.askKey)
         // `bool` and `integer` also read launch-argument strings ("NO", "0"), which `as? Bool` would not.
         useSystemTextSize = defaults.object(forKey: "useSystemTextSize") == nil ? true : defaults.bool(forKey: "useSystemTextSize")
@@ -232,7 +227,7 @@ final class AppSettings {
         take(\.dictationLanguage); take(\.dictationEngine); take(\.dictationConnectionID); take(\.dictationModel)
         take(\.userPreferences); take(\.enabledPlugins); take(\.webSearchEnabled); take(\.pythonEnabled); take(\.pythonTimeLimit)
         take(\.browserEnabled); take(\.locationEnabled); take(\.sshEnabled); take(\.videoTranscriptsEnabled)
-        take(\.interactiveViewsEnabled); take(\.healthEnabled); take(\.backgroundLoadingSound); take(\.askRobotChecks)
+        take(\.interactiveViewsEnabled); take(\.healthEnabled); take(\.askRobotChecks)
     }
 
     /// Applied at the root; nil leaves Dynamic Type to the system (accessibility sizes included).

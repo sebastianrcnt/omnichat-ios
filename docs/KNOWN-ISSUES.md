@@ -70,3 +70,8 @@ Everything else those reviews reported was fixed in that commit. Each entry: whe
   checkpoint intervals (35F9.1). The share extension only reads App Group timestamps (C617.1); it does not use
   UserDefaults. App Group sharing is file-based, so 1C8F.1 is not declared. No disk-capacity APIs are used. The widget's
   sources use none of the required-reason APIs, so it needs no manifest. No tracking or collected data is declared.
+- **Background browsing pauses normally.** The audio keep-alive and `audio` background mode have been removed. New
+  hidden-page calls wait for foreground. A read-only call that fails across backgrounding retries once on return;
+  scripts/plugins are never replayed automatically (they may already have clicked or posted). Existing WebKit load
+  and script deadlines return a readable error if suspension/termination interrupts them. Continued-processing
+  execution remains for eligible reply work, not as a guarantee that WebKit will keep running.

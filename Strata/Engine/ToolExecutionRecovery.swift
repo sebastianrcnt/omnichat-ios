@@ -7,6 +7,10 @@ import UIKit
 /// even when the app holds a continued-processing lease. Don't persist that
 /// background-only failure as a tool result: retry on the next active scene.
 enum ToolExecutionRecovery {
+    static func waitsForForeground(_ name: String, hasContinuedLease: Bool) -> Bool {
+        ToolNames.usesWebPage(name) || !hasContinuedLease
+    }
+
     private final class Transitions: @unchecked Sendable {
         let lock = NSLock()
         private var backgrounded = false
@@ -43,27 +47,22 @@ enum ToolExecutionRecovery {
         return await tools.execute(name: call.name, arguments: call.arguments)
         #else
         guard tools.usesWebKit else { return await tools.execute(name: call.name, arguments: call.arguments) }
-        if !ReplyBackgroundExecution.hasContinuedLease { try await waitForForeground() }
+        // A continued-processing lease does not keep hidden WebContent processes runnable.
+        // Start page work in front; in-flight read-only failures are retried there too.
+        if waitsForForeground(call.name, hasContinuedLease: ReplyBackgroundExecution.hasContinuedLease) { try await waitForForeground() }
         let transitions = Transitions()
         if !AppLifecycle.isActive { transitions.mark() }
         let observer = NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification,
                                                               object: nil, queue: nil) { _ in transitions.mark() }
         defer { NotificationCenter.default.removeObserver(observer) }
-        let output = await executeAudibly(call, using: tools)
+        let output = await tools.execute(name: call.name, arguments: call.arguments)
         try Task.checkCancellation()
         if output.isError && transitions.wasBackgrounded && ToolNames.isSafeToRetry(call.name) {
             try await waitForForeground()
-            return await executeAudibly(call, using: tools)
+            return await tools.execute(name: call.name, arguments: call.arguments)
         }
         return output
         #endif
     }
 
-    /// Runs a call; one that works in hidden web views plays the background loading sound meanwhile, if the app is
-    /// (or goes) in the background.
-    @MainActor
-    private static func executeAudibly(_ call: ToolCall, using tools: any ToolExecuting) async -> ToolOutput {
-        guard ToolNames.usesWebPage(call.name) else { return await tools.execute(name: call.name, arguments: call.arguments) }
-        return await BackgroundLoadingSound.shared.duringWebWork { await tools.execute(name: call.name, arguments: call.arguments) }
-    }
 }

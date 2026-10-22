@@ -23,7 +23,6 @@ final class WebViewPool {
         if let i = idle.lastIndex(where: { $0.view.injectsReader == reader }) {
             let view = idle.remove(at: i).view
             view.reset(resolver: resolver, guardNavigations: guardNavigations)
-            BackgroundLoadingSound.shared.register(view)
             return view
         }
         return HiddenWebView(guardNavigations: guardNavigations, resolver: resolver, injectsReader: reader)
@@ -36,7 +35,6 @@ final class WebViewPool {
         if !reusable && keep && view.currentURL?.scheme?.hasPrefix("http") == true {
             view.abandonLoad()
             view.onProgress = nil
-            BackgroundLoadingSound.shared.unregister(view) // nothing runs in it now
             KeptPages.shared.keep(view, callID: ToolContext.callID)
             return
         }
@@ -46,7 +44,6 @@ final class WebViewPool {
             view.dispose()
             return
         }
-        BackgroundLoadingSound.shared.unregister(view) // an idle view's process may sleep
         idle.append((view, .now))
         scheduleSweep()
     }
