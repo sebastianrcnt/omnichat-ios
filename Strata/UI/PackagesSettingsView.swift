@@ -334,6 +334,7 @@ struct PackageReviewSheet: View {
     init(candidate: PackageCandidate) {
         self.candidate = candidate
         _onInNewChats = State(initialValue: candidate.onInNewChatsByDefault)
+        _trustKey = State(initialValue: !candidate.keyDeclined)
     }
 
     private var title: LocalizedStringKey {
