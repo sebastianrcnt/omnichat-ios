@@ -9,7 +9,7 @@ final class PackageSecretStore: @unchecked Sendable {
 
     private let vault: any SSHVault
 
-    init(vault: any SSHVault = KeychainSSHVault(service: "cc.coolservices.strata.package")) {
+    init(vault: any SSHVault = KeychainSSHVault(items: KeychainItems(service: "cc.coolservices.strata.package"))) {
         self.vault = vault
     }
 

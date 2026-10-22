@@ -20,6 +20,7 @@ enum KeychainSync {
         "cc.coolservices.strata.opencode.session",
         "cc.coolservices.strata.opencode.apikey",
         "cc.coolservices.strata.ssh",
+        "cc.coolservices.strata.package", // package secrets and "Always" approvals (`PackageSecretStore`)
         headersService,
     ]
 
