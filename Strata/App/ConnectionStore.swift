@@ -137,6 +137,7 @@ final class ConnectionStore {
     /// - Parameter sessionID: the conversation the requests belong to; OpenCode routes and caches by it.
     func endpoint(connectionID: UUID?, modelID: String?, sessionID: String? = nil) -> Endpoint? {
         guard let conn = connection(connectionID), let modelID else { return nil }
+        if conn.isAppleOnDevice { return OnDevice.endpoint(conn) }
         let model = conn.models.first { $0.id == modelID } ?? conn.defaultModel(id: modelID, fetchedContextLength: nil)
         if conn.isOpenCode {
             // The token comes from `OpenCodeAuth` per request. Go asks for a named client and a stable session id.
@@ -242,6 +243,7 @@ final class ConnectionStore {
     @discardableResult
     func refreshModels(for id: UUID) async throws -> Int {
         if connection(id)?.isOpenCode == true { return try await refreshOpenCodeModels(for: id).count }
+        if connection(id)?.isAppleOnDevice == true { refreshOnDeviceModels(); return 1 }
         return try await tracked(id) { (try await fetchModels(for: id), 0) }.count
     }
 

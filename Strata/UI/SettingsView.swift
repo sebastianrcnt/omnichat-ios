@@ -124,6 +124,7 @@ struct SettingsView: View {
 
     /// The base URL, or for a ChatGPT account the signed-in email, or for an OpenCode account its plan.
     private func subtitle(for c: Connection) -> String {
+        if c.isAppleOnDevice { return String(localized: "On this device · \(OnDevice.system.availability.shortStatus)") }
         if c.isOpenCode {
             guard connections.isOpenCodeSignedIn(c.id) else { return String(localized: "OpenCode · Signed out") }
             return "OpenCode · \((c.openCodeGateway ?? .go).title)"
@@ -871,6 +872,11 @@ private struct ChatSettingsView: View {
                     SettingsToggleRow(title: "Generate chat titles",
                                       subtitle: "After the first answer, ask the model for a short title.",
                                       isOn: $settings.generateTitles)
+                    if settings.generateTitles, OnDevice.system.availability.isSupported {
+                        SettingsToggleRow(title: "Name chats on device",
+                                          subtitle: "Ask Apple's on-device model for titles instead of the chat's model. Free and private; titles may be simpler.",
+                                          isOn: $settings.nameChatsOnDevice)
+                    }
                 }
 
                 DictationSettingsSection()
