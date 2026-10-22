@@ -35,11 +35,11 @@ OmniChat sends data directly from your device to services you set up or ask it t
 - **Web tools.** When the assistant searches the web or opens a page, your device requests the search results (from
   Bing, DuckDuckGo or Naver) and the pages directly. Those sites see your IP address and the search or page, as when you
   browse.
-- **Python.** The first time code needs a Python package, the package files are downloaded from the jsDelivr CDN.
+- **Python.** Python code runs on your device with the packages built into the app; nothing is downloaded.
 - **SSH.** Commands you approve run on the servers you add, over SSH.
 - **Location.** Only when you ask the assistant to find places near you and allow location access, your approximate
   location is given to the assistant (and so to the chat's model connection) to answer.
-- **Health.** Only if you turn on Health in Settings and allow the data types, the assistant can read the health data you
+- **Health** (not in the current version). Only if you turn on Health in Settings and allow the data types, the assistant can read the health data you
   allowed, when you ask about your health. The data is sent to the chat's model connection to answer, and you can limit
   it to on-device or local-network models. Health data is never synced to iCloud, never used for advertising and never
   sold. OmniChat never writes to Health.
