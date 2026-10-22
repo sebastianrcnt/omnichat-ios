@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import WebKit
 @testable import Strata
 
 @MainActor
@@ -85,6 +86,43 @@ struct BrowserTextTests {
         let blank = try #require(BrowserSettle.Probe.decode(#"{"href":"about:blank","ready":"complete","domQuiet":900,"netQuiet":900,"text":10}"#))
         #expect(!blank.isSettled && !blank.committed)
         #expect(BrowserSettle.Probe.decode(FakeBrowserPage.settled)?.isSettled == true)
+    }
+}
+
+/// From the audit: pages and artifacts reached `http://nas/…` and other LAN names, which the rules didn't list, and
+/// artifact iframes skipped the address check.
+@MainActor
+struct LocalNetworkRuleTests {
+    /// Whether any pattern matches, read the way WebKit's content blockers read them (case-insensitive).
+    private func blocked(_ url: String, by patterns: [String]) -> Bool {
+        patterns.contains { url.range(of: $0, options: [.regularExpression, .caseInsensitive]) != nil }
+    }
+
+    @Test func localNamesAndAddressesAreBlocked() {
+        let local = ["http://nas/admin", "http://nas./", "https://user@nas:8443/", "http://router.lan/", "https://db.internal/",
+                     "http://printer.home.arpa/", "http://wiki.corp/", "http://x.intranet:8080/", "http://tv.local./",
+                     "http://192.0.0.8/", "http://198.18.0.1/", "http://239.255.255.250/", "http://127.0.0.1:8765/",
+                     "ws://10.0.0.2/", "http://[::1]/"]
+        for url in local { #expect(blocked(url, by: LocalNetworkRules.patterns), "\(url)") }
+        let web = ["https://cdn.jsdelivr.net/npm/chart.js@4.4.0", "https://example.com:8443/a", "https://user@example.com/",
+                   "https://localhost.example.com/", "https://8.8.8.8/", "https://lan.example.org/"]
+        for url in web { #expect(!blocked(url, by: LocalNetworkRules.patterns), "\(url)") }
+        // Artifacts get no plain HTTP or WebSocket at all.
+        #expect(blocked("http://example.com/logo.png", by: LocalNetworkRules.artifactPatterns))
+        #expect(blocked("ws://example.com/feed", by: LocalNetworkRules.artifactPatterns))
+        #expect(!blocked("https://cdn.jsdelivr.net/npm/d3@7", by: LocalNetworkRules.artifactPatterns))
+    }
+
+    @Test func theRulesCompile() async {
+        #expect(await LocalNetworkRules.rules() != nil)
+        #expect(await LocalNetworkRules.artifactRules() != nil)
+    }
+
+    @Test func artifactSubframesNeedAPublicAddress() async {
+        let url = URL(string: "https://nas.example.com/")!
+        #expect(await ArtifactNavigation.subframePolicy(url, resolver: PackageTestResolver(address: "192.168.1.5")) == .cancel)
+        #expect(await ArtifactNavigation.subframePolicy(url, resolver: PackageTestResolver()) == .allow)
+        #expect(await ArtifactNavigation.subframePolicy(URL(string: "file:///etc/hosts")!, resolver: PackageTestResolver()) == .cancel)
     }
 }
 

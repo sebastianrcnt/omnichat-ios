@@ -207,9 +207,15 @@ final class SSHStore: Sendable {
         guard (1...65535).contains(s.port) else { throw SSHStoreError.invalid("The port must be between 1 and 65535.") }
         s.jump = s.jump.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         guard !s.jump.contains(s.name) else { throw SSHStoreError.invalid("A server can't be its own jump host.") }
-        // "Always allow" was given for where the name led: a new address, user or route asks again.
-        if let old = self.server(named: s.name), old.host != s.host || old.port != s.port || old.user != s.user || old.jump != s.jump {
+        // "Always allow" was given for where the name led: a new address, user or route asks again. That holds for
+        // servers that use this one as a jump host too, and for a new server whose name a jump list already gives
+        // (it may have read as a bare host name before).
+        let old = self.server(named: s.name)
+        if let old, old.host != s.host || old.port != s.port || old.user != s.user || old.jump != s.jump {
             try setAlwaysAllowed(false, target: s.name)
+            try forgetAlwaysThrough(s.name)
+        } else if old == nil {
+            try forgetAlwaysThrough(s.name)
         }
         try encode(s, Self.serverPrefix + s.name)
     }
@@ -217,6 +223,22 @@ final class SSHStore: Sendable {
     func deleteServer(_ name: String) throws {
         try encode(Optional<SSHServer>.none, Self.serverPrefix + name)
         try? setAlwaysAllowed(false, target: name)
+        try? forgetAlwaysThrough(name)
+    }
+
+    /// Drops "Always allow" for every saved server whose route goes through `name`, directly or through another jump
+    /// host that does: their approvals are keyed by their own names, but the route resolves the jump host's current
+    /// address.
+    private func forgetAlwaysThrough(_ name: String) throws {
+        let all = servers
+        var reached: Set<String> = [name]
+        var pending = [name]
+        while let jump = pending.popLast() {
+            for server in all where server.jump.contains(jump) && reached.insert(server.name).inserted {
+                if isAlwaysAllowed(server.name) { try setAlwaysAllowed(false, target: server.name) }
+                pending.append(server.name)
+            }
+        }
     }
 
     // MARK: Known hosts

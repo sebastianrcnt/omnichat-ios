@@ -73,14 +73,22 @@ enum PythonOutcome: Sendable, Equatable {
         }
     }
 
+    /// The page's elapsed time, kept between zero and a day (the limit when it isn't a finite number). The reply is
+    /// untrusted: the code can reach the worker's `postMessage` through Pyodide's `js` module and forge one, and an
+    /// unchecked `Int(1e100)` traps.
+    static func elapsed(_ ms: Double?, limit: Duration) -> Duration {
+        guard let ms, ms.isFinite else { return limit }
+        return .milliseconds(Int(min(max(ms, 0), 86_400_000).rounded()))
+    }
+
     init(reply: PythonReply, limits: PythonLimits) {
         switch reply.status {
         case "ok" where reply.phase == "run":
             self = .finished(output: reply.output ?? "", result: reply.result, error: reply.error,
                              loadErrors: reply.loadErrors ?? [])
         case "timeout":
-            let elapsed = Duration.milliseconds(Int((reply.elapsedMs ?? 0).rounded()))
-            self = .timedOut(phase: reply.phase, elapsed: elapsed, limit: reply.phase == "run" ? limits.run : limits.setup)
+            let limit = reply.phase == "run" ? limits.run : limits.setup
+            self = .timedOut(phase: reply.phase, elapsed: Self.elapsed(reply.elapsedMs, limit: limit), limit: limit)
         case "crashed":
             self = .outOfMemory(detail: reply.message)
         default:

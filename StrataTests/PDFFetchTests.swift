@@ -19,6 +19,24 @@ struct PDFFetchTests {
         #expect(page.title == "a.pdf")
     }
 
+    /// A small file can hold far more text than its size suggests (audit): extraction stops at a page and a character
+    /// cap, says so, and stops when the fetch is cancelled.
+    @Test func extractionIsCappedAndCancellable() async throws {
+        let data = try #require(Self.makePDF(pages: (1...6).map { "Page number \($0) text." }))
+        let url = URL(string: "https://example.com/a.pdf")!
+        let byPages = try PDFFetch.text(of: data, url: url, maxPages: 2)
+        #expect(byPages.text.contains("[Page 2]") && !byPages.text.contains("[Page 3]"))
+        #expect(byPages.text.contains("Stopped reading at page 3 of 6"))
+        let byCharacters = try PDFFetch.text(of: data, url: url, maxCharacters: 30)
+        #expect(byCharacters.text.contains("[Page 1]") && !byCharacters.text.contains("[Page 3]"))
+        #expect(byCharacters.text.contains("Stopped reading at page"))
+        let cancelled = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try PDFFetch.text(of: data, url: url)
+        }
+        await #expect(throws: CancellationError.self) { try await cancelled.value }
+    }
+
     @Test func notAPDFIsRefused() {
         #expect(!PDFFetch.isPDF(Data("<html></html>".utf8)))
     }

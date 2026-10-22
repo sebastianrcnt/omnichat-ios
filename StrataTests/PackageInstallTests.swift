@@ -71,6 +71,27 @@ struct PackageInstallTests {
         #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("com.example.demo").path))
     }
 
+    /// The audit's example: build metadata used to be dropped unchecked, so this version passed validation and named
+    /// a folder outside the package's, which `install` deleted before writing.
+    @Test func versionsCantLeaveThePackageFolder() throws {
+        let evil = "1.0.0+seed/../../../Artifacts"
+        #expect(SemVer(evil) == nil)
+        #expect(SemVer("1.0.0+build.5") != nil && SemVer("2.0.0-beta.1+exp.sha.5114f85") != nil)
+        for bad in ["1.0.0+", "1.0.0+a..b", "1.0.0+a\\b", "1.0.0-é", "1.0.0+ü", "1.0.0-a/b"] { #expect(SemVer(bad) == nil, "\(bad)") }
+        #expect { try TestPackages.bundle(TestPackages.manifest(version: evil)) } throws: {
+            ($0 as? LocalizedError)?.errorDescription?.contains("SemVer") == true
+        }
+        #expect(throws: PackageError.self) { try TestPackages.bundle(TestPackages.manifest(version: " 1.0.0")) }
+
+        // The store checks the folder on its own too.
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("pkgs-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let package = dir.appendingPathComponent("com.example.demo")
+        #expect(throws: PackageStore.Failure.unsafePath(evil)) { try PackageStore.contained(evil, in: package) }
+        for bad in ["..", ".", "", "a/b", "a\\b"] { #expect(throws: PackageStore.Failure.self) { try PackageStore.contained(bad, in: package) } }
+        #expect(try PackageStore.contained("1.0.0+seed", in: package).path == package.appendingPathComponent("1.0.0+seed").path)
+    }
+
     @Test func theSameKeyRuleGuardsUpdates() throws {
         let s = store()
         let i = installer(s)

@@ -275,6 +275,11 @@ struct PythonOutputFormatterTests {
                 == .finished(output: "hi\n", result: "3", error: nil, loadErrors: []))
         #expect(try outcome(#"{"phase":"run","status":"crashed","message":"RangeError"}"#) == .outOfMemory(detail: "RangeError"))
         #expect(try outcome(#"{"phase":"init","status":"error","message":"no wasm"}"#) == .failed("no wasm"))
+        // A reply the code forged through `js.postMessage` (audit): out-of-range numbers are clamped, not trapped on.
+        #expect(try outcome(#"{"id":3,"phase":"run","status":"timeout","elapsedMs":1e100}"#)
+                == .timedOut(phase: "run", elapsed: .seconds(86_400), limit: .seconds(30)))
+        #expect(try outcome(#"{"phase":"run","status":"timeout","elapsedMs":-5}"#) == .timedOut(phase: "run", elapsed: .zero, limit: .seconds(30)))
+        #expect(PythonOutcome.elapsed(.nan, limit: .seconds(30)) == .seconds(30))
         #expect(PythonOutcome.timedOut(phase: "run", elapsed: .zero, limit: .zero).lostState)
         #expect(!PythonOutcome.failed("x").lostState)
     }

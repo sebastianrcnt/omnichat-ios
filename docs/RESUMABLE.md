@@ -41,13 +41,23 @@ no credentials enter the checkpoint. The idempotency key and exact POST bytes
 also survive process death, including before the initial response headers.
 
 Before sending, checkpoint callbacks now throw on SwiftData save failure: a POST
-is not issued if its key/body cannot be saved. This is verified by a unit test.
+is not issued if its key/body cannot be saved, and a failed save at a tool-result
+boundary stops the turn too (`CheckpointPersister`). This is verified by unit tests.
 The controller saves a snapshot synchronously at each applied SSE boundary and
 after each completed tool result. Text, reasoning, sources and snapshot are
 saved together with `ModelContext.save`. A relaunched app restores the same
 assistant message, selects its conversation, replays only subsequent events,
 runs pending tools, skips already persisted tool results, and starts the next
 model round automatically. One active turn is supported, as before.
+
+A call of a tool that can act outside the app (`ToolNames.mayActOutside`:
+Python, page scripts and clicks, plugins, skill scripts, `ssh_exec`/`ssh_upload`,
+package tools that aren't read-only) is marked as started in the checkpoint, and
+saved, before it runs. If the app dies before its result is saved, recovery does
+not run it again: its result says it may or may not have taken effect, and the
+model is to check. A restored round that was submitted resumably is never resent
+as a plain request: with Resumable replies since turned off for the connection,
+it ends as an interrupted reply.
 
 Stop cancels the local turn, POSTs the server cancel endpoint, and retries that
 cancel independently of the stopped streaming UI. Pending cancellation is

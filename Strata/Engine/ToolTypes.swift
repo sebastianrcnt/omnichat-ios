@@ -306,6 +306,15 @@ enum ToolNames {
          videoTranscript, healthQuery].contains(name) || PackageToolNames.isReadOnly(name)
     }
 
+    /// Tools whose call can change something outside the app: send a request, run a command, click or type in a
+    /// signed-in page. A call of one that the app's end cut off is not run again when the turn is recovered (it may
+    /// have taken effect already); the model is told to check instead (`TurnRunner`).
+    static func mayActOutside(_ name: String) -> Bool {
+        [runPython, browserEval, browserClick, browserType, browserSelect, runPlugin, runSkillScript,
+         SSHToolNames.exec, SSHToolNames.upload].contains(name)
+            || (PackageToolNames.covers(name) && !PackageToolNames.isReadOnly(name))
+    }
+
     /// The index tools (`BrowserAction`): one card each, with the page live while the reply works.
     static func isBrowserAction(_ name: String) -> Bool { BrowserAction.tools.contains(name) }
 

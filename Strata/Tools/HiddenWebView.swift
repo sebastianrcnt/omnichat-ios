@@ -63,23 +63,39 @@ enum BrowsingData {
     }
 }
 
-/// Blocks requests to local-network and loopback address literals from inside pages: subframes, `fetch` and XHR from
-/// `browser_eval` or a page's own scripts, which `decidePolicyFor` (main-frame navigations) never sees. Host names are
-/// still checked by `URLGuard` on navigation. Content blockers have no alternation, so each range is its own rule.
+/// Blocks requests to local-network and loopback address literals, single-label hosts (`http://nas/`) and local name
+/// suffixes from inside pages: subframes, images, `fetch` and XHR from `browser_eval` or a page's own scripts, which
+/// `decidePolicyFor` (main-frame navigations) never sees. A public-looking name that resolves to a private address is
+/// not caught here (content rules see URLs, not addresses; docs/KNOWN-ISSUES.md). Content blockers have no
+/// alternation, so each range is its own rule.
 @MainActor
 enum LocalNetworkRules {
-    private static var list: WKContentRuleList?
-    private static var compiling: Task<WKContentRuleList?, Never>?
+    private static var lists: [String: WKContentRuleList] = [:]
+    private static var compiling: [String: Task<WKContentRuleList?, Never>] = [:]
+
+    private static let identifier = "strata.local-network"
+    private static let artifactIdentifier = "strata.artifact-network"
 
     static let patterns = [
-        #"^[a-z]+://localhost[:/]"#, #"^[a-z]+://[^/]*\.localhost[:/]"#, #"^[a-z]+://[^/]*\.local[:/]"#,
+        // Host names: localhost, one label (`nas`, `nas.`), and the suffixes `URLGuard.isBlockedHostname` refuses.
+        #"^[a-z]+://([^/@]*@)?[^./:@]+\.?[:/]"#,
+        #"^[a-z]+://localhost[:/]"#, #"^[a-z]+://[^/]*\.localhost\.?[:/]"#, #"^[a-z]+://[^/]*\.local\.?[:/]"#,
+        #"^[a-z]+://[^/]*\.internal\.?[:/]"#, #"^[a-z]+://[^/]*\.lan\.?[:/]"#, #"^[a-z]+://[^/]*\.home\.arpa\.?[:/]"#,
+        #"^[a-z]+://[^/]*\.intranet\.?[:/]"#, #"^[a-z]+://[^/]*\.corp\.?[:/]"#,
+        // IPv4 literals (WebKit writes `127.1` and `0x7f000001` out as dotted quads first), as in `URLGuard.isBlocked`.
         #"^[a-z]+://127\."#, #"^[a-z]+://10\."#, #"^[a-z]+://0\."#, #"^[a-z]+://192\.168\."#, #"^[a-z]+://169\.254\."#,
         #"^[a-z]+://172\.1[6-9]\."#, #"^[a-z]+://172\.2[0-9]\."#, #"^[a-z]+://172\.3[01]\."#,
         #"^[a-z]+://100\.6[4-9]\."#, #"^[a-z]+://100\.[7-9][0-9]\."#, #"^[a-z]+://100\.1[01][0-9]\."#, #"^[a-z]+://100\.12[0-7]\."#,
+        #"^[a-z]+://192\.0\.0\."#, #"^[a-z]+://198\.1[89]\."#, #"^[a-z]+://22[4-9]\."#, #"^[a-z]+://2[3-5][0-9]\."#,
+        // Every IPv6 literal.
         #"^[a-z]+://\["#,
     ]
 
-    static var json: String {
+    /// Artifact pages also get no plain `http:` or `ws:` at all: their libraries come from HTTPS CDNs, and most
+    /// devices on a LAN (routers, printers, NAS admin pages) answer only plain HTTP.
+    static let artifactPatterns = patterns + [#"^http:"#, #"^ws:"#]
+
+    static func json(_ patterns: [String]) -> String {
         let rules = patterns.map { pattern -> [String: Any] in
             ["trigger": ["url-filter": pattern, "url-filter-is-case-sensitive": false], "action": ["type": "block"]]
         }
@@ -89,28 +105,34 @@ enum LocalNetworkRules {
 
     /// Adds the rules to `controller`, now or once they are compiled.
     static func install(in controller: WKUserContentController) {
-        if let list { controller.add(list); return }
-        let task = compile()
+        if let list = lists[identifier] { controller.add(list); return }
+        let task = compile(identifier, patterns)
         Task { @MainActor [weak controller] in
             if let compiled = await task.value { controller?.add(compiled) }
         }
     }
 
-    /// The compiled rules, for a view that must not load anything before they are in place (an artifact's page).
+    /// The compiled rules, for a view that must not load anything before they are in place.
     static func rules() async -> WKContentRuleList? {
-        if let list { return list }
-        return await compile().value
+        if let list = lists[identifier] { return list }
+        return await compile(identifier, patterns).value
     }
 
-    private static func compile() -> Task<WKContentRuleList?, Never> {
-        if let compiling { return compiling }
+    /// The rules for an artifact's page and its thumbnail (`artifactPatterns`).
+    static func artifactRules() async -> WKContentRuleList? {
+        if let list = lists[artifactIdentifier] { return list }
+        return await compile(artifactIdentifier, artifactPatterns).value
+    }
+
+    private static func compile(_ identifier: String, _ patterns: [String]) -> Task<WKContentRuleList?, Never> {
+        if let task = compiling[identifier] { return task }
         let task = Task { @MainActor in
             let compiled = try? await WKContentRuleListStore.default().compileContentRuleList(
-                forIdentifier: "strata.local-network", encodedContentRuleList: json)
-            list = compiled
+                forIdentifier: identifier, encodedContentRuleList: json(patterns))
+            lists[identifier] = compiled
             return compiled
         }
-        compiling = task
+        compiling[identifier] = task
         return task
     }
 }
@@ -375,6 +397,7 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
         self.resolver = resolver
         self.guardNavigations = guardNavigations
         activeNavigation = nil
+        hasAbortedScript = false // the page goes anyway
         webView.load(URLRequest(url: URL(string: "about:blank")!))
     }
 
@@ -425,9 +448,37 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
         cont.resume(with: result)
     }
 
+    /// A `callAsync` or `callAgent` call (the model's script, a click or typing) ran out of time or was cancelled.
+    /// `stopLoading()` doesn't stop its promises or timers, so it may still act on the page later (a delayed click, a
+    /// POST); `discardAbortedScript` replaces the document.
+    private(set) var hasAbortedScript = false
+
+    private func abortScript() {
+        hasAbortedScript = true
+        webView.stopLoading()
+    }
+
+    /// After an aborted script, loads a blank document and waits for it (a few seconds at most), so nothing the script
+    /// left pending can run. The page is lost. Not cancellable: Stop browsing is what usually gets here. True when the
+    /// document was replaced.
+    func discardAbortedScript() async -> Bool {
+        guard hasAbortedScript else { return false }
+        hasAbortedScript = false
+        return await Task { @MainActor [weak self] in
+            guard let self else { return false }
+            do {
+                try await self.wait(timeout: .seconds(5)) { self.webView.load(URLRequest(url: URL(string: "about:blank")!)) }
+                return true
+            } catch {
+                return false
+            }
+        }.value
+    }
+
     /// Evaluates JavaScript in the page and returns the result as a string. A page that never answers ends with
     /// `WebToolError.timeout` after `timeout` (the load is stopped), and cancelling returns at once.
     func evaluate(_ js: String, timeout: Duration) async throws -> String {
+        // The app's own probes and readers run here: they schedule nothing, so a cut-short one leaves the page be.
         try await Deadline.run(timeout, timeoutError: WebToolError.timeout, onAbort: { [weak self] in self?.webView.stopLoading() }) { [webView] in
             do {
                 let value = try await webView.evaluateJavaScript(js)
@@ -442,7 +493,7 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
     func callAsync(_ body: String, timeout: Duration) async throws -> String {
         rememberFocus()
         defer { releaseFocus() }
-        return try await Deadline.run(timeout, timeoutError: WebToolError.timeout, onAbort: { [weak self] in self?.webView.stopLoading() }) { [webView] in
+        return try await Deadline.run(timeout, timeoutError: WebToolError.timeout, onAbort: { [weak self] in self?.abortScript() }) { [webView] in
             do {
                 let value = try await webView.callAsyncJavaScript(body, contentWorld: .page)
                 return (value as? String) ?? ""
@@ -459,7 +510,7 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
     func callAgent(_ body: String, input: String, timeout: Duration) async throws -> String {
         rememberFocus()
         defer { releaseFocus() }
-        return try await Deadline.run(timeout, timeoutError: WebToolError.timeout, onAbort: { [weak self] in self?.webView.stopLoading() }) { [webView] in
+        return try await Deadline.run(timeout, timeoutError: WebToolError.timeout, onAbort: { [weak self] in self?.abortScript() }) { [webView] in
             do {
                 let value = try await webView.callAsyncJavaScript(body, arguments: ["input": input], in: nil, contentWorld: Self.agentWorld)
                 return (value as? String) ?? ""

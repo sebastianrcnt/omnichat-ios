@@ -416,17 +416,18 @@ struct OUIImage: View {
     let src: String?
     let alt: String?
     var width: CGFloat?
+    @State private var loaded: PlatformImage?
+    @State private var failed = false
 
     var body: some View {
         let url = src.flatMap { URL(string: $0) }.flatMap { ["http", "https"].contains($0.scheme?.lowercased() ?? "") ? $0 : nil }
-        AsyncImage(url: url) { phase in
-            switch phase {
-            case .success(let image):
-                image.resizable().scaledToFit()
-            default:
+        Group {
+            if let loaded {
+                Image(platformImage: loaded).resizable().scaledToFit()
+            } else {
                 ZStack {
                     theme.surface
-                    if case .empty = phase, url != nil {
+                    if url != nil, !failed {
                         ProgressView().controlSize(.small)
                     } else {
                         Label(alt ?? String(localized: "Image"), systemImage: "photo")
@@ -442,6 +443,41 @@ struct OUIImage: View {
         .frame(width: width)
         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
         .accessibilityLabel(Text(alt ?? ""))
+        .task(id: url) {
+            loaded = nil
+            failed = false
+            guard let url else { return }
+            loaded = await OUIImageLoader.image(url)
+            failed = loaded == nil
+        }
+    }
+}
+
+/// Fetches OpenUI images. The model writes `src`, so merely showing an answer must not send requests to the device
+/// itself or the user's network: the URL and every redirect go through `URLGuard` (public http(s) hosts only), the
+/// body is capped and no cookies go along. (A rebinding DNS name is the gap left, as for `web_fetch`.)
+@MainActor
+enum OUIImageLoader {
+    nonisolated static let maxBytes = 15 * 1024 * 1024
+    private static let cache = NSCache<NSURL, PlatformImage>()
+
+    nonisolated static func data(_ url: URL, resolver: any HostResolving = SystemHostResolver()) async throws -> Data {
+        try await URLGuard.validate(url, resolver: resolver)
+        var request = URLRequest(url: url, timeoutInterval: 30)
+        request.httpShouldHandleCookies = false
+        let (data, response) = try await LimitedDownload.data(for: request, limit: maxBytes) { next in
+            (try? await URLGuard.validate(next, resolver: resolver)) != nil
+        }
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) { throw URLError(.badServerResponse) }
+        return data
+    }
+
+    static func image(_ url: URL) async -> PlatformImage? {
+        if let hit = cache.object(forKey: url as NSURL) { return hit }
+        guard let data = try? await data(url) else { return nil }
+        let decoded = await Task.detached(priority: .userInitiated) { PlatformImage(data: data) }.value
+        if let decoded { cache.setObject(decoded, forKey: url as NSURL) }
+        return decoded
     }
 }
 

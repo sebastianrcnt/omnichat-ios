@@ -18,6 +18,10 @@ struct TurnCheckpoint: Codable, Sendable {
     /// Results of this round's calls that finished ahead of an earlier call (calls run in parallel). Kept apart from
     /// `records` until they can be numbered in call order. Optional so older saved checkpoints still decode.
     var pendingResults: [RawToolResult]?
+    /// This round's calls of tools that can act outside the app (`ToolNames.mayActOutside`) that have started. Saved
+    /// before each one runs: a recovered turn doesn't run such a call again when its result is missing, since it may
+    /// have taken effect. Optional so older saved checkpoints still decode.
+    var startedCalls: [String]?
     var priorReasoning = ""
     /// Set on the one follow-up round sent after an empty answer (see `TurnRunner.continueOnEmptyAnswer`): that round
     /// runs with `tool_choice: "none"`, and no further retry follows. Optional so older checkpoints still decode.
@@ -123,10 +127,12 @@ struct CheckpointDynamic: Codable, Sendable {
     var steps: [ToolStep] = []
     var records: [ToolCallRecord] = []
     var pendingResults: [RawToolResult]?
+    var startedCalls: [String]?
     var priorReasoning = ""
 
     init(requestID: String?, lastSequence: Int, accumulator: StreamAccumulator, streamDone: Bool,
-         steps: [ToolStep], records: [ToolCallRecord], pendingResults: [RawToolResult]? = nil, priorReasoning: String) {
+         steps: [ToolStep], records: [ToolCallRecord], pendingResults: [RawToolResult]? = nil, startedCalls: [String]? = nil,
+         priorReasoning: String) {
         self.requestID = requestID
         self.lastSequence = lastSequence
         self.accumulator = accumulator
@@ -134,6 +140,7 @@ struct CheckpointDynamic: Codable, Sendable {
         self.steps = steps
         self.records = records
         self.pendingResults = pendingResults
+        self.startedCalls = startedCalls
         self.priorReasoning = priorReasoning
     }
 }
@@ -163,7 +170,8 @@ private enum StaticFormat {
 extension TurnCheckpoint {
     var dynamicPart: CheckpointDynamic {
         CheckpointDynamic(requestID: requestID, lastSequence: lastSequence, accumulator: accumulator, streamDone: streamDone,
-                          steps: steps, records: records, pendingResults: pendingResults, priorReasoning: priorReasoning)
+                          steps: steps, records: records, pendingResults: pendingResults, startedCalls: startedCalls,
+                          priorReasoning: priorReasoning)
     }
 
     var staticKey: CheckpointStaticKey {
@@ -182,6 +190,7 @@ extension TurnCheckpoint {
         steps = dynamic.steps
         records = dynamic.records
         pendingResults = dynamic.pendingResults
+        startedCalls = dynamic.startedCalls
         priorReasoning = dynamic.priorReasoning
     }
 
