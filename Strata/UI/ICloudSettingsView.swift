@@ -4,6 +4,7 @@ import SwiftUI
 struct ICloudSettingsView: View {
     @Environment(\.theme) private var theme
     @State private var confirmChatSync = false
+    @State private var confirmHealthChats = false
     @State private var confirmRemoval = false
     @State private var removing = false
     @State private var removalResult: String?
@@ -57,7 +58,13 @@ struct ICloudSettingsView: View {
             Button("Turn On Chat Sync") { CloudSync.shared.chatSyncSwitch = true }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Apple Health can't be used on this device while chat sync is on, so no health data goes to iCloud. Health data the assistant already read is removed from your chats first; the replies stay.")
+            Text("Apple Health can't be used on this device while chat sync is on, so no health data goes to iCloud.")
+        }
+        .confirmationDialog("Delete chats with health data?", isPresented: $confirmHealthChats, titleVisibility: .visible) {
+            Button("Delete Chats and Turn On", role: .destructive) { CloudSync.shared.turnOnChatSync(deletingHealthChats: true) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Health data never goes to iCloud. In chats where the assistant read Apple Health, the replies, summaries, figures and artifacts can repeat what it read, so chat sync can only be turned on after those chats are deleted from this device. Apple Health can't be used here while chat sync is on.")
         }
         .confirmationDialog("Remove secrets from iCloud?", isPresented: $confirmRemoval, titleVisibility: .visible) {
             Button("Remove from iCloud", role: .destructive) { removeSecrets() }
@@ -81,11 +88,14 @@ struct ICloudSettingsView: View {
     }
 
     /// Where Apple Health exists, turning chat sync on asks first: the two exclude each other (`HealthSettings.blockedBySync`).
+    /// Chats that hold health data must be deleted first (`CloudSync.healthConversations`).
     private var chatSyncBinding: Binding<Bool> {
         Binding {
             CloudSync.shared.chatSyncSwitch
         } set: { on in
-            if on && HealthSettings.isSupported { confirmChatSync = true } else { CloudSync.shared.chatSyncSwitch = on }
+            if on && !CloudSync.shared.healthConversations().isEmpty { confirmHealthChats = true }
+            else if on && HealthSettings.isSupported { confirmChatSync = true }
+            else { CloudSync.shared.chatSyncSwitch = on }
         }
     }
 

@@ -145,13 +145,19 @@ final class CloudSync {
 
     // MARK: Switches
 
-    /// "Sync chats and skills": the store opens with or without CloudKit, so it applies at the next launch. Turning it
-    /// on turns Apple Health off on this device and removes what Health tools read from the stored chats first
-    /// (`HealthSettings.blockedBySync`, `HealthRedaction`).
+    /// "Sync chats and skills": the store opens with or without CloudKit, so it applies at the next launch. It turns on
+    /// only while no chat holds health data (`healthConversations`, `turnOnChatSync(deletingHealthChats:)`): their
+    /// replies, summaries, figures and artifacts can repeat it, and the store syncs whole chats. Turning it on turns
+    /// Apple Health off on this device (`HealthSettings.blockedBySync`); a read still running then ends its turn unused
+    /// (`ChatController`), and `HealthRedaction` stays as a backstop.
     var chatSyncSwitch: Bool {
         get { _ = switchVersion; return StrataStore.syncEnabled(defaults) }
         set {
             if newValue && !StrataStore.syncEnabled(defaults) {
+                guard healthConversations().isEmpty else {
+                    switchVersion += 1 // the toggle goes back to off
+                    return
+                }
                 settings?.healthEnabled = false
                 HealthRequests.shared.declineAll()
                 if let container { try? HealthRedaction.redact(container.mainContext) }
@@ -159,6 +165,24 @@ final class CloudSync {
             defaults.set(newValue, forKey: StrataStore.syncEnabledKey)
             switchVersion += 1
         }
+    }
+
+    /// The chats that hold health data (`HealthTaint`), which chat sync must never upload.
+    func healthConversations() -> [Conversation] {
+        guard let context = container?.mainContext else { return [] }
+        return (try? HealthTaint.conversations(in: context)) ?? []
+    }
+
+    /// Settings > iCloud's "Delete Chats and Turn On": deletes the chats that hold health data the way deleting a chat
+    /// does (a running reply stops first; its figures and artifacts go too), then turns chat sync on. Deleting them
+    /// here, before the store first opens with CloudKit, keeps them out of iCloud entirely.
+    func turnOnChatSync(deletingHealthChats: Bool) {
+        if deletingHealthChats, let context = container?.mainContext, let controller {
+            for conversation in healthConversations() {
+                ConversationDeletion.delete(conversation, context: context, controller: controller)
+            }
+        }
+        chatSyncSwitch = true
     }
 
     /// Whether the chat switch differs from how the store was opened.
