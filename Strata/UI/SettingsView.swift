@@ -355,6 +355,8 @@ struct ConnectionEditor: View {
             let n = try await connections.refreshModels(for: connectionID)
             fetchStatus = String(localized: "Fetched \(n) models.")
             fetchFailed = false
+        } catch is CancellationError {
+            // The connection was edited while the list loaded, and that list was dropped.
         } catch {
             fetchStatus = error.localizedDescription
             fetchFailed = true

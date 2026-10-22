@@ -109,6 +109,8 @@ struct ChatRequest: Encodable, Sendable {
     var toolChoice: String?
     /// Only the side requests (auto-rename) cap output; chat requests leave it unset so the prefix bytes stay identical.
     var maxTokens: Int?
+    /// The same cap under the name OpenAI's own API takes (`OpenAIPlatform.adapted`); unset otherwise.
+    var maxCompletionTokens: Int?
     /// Only the title request sets this (to turn thinking off); chat requests leave it unset.
     var chatTemplateKwargs: ChatTemplateKwargs?
 
@@ -120,6 +122,7 @@ struct ChatRequest: Encodable, Sendable {
     enum CodingKeys: String, CodingKey {
         case model, messages, stream, tools
         case maxTokens = "max_tokens"
+        case maxCompletionTokens = "max_completion_tokens"
         case chatTemplateKwargs = "chat_template_kwargs"
         case streamOptions = "stream_options"
         case reasoningEffort = "reasoning_effort"

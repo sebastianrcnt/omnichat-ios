@@ -50,8 +50,9 @@ struct ChatClient: ChatStreaming {
         }
         if endpoint.kind == .appleOnDevice { return OnDeviceClient().stream(request, endpoint: endpoint) }
         if endpoint.kind == .anthropic { return AnthropicClient(session: session).stream(request, endpoint: endpoint) }
-        let request = ToolChoiceFallback.isRefused(endpoint) && request.toolChoice == "none"
-            ? ToolChoiceFallback.adapted(request) : request
+        let platform = OpenAIPlatform.isHost(endpoint) ? OpenAIPlatform.adapted(request) : request
+        let request = ToolChoiceFallback.isRefused(endpoint) && platform.toolChoice == "none"
+            ? ToolChoiceFallback.adapted(platform) : platform
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {

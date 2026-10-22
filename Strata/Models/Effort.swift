@@ -50,7 +50,7 @@ enum Effort: String, CaseIterable, Codable, Sendable, Identifiable {
         case .tokenCaps:
             if let cap = thinkingTokenCap { return String(localized: "Thinks up to \(cap.formatted()) tokens") }
             return String(localized: "No thinking limit")
-        case .modelDecides:
+        case .modelDecides, .openAI:
             switch self {
             case .low: return String(localized: "Brief reasoning, faster answers")
             case .medium: return String(localized: "Balanced")
@@ -64,7 +64,8 @@ enum Effort: String, CaseIterable, Codable, Sendable, Identifiable {
 }
 
 /// How effort works on a connection: the Strata engine caps thinking tokens per level; OpenAI's models get the level
-/// itself and decide how long to think.
+/// itself and decide how long to think. On OpenAI's own API each model takes its own levels
+/// (`OpenAIPlatform.effortLevels`).
 enum EffortStyle: Sendable {
-    case tokenCaps, modelDecides
+    case tokenCaps, modelDecides, openAI
 }

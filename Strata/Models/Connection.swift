@@ -68,6 +68,7 @@ struct ModelInfo: Codable, Identifiable, Hashable, Sendable {
         guard supportsEffort else { return [] }
         if let listed = openCode?.efforts, !listed.isEmpty { return listed }
         if let listed = anthropic?.pickerLevels, !listed.isEmpty { return listed }
+        if style == .openAI { return OpenAIPlatform.effortLevels(model: id) }
         return Effort.levels(style)
     }
 
@@ -187,7 +188,10 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
     var isOpenCode: Bool { kind == .openCode }
     var isAppleOnDevice: Bool { kind == .appleOnDevice }
     var isAnthropic: Bool { kind == .anthropic }
-    var effortStyle: EffortStyle { isChatGPT || isOpenCode || isAnthropic ? .modelDecides : .tokenCaps }
+    var effortStyle: EffortStyle {
+        if kind == .openAICompatible, OpenAIPlatform.isHost(normalizedBaseURL) { return .openAI }
+        return isChatGPT || isOpenCode || isAnthropic ? .modelDecides : .tokenCaps
+    }
 
     /// Defaults for newly discovered models on this connection: what `/models` said, else the connection's settings.
     /// ChatGPT models read images, reason and call tools; an Anthropic model gets what its family takes.

@@ -280,9 +280,12 @@ final class ConnectionStore {
         for h in conn.parsedHeaders { headers[h.name] = h.value }
         let probe = Endpoint(connectionID: id, connectionName: conn.name, baseURL: base, apiKey: keys.key(for: id),
                              headers: headers, model: ModelInfo(id: ""))
-        let entries = try await ModelsAPI.fetch(endpoint: probe, session: session)
-        // Merge into the connection as it is now: it may have been deleted or edited while the request ran.
+        let sent = fetchTarget(id)
+        let entries = try await ModelsAPI.fetch(endpoint: probe, session: session).filter { OpenAIPlatform.isChatModel($0.id, baseURL: base) }
+        // Merge into the connection as it is now: it may have been deleted or edited while the request ran. A list from
+        // another address, headers or key (edited meanwhile, or a fetch that a newer one overtook) isn't this one's.
         guard let conn = connection(id) else { return entries.count }
+        guard fetchTarget(id) == sent else { throw CancellationError() }
         var updated = conn
         let manual = conn.models.filter { m in !entries.contains { $0.id == m.id } && m.isManual }
         var merged: [ModelInfo] = entries.map { entry in
@@ -301,6 +304,12 @@ final class ConnectionStore {
         updated.models = merged
         upsert(updated)
         return entries.count
+    }
+
+    /// What a `/models` request goes to and with: its answer is merged only while the connection still has all of it.
+    private func fetchTarget(_ id: UUID) -> [String?] {
+        guard let c = connection(id) else { return [] }
+        return [c.normalizedBaseURL?.absoluteString, c.customHeaders, keys.key(for: id)]
     }
 
     /// The signed-in account's catalog (`GET /v1/models`, `visibility: "list"` entries, in the server's order),
@@ -328,8 +337,10 @@ final class ConnectionStore {
         for h in conn.parsedHeaders { headers[h.name] = h.value }
         let probe = Endpoint(connectionID: id, connectionName: conn.name, baseURL: base, apiKey: keys.key(for: id),
                              headers: headers, model: ModelInfo(id: ""), kind: .anthropic)
+        let sent = fetchTarget(id)
         let entries = try await AnthropicModelsAPI.fetch(endpoint: probe, session: session)
         guard var updated = connection(id) else { return entries.count }
+        guard fetchTarget(id) == sent else { throw CancellationError() } // edited while the request ran
         let manual = updated.models.filter { m in m.isManual && !entries.contains { $0.id == m.id } }
         updated.models = entries.map { entry in
             var model = updated.models.first { $0.id == entry.id } ?? AnthropicModels.model(id: entry.id)
