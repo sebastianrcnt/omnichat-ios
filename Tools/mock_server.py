@@ -29,6 +29,7 @@ POST /v1/responses           -> Responses SSE: reasoning summary, then a web_sea
 No auth is checked; the API key is never logged.
 """
 import json
+from pathlib import Path
 import hashlib
 import copy
 import os
@@ -243,7 +244,7 @@ Done."""
 SHOWCASE_MODELS = ["openai/gpt-oss-120b", "qwen/qwen3-235b-a22b", "deepseek/deepseek-v3.2", "moonshotai/kimi-k2",
                    "z-ai/glm-4.6", "mistralai/mistral-medium-3.1"]
 
-SHOWCASE_TITLES = [("Lisbon", "Late-October city weather"), ("invest", "Investing $500 a month"),
+SHOWCASE_TITLES = [("first day in Tokyo", "A first day in Tokyo"), ("Tokyo", "Seoul–Tokyo in November"), ("Lisbon", "Late-October city weather"), ("invest", "Investing $500 a month"),
                    ("Save my home server", "Home server setup"), ("home server", "Home server check")]
 
 SSH_PORT = int(os.environ.get("MOCK_SSH_PORT", "18784"))
@@ -253,9 +254,101 @@ SSH_COMMAND = ("uptime -p && df -h --output=target,size,used,pcent / /mnt/data &
                "docker ps --format 'table {{.Names}}\\t{{.Status}}'")
 
 
+FLIGHTS_URL = "https://flight.naver.com/flights/international/SEL-TYO-20261120/TYO-SEL-20261124?adult=1&fareType=Y"
+
+
+FARES_JS = (Path(__file__).with_name("showcase_fares.js")).read_text().strip()
+
+SCROLL_TO_RESULTS_JS = ("const el = [...document.querySelectorAll('body *')]"
+                        ".find(e => e.children.length === 0 && e.textContent.trim() === '왕복 동시 선택');\n"
+                        "if (el) el.scrollIntoView({block: 'start'});\n"
+                        "return el ? 'Scrolled to the results.' : 'Not found.';")
+
+AIRLINES = {"트리니티항공": "Trinity Airways", "진에어": "Jin Air", "에어부산": "Air Busan", "제주항공": "Jeju Air",
+            "이스타항공": "Eastar Jet", "대한항공": "Korean Air", "아시아나항공": "Asiana Airlines", "티웨이항공": "T'way Air",
+            "에어서울": "Air Seoul", "에어프레미아": "Air Premia", "피치항공": "Peach", "집에어": "ZIPAIR",
+            "일본항공": "Japan Airlines", "전일본공수": "ANA", "에어로케이": "Aero K", "파라타항공": "Parata Air"}
+
+TOKYO_PLACES = [
+    {"name": "Sensō-ji", "category": "Temple", "address": "Asakusa, Taitō", "lat": 35.7148, "lng": 139.7967,
+     "note": "Tokyo's oldest temple; go early before the crowds."},
+    {"name": "Tokyo Skytree", "category": "Observation deck", "address": "Oshiage, Sumida", "lat": 35.7101, "lng": 139.8107,
+     "note": "A short walk from Asakusa, best around sunset."},
+    {"name": "Ueno Park", "category": "Park and museums", "address": "Ueno, Taitō", "lat": 35.7156, "lng": 139.7745,
+     "note": "Late-November leaves, with the National Museum inside."},
+    {"name": "Meiji Jingu", "category": "Shrine", "address": "Yoyogi, Shibuya", "lat": 35.6764, "lng": 139.6993,
+     "note": "A quiet forest walk next to Harajuku."},
+    {"name": "Shibuya Crossing", "category": "Landmark", "address": "Shibuya", "lat": 35.6595, "lng": 139.7005,
+     "note": "Watch it from above, then explore the side streets."},
+]
+
+# The skill it saves: short enough to read in the approval sheet. FARES returns the text of each listed fare
+# (airlines, times, price) for the assistant to read; the showcase itself parses the page with showcase_fares.js.
+SKILL_FARES_JS = """// Each listed fare: airlines, times, price
+const t = document.body.innerText.split('\\n')
+  .map(s => s.trim()).filter(Boolean);
+const num = /^[\\d,]+$/, fares = [];
+let from = 0;
+t.forEach((s, i) => {
+  if (s === '왕복' && num.test(t[i + 1])) {
+    const a = Math.max(from, i - 16);
+    fares.push(t.slice(a, i + 2).join(' '));
+    from = i + 3;
+  }
+});
+return fares.slice(0, args.limit ?? 3);"""
+
+FLIGHT_SKILL = {
+    "name": "flight-search",
+    "description": "Round-trip fares on flight.naver.com: open the results page, read the cheapest options, let the user book.",
+    "body": "Open the results page, no form to fill in:\n"
+            "https://flight.naver.com/flights/international/FROM-TO-YYYYMMDD/TO-FROM-YYYYMMDD?adult=1\n"
+            "Codes: SEL Seoul, TYO Tokyo, OSA Osaka.\n"
+            "Run FARES, then browser_show the page so the user picks and books. Never book for them.\n\n"
+            "```js script=FARES\n" + SKILL_FARES_JS + "\n```",
+}
+
+
+def flights_view(raw):
+    """The fares FARES_JS read, as an OpenUI card with a choice per flight. Empty when nothing was read."""
+    match = re.search(r"\[\s*\{.*\}\s*\]", raw, re.S)
+    try:
+        fares = json.loads(match.group(0)) if match else []
+    except ValueError:
+        fares = []
+    if not fares:
+        return "I couldn't read the fares this time; the page is open above.\n"
+    def esc(text):
+        return text.replace("\\", "\\\\").replace('"', '\\"')
+    fares = sorted(fares, key=lambda f: int(re.sub(r"\D", "", f["fare"]) or 0))[:3]
+    def airport(t):
+        return t.split(" ")[-1]
+    same = len({(airport(f["out"][0]), airport(f["out"][1])) for f in fares}) == 1
+    route = f'{airport(fares[0]["out"][0])} ⇄ {airport(fares[0]["out"][1])}, ' if same else ""
+    items = []
+    for i, f in enumerate(fares, 1):
+        names = " + ".join(AIRLINES.get(a, a) for a in f["airlines"]) or "Several airlines"
+        fare = "₩" + f["fare"].replace("원", "")
+        def leg(times):
+            return " → ".join(t if not same else t.split(" ")[0] for t in times)
+        detail = f"Out {leg(f['out'])} · Back {leg(f['back'])}"
+        items.append(f'RadioItem("{esc(fare)} · {esc(names)}", "{esc(detail)}", "{i}")')
+    return ("The three lowest fares on the first page of results:\n\n```openui\n"
+            "root = Card([header, pick, actions])\n"
+            f'header = CardHeader("Seoul → Tokyo · Nov 20–24", "Round trip {route}1 adult, economy")\n'
+            f'pick = RadioGroup("flight", [{", ".join(items)}], "1")\n'
+            'actions = Buttons([Button("Book this flight", @OpenUrl("' + FLIGHTS_URL + '")), '
+            'Button("Find hotels", @ToAssistant("Find hotels near Ueno for Nov 20–24"), "secondary")])\n'
+            "```\n")
+
+
 def showcase_scenario(user_text):
     if user_text.startswith("The conversation:") or "give this conversation a title" in user_text:
         return "title"
+    if "flight" in user_text.lower() and "Tokyo" in user_text:
+        return "flights"
+    if "first day in Tokyo" in user_text:
+        return "places"
     if "Lisbon" in user_text:
         return "research"
     if "invest" in user_text.lower():
@@ -308,12 +401,10 @@ PYTHON_ANSWER = """Your **$180,000** grows to **$347,025** at 4%, **$502,258** a
 At 8%, **76%** of the balance is growth.
 """
 
-SSH_ANSWER = """**homelab looks healthy.** It has been up for 23 days with a low load.
+SSH_ANSWER = """**homelab looks healthy.** Up for 23 days.
 
-- **Disk:** the system drive is 32% full; **/mnt/data is at 81%** of 3.6 TB, worth watching.
-- **Containers:** all four are running, and the three with health checks report *healthy*.
-
-Want me to find what's filling up the data disk?
+- **Disk:** /mnt/data is at **81%** of 3.6 TB.
+- **Containers:** all four up, three report healthy.
 """
 
 
@@ -805,6 +896,16 @@ class Handler(BaseHTTPRequestHandler):
                 return False
             self.stream_content("Saved **homelab**. Ask me to check on it any time.")
             return True
+        if scenario == "flights":
+            return self.flights(rounds, tail, pause)
+        if scenario == "places":
+            if rounds == 0:
+                self.slow_thoughts(["Old Tokyo in the east, then across to Shibuya by evening."], pause / 2)
+                self.stream_content("Start in the east and end in Shibuya:")
+                self.stream_tool_call("call_pl1", "show_places", json.dumps({"title": "A first day in Tokyo", "places": TOKYO_PLACES}))
+                return False
+            self.stream_content("Swipe the cards for why each one is worth it.")
+            return True
         if scenario == "ssh":
             if rounds == 0:
                 self.slow_thoughts(["One command can cover uptime, disk space and the containers.",
@@ -818,6 +919,46 @@ class Handler(BaseHTTPRequestHandler):
             self.stream_content(SSH_ANSWER)
             return True
         return True
+
+    def flights(self, rounds, tail, pause):
+        """Seoul-Tokyo fares on the real flight site: open it, read the fares with FARES_JS, show the page, map a few
+        places, summarize the fares as an interactive view, and offer the search as a skill."""
+        def result(call_id):
+            return next((str(m.get("content", "")) for m in tail if m.get("role") == "tool" and m.get("tool_call_id") == call_id), "")
+        if os.environ.get("MOCK_LOG_TOOLS"):
+            with open(os.environ["MOCK_LOG_TOOLS"], "a") as log:
+                log.write(f"--- round {rounds}\n" + "\n".join(str(m.get("content", "")) for m in tail if m.get("role") == "tool") + "\n")
+        if rounds == 0:
+            self.slow_thoughts(["Round trip, Seoul to Tokyo, November 20 to 24.",
+                                "I'll search the fares on the flight site in the browser."], pause / 2)
+            self.stream_tool_call("call_fl1", "browser_open", json.dumps({"url": FLIGHTS_URL}))
+        elif rounds == 1:
+            self.slow_thoughts(["The results are in.", "I'll read the fares off the page."], pause / 2)
+            self.stream_tool_call("call_fl2", "browser_eval", json.dumps({"js": "const args = {limit: 10};\n" + FARES_JS}))
+        elif rounds == 2:
+            # MOCK_TEST_SKILL=1: run the skill's own script instead, to check what it returns (see MOCK_LOG_TOOLS).
+            js = "const args = {};\n" + SKILL_FARES_JS if os.environ.get("MOCK_TEST_SKILL") else SCROLL_TO_RESULTS_JS
+            self.stream_tool_call("call_fl3", "browser_eval", json.dumps({"js": js}))
+        elif rounds == 3:
+            self.stream_content("These are live fares. Have a look on the page itself.")
+            self.stream_tool_call("call_fl4", "browser_show", json.dumps({
+                "reason": "These are the live fares for Nov 20–24. Tap a flight to see its booking options, then tap Done."}))
+        elif rounds == 4 and os.environ.get("MOCK_FLIGHTS_STOP") == "card":
+            # Only the fares, for the screenshot of the interactive answer.
+            self.stream_content(flights_view(result("call_fl2")))
+            return True
+        elif rounds == 4:
+            self.stream_content(flights_view(result("call_fl2")) + "\nAnd a few places to start with:")
+            self.stream_tool_call("call_fl5", "show_places", json.dumps({"title": "Tokyo first picks", "places": TOKYO_PLACES}))
+        elif rounds == 5:
+            self.slow_thoughts(["That search worked well.", "Saving it as a skill makes the next one a single step."], pause / 2)
+            self.stream_tool_call("call_fl6", "save_skill", json.dumps(FLIGHT_SKILL))
+        else:
+            saved = "saved" in result("call_fl6").lower() and "not" not in result("call_fl6").lower()
+            self.stream_content("I saved **flight-search**, so next time fares take one step." if saved
+                                else "Tell me which flight you like and I'll look at hotels nearby.")
+            return True
+        return False
 
     def stream_reasoning(self, text):
         for p in pieces(text):
