@@ -36,10 +36,12 @@ BRING YOUR OWN MODEL
 
 TOOLS THAT DO REAL WORK
 • Web search and page reading, with numbered citations
-• A browser the assistant can use for you
+• A real browser on your phone: the assistant opens and uses websites the way you would, so they work like they do for you
+• Answers as interactive UI, with cards, choices and buttons you can tap
+• Places on a real map
 • Python with numpy, pandas and matplotlib, running on your iPhone; charts appear right in the chat
 • SSH to your own machines, with each command shown for your approval before it runs
-• Places and maps, interactive HTML artifacts, image understanding and video transcripts
+• Interactive HTML artifacts, image understanding and video transcripts
 • Packages and skills that add your own tools
 
 MADE FOR IPHONE
@@ -92,10 +94,12 @@ OmniChat은 이미 가지고 있는 AI 모델을 위한 네이티브 채팅 앱�
 
 실제로 일하는 도구
 • 웹 검색과 페이지 읽기, 번호가 붙은 출처 표시
-• 어시스턴트가 대신 쓰는 브라우저
+• 내 폰의 실제 브라우저: 어시스턴트가 내가 쓰듯 웹사이트를 열고 사용해서, 사이트가 평소처럼 동작
+• 카드, 선택지, 버튼으로 탭하며 쓰는 인터랙티브 답변
+• 실제 지도 위에 표시되는 장소
 • numpy, pandas, matplotlib이 들어 있는 Python이 iPhone에서 직접 실행되고, 차트가 채팅에 바로 표시
 • 내 서버로 SSH 접속, 모든 명령은 실행 전에 확인을 받음
-• 장소와 지도, 인터랙티브 HTML, 이미지 이해, 동영상 자막
+• 인터랙티브 HTML, 이미지 이해, 동영상 자막
 • 나만의 도구를 더하는 패키지와 스킬
 
 iPhone을 위해 만든 앱
