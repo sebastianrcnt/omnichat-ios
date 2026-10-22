@@ -282,6 +282,7 @@ struct ChatView: View {
                 // A pinned question stays where it is when the keyboard opens.
                 if focused && atBottom && pinnedID == nil { withAnimation(DS.Motion.spring) { position.scrollTo(edge: .bottom) } }
             }
+            .intentDraft(draft, isNewChat: conversation == nil)
             .task(id: focusToken) {
                 guard focusToken > 0 else { return }
                 try? await Task.sleep(for: .milliseconds(150))
