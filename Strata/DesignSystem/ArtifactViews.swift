@@ -238,8 +238,8 @@ struct ArtifactFile: Transferable {
 
 // MARK: - Web view
 
-/// Decides where the artifact's page may go: it stays put, subframes load from public hosts, and a link that would
-/// replace it opens outside (the in-app browser on a phone, the default browser on a Mac).
+/// Decides where the artifact's page may go: it stays put, subframes load from public hosts, and a link the user taps
+/// that would replace it opens outside (the in-app browser on a phone, the default browser on a Mac).
 @MainActor
 final class ArtifactNavigation: NSObject, WKNavigationDelegate, WKUIDelegate {
     private var lastOpened = Date.distantPast
@@ -250,7 +250,7 @@ final class ArtifactNavigation: NSObject, WKNavigationDelegate, WKUIDelegate {
         // The page itself (loaded from a string: about:blank) and its in-page anchors.
         if scheme == "about" || scheme == "blob" || scheme == "data" { return .allow }
         if let frame = action.targetFrame, !frame.isMainFrame { return await ArtifactNavigation.subframePolicy(url) }
-        openOutside(url)
+        await openOutside(url, type: action.navigationType)
         return .cancel
     }
 
@@ -264,21 +264,28 @@ final class ArtifactNavigation: NSObject, WKNavigationDelegate, WKUIDelegate {
     /// `target="_blank"` and `window.open`: never a second web view.
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                  for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-        if let url = action.request.url { openOutside(url) }
+        if let url = action.request.url {
+            let type = action.navigationType
+            Task { await openOutside(url, type: type) }
+        }
         return nil
     }
 
-    /// At most one page a second, so a script can't stack browsers on the user.
-    private func openOutside(_ url: URL) {
+    /// Hands a tapped link to another browser, at most one a second so a page can't stack browsers on the user.
+    private func openOutside(_ url: URL, type: WKNavigationType) async {
         guard Date.now.timeIntervalSince(lastOpened) > 1 else { return }
-        let scheme = url.scheme?.lowercased() ?? ""
-        if InAppBrowser.isWeb(url) {
-            lastOpened = .now
-            InAppBrowser.present(url)
-        } else if ["mailto", "tel", "sms"].contains(scheme) {
-            lastOpened = .now
-            InAppBrowser.openExternally(url)
-        }
+        lastOpened = .now
+        guard await ArtifactNavigation.mayOpenOutside(url, type: type) else { return }
+        if InAppBrowser.isWeb(url) { InAppBrowser.present(url) } else { InAppBrowser.openExternally(url) }
+    }
+
+    /// Only a link the user activated leaves the artifact; a script setting `location` or calling `window.open` stays
+    /// put. A web destination must also be public, since the other browser has no local-network rules.
+    static func mayOpenOutside(_ url: URL, type: WKNavigationType,
+                               resolver: any HostResolving = SystemHostResolver()) async -> Bool {
+        guard type == .linkActivated else { return false }
+        if InAppBrowser.isWeb(url) { return (try? await URLGuard.validate(url, resolver: resolver)) != nil }
+        return ["mailto", "tel", "sms"].contains(url.scheme?.lowercased() ?? "")
     }
 
     /// A web view with nothing of the app in it: its own throwaway data store, no message handlers, no file access

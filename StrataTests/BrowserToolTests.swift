@@ -124,6 +124,20 @@ struct LocalNetworkRuleTests {
         #expect(await ArtifactNavigation.subframePolicy(url, resolver: PackageTestResolver()) == .allow)
         #expect(await ArtifactNavigation.subframePolicy(URL(string: "file:///etc/hosts")!, resolver: PackageTestResolver()) == .cancel)
     }
+
+    @Test func artifactsOpenOnlyTappedPublicLinksOutside() async {
+        let web = URL(string: "https://example.com/")!
+        #expect(await ArtifactNavigation.mayOpenOutside(web, type: .linkActivated, resolver: PackageTestResolver()))
+        // A script assigning location.href (or calling window.open) is not a tap.
+        #expect(!(await ArtifactNavigation.mayOpenOutside(web, type: .other, resolver: PackageTestResolver())))
+        // The other browser has no local-network rules, so a LAN destination stays blocked even when tapped.
+        #expect(!(await ArtifactNavigation.mayOpenOutside(URL(string: "http://router.local/admin")!, type: .linkActivated,
+                                                          resolver: PackageTestResolver())))
+        #expect(!(await ArtifactNavigation.mayOpenOutside(web, type: .linkActivated,
+                                                          resolver: PackageTestResolver(address: "10.0.0.1"))))
+        #expect(await ArtifactNavigation.mayOpenOutside(URL(string: "mailto:a@example.com")!, type: .linkActivated))
+        #expect(!(await ArtifactNavigation.mayOpenOutside(URL(string: "file:///etc/hosts")!, type: .linkActivated)))
+    }
 }
 
 @MainActor
