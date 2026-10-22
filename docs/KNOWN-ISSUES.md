@@ -19,6 +19,13 @@ Everything else those reviews reported was fixed in that commit. Each entry: whe
   again; a TTL-0 domain can answer public then private. Literal private IPs are now blocked inside pages
   (`LocalNetworkRules`) and redirects are checked, but a rebinding name is not. Fix: connect to the checked IP (pin it),
   or check `URLSessionTaskMetrics.remoteAddress` before using a response.
+- **Page subresources to names that resolve privately** (`Tools/HiddenWebView.swift` `LocalNetworkRules`). Content
+  rules see URLs, not addresses: they block private literals, single-label hosts (`http://nas/`) and local suffixes
+  (`.local`, `.lan`, `.internal`, …), and navigations and artifact iframes are resolved by `URLGuard`, but an image,
+  script, `fetch` or XHR in the hidden browser to a public-looking name with a private answer (`*.plex.direct`, split
+  DNS) still loads. Artifact pages are narrower (no plain `http:`/`ws:` at all), so what is left there is HTTPS with a
+  valid certificate. Fix: route page loads through a `WKURLSchemeHandler`-style proxy that resolves and pins, or
+  deny artifact networking except an allowlist of CDNs.
 - **ChatGPT refresh exposes the new access token before the ID token is verified** (`ChatGPT/ChatGPTAuth.swift`
   `performRefresh`). Saved first so a rotated refresh token is never lost. Fix: keep the new tokens quarantined until
   verification passes.

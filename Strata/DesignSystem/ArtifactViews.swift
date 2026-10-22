@@ -110,7 +110,7 @@ struct ArtifactViewer: View {
             let artifact = store.artifact(id: ref.id, conversationID: ref.conversationID)
                 ?? Artifact(id: ref.id, title: ref.title, version: ref.version, created: .now, updated: .now)
             // Nothing loads before the local-network rules are in place.
-            guard let rules = await LocalNetworkRules.rules() else { content = .unsafe; return }
+            guard let rules = await LocalNetworkRules.artifactRules() else { content = .unsafe; return }
             content = .page(artifact, html, rules)
         }
         #if os(macOS)
@@ -238,8 +238,8 @@ struct ArtifactFile: Transferable {
 
 // MARK: - Web view
 
-/// Decides where the artifact's page may go: it stays put, subframes load, and a link that would replace it opens
-/// outside (the in-app browser on a phone, the default browser on a Mac).
+/// Decides where the artifact's page may go: it stays put, subframes load from public hosts, and a link that would
+/// replace it opens outside (the in-app browser on a phone, the default browser on a Mac).
 @MainActor
 final class ArtifactNavigation: NSObject, WKNavigationDelegate, WKUIDelegate {
     private var lastOpened = Date.distantPast
@@ -249,9 +249,16 @@ final class ArtifactNavigation: NSObject, WKNavigationDelegate, WKUIDelegate {
         let scheme = url.scheme?.lowercased() ?? ""
         // The page itself (loaded from a string: about:blank) and its in-page anchors.
         if scheme == "about" || scheme == "blob" || scheme == "data" { return .allow }
-        if let frame = action.targetFrame, !frame.isMainFrame { return InAppBrowser.isWeb(url) ? .allow : .cancel }
+        if let frame = action.targetFrame, !frame.isMainFrame { return await ArtifactNavigation.subframePolicy(url) }
         openOutside(url)
         return .cancel
+    }
+
+    /// A subframe loads when it is on the web and its host resolves only to public addresses (the content rules see
+    /// URLs only, so a name that resolves to a LAN device would get past them).
+    static func subframePolicy(_ url: URL, resolver: any HostResolving = SystemHostResolver()) async -> WKNavigationActionPolicy {
+        guard InAppBrowser.isWeb(url), (try? await URLGuard.validate(url, resolver: resolver)) != nil else { return .cancel }
+        return .allow
     }
 
     /// `target="_blank"` and `window.open`: never a second web view.

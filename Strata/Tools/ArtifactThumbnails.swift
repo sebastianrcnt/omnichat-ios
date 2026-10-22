@@ -254,7 +254,7 @@ enum ArtifactSnapshotter {
 
     static func snapshot(html: String, dark: Bool, size: CGSize) async -> CGImage? {
         // Nothing loads before the local-network rules are in place.
-        guard let rules = await LocalNetworkRules.rules() else { return nil }
+        guard let rules = await LocalNetworkRules.artifactRules() else { return nil }
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
         config.defaultWebpagePreferences.allowsContentJavaScript = true
@@ -305,7 +305,8 @@ enum ArtifactSnapshotter {
     }
 }
 
-/// The page stays the page: only its own load (and in-page anchors) and web subframes go through; nothing opens outside.
+/// The page stays the page: only its own load (and in-page anchors) and public web subframes go through; nothing opens
+/// outside.
 @MainActor
 private final class SnapshotNavigation: NSObject, WKNavigationDelegate, WKUIDelegate {
     private var finished = false
@@ -331,7 +332,7 @@ private final class SnapshotNavigation: NSObject, WKNavigationDelegate, WKUIDele
         guard let url = action.request.url else { return .cancel }
         let scheme = url.scheme?.lowercased() ?? ""
         if scheme == "about" || scheme == "blob" || scheme == "data" { return .allow }
-        if let frame = action.targetFrame, !frame.isMainFrame { return InAppBrowser.isWeb(url) ? .allow : .cancel }
+        if let frame = action.targetFrame, !frame.isMainFrame { return await ArtifactNavigation.subframePolicy(url) }
         return .cancel
     }
 
