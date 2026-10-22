@@ -10,8 +10,7 @@ and Python package downloads are not in it).
 
 ## English (U.S.)
 
-**Name:** OmniChat
-Fallback if the name is taken: `OmniChat: Bring Your Own AI`
+**Name:** OmniChat: Bring Your Own AI (plain "OmniChat" is taken on the App Store; the home screen still shows OmniChat)
 
 **Subtitle:** One app for all your AI models
 
@@ -63,11 +62,11 @@ The app's interface is in English.
 **Privacy policy URL:** https://sebastianrcnt.github.io/omnichat-ios/privacy/
 **Marketing URL (optional):** https://sebastianrcnt.github.io/omnichat-ios/
 **Category:** Productivity (primary), Developer Tools (secondary)
-**Copyright:** 2026 followed by the name on the developer account
+**Copyright:** 2026 Shiwon Jeong
 
 ## Korean (한국어)
 
-**Name:** OmniChat
+**Name:** OmniChat: Bring Your Own AI
 
 **Subtitle:** 내 AI 모델을 한 앱에서
 
