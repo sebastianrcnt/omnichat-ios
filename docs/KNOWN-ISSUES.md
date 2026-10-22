@@ -41,14 +41,25 @@ Everything else those reviews reported was fixed in that commit. Each entry: whe
   fails to decode becomes an empty delta, so a piece of text or tool arguments can go missing. Lenient on purpose
   (unknown event shapes); could fail only for events that carry content.
 - **Non-resumable connections lose the streamed text if the app is killed** (`Engine/ChatController.swift`). ChatGPT,
-  OpenCode and plain servers have no checkpoint; the text lives in memory until the turn ends. Fix: save partial
-  text/reasoning to the message every few seconds.
+  Anthropic, OpenCode and plain servers have no checkpoint; the text lives in memory until the turn ends, so an answer
+  already shown (and billed) is gone after iOS ends the app in the background. Fix: save partial text/reasoning to the
+  message every few seconds and on leaving the foreground, and mark it interrupted on the next launch.
+- **Direct DeepSeek thinking models fail after a tool call** (`Networking/ChatAPI.swift` `echoReasoningKey`,
+  `Networking/ChatClient.swift`). DeepSeek's thinking mode requires every earlier assistant message's
+  `reasoning_content` when `tools` is in the request and answers HTTP 400 without it. The plain Chat Completions path
+  reads reasoning for display only; only OpenCode echoes it back. So a DeepSeek (or Kimi) thinking model added as an
+  OpenAI-compatible connection fails on the continuation after its first tool call, and on later turns. Fix: a
+  per-model "replays reasoning" capability, keep each assistant response's exact reasoning (earlier turns too) and
+  encode it as `reasoning_content` for those models; setting the encoder flag alone isn't enough, since the history
+  doesn't carry the reasoning yet.
 - **Background task identifiers pile up** (`Engine/ReplyBackgroundExecution.swift`). Each reply registers a new
   `BGContinuedProcessingTask` handler, and the API has no way to unregister one. Small per reply. Fix: reuse a small
   pool of identifiers.
 - **Compaction can build a replacement bigger than a small window** (`Compaction/CompactionCore.swift` `replacement`).
   Up to 20k tokens of kept user text plus the notes are not checked against the model's window (an 8k model overflows
-  right after compacting). Fix: budget the whole replacement against the window.
+  right after compacting), and `Compactor` computes `tokensAfter` without checking it, so the runner sends the answer
+  request and it is rejected right after "Summarizing". Fix: budget the whole replacement (system text, pending
+  message, notes, kept tool groups, output reserve) against the window and trim kept user text to what is left.
 - **`BrowserSessions.dispose` cancels only the queue's tail task** (`Tools/BrowserTools.swift`). The sweep skips busy
   sessions, so this matters only for `closeAll` during a call.
 - **Pages kept for the user cost memory** (`Tools/KeptPages.swift`). Up to three failed web views, each with its own
