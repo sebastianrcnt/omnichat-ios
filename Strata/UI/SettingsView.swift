@@ -12,6 +12,7 @@ final class SettingsRoute {
 struct SettingsView: View {
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @Environment(\.appSettings) private var settings
     @Environment(\.connectionStore) private var connections
 
@@ -75,6 +76,9 @@ struct SettingsView: View {
                     }
 
                     GroupedSection(header: "About") {
+                        SettingsRow(systemImage: "hand.raised", title: "Privacy Policy", showsChevron: true) {
+                            openURL(URL(string: "https://sebastianrcnt.github.io/omnichat-ios/privacy/")!)
+                        }
                         SettingsRow(systemImage: "doc.text", title: "Licenses", showsChevron: true) { showLicenses = true }
                     }
 

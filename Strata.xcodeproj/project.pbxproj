@@ -30,6 +30,7 @@
 		04E956459C099A3B8F11EE46 /* TitlingText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 036EC236AF2525AF94B49388 /* TitlingText.swift */; };
 		0521A9E3342A1AD173D8D9B1 /* ReplyActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6B5296FB0E143757D557C45 /* ReplyActivityAttributes.swift */; };
 		054087A0920587960E9287A6 /* PackageSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 335F872846CDE505A495C6B2 /* PackageSnapshot.swift */; };
+		05B8863F5A38DD2A630C1B8B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 7BD482A5CC3BB668C9B4DB35 /* PrivacyInfo.xcprivacy */; };
 		05D34B2414228ABA48485DB7 /* VideoTranscript.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75BB77DA68D0E906C59C368C /* VideoTranscript.swift */; };
 		0663A24D5E2E37CC836C32E1 /* OpenUIViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A821F5782C4AB3B6C213F6DB /* OpenUIViews.swift */; };
 		067B8CF74E659D7CA7B4FCDC /* HealthViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29CE295AE52913244DD3EC46 /* HealthViews.swift */; };
@@ -296,6 +297,7 @@
 		72AAA62A9D9A009F58388B18 /* CheckpointPersister.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA664C3216587A234466E7CA /* CheckpointPersister.swift */; };
 		72CA2798F91C33F1F8FC562A /* Pretendard-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = 1E5AA880379D6904315E023D /* Pretendard-Regular.otf */; };
 		72FE92DBA6A1B359131ACDC9 /* ActivityFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90C1712A43893363CA1B8204 /* ActivityFeed.swift */; };
+		732EC0EDB9A08391FF1365A0 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 7BD482A5CC3BB668C9B4DB35 /* PrivacyInfo.xcprivacy */; };
 		73869712AF97DF5C005FCBE5 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9C1904FD956FD1BE23B5A04 /* SidebarView.swift */; };
 		73D767EE6F609B464644044E /* OpenUIBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF557C9B7453A4138F041247 /* OpenUIBlockView.swift */; };
 		7449A19979D5D5C88B11C73E /* DictationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C55EA9B17DA1BECA1CF0D5E /* DictationTests.swift */; };
@@ -381,6 +383,7 @@
 		94911130B4B465CA37F90B1B /* Effort.swift in Sources */ = {isa = PBXBuildFile; fileRef = 648F250AFB2520ECD6FBA4E7 /* Effort.swift */; };
 		95A61E00C6B496EABA6FA092 /* ToolSwitchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0B23749E4CB0F01390DEAAA /* ToolSwitchTests.swift */; };
 		96356C4B9DC084D4279FBEEA /* IncrementalBlockParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = B72613A56D557C2C034E2812 /* IncrementalBlockParser.swift */; };
+		97558DA1E29247A08A2157BD /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 9C840BA5C652B926806D64A1 /* PrivacyInfo.xcprivacy */; };
 		977276B0D198CAADD9FA226F /* AnthropicModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2E829CA91B51964701349D0 /* AnthropicModels.swift */; };
 		977FABBF5FDB329106E64AED /* BackgroundSoundTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = A637BC1577B324691647ACBD /* BackgroundSoundTest.swift */; };
 		97BAB8E535F2CE8C7FE781CB /* ReplyActivityModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C58CF5FF77E9FEC6B90A57E9 /* ReplyActivityModel.swift */; };
@@ -717,6 +720,7 @@
 		036EC236AF2525AF94B49388 /* TitlingText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TitlingText.swift; sourceTree = "<group>"; };
 		0379170C079B3AB3D6C19394 /* SSHClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHClient.swift; sourceTree = "<group>"; };
 		039C4D95DE3E932F7D0EB67D /* RequestInspection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestInspection.swift; sourceTree = "<group>"; };
+		03A71F3996640698156AC8E3 /* Strata-Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Strata-Debug.entitlements"; sourceTree = "<group>"; };
 		04FAB6777171231941D98AEE /* BrowserFreezeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserFreezeTests.swift; sourceTree = "<group>"; };
 		058CA46D1F43622558B5ED56 /* ArtifactGalleryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactGalleryTests.swift; sourceTree = "<group>"; };
 		061793A1F2355C9CBF58F096 /* SyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncTests.swift; sourceTree = "<group>"; };
@@ -898,6 +902,7 @@
 		79860A965007316869D4DF59 /* ArtifactThumbnails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactThumbnails.swift; sourceTree = "<group>"; };
 		7B13C61AAEB4E45F3F1C7582 /* SSHKeyFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHKeyFixtures.swift; sourceTree = "<group>"; };
 		7BA62F2BCED42B3D782F1475 /* StreamRecovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamRecovery.swift; sourceTree = "<group>"; };
+		7BD482A5CC3BB668C9B4DB35 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		7C55EA9B17DA1BECA1CF0D5E /* DictationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationTests.swift; sourceTree = "<group>"; };
 		7C8DE44C433500690B8A030E /* StoreMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreMigrationTests.swift; sourceTree = "<group>"; };
 		7C929987DC91950E8AAA365D /* StreamingMarkdownModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamingMarkdownModel.swift; sourceTree = "<group>"; };
@@ -940,6 +945,7 @@
 		9A6AC1D6A0D425D2934E4B1D /* PyodideServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PyodideServer.swift; sourceTree = "<group>"; };
 		9A8F2001AC39567BD8A1D60D /* PythonIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonIntegrationTests.swift; sourceTree = "<group>"; };
 		9B655A48CCD825D9D0172DEE /* SSE.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSE.swift; sourceTree = "<group>"; };
+		9C840BA5C652B926806D64A1 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		9CE7DDF672A184EEA699E6B6 /* ModelSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelSelection.swift; sourceTree = "<group>"; };
 		9D076370B98BDA6E9EC30D9D /* ReasoningSpaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReasoningSpaces.swift; sourceTree = "<group>"; };
 		9DF5CC77FC1395D564A9F6FF /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
@@ -1128,6 +1134,7 @@
 		002B8441AFB8B7B2FA715BB9 /* Strata */ = {
 			isa = PBXGroup;
 			children = (
+				03A71F3996640698156AC8E3 /* Strata-Debug.entitlements */,
 				60CA3172C86DB72415CFEA07 /* Strata.entitlements */,
 				6896C26CFB9049751E1F1B80 /* Anthropic */,
 				2126B37AA8B3C8A88CCAD07C /* App */,
@@ -1679,6 +1686,7 @@
 			children = (
 				CE20A1119EAB11A18B58EAF1 /* DesignSystemSupport.swift */,
 				0729B4D5E36C25630F989C86 /* Info.plist */,
+				9C840BA5C652B926806D64A1 /* PrivacyInfo.xcprivacy */,
 				CCE5CFEC106B71CCCC136AE8 /* ShareViewController.swift */,
 				0C681D0802E1AE0B8122B817 /* StrataShare.entitlements */,
 			);
@@ -1706,6 +1714,7 @@
 				6946DA516AFD242CE9D85CF0 /* InfoPlist.xcstrings */,
 				9DF5CC77FC1395D564A9F6FF /* Localizable.xcstrings */,
 				A00257D8D948DB9DE6850DA2 /* Packages */,
+				7BD482A5CC3BB668C9B4DB35 /* PrivacyInfo.xcprivacy */,
 				D885671F11503105E839A70B /* PyRuntime */,
 				53B0DA9BC609410BB67796D5 /* Skills */,
 				33A1D27146D603B00FD85FB0 /* Browser */,
@@ -1881,6 +1890,7 @@
 			buildConfigurationList = 647FEEF3DF687801FF80DBCC /* Build configuration list for PBXNativeTarget "StrataShare" */;
 			buildPhases = (
 				E424715E0D905484DB6452D1 /* Sources */,
+				49720EA15CA0A538B6F3EC69 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -2070,6 +2080,7 @@
 				B3A6BDB0E77B8EC72876295D /* Pretendard-Regular.otf in Resources */,
 				C9E842EA25B09124526FDBF7 /* Pretendard-SemiBold.otf in Resources */,
 				FF59AE2CB85C5E6106DFFAB7 /* PretendardVariable.ttf in Resources */,
+				05B8863F5A38DD2A630C1B8B /* PrivacyInfo.xcprivacy in Resources */,
 				CEB021C07023729D842B6B6C /* PyRuntime in Resources */,
 				F95FE1C377AE2B715B1832EE /* Readability.js in Resources */,
 				E4B3A8D2F830437CC4E85F8F /* Skills in Resources */,
@@ -2077,6 +2088,14 @@
 				3E304E8994888C5840B3E92D /* highlight.js in Resources */,
 				3B0544ABBAE735FA3B50F914 /* wikipedia_summary.plugin.js in Resources */,
 				92F9857CD377FEA245047D25 /* wikipedia_summary.plugin.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		49720EA15CA0A538B6F3EC69 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				97558DA1E29247A08A2157BD /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2098,6 +2117,7 @@
 				72CA2798F91C33F1F8FC562A /* Pretendard-Regular.otf in Resources */,
 				3D93CA9C16702E780FC5A740 /* Pretendard-SemiBold.otf in Resources */,
 				22E3E3354F0088679BD7AF90 /* PretendardVariable.ttf in Resources */,
+				732EC0EDB9A08391FF1365A0 /* PrivacyInfo.xcprivacy in Resources */,
 				0BD47474831A4DF86A71B58F /* PyRuntime in Resources */,
 				25B098E8B2FFA9E841AFD196 /* Readability.js in Resources */,
 				49A97BCCEC9D0A6B581E3C0E /* Skills in Resources */,
@@ -2819,6 +2839,7 @@
 		48003D21EFB51577590B93D3 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = StrataShare/StrataShare.entitlements;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = StrataShare/Info.plist;
@@ -2851,8 +2872,6 @@
 				INFOPLIST_FILE = Strata/Resources/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = OpenChat;
 				INFOPLIST_KEY_NSCameraUsageDescription = "OpenChat uses the camera to attach photos to your messages.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "OpenChat reads only the health data you allow, when you ask the assistant about your health. It is sent to the model connection your chat uses to answer you, never used for advertising, and never written back to Health.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "OpenChat never writes to Health. It only reads the health data you allow, when you ask the assistant about your health.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "OpenChat connects to devices on your local network when the assistant runs commands over SSH, or Python code connects to a device you allowed.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "OpenChat uses your approximate location when you ask the assistant to find places near you.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "OpenChat uses the microphone when you dictate a message.";
@@ -2923,7 +2942,7 @@
 				INFOPLIST_FILE = Strata/Resources/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = OpenChat;
 				INFOPLIST_KEY_NSCameraUsageDescription = "OpenChat uses the camera to attach photos to your messages.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "OpenChat reads only the health data you allow, when you ask the assistant about your health. It is sent to the model connection your chat uses to answer you, never used for advertising, and never written back to Health.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "OpenChat reads the health data you allow when you ask about your health.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Debug builds write sample health data on a simulator for testing.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "OpenChat connects to devices on your local network when the assistant runs commands over SSH, or Python code connects to a device you allowed.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "OpenChat uses your approximate location when you ask the assistant to find places near you.";
@@ -2941,6 +2960,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = cc.coolservices.strata;
 				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) STRATA_HEALTH";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -2970,6 +2990,7 @@
 		A0ABB8790C3DF4F6461E9D11 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = StrataShare/StrataShare.entitlements;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = StrataShare/Info.plist;

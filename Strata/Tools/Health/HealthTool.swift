@@ -108,7 +108,7 @@ enum HealthSettings {
 
     /// The Mac has no HealthKit: the group is never offered there, and Settings has no Health page.
     static var isSupported: Bool {
-        #if os(iOS)
+        #if STRATA_HEALTH && os(iOS)
         true
         #else
         false
@@ -331,7 +331,7 @@ enum HealthCallLabel {
 /// The store `health_query` reads: HealthKit on iPhone, none on the Mac.
 enum HealthStores {
     static var `default`: any HealthDataSource {
-        #if os(iOS)
+        #if STRATA_HEALTH && os(iOS)
         HealthKitStore.shared
         #else
         UnavailableHealthStore()
@@ -339,7 +339,7 @@ enum HealthStores {
     }
 
     static func describe(_ error: Error) -> String {
-        #if os(iOS)
+        #if STRATA_HEALTH && os(iOS)
         HealthKitStore.describe(error)
         #else
         error.localizedDescription

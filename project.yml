@@ -56,7 +56,6 @@ targets:
       properties:
         com.apple.security.application-groups:
           - group.cc.coolservices.strata
-        com.apple.developer.healthkit: true # health_query reads Apple Health (read-only)
         # iCloud sync (`Strata/Sync`): chats and skills in CloudKit, settings and connections in key-value storage,
         # secrets in iCloud Keychain. The Mac app names the same container, store and access group.
         com.apple.developer.icloud-container-identifiers:
@@ -85,14 +84,14 @@ targets:
         INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: OpenChat turns your dictation into text on this device.
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: OpenChat uses your approximate location when you ask the assistant to find places near you.
         INFOPLIST_KEY_NSLocalNetworkUsageDescription: OpenChat connects to devices on your local network when the assistant runs commands over SSH, or Python code connects to a device you allowed.
-        INFOPLIST_KEY_NSHealthShareUsageDescription: OpenChat reads only the health data you allow, when you ask the assistant about your health. It is sent to the model connection your chat uses to answer you, never used for advertising, and never written back to Health.
-        # Release builds never write; App Store Connect still requires the key for an app with the HealthKit entitlement.
-        INFOPLIST_KEY_NSHealthUpdateUsageDescription: OpenChat never writes to Health. It only reads the health data you allow, when you ask the assistant about your health.
         INFOPLIST_KEY_UIUserInterfaceStyle: Automatic
         SWIFT_EMIT_LOC_STRINGS: YES
       configs:
-        # Debug builds can seed sample data on a simulator (-StrataSeedHealth); release builds only read.
+        # STRATA_HEALTH is the v1 feature switch; only Debug links HealthKit.
         Debug:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) STRATA_HEALTH
+          CODE_SIGN_ENTITLEMENTS: Strata/Strata-Debug.entitlements
+          INFOPLIST_KEY_NSHealthShareUsageDescription: OpenChat reads the health data you allow when you ask about your health.
           INFOPLIST_KEY_NSHealthUpdateUsageDescription: Debug builds write sample health data on a simulator for testing.
     info:
       path: Strata/Resources/Info.plist
@@ -105,7 +104,6 @@ targets:
           - cc.coolservices.strata.reply.*
         UIBackgroundModes:
           - processing
-          - audio
           - remote-notification # CloudKit pushes when another device changes a synced chat
         UIAppFonts:
           - PretendardVariable.ttf
@@ -185,6 +183,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cc.coolservices.strata.share
+        APPLICATION_EXTENSION_API_ONLY: YES
         PRODUCT_NAME: OpenChatShare
         INFOPLIST_KEY_CFBundleDisplayName: OpenChat
         TARGETED_DEVICE_FAMILY: "1"
@@ -240,7 +239,7 @@ targets:
         com.apple.security.app-sandbox: true
         com.apple.security.network.client: true
         com.apple.security.network.server: true # the 127.0.0.1 listener for the Sign in with ChatGPT redirect
-        com.apple.security.files.user-selected.read-only: true
+        com.apple.security.files.user-selected.read-write: true
         com.apple.security.device.audio-input: true
         com.apple.security.personal-information.location: true
         # iCloud sync, shared with the iPhone app: the same CloudKit container, key-value store and Keychain access group.

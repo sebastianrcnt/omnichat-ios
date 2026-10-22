@@ -57,3 +57,16 @@ Everything else those reviews reported was fixed in that commit. Each entry: whe
 - Opening Settings from the model picker is still two sheets in a row (picker closes, Settings opens).
 - Search results say "Found in messages" but show no snippet of the match.
 - No swipe actions in the iPhone sidebar (pin, delete).
+
+## v1 App Store feature gates
+
+- **Apple Health is Debug-only.** `STRATA_HEALTH` in the iOS Debug configuration is the compile-time feature switch:
+  it enables the HealthKit adapter and makes Health visible in Settings and the tool picker. Release (iOS and Mac)
+  does not link HealthKit or carry its entitlement/usage descriptions. Debug uses `Strata-Debug.entitlements` and
+  Debug-only usage descriptions. Restore the switch and the corresponding signing/privacy metadata together when
+  shipping Health in a later update. Platform-neutral Health history/redaction code stays compiled for old chats.
+- **Privacy manifest scope.** The iOS and Mac apps share the app manifest: own-container preferences (CA92.1),
+  own-container/App Group file timestamps for cache expiry and skill sync (C617.1), and uptime for UI animation and
+  checkpoint intervals (35F9.1). The share extension only reads App Group timestamps (C617.1); it does not use
+  UserDefaults. App Group sharing is file-based, so 1C8F.1 is not declared. No disk-capacity APIs are used. The widget's
+  sources use none of the required-reason APIs, so it needs no manifest. No tracking or collected data is declared.

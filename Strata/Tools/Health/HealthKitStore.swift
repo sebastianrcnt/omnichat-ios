@@ -1,4 +1,4 @@
-#if os(iOS)
+#if STRATA_HEALTH && os(iOS)
 import Foundation
 import HealthKit
 

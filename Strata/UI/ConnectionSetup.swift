@@ -138,6 +138,8 @@ struct ConnectionSetupSheet: View {
                 .font(DS.Typography.ui)
                 .foregroundStyle(theme.textSecondary)
                 .padding(.horizontal, DS.Spacing.lg)
+            Link("Privacy Policy", destination: URL(string: "https://sebastianrcnt.github.io/omnichat-ios/privacy/")!)
+                .padding(.horizontal, DS.Spacing.lg)
             OnDeviceOfferSection { id in path = [id] }
             let builtIn = PackageStore.shared.package(id: BuiltInPackages.connections)?.manifest.connections ?? []
             GroupedSection(header: "With an API key") {
