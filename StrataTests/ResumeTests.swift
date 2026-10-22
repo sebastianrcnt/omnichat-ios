@@ -78,6 +78,17 @@ private final class IdempotentRecoveryStreamer: ResumableChatStreaming, @uncheck
     func cancel(requestID: String, endpoint: Endpoint) async throws {}
 }
 
+/// Records which tools ran.
+private final class CountingTools: ToolExecuting, @unchecked Sendable {
+    private let lock = NSLock()
+    private var ran: [String] = []
+    var names: [String] { lock.withLock { ran } }
+    func execute(name: String, arguments: String) async -> ToolOutput {
+        lock.withLock { ran.append(name) }
+        return ToolOutput(text: "ran \(name)")
+    }
+}
+
 @MainActor
 struct ResumeTests {
     private let rid = "req_0123456789abcdef01234567"
@@ -259,6 +270,52 @@ struct ResumeTests {
             endpoint: ep, messages: [], effort: nil, checkpoint: snapshot) { _ in }
         #expect(outcome.steps[0].calls[0].result == "persisted result")
         #expect(try streamer.checkpoints[0].messages.last == .tool(callID: "call", content: "persisted result"))
+    }
+
+    /// From the audit: recovery re-ran every call without a saved result, so a POST that went through just before the
+    /// app was killed went out twice. A started call that can act outside the app is not run again.
+    @Test func aStartedCallThatActsOutsideIsNotRunAgainOnRecovery() async throws {
+        var snapshot = try TurnCheckpoint(messages: [.user("hi")])
+        snapshot.requestData = try ChatRequest(model: "m", messages: [.user("hi")]).encoded()
+        snapshot.submissionStarted = true
+        _ = try snapshot.apply(ChatDelta(toolCalls: [ToolCallDelta(index: 0, id: "c1", name: "run_python", arguments: "{\"code\":\"post()\"}"),
+                                                     ToolCallDelta(index: 1, id: "c2", name: "web_search", arguments: "{}")],
+                                         requestID: rid, sequence: 1))
+        _ = try snapshot.apply(ChatDelta(isDone: true, sequence: 2))
+        snapshot.startedCalls = ["c1"]
+        // The marker survives the static/dynamic split.
+        let restored = try TurnCheckpoint.restore(staticData: TurnCheckpoint.encodeStatic(snapshot),
+                                                  dynamicData: JSONEncoder().encode(snapshot.dynamicPart))
+        #expect(restored.startedCalls == ["c1"])
+        let tools = CountingTools()
+        var runner = TurnRunner(streamer: RecoveryStreamer(deltas: [ChatDelta(content: "ok", sequence: 1), ChatDelta(isDone: true, sequence: 2)]),
+                                tools: tools)
+        runner.python = true
+        var ep = endpoint(); ep.model.supportsTools = true
+        let outcome = try await runner.run(endpoint: ep, messages: [], effort: nil, checkpoint: restored) { _ in }
+        #expect(tools.names == ["web_search"], "only the call that only reads runs again")
+        #expect(outcome.steps[0].calls[0].result == TurnRunner.interruptedCallNote && outcome.steps[0].calls[0].isError)
+    }
+
+    /// The marker is on disk before such a call runs; a failed write stops the round before the call.
+    @Test func callsThatActOutsideAreMarkedBeforeTheyRun() async throws {
+        let tools = CountingTools()
+        let streamer = RecoveryStreamer(deltas: [ChatDelta(toolCalls: [ToolCallDelta(index: 0, id: "c1", name: "run_python", arguments: "{}")], sequence: 1),
+                                                 ChatDelta(isDone: true, sequence: 2)])
+        var runner = TurnRunner(streamer: streamer, tools: tools)
+        runner.python = true
+        var ep = endpoint(); ep.model.supportsTools = true
+        var markedBeforeRun = false
+        await #expect(throws: CheckpointWriteError.self) {
+            _ = try await runner.run(endpoint: ep, messages: [.user("hi")], effort: nil) { event in
+                if case .checkpoint(let cp) = event, cp.startedCalls == ["c1"] {
+                    markedBeforeRun = tools.names.isEmpty
+                    throw CheckpointWriteError()
+                }
+            }
+        }
+        #expect(markedBeforeRun && tools.names.isEmpty)
+        #expect(ToolNames.mayActOutside("ssh_exec") && ToolNames.mayActOutside("browser_click") && !ToolNames.mayActOutside("web_fetch"))
     }
 
     @Test func oldConnectionSettingsGetSafeCapabilityDefaults() throws {

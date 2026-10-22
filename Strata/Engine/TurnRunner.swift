@@ -57,6 +57,9 @@ enum EmptyAnswerRetry {
 /// Runs one assistant turn: stream, execute tool calls on device, append results, continue.
 struct TurnRunner: Sendable {
     static let maxToolRounds = 8
+    /// The result of a call that can act outside the app and was cut off when the app ended (`TurnCheckpoint.startedCalls`).
+    static let interruptedCallNote = "Error: this call was interrupted when the app closed, so it may or may not have taken effect. "
+        + "Don't repeat it blindly: check whether it went through first (or ask the user)."
 
     var streamer: any ChatStreaming
     var tools: any ToolExecuting
@@ -256,9 +259,18 @@ struct TurnRunner: Sendable {
             var finished: [Int: ToolOutput] = [:]
             let flushed = Set(records.map(\.id))
             let stashed = Dictionary((checkpoint.pendingResults ?? []).map { ($0.callID, $0) }, uniquingKeysWith: { first, _ in first })
+            // A call that can act outside the app and had started when the turn was cut off may have taken effect:
+            // it isn't run a second time, the model is told to check.
+            let started = Set(checkpoint.startedCalls ?? [])
             var toRun: [Int] = []
             for (i, call) in calls.enumerated() where !flushed.contains(call.id) {
-                if let raw = stashed[call.id] { finished[i] = raw.output } else { toRun.append(i) }
+                if let raw = stashed[call.id] {
+                    finished[i] = raw.output
+                } else if started.contains(call.id) {
+                    finished[i] = ToolOutput(text: Self.interruptedCallNote, isError: true)
+                } else {
+                    toRun.append(i)
+                }
             }
             var nextToAppend = calls.firstIndex { !flushed.contains($0.id) } ?? calls.count
 
@@ -297,7 +309,11 @@ struct TurnRunner: Sendable {
             try Task.checkCancellation()
             try appendReady() // results restored from a checkpoint
             let offered = OfferedTools(base: tools, names: Set(toolList.map(\.function.name)), switches: switches, packages: packages)
-            try await ToolRound.execute(calls, indices: toRun, tools: offered, limit: maxConcurrentTools) { index, out in
+            try await ToolRound.execute(calls, indices: toRun, tools: offered, limit: maxConcurrentTools, onStart: { index in
+                guard ToolNames.mayActOutside(calls[index].name) else { return }
+                checkpoint.startedCalls = (checkpoint.startedCalls ?? []) + [calls[index].id]
+                try onEvent(.checkpoint(checkpoint)) // on disk before the call runs, or the round stops here
+            }) { index, out in
                 finished[index] = out
                 checkpoint.pendingResults = (checkpoint.pendingResults ?? []) + [RawToolResult(callID: calls[index].id, output: out)]
                 try appendReady()

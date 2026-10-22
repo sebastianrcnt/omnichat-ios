@@ -5,11 +5,13 @@ enum ToolRound {
     /// How many calls of a round run at once.
     static let maxConcurrent = 5
 
-    /// Runs `indices` of `calls`, at most `limit` at a time. `onFinished` is called on the main actor with each result
-    /// as it arrives (in finishing order, not call order). Cancelling the caller cancels every running call, and the
-    /// error is thrown once they have all returned.
+    /// Runs `indices` of `calls`, at most `limit` at a time. `onStart` is called on the main actor just before each call
+    /// starts (an error there stops the round before that call runs); `onFinished` with each result as it arrives (in
+    /// finishing order, not call order). Cancelling the caller cancels every running call, and the error is thrown
+    /// once they have all returned.
     @MainActor
     static func execute(_ calls: [ToolCall], indices: [Int], tools: any ToolExecuting, limit: Int = maxConcurrent,
+                        onStart: @MainActor (Int) throws -> Void = { _ in },
                         onFinished: @MainActor (Int, ToolOutput) throws -> Void) async throws {
         guard !indices.isEmpty else { return }
         try await withThrowingTaskGroup(of: (Int, ToolOutput).self) { group in
@@ -19,6 +21,7 @@ enum ToolRound {
                 let index = indices[next]
                 let call = calls[index]
                 next += 1
+                try onStart(index)
                 group.addTask { try await runOne(index, call, tools) }
             }
             while let (index, output) = try await group.next() {
@@ -28,6 +31,7 @@ enum ToolRound {
                     let nextIndex = indices[next]
                     let call = calls[nextIndex]
                     next += 1
+                    try onStart(nextIndex)
                     group.addTask { try await runOne(nextIndex, call, tools) }
                 }
             }

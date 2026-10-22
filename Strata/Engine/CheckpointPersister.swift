@@ -9,7 +9,8 @@ import Foundation
 ///   when the stream completes, a tool boundary is reached, or the app leaves the foreground.
 /// - Every write carries the whole dynamic part, so the persisted cursor and accumulator are always a matching pair.
 ///   A slightly stale pair is safe: the server replays from `lastSequence` and duplicates are dropped.
-/// - A write that fails leaves the checkpoint dirty. At a new round's submission or a tool-result boundary the
+/// - A write that fails leaves the checkpoint dirty. At a new round's submission, a tool-result boundary or the start
+///   of a call that can act outside the app (`TurnCheckpoint.startedCalls`) the
 ///   failure is thrown to the runner, which stops rather than send a request (or move past a result) that a restart
 ///   couldn't find again; a failed throttled write is retried with the next one.
 @MainActor
@@ -36,6 +37,7 @@ final class CheckpointPersister {
     private var lastStreamDone = false
     private var lastRecords = 0
     private var lastPending = 0
+    private var lastStarted = 0
     private var trailing: Task<Void, Never>?
     private var observers: [NSObjectProtocol] = []
     private var closed = false
@@ -69,6 +71,7 @@ final class CheckpointPersister {
         let t = now()
         let boundary = checkpoint.staticKey != lastKey
             || checkpoint.records.count != lastRecords || (checkpoint.pendingResults?.count ?? 0) != lastPending
+            || (checkpoint.startedCalls?.count ?? 0) != lastStarted
         if boundary {
             try flush()
         } else if checkpoint.streamDone != lastStreamDone || lastFlushAt == nil || t - (lastFlushAt ?? 0) >= minInterval {
@@ -110,6 +113,7 @@ final class CheckpointPersister {
         lastStreamDone = checkpoint.streamDone
         lastRecords = checkpoint.records.count
         lastPending = checkpoint.pendingResults?.count ?? 0
+        lastStarted = checkpoint.startedCalls?.count ?? 0
         lastFlushAt = now()
         writeCount += 1
     }
