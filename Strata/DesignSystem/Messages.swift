@@ -480,7 +480,9 @@ struct AssistantMessage: View {
             // A feed with a note after it is done: it folds like a feed does once the answer starts.
             let isLast = n == feeds.count - 1
             ActivityFeedView(cards: ActivityFeed.cards(calls: feeds.indices.contains(n) ? feeds[n] : [], sources: citations.sources),
-                             isStreaming: content.isStreaming, answerStarted: isLast ? answerStarted : true, onDetails: onOpenTimeline)
+                             isStreaming: content.isStreaming, answerStarted: isLast ? answerStarted : true,
+                             earlierHost: n == 0 ? nil : BrowserRun.lastHost(ActivityFeed.cards(calls: feeds.prefix(n).flatMap { $0 }, sources: citations.sources)),
+                             onDetails: onOpenTimeline)
         case .note(let segment):
             if let text = notes[segment] { NoteText(text: text) }
         case .text:

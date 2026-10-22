@@ -49,13 +49,24 @@ struct BrowserActionParsingTests {
         #expect(AppPrompt.browser.contains("never say you solved one"))
     }
 
+    @Test func cardsHideElementNumbers() {
+        #expect(BrowserActionLabel.readable("Clicked [8] 닫기") == "Clicked \u{201C}닫기\u{201D}")
+        #expect(BrowserActionLabel.readable("Clicked [8] ") == "Clicked")
+        #expect(BrowserActionLabel.readable(#"Typed "hi" into [3] Search and submitted"#) == "Typed \"hi\" into \u{201C}Search\u{201D} and submitted")
+        #expect(BrowserActionLabel.readable(#"Typed "hi" into [3] "#) == #"Typed "hi""#)
+        #expect(BrowserActionLabel.readable("Scrolled [4] down 600") == "Scrolled down 600")
+        #expect(BrowserActionLabel.readable("Scrolled down 600") == "Scrolled down 600")
+        #expect(ToolNote.title(tool: ToolNames.browserType, argument: "[5] \u{201C}cafe\u{201D}", running: true) == "Typing \u{201C}cafe\u{201D}…")
+    }
+
     @Test func cardsSayWhatWasDone() {
         var record = ToolCallRecord(id: "c", name: ToolNames.browserClick, arguments: #"{"index":12}"#,
                                     result: "Clicked [12] Search\nThe page is now https://e.com/s\n\nURL: https://e.com/s\nTitle: S", isError: false)
         #expect(record.primaryArgument == "[12]")
-        #expect(record.displayOnly.result == "Clicked [12] Search", "the state is dropped, the summary kept")
+        #expect(record.displayOnly.result == "Clicked [12] Search\nURL: https://e.com/s", "the state is dropped, the summary and URL kept")
         #expect(BrowserActionLabel.summary(tool: record.name, result: record.result) == "Clicked [12] Search")
-        #expect(ToolNote.title(tool: record.name, argument: "[12]", running: true) == "Clicking [12]…")
+        #expect(ToolNote.title(tool: record.name, argument: "[12]", running: true) == "Clicking…")
+        #expect(ToolNote.title(tool: record.name, argument: "[12]", running: false, summary: "Clicked [12] Search") == "Clicked \u{201C}Search\u{201D}")
         record.name = ToolNames.browserState
         #expect(BrowserActionLabel.summary(tool: record.name, result: "URL: x") == nil)
         let typed = ToolCallRecord(id: "t", name: ToolNames.browserType, arguments: #"{"index":5,"text":"cafe"}"#, result: "", isError: false)

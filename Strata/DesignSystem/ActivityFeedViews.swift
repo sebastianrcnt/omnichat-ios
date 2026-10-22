@@ -105,7 +105,7 @@ struct PulsingDot: View {
 
     var body: some View {
         Circle()
-            .fill(theme.accent)
+            .fill(theme.textSecondary) // neutral: green is for "live" (the browser view) and the send/stop button
             .frame(width: 8, height: 8)
             .scaleEffect(dim && !reduceMotion ? 0.7 : 1)
             .opacity(dim && !reduceMotion ? 0.3 : 1)
@@ -203,6 +203,8 @@ struct ActivityFeedView: View {
     let cards: [FeedCard]
     let isStreaming: Bool
     let answerStarted: Bool
+    /// The site the reply's earlier feeds left the browser on (`BrowserRun.earlierHost`).
+    var earlierHost: String?
     var onDetails: () -> Void = {}
     @State private var overrides: [String: FeedCollapse.Override] = [:]
     @State private var showingAll: Set<String> = []
@@ -211,7 +213,7 @@ struct ActivityFeedView: View {
     var body: some View {
         let epoch = FeedCollapse.epoch(cardCount: cards.count, isStreaming: isStreaming, answerStarted: answerStarted)
         let live = ActivityFeed.liveBrowserCard(cards, isStreaming: isStreaming, answerStarted: answerStarted)
-        let items = BrowserRun.items(cards)
+        let items = BrowserRun.items(cards, earlierHost: earlierHost)
         let indices = Dictionary(cards.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { a, _ in a })
         let working = isStreaming && !answerStarted
         VStack(alignment: .leading, spacing: MessageLayout.lineGap) {

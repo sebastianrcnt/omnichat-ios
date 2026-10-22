@@ -85,6 +85,7 @@ struct FeedCall: Equatable, Sendable {
     var output = ""
     var figures: [ToolImage] = []
     var viewedImage: ToolImage?
+    var shownImage: ToolImage?
     /// What a `show_places` call put on the map.
     var places: PlaceCollection?
     /// The artifact a `show_html` call saved.
@@ -113,6 +114,7 @@ struct FeedCall: Equatable, Sendable {
             output = record.result
             figures = record.figures ?? []
             viewedImage = record.viewedImage
+            shownImage = record.shownImage
             places = record.places
             artifact = record.artifact
         }
@@ -332,7 +334,7 @@ enum ActivityFeed {
                 card.output = call.output
                 card.places = call.places
                 card.artifact = call.artifact
-                card.figures = tool == ToolNames.runPython ? call.figures : (call.viewedImage.map { [$0] } ?? [])
+                card.figures = tool == ToolNames.runPython ? call.figures : ((call.shownImage ?? call.viewedImage).map { [$0] } ?? [])
                 if call.status == .failed {
                     if tool == ToolNames.browserOpen { card.pageFailure = call.failure ?? .failed }
                     else { card.pythonFailure = PythonFailure(errorText: call.output) }

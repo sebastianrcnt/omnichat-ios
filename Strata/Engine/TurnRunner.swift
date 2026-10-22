@@ -265,6 +265,7 @@ struct TurnRunner: Sendable {
                                                 result: out.text, isError: out.isError, sourceIDs: ids)
                     record.figures = out.figures.isEmpty ? nil : out.figures
                     record.viewedImage = out.viewedImage
+                    record.shownImage = out.shownImage
                     record.places = out.places
                     record.artifact = out.artifact
                     records.append(record)

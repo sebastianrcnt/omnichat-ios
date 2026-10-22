@@ -368,6 +368,8 @@ struct BrowserAgentTool {
     private func screenshot(session: BrowserSessions.Session, conversation: UUID?) async throws -> ToolOutput {
         guard let conversation else { return ToolOutput(text: "Error: screenshots are not available here.", isError: true) }
         let state = try await Self.observe(session, maxCharacters: maxCharacters, markNew: false)
+        // The chat shows the page as it looks; the model gets the copy with the numbered boxes.
+        let clean = try? await session.page.snapshotPNG(width: Self.screenshotWidth)
         _ = try? await call(.mark, [:], session: session)
         let png: Data
         do {
@@ -380,8 +382,9 @@ struct BrowserAgentTool {
         guard let image = images.addImage(png: png, conversationID: conversation, prefix: ToolImageStore.screenshotPrefix) else {
             return ToolOutput(text: "Error: the screenshot could not be saved.", isError: true)
         }
+        let shown = clean.flatMap { images.addImage(png: $0, conversationID: conversation, prefix: ToolImageStore.screenshotPrefix) }
         return ToolOutput(text: "Took a screenshot\nIt is attached in the next message as \(image.listing): a numbered box marks each element of this state.\n\n" + state.text,
-                          viewedImage: image)
+                          viewedImage: image, shownImage: shown)
     }
 }
 

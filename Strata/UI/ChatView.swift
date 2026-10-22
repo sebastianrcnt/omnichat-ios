@@ -357,7 +357,7 @@ struct ChatView: View {
             .padding(.horizontal, DS.Spacing.md)
             .padding(.vertical, DS.Spacing.sm) // 8pt below the 44pt buttons, clear of the blur edge
         }
-        // No backing of its own: the list's soft top edge effect blurs and fades what scrolls under the header.
+        // No backing of its own: the list's hard top edge effect blurs and dims what scrolls under the header.
     }
     #endif
 
@@ -485,7 +485,8 @@ struct ChatView: View {
             if pin.reserveOutOfView { pinnedID = nil }
         }
         .scrollDismissesKeyboard(.interactively)
-        .scrollEdgeEffectStyle(.soft, for: .top)
+        // Hard on top: the header holds a title in text, and soft let the reply's lines show through behind it.
+        .scrollEdgeEffectStyle(.hard, for: .top)
         .scrollEdgeEffectStyle(.soft, for: .bottom)
         #if os(iOS)
         .simultaneousGesture(TapGesture().onEnded { composerFocused = false })

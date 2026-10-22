@@ -57,7 +57,8 @@ struct StreamingIndicator: View {
     }
 }
 
-/// Circular context-fill indicator: a visible track plus an accent arc from 12 o'clock.
+/// Circular context-fill indicator: a visible track with a filled wedge from 12 o'clock inside it, a gauge that can't
+/// be mistaken for a spinner (a short colored arc on a track reads as one). Neutral until the context gets full.
 /// `fraction == nil` means no usage yet (track only, dimmed).
 struct ContextRing: View {
     @Environment(\.theme) private var theme
@@ -75,7 +76,7 @@ struct ContextRing: View {
 
     private var color: Color {
         switch fraction ?? 0 {
-        case ..<0.7: theme.accent
+        case ..<0.7: theme.textSecondary
         case ..<0.9: theme.warning
         default: theme.destructive
         }
@@ -86,16 +87,34 @@ struct ContextRing: View {
             Circle()
                 .stroke(theme.textSecondary.opacity(fraction == nil ? 0.3 : 0.45), lineWidth: lineWidth) // a full, visible track reads as a gauge, not a spinner
             if let fraction, fraction > 0 {
-                Circle()
-                    .trim(from: 0, to: Self.arc(for: fraction))
-                    .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
+                ContextWedge(fraction: Self.arc(for: fraction))
+                    .fill(color)
+                    .padding(lineWidth * 1.5)
             }
         }
         .frame(width: diameter, height: diameter)
         .animation(DS.Motion.ease, value: fraction)
         .accessibilityElement()
         .accessibilityLabel(Text(fraction.map { "Context: \(Int(($0 * 100).rounded()))% used" } ?? "Context: no usage yet"))
+    }
+}
+
+/// A pie slice from 12 o'clock, clockwise.
+private struct ContextWedge: Shape {
+    var fraction: Double
+    var animatableData: Double {
+        get { fraction }
+        set { fraction = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        var path = Path()
+        path.move(to: center)
+        path.addArc(center: center, radius: min(rect.width, rect.height) / 2, startAngle: .degrees(-90),
+                    endAngle: .degrees(-90 + 360 * fraction), clockwise: false)
+        path.closeSubpath()
+        return path
     }
 }
 

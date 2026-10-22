@@ -9,6 +9,9 @@ import SwiftUI
 /// one block. Pure, built from the feed's cards on every render.
 struct BrowserRun: Identifiable, Equatable {
     var steps: [FeedCard]
+    /// The site an earlier run of the reply was on, for a run that names no page of its own (clicks only, or still
+    /// running): it is still on that site, so it says "Browsing naver.com" rather than "Using the browser".
+    var earlierHost: String?
     var id: String { "run-" + (steps.first?.id ?? "") }
 
     enum Item: Identifiable, Equatable {
@@ -31,11 +34,16 @@ struct BrowserRun: Identifiable, Equatable {
 
     /// The feed's cards with each run of browser calls (notes may sit among them) folded into one item. A run of notes
     /// alone stays as single lines.
-    static func items(_ cards: [FeedCard]) -> [Item] {
+    static func items(_ cards: [FeedCard], earlierHost: String? = nil) -> [Item] {
         var items: [Item] = []
         var pending: [FeedCard] = []
+        var host = earlierHost
         func flush() {
-            if pending.contains(where: isBrowser) { items.append(.run(BrowserRun(steps: pending))) }
+            if pending.contains(where: isBrowser) {
+                let run = BrowserRun(steps: pending, earlierHost: host)
+                host = run.host
+                items.append(.run(run))
+            }
             else { items += pending.map(Item.card) }
             pending = []
         }
@@ -54,7 +62,12 @@ struct BrowserRun: Identifiable, Equatable {
         for card in steps.reversed() {
             if let url = BrowserStep.pageURL(card) { return DomainFormatter.short(ActivityEntry.host(of: url)) }
         }
-        return nil
+        return earlierHost
+    }
+
+    /// The site the last run in `cards` ended on.
+    static func lastHost(_ cards: [FeedCard]) -> String? {
+        items(cards).reversed().lazy.compactMap { if case .run(let run) = $0 { run.host } else { nil } }.first
     }
 
     var isRunning: Bool { steps.contains(where: \.isRunning) }
@@ -147,7 +160,8 @@ struct BrowserRunView: View {
                 .padding(.vertical, -(DS.IconSize.minHitTarget - DS.Feed.lineHeight) / 2)
             }
             ForEach(shown) { card in
-                BrowserStep(card: card, current: card.id == current, collapsed: stepCollapsed(card),
+                // While the page shows live below, an earlier screenshot of it is only a stale copy.
+                BrowserStep(card: card, current: card.id == current, collapsed: stepCollapsed(card), showsScreenshot: live == nil,
                             onToggle: { onToggleStep(card) })
             }
         }
@@ -164,6 +178,7 @@ struct BrowserStep: View {
     let card: FeedCard
     let current: Bool
     var collapsed = true
+    var showsScreenshot = true
     var onToggle: () -> Void = {}
 
     var body: some View {
@@ -173,7 +188,7 @@ struct BrowserStep: View {
                 KeptPageLink(callID: card.id)
                     .padding(.leading, DS.Feed.markColumn + DS.Spacing.xs)
             }
-            if case .browserAction = card.kind, !card.isRunning, let image = card.figures.first {
+            if showsScreenshot, case .browserAction = card.kind, !card.isRunning, let image = card.figures.first {
                 ToolImageThumbnail(image: image, height: DS.Feed.liveHeight * 0.8)
                     .padding(.leading, DS.Feed.markColumn + DS.Spacing.xs)
             }
@@ -242,8 +257,20 @@ struct BrowserStep: View {
         switch card.kind {
         case .browser(let url): url
         case .script: BrowserScript.url(inResult: card.output)
+        case .browserAction: actionURL(card.output)
         default: nil
         }
+    }
+
+    /// The page an index tool left the browser on: its result's "URL:" line, or "The page is now …".
+    static func actionURL(_ result: String) -> String? {
+        for line in result.split(separator: "\n") {
+            for prefix in ["URL: ", "The page is now "] where line.hasPrefix(prefix) {
+                let url = line.dropFirst(prefix.count).trimmingCharacters(in: .whitespaces)
+                if url.hasPrefix("http") { return url }
+            }
+        }
+        return nil
     }
 
     private var host: String? { Self.pageURL(card).map { DomainFormatter.short(ActivityEntry.host(of: $0)) } }
@@ -334,7 +361,7 @@ struct BrowserLiveStrip<Thumbnail: View>: View {
                 Button("Take over", systemImage: "hand.point.up.left", action: onTakeOver)
                     .buttonStyle(.quietLink)
                     .accessibilityHint(Text("Lets you use the page; the model waits until you're done"))
-                Button("Stop browsing", systemImage: "stop", action: onStop)
+                Button("Stop browsing", systemImage: "stop.circle", action: onStop)
                     .buttonStyle(.quietLink(.secondary))
             }
             .fixedSize(horizontal: false, vertical: true)
@@ -554,15 +581,16 @@ enum BrowserActionLabel {
     }
 
     static func title(tool: String, argument: String, running: Bool, failed: Bool, summary: String?) -> String {
-        if !running, !failed, let summary { return summary }
-        let arg = argument.isEmpty ? "" : " " + argument
+        if !running, !failed, let summary { return readable(summary) }
+        let shown = withoutIndex(argument)
+        let arg = shown.isEmpty ? "" : " " + shown
         switch tool {
         case ToolNames.browserState:
             return running ? String(localized: "Reading the page…") : failed ? String(localized: "Couldn't read the page") : String(localized: "Read the page")
         case ToolNames.browserClick:
             return running ? String(localized: "Clicking\(arg)…") : failed ? String(localized: "Couldn't click\(arg)") : String(localized: "Clicked\(arg)")
         case ToolNames.browserType:
-            return running ? String(localized: "Typing into\(arg)…") : failed ? String(localized: "Couldn't type into\(arg)") : String(localized: "Typed into\(arg)")
+            return running ? String(localized: "Typing\(arg)…") : failed ? String(localized: "Couldn't type into\(arg)") : String(localized: "Typed into\(arg)")
         case ToolNames.browserSelect:
             return running ? String(localized: "Choosing\(arg)…") : failed ? String(localized: "Couldn't choose\(arg)") : String(localized: "Chose\(arg)")
         case ToolNames.browserScroll:
@@ -575,6 +603,32 @@ enum BrowserActionLabel {
         default:
             return running ? String(localized: "Running \(tool)…") : String(localized: "Ran \(tool)")
         }
+    }
+}
+
+extension BrowserActionLabel {
+    /// The element numbers are for the model ("[12]", from the marked screenshot); the user reads the label:
+    /// "Clicked [12] Search" shows as "Clicked “Search”", "Scrolled [4] down 600" as "Scrolled down 600".
+    static func readable(_ line: String) -> String {
+        guard let index = line.range(of: #"\[\d+\]\s*"#, options: .regularExpression) else { return line }
+        let head = line[..<index.lowerBound].trimmingCharacters(in: .whitespaces)
+        var rest = String(line[index.upperBound...])
+        if line.hasPrefix("Scrolled") { return [head, rest].filter { !$0.isEmpty }.joined(separator: " ") }
+        let submitted = " and submitted"
+        let tail = rest.hasSuffix(submitted) ? submitted : ""
+        rest = String(rest.dropLast(tail.count)).trimmingCharacters(in: .whitespaces)
+        guard !rest.isEmpty else {
+            // No label: "Typed "hi" into" reads better without its dangling preposition.
+            let words = head.split(separator: " ")
+            let trimmed = ["into", "in"].contains(words.last.map(String.init) ?? "") ? words.dropLast().joined(separator: " ") : head
+            return trimmed + tail
+        }
+        return head + " \u{201C}" + rest + "\u{201D}" + tail
+    }
+
+    /// A running call's argument without its element number: "[12]" alone is nothing to the user.
+    static func withoutIndex(_ argument: String) -> String {
+        argument.replacingOccurrences(of: #"^\[\d+\]\s*"#, with: "", options: .regularExpression)
     }
 }
 

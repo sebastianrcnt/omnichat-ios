@@ -20,6 +20,9 @@ struct ToolOutput: Sendable, Equatable {
     var figures: [ToolImage] = []
     /// The image a `view_image` call attaches: it goes to the model in a user message right after the tool results.
     var viewedImage: ToolImage?
+    /// What the chat shows for `viewedImage` when the model's copy is marked up: a browser screenshot without the
+    /// numbered boxes. Display only; never sent.
+    var shownImage: ToolImage?
     /// The places a `show_places` call put on the map (for the chat's map card; the model reads `text`).
     var places: PlaceCollection?
     /// The artifact a `show_html` call saved (for the chat's card; the model reads `text`).
@@ -39,6 +42,7 @@ struct RawToolResult: Codable, Sendable, Equatable {
     var engine: String?
     var figures: [ToolImage]?
     var viewedImage: ToolImage?
+    var shownImage: ToolImage?
     var places: PlaceCollection?
     var artifact: ArtifactRef?
     var trailer: String?
@@ -51,6 +55,7 @@ struct RawToolResult: Codable, Sendable, Equatable {
         engine = output.engine
         figures = output.figures.isEmpty ? nil : output.figures
         viewedImage = output.viewedImage
+        shownImage = output.shownImage
         places = output.places
         artifact = output.artifact
         trailer = output.trailer
@@ -58,7 +63,7 @@ struct RawToolResult: Codable, Sendable, Equatable {
 
     var output: ToolOutput {
         ToolOutput(text: text, isError: isError, sources: sources, engine: engine, figures: figures ?? [], viewedImage: viewedImage,
-                   places: places, artifact: artifact, trailer: trailer)
+                   shownImage: shownImage, places: places, artifact: artifact, trailer: trailer)
     }
 }
 
@@ -87,6 +92,8 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
     /// Figures a `run_python` call saved, and the image a `view_image` call attached (sent again with every request).
     var figures: [ToolImage]?
     var viewedImage: ToolImage?
+    /// The unmarked copy of a browser screenshot, which the chat shows (display only).
+    var shownImage: ToolImage?
     /// The places a `show_places` call put on the map (display only).
     var places: PlaceCollection?
     /// The artifact a `show_html` call saved (display only).
@@ -176,15 +183,23 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
 
     /// The record without its result text: all a process row needs, so segments never hold fetched page bodies.
     /// A Python run and a browser script keep their output (the card shows it; it is capped like a page slice).
+    private static func actionDisplay(_ result: String) -> String {
+        let first = String(result.prefix { $0 != "\n" }.prefix(200))
+        let url = result.split(separator: "\n").first { $0.hasPrefix("URL: ") }.map { String($0.prefix(300)) }
+        return url.map { first + "\n" + $0 } ?? first
+    }
+
     var displayOnly: ToolCallRecord {
         let keepsResult = name == ToolNames.runPython || name == ToolNames.browserEval || SSHToolNames.covers(name)
             || name == ToolNames.healthQuery // its line opens to the table it read (capped)
-        // An index tool keeps its first line ("Clicked [12] Search"): its card's title. The page state is dropped.
-        let kept = keepsResult ? result : ToolNames.isBrowserAction(name) ? String(result.prefix { $0 != "\n" }.prefix(200)) : ""
+        // An index tool keeps its first line ("Clicked [12] Search"), its card's title, and the page's "URL:" line,
+        // which names the site of its run (`BrowserRun.host`). The rest of the page state is dropped.
+        let kept = keepsResult ? result : ToolNames.isBrowserAction(name) ? Self.actionDisplay(result) : ""
         var out = ToolCallRecord(id: id, name: name, arguments: arguments, result: kept,
                                  isError: isError, sourceIDs: sourceIDs)
         out.figures = figures
         out.viewedImage = viewedImage
+        out.shownImage = shownImage
         out.places = places
         out.artifact = artifact
         if name == ToolNames.webSearch {
