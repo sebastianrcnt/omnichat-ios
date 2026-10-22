@@ -298,12 +298,18 @@
     "Auto searches Naver for Korean queries and Bing otherwise. If the engine fails or finds nothing, the next one is tried. web_fetch returns up to the fetch length per call; longer pages continue in further calls. A chat can turn web search on or off from the + menu.": {},
     "Automatic": {},
     "Available": {},
-    "Away for %lld s.": {},
+    "Away for %lld s.": {
+      "extractionState": "stale"
+    },
     "Back": {},
     "Background identifiers": {},
     "Background lease": {},
-    "Background sound test": {},
-    "Background sound test finished": {},
+    "Background sound test": {
+      "extractionState": "stale"
+    },
+    "Background sound test finished": {
+      "extractionState": "stale"
+    },
     "Bad certificate": {},
     "Balance": {
       "extractionState": "stale"
@@ -401,6 +407,7 @@
     "Commands on these run without asking (\"Always for this server\").": {},
     "Compaction": {},
     "Completion tokens": {},
+    "Confirm recipient": {},
     "Connected · %lld models": {},
     "Connected. Signed in with %@. Host key %@ %@.": {},
     "Connection": {},
@@ -481,6 +488,7 @@
     "Denied": {},
     "Deny": {},
     "Description": {},
+    "Destination chat": {},
     "Developer": {},
     "Developer mode": {},
     "Device settings": {},
@@ -496,6 +504,7 @@
     "Didn't upload ": {},
     "Directions": {},
     "Directions by %@": {},
+    "Discard share": {},
     "Dismiss": {},
     "Display name": {},
     "Doesn't match the expected format": {},
@@ -506,7 +515,9 @@
     "Download English–Korean": {},
     "Download the English–Korean language to translate thinking. Until then it shows as written.": {},
     "Downloaded ": {},
-    "Downloaded packages": {},
+    "Downloaded packages": {
+      "extractionState": "stale"
+    },
     "Downloading ": {},
     "Downloading the model…": {},
     "Dynamic size": {},
@@ -524,7 +535,9 @@
     "Eligible requests in OpenChat use your ChatGPT plan and count toward its usage limits. You can manage usage in ChatGPT settings.": {},
     "Eligible requests use your ChatGPT plan and count toward its usage limits, which you manage in ChatGPT settings. The sign-in is stored in the Keychain.": {},
     "Enable only for gateways supporting OpenChat stream replay.": {},
-    "Enable only for gateways supporting Strata stream replay.": {},
+    "Enable only for gateways supporting Strata stream replay.": {
+      "extractionState": "stale"
+    },
     "Engine": {},
     "Enter a number": {},
     "Enter a valid URL": {},
@@ -661,6 +674,7 @@
     "Install package?": {},
     "Installed": {},
     "Instructions": {},
+    "Intended recipient": {},
     "Interactive views": {},
     "Interactive views in new chats": {},
     "Invalid HTTP response": {},
@@ -669,6 +683,7 @@
     "Its secrets and approvals are deleted. Chats that used it can't call its tools anymore.": {},
     "Jump hosts": {},
     "Jump to bottom": {},
+    "Keep for later": {},
     "Kept in the Keychain on this device. The model never sees them; they go only into this package's requests.": {},
     "Kept on this device for 30 days. Arguments and results are never recorded, only a fingerprint of the arguments.": {},
     "Key": {},
@@ -821,7 +836,9 @@
     "No plugins": {},
     "No reasoning was shared for this reply.": {},
     "No requests yet": {},
-    "No results yet": {},
+    "No results yet": {
+      "extractionState": "stale"
+    },
     "No saved skills": {},
     "No secrets were in iCloud.": {},
     "No text": {},
@@ -877,7 +894,10 @@
     "Open": {},
     "Open Chat": {},
     "Open OpenChat to continue": {},
-    "Open OpenChat to continue. The chat starts as soon as it opens.": {},
+    "Open OpenChat to continue. If the destination changed, you’ll be asked before anything is sent.": {},
+    "Open OpenChat to continue. The chat starts as soon as it opens.": {
+      "extractionState": "stale"
+    },
     "Open Settings": {},
     "Open full screen": {},
     "Open in Browser": {},
@@ -905,7 +925,9 @@
     "OpenChat isn't allowed to add photos. You can allow it in Settings.": {},
     "OpenChat stops at a robot check (CAPTCHA) and asks you to solve it on the page; it never solves one itself. With this off, a page that shows one isn't read.": {},
     "OpenChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.": {},
-    "OpenChat talks to the AI service you choose: OpenAI, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.": {},
+    "OpenChat talks to the AI service you choose: OpenAI, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.": {
+      "extractionState": "stale"
+    },
     "OpenChat waits while you use the page. Tap Done to hand it back.": {},
     "OpenCode": {},
     "OpenCode Go": {},
@@ -977,7 +999,9 @@
     "Place": {},
     "Placed on the map by name; the pin may be approximate.": {},
     "Plan": {},
-    "Play a sound while browsing in the background": {},
+    "Play a sound while browsing in the background": {
+      "extractionState": "stale"
+    },
     "Plugins": {},
     "Port": {},
     "Preferences, tool defaults, plugins and your connection list.": {},
@@ -990,6 +1014,7 @@
     "Previous Artifact": {},
     "Previous Chat": {},
     "Previous version": {},
+    "Privacy Policy": {},
     "Private key": {},
     "Prompt": {},
     "Prompt tokens": {},
@@ -1109,7 +1134,9 @@
     },
     "Responses API": {},
     "Restricted": {},
-    "Results": {},
+    "Results": {
+      "extractionState": "stale"
+    },
     "Resumable replies": {},
     "Resume data": {
       "extractionState": "stale"
@@ -1243,10 +1270,18 @@
     "Sign in to ChatGPT for %@ in Settings.": {},
     "Sign in to ChatGPT in Settings.": {},
     "Sign in to use OpenCode Go or pay as you go": {},
-    "Sign in to use your ChatGPT plan": {},
-    "Sign in with ChatGPT": {},
-    "Sign in with ChatGPT for %@ in Settings.": {},
-    "Sign in with ChatGPT in Settings.": {},
+    "Sign in to use your ChatGPT plan": {
+      "extractionState": "stale"
+    },
+    "Sign in with ChatGPT": {
+      "extractionState": "stale"
+    },
+    "Sign in with ChatGPT for %@ in Settings.": {
+      "extractionState": "stale"
+    },
+    "Sign in with ChatGPT in Settings.": {
+      "extractionState": "stale"
+    },
     "Sign in with OpenCode": {},
     "Sign in with OpenCode in Settings.": {},
     "Sign in with OpenCode, or enter a valid API key, for %@ in Settings.": {},
@@ -1261,7 +1296,9 @@
     "Signed in, but plan usage wasn't allowed.": {},
     "Signed out": {},
     "Signed out on this device, but ChatGPT didn't confirm it. You can disconnect OpenChat in ChatGPT Settings.": {},
-    "Signed out on this device, but ChatGPT didn't confirm it. You can disconnect Strata in ChatGPT Settings.": {},
+    "Signed out on this device, but ChatGPT didn't confirm it. You can disconnect Strata in ChatGPT Settings.": {
+      "extractionState": "stale"
+    },
     "Signed out on this device.": {},
     "Signed out.": {},
     "Signing in…": {},
@@ -1285,7 +1322,9 @@
     "Speech recognition is off. Turn it on in Settings.": {},
     "Speech recognition is off. Turn it on in System Settings.": {},
     "Standard (25 s)": {},
-    "Start": {},
+    "Start": {
+      "extractionState": "stale"
+    },
     "Start again": {},
     "Static / dynamic": {
       "extractionState": "stale"
@@ -1300,7 +1339,9 @@
     "Stopped": {},
     "Stops searching and answers from what has been found": {},
     "Storage": {},
-    "Strata": {},
+    "Strata": {
+      "extractionState": "stale"
+    },
     "Strata includes these components under their licenses.": {
       "extractionState": "stale"
     },
@@ -1331,7 +1372,9 @@
     "System prompt": {},
     "Take over": {},
     "Taking a screenshot…": {},
-    "Tap Start, go to the Home screen or another app for about a minute, then come back. A page that kept running has a longest gap near 1 s; one that was suspended shows a gap about as long as you were away. The sound plays only while you are away, and only when Settings > Tools > Play a sound while browsing in the background is on.": {},
+    "Tap Start, go to the Home screen or another app for about a minute, then come back. A page that kept running has a longest gap near 1 s; one that was suspended shows a gap about as long as you were away. The sound plays only while you are away, and only when Settings > Tools > Play a sound while browsing in the background is on.": {
+      "extractionState": "stale"
+    },
     "Teal": {},
     "Temporarily unavailable": {},
     "Test": {},
@@ -1372,7 +1415,9 @@
     "The language the microphone in the composer listens for, sent as a hint. The recording is sent to the connection's /audio/transcriptions when you tap Done, and the words appear then. Works with OpenAI (whisper-1, gpt-4o-transcribe), Groq (whisper-large-v3) and local whisper servers; add one under Connections if it isn't there.": {},
     "The language the microphone in the composer listens for. Speech in another language comes out garbled. Apple on-device shows the words as you speak; nothing leaves the device.": {},
     "The last %lld request bodies, kept compressed in memory.": {},
-    "The link asks for Anthropic's Messages API, which OpenChat can't use with a server yet.": {},
+    "The link asks for Anthropic's Messages API, which OpenChat can't use with a server yet.": {
+      "extractionState": "stale"
+    },
     "The link asks for an API OpenChat doesn't know (%@).": {},
     "The link doesn't say which server to add.": {},
     "The link included an API key. It was ignored: enter the key yourself.": {},
@@ -1383,7 +1428,10 @@
     "The model can run Python code on this device with run_python (Pyodide %@). Packages such as numpy, sympy and pandas are downloaded the first time they are used and kept for later.": {
       "extractionState": "stale"
     },
-    "The model can run Python code on this device with run_python (Pyodide %@). Packages such as numpy, sympy and pandas are downloaded the first time they are used and kept for later. A chat can turn Python on or off from the + menu.": {},
+    "The model can run Python code on this device with run_python (Pyodide %@). Packages such as numpy, sympy and pandas are downloaded the first time they are used and kept for later. A chat can turn Python on or off from the + menu.": {
+      "extractionState": "stale"
+    },
+    "The model can run Python code on this device with run_python (Pyodide %@). numpy, pandas and matplotlib are bundled and work offline. Other packages cannot be installed. A chat can turn Python on or off from the + menu.": {},
     "The model can run commands and move files on your servers over SSH, and save the passwords and keys you give it in the Keychain on this device. A chat turns SSH on or off from the + menu. Each command connects anew; a connection drops soon after OpenChat leaves the screen.": {},
     "The model didn't answer. Check its connection and try again.": {},
     "The model reported an error.": {},
@@ -1399,6 +1447,7 @@
     "The on-device model isn't available right now (it may be updating). Try again later.": {},
     "The page failed to load: %@": {},
     "The page took too long to load.": {},
+    "The recipient changed or the destination is unavailable. Nothing has been sent. Confirm the recipient below, or keep the share for later and check your connection settings.": {},
     "The recording is too long to transcribe. Try a shorter one.": {},
     "The reply was stopped.": {},
     "The request is too large for the Anthropic API. Remove some images, or start a new chat.": {},
@@ -1453,7 +1502,9 @@
     "This server uses http, so the API key and your messages travel unencrypted. Use https if the server supports it.": {},
     "This server uses http: the API key and your messages travel unencrypted.": {},
     "This sign-in didn't allow OpenChat to use your ChatGPT plan, so requests will be refused. Sign out and sign in again, and allow plan usage.": {},
-    "This sign-in didn't allow Strata to use your ChatGPT plan, so requests will be refused. Sign out and sign in again, and allow plan usage.": {},
+    "This sign-in didn't allow Strata to use your ChatGPT plan, so requests will be refused. Sign out and sign in again, and allow plan usage.": {
+      "extractionState": "stale"
+    },
     "This sign-in returned a different ChatGPT account. Sign in with the original account, or add another ChatGPT connection.": {},
     "This turn's resume checkpoint. Empty for connections without resumable replies.": {},
     "This version of %@ is signed by a different key than the installed one. Remove the installed package first if you trust the new publisher.": {},
@@ -1504,6 +1555,7 @@
     "Unexpected response from /models.": {},
     "Unknown": {},
     "Unknown publisher": {},
+    "Unknown recipient": {},
     "Unpin": {},
     "Update": {},
     "Update package?": {},
@@ -1526,7 +1578,9 @@
     "Used tools": {},
     "Used when the server's model list doesn't say what a model can do. Change a single model under Models.": {},
     "User": {},
-    "Uses your ChatGPT plan. Requests count toward its usage limits. The sign-in is stored in the Keychain.": {},
+    "Uses your ChatGPT plan. Requests count toward its usage limits. The sign-in is stored in the Keychain.": {
+      "extractionState": "stale"
+    },
     "Using %@": {},
     "Using %@…": {},
     "Using Chat Completions. Switches to the Responses API if the server says this model needs it.": {},
@@ -1580,8 +1634,12 @@
     },
     "With an API key": {},
     "With an account": {},
-    "With this off, web searches and browsing can stop while OpenChat is in the background. The sound plays only while the model is using the web and OpenChat is not on screen, even in silent mode, and may pause other audio until it ends.": {},
-    "With this off, web searches and browsing can stop while OpenChat is in the background. The sound plays only while the model is using the web and Strata is not on screen, even in silent mode, and may pause other audio until it ends.": {},
+    "With this off, web searches and browsing can stop while OpenChat is in the background. The sound plays only while the model is using the web and OpenChat is not on screen, even in silent mode, and may pause other audio until it ends.": {
+      "extractionState": "stale"
+    },
+    "With this off, web searches and browsing can stop while OpenChat is in the background. The sound plays only while the model is using the web and Strata is not on screen, even in silent mode, and may pause other audio until it ends.": {
+      "extractionState": "stale"
+    },
     "Worked on a server": {},
     "Worked on it": {},
     "Working": {},
@@ -1603,7 +1661,9 @@
     "You're using your ChatGPT plan": {},
     "You've hit Anthropic's rate limit for this API key. Try again in %lld seconds.": {},
     "You've hit Anthropic's rate limit for this API key. Wait a moment and try again.": {},
-    "You've reached a ChatGPT usage limit for Strata. Check your plan usage and app limits at chatgpt.com/settings/usage.": {},
+    "You've reached a ChatGPT usage limit for Strata. Check your plan usage and app limits at chatgpt.com/settings/usage.": {
+      "extractionState": "stale"
+    },
     "You've reached an OpenCode Go usage limit. Limits reset over time; check your usage in the OpenCode Console.": {},
     "You've reached an OpenCode usage or spending limit. Check your workspace in the OpenCode Console.": {},
     "Your %@": {},
