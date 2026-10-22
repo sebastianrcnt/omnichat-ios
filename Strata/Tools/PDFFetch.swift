@@ -5,6 +5,10 @@ import PDFKit
 /// PDF is downloaded instead and its text layer read with PDFKit, a "[Page N]" line before each page.
 enum PDFFetch {
     static let maxBytes = 40 * 1024 * 1024
+    /// Extraction caps. The download limit bounds the compressed file only: many pages can share one large content
+    /// stream, so a small file can expand to gigabytes of text. A long book still fits, read with `offset`.
+    static let maxPages = 5_000
+    static let maxCharacters = 4_000_000
 
     enum Failure: LocalizedError {
         case notPDF, tooLarge, unreadable, noText(pages: Int), http(Int)
@@ -47,18 +51,33 @@ enum PDFFetch {
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) { throw Failure.http(http.statusCode) }
         guard isPDF(data) else { throw Failure.notPDF }
         let finalURL = response.url ?? url
-        return try await Task.detached(priority: .userInitiated) { try text(of: data, url: finalURL) }.value
+        // Detached so the main actor stays free; the fetch deadline's cancellation is passed on, and checked per page.
+        let extraction = Task.detached(priority: .userInitiated) { try text(of: data, url: finalURL) }
+        return try await withTaskCancellationHandler { try await extraction.value } onCancel: { extraction.cancel() }
     }
 
-    /// The PDF's text, page by page. The title is the document's own, else the file name.
-    static func text(of data: Data, url: URL) throws -> FetchedPage {
+    /// The PDF's text, page by page, up to `maxPages` pages and about `maxCharacters` characters. The title is the
+    /// document's own, else the file name.
+    static func text(of data: Data, url: URL, maxPages: Int = maxPages, maxCharacters: Int = maxCharacters) throws -> FetchedPage {
         guard let document = PDFDocument(data: data) else { throw Failure.unreadable }
         var parts: [String] = []
+        var characters = 0
+        var stoppedAt: Int?
         for index in 0..<document.pageCount {
+            try Task.checkCancellation()
+            if index >= maxPages || characters >= maxCharacters {
+                stoppedAt = index
+                break
+            }
             guard let page = document.page(at: index)?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !page.isEmpty else { continue }
-            parts.append("[Page \(index + 1)]\n" + page)
+            let part = "[Page \(index + 1)]\n" + page.prefix(maxCharacters - characters)
+            characters += part.utf16.count
+            parts.append(part)
         }
         guard !parts.isEmpty else { throw Failure.noText(pages: document.pageCount) }
+        if let stoppedAt {
+            parts.append("[Stopped reading at page \(stoppedAt + 1) of \(document.pageCount): the PDF's text is too long to load in full.]")
+        }
         let own = (document.documentAttributes?[PDFDocumentAttribute.titleAttribute] as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let title = own.isEmpty ? url.lastPathComponent : own
