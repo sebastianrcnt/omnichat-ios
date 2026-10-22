@@ -413,6 +413,17 @@ struct HiddenWebViewBatchTests {
         #expect(ContinuousClock.now - start < .seconds(3))
     }
 
+    @Test func aGuardedViewHasItsRulesBeforeAnythingLoads() async throws {
+        // From the audit: the first guarded view after launch loaded while the rules were still compiling.
+        let view = HiddenWebView(guardNavigations: true, resolver: PackageTestResolver())
+        defer { view.dispose() }
+        try await view.load(html: html("<p>hi</p>"), baseURL: URL(string: "https://example.com/"))
+        #expect(view.hasRules)
+        let unguarded = HiddenWebView(guardNavigations: false)
+        defer { unguarded.dispose() }
+        #expect(!unguarded.hasRules)
+    }
+
     @Test func cancellingAScriptReturnsPromptly() async throws {
         let view = HiddenWebView(guardNavigations: false)
         defer { view.dispose() }

@@ -36,6 +36,8 @@ enum WebToolError: Error, LocalizedError, Equatable {
         return .navigation(error.localizedDescription)
     }
 
+    static let noLocalNetworkRules = "The browser's local-network protection could not be set up, so the page was not opened. Try again."
+
     static let certificateCodes: Set<Int> = [
         NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateHasBadDate, NSURLErrorServerCertificateUntrusted,
         NSURLErrorServerCertificateHasUnknownRoot, NSURLErrorServerCertificateNotYetValid,
@@ -103,14 +105,8 @@ enum LocalNetworkRules {
         return String(decoding: data, as: UTF8.self)
     }
 
-    /// Adds the rules to `controller`, now or once they are compiled.
-    static func install(in controller: WKUserContentController) {
-        if let list = lists[identifier] { controller.add(list); return }
-        let task = compile(identifier, patterns)
-        Task { @MainActor [weak controller] in
-            if let compiled = await task.value { controller?.add(compiled) }
-        }
-    }
+    /// The rules when they are already compiled.
+    static var compiled: WKContentRuleList? { lists[identifier] }
 
     /// The compiled rules, for a view that must not load anything before they are in place.
     static func rules() async -> WKContentRuleList? {
@@ -130,6 +126,7 @@ enum LocalNetworkRules {
             let compiled = try? await WKContentRuleListStore.default().compileContentRuleList(
                 forIdentifier: identifier, encodedContentRuleList: json(patterns))
             lists[identifier] = compiled
+            if compiled == nil { compiling[identifier] = nil } // the next view tries again
             return compiled
         }
         compiling[identifier] = task
@@ -166,6 +163,9 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
     private var continuation: CheckedContinuation<Void, Error>?
     private var allowNextNavigation = false
     private var guardNavigations: Bool
+    /// The local-network rules are on the view. A guarded view lets nothing load before they are (`decidePolicyFor`):
+    /// they are what stops a page's images, scripts and requests, which no navigation callback sees.
+    private(set) var hasRules = false
     private var resolver: any HostResolving
     /// The navigation a pending `load` is waiting for. Callbacks about any other (an abandoned one) are ignored.
     private var activeNavigation: WKNavigation?
@@ -180,7 +180,10 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
         config.defaultWebpagePreferences.allowsContentJavaScript = true
         // New windows reach `createWebViewWith`, which drops them unless a click just asked for them (`acceptPopups`).
         config.preferences.javaScriptCanOpenWindowsAutomatically = true
-        if guardNavigations { LocalNetworkRules.install(in: config.userContentController) }
+        if guardNavigations, let rules = LocalNetworkRules.compiled {
+            config.userContentController.add(rules)
+            hasRules = true
+        }
         if injectsReader, let source = ReadabilitySource.script {
             config.userContentController.addUserScript(WKUserScript(source: source, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         }
@@ -591,8 +594,13 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
         guard let url = navigationAction.request.url else { return .cancel }
-        if allowNextNavigation { allowNextNavigation = false; return .allow }
         let isMainFrame = navigationAction.targetFrame?.isMainFrame ?? true
+        // Fails closed: without the rules a page could reach the local network through what it loads.
+        if guardNavigations, !(await installRules()) {
+            if isMainFrame { finish(.failure(WebToolError.navigation(WebToolError.noLocalNetworkRules))) }
+            return .cancel
+        }
+        if allowNextNavigation { allowNextNavigation = false; return .allow }
         let scheme = url.scheme?.lowercased() ?? ""
         if scheme == "about" || scheme == "blob" || scheme == "data" || scheme == "javascript" { return .allow }
         guard guardNavigations else { return .allow }
@@ -604,6 +612,18 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
             if isMainFrame { finish(.failure(error)) }
             return .cancel
         }
+    }
+
+    /// Adds the local-network rules once they are compiled (the first view after launch waits for them). False when
+    /// they could not be compiled.
+    private func installRules() async -> Bool {
+        if hasRules { return true }
+        guard let rules = await LocalNetworkRules.rules(), !disposed else { return false }
+        if !hasRules {
+            webView.configuration.userContentController.add(rules)
+            hasRules = true
+        }
+        return true
     }
 
     /// A callback for the navigation being waited for (or any, when none is tracked).
