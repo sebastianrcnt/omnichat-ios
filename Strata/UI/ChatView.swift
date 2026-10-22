@@ -334,7 +334,6 @@ struct ChatView: View {
                         }
                     // Which model this chat talks to, without opening the picker; tapping it opens the picker.
                     if let model = selectedModelTitle {
-                        Spacer(minLength: DS.Spacing.xxs)
                         Button { composerFocused = false; showChatSettings = true } label: {
                             HStack(spacing: 2) {
                                 Text(verbatim: model).lineLimit(1)
@@ -348,8 +347,11 @@ struct ChatView: View {
                         .accessibilityHint(Text("Choose a model"))
                     }
                 }
-                // As tall as the buttons: the title at their top, the model at their bottom.
-                .frame(height: DS.IconSize.controlDiameter, alignment: .leading)
+                // Its own glass capsule, as tall as the buttons: the title never sits on the bare page, so the list's
+                // top edge can stay soft (no band across the screen).
+                .padding(.horizontal, DS.Spacing.md)
+                .frame(height: DS.IconSize.controlDiameter)
+                .glassEffect(.regular.interactive(), in: Capsule())
                 Spacer(minLength: 0)
                 // The context gauge and the menu share one glass capsule, like a toolbar group.
                 HStack(spacing: 0) {
@@ -369,7 +371,7 @@ struct ChatView: View {
             .padding(.horizontal, DS.Spacing.md)
             .padding(.vertical, DS.Spacing.sm) // 8pt below the 44pt buttons, clear of the blur edge
         }
-        // No backing of its own: the list's hard top edge effect blurs and dims what scrolls under the header.
+        // Glass under every piece: the list's soft top edge effect only blurs and fades what scrolls by.
     }
     #endif
 
@@ -497,8 +499,7 @@ struct ChatView: View {
             if pin.reserveOutOfView { pinnedID = nil }
         }
         .scrollDismissesKeyboard(.interactively)
-        // Hard on top: the header holds a title in text, and soft let the reply's lines show through behind it.
-        .scrollEdgeEffectStyle(.hard, for: .top)
+        .scrollEdgeEffectStyle(.soft, for: .top)
         .scrollEdgeEffectStyle(.soft, for: .bottom)
         #if os(iOS)
         .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
