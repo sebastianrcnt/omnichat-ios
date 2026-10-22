@@ -22,6 +22,7 @@ struct OUIRendered {
         var found = problems
         found += evaluator.unknownComponents.sorted().map { "Unknown component \($0)" }
         found += evaluator.unknownFunctions.sorted().map { "Unknown function @\($0)" }
+        if evaluator.overBudget { found.append("Too large to show") }
         return OUIRendered(root: root, program: program, problems: found, unresolved: evaluator.unresolved)
     }
 
@@ -206,7 +207,9 @@ enum OUIValidation {
         if rules["required"]?.truthy == true, empty { return String(localized: "Required") }
         if empty { return nil }
         let text = v.stringForm
-        if rules["email"]?.truthy == true, text.range(of: #"^[^\s@]+@[^\s@]+\.[^\s@]+$"#, options: .regularExpression) == nil {
+        // No address is longer than 254 bytes, and the length bound keeps the match quick.
+        if rules["email"]?.truthy == true,
+           text.utf8.count > 254 || text.range(of: #"^[^\s@]+@[^\s@]+\.[^\s@]+$"#, options: .regularExpression) == nil {
             return String(localized: "Enter a valid email address")
         }
         if rules["url"]?.truthy == true {
@@ -226,9 +229,8 @@ enum OUIValidation {
         let number = (v.arrayValue?.first ?? v).numberValue
         if let n = rules["min"]?.numberValue, let x = number, x < n { return String(localized: "Must be at least \(OUIValue.format(n))") }
         if let n = rules["max"]?.numberValue, let x = number, x > n { return String(localized: "Must be at most \(OUIValue.format(n))") }
-        if let p = rules["pattern"]?.text, text.range(of: p, options: .regularExpression) == nil {
-            return String(localized: "Doesn't match the expected format")
-        }
+        // No `pattern` rule: a regular expression from the model can backtrack for minutes on the main thread, and
+        // nothing stops a match once it runs. The value goes to the model, which can check the format itself.
         return nil
     }
 }
@@ -350,6 +352,20 @@ final class OUIRuntime {
 
     func value(form: String?, name: String) -> OUIValue? { fields[form ?? ""]?[name] }
 
+    /// What a field holds now, the same for what it shows, what is checked, what is sent and what is saved. A field
+    /// bound to a `$variable` reads it (`@Set` and `@Reset` change only the variable), else its declared default;
+    /// any other field reads what the person set, else its default.
+    func current(_ field: OUIField, form: String?, program: OUIProgram) -> OUIValue? {
+        guard let binding = field.component.bindings["value"] else { return value(form: form, name: field.name) ?? field.defaultValue }
+        var evaluator = OUIEvaluator(program: program, state: state)
+        let bound = evaluator.stateValue(binding)
+        if !bound.isNull { return bound }
+        // The component's own `value` is the variable as it was when drawn, which a `@Reset` just before may have cleared.
+        var unset = field
+        unset.component.props["value"] = nil
+        return unset.defaultValue
+    }
+
     func setValue(_ value: OUIValue, form: String?, name: String, binding: String?) {
         fields[form ?? "", default: [:]][name] = value
         if let binding { state[binding] = value }
@@ -357,10 +373,10 @@ final class OUIRuntime {
     }
 
     /// Checks the fields of a form (or of the page). Shows the messages; true when all pass.
-    func validate(_ fieldsToCheck: [OUIField], form: String?) -> Bool {
+    func validate(_ fieldsToCheck: [OUIField], form: String?, program: OUIProgram) -> Bool {
         var found: [String: String] = [:]
         for field in fieldsToCheck {
-            let current = value(form: form, name: field.name) ?? field.defaultValue
+            let current = current(field, form: form, program: program)
             if let message = OUIValidation.error(current, rules: field.component["rules"]?.objectValue) { found[field.name] = message }
         }
         errors[form ?? ""] = found
@@ -379,15 +395,18 @@ final class OUIRuntime {
             switch step {
             case .set(let name, let expr, let locals):
                 var evaluator = OUIEvaluator(program: rendered.program, state: state)
-                state[name] = evaluator.eval(expr, locals: locals) ?? .null
+                // Within the budget, so pressing `@Set($x, [$x, $x])` again and again can't grow it without end.
+                let value = evaluator.eval(expr, locals: locals)
+                state[name] = value.flatMap { $0.weight(limit: OUIEvaluator.Budget.weight) == nil ? nil : $0 } ?? .null
             case .reset(let names):
                 for name in names { state[name] = nil }
             case .openURL(let raw):
                 if let url = URL(string: raw.trimmingCharacters(in: .whitespacesAndNewlines)), url.scheme != nil { open(url) }
             case .toAssistant(let message, let context):
                 guard submission == nil else { continue }
-                if !fieldList.isEmpty, !validate(fieldList, form: form) { return nil }
-                submission = makeSubmission(message: message ?? label, label: label, form: form, fields: fieldList, context: context)
+                if !fieldList.isEmpty, !validate(fieldList, form: form, program: rendered.program) { return nil }
+                submission = makeSubmission(message: message ?? label, label: label, form: form, fields: fieldList,
+                                            program: rendered.program, context: context)
             case .run, .custom:
                 break // no tools or library actions in a chat
             }
@@ -405,14 +424,14 @@ final class OUIRuntime {
     }
 
     private func makeSubmission(message: String, label: String, form: String?, fields fieldList: [OUIField],
-                                context: OUIValue?) -> OUISubmission {
-        let values = fieldList.compactMap { field -> (label: String, value: String)? in
-            let current = value(form: form, name: field.name) ?? field.defaultValue
-            return field.display(current).map { (field.label, $0) }
+                                program: OUIProgram, context: OUIValue?) -> OUISubmission {
+        let currents = fieldList.map { current($0, form: form, program: program) }
+        let values = zip(fieldList, currents).compactMap { field, current -> (label: String, value: String)? in
+            field.display(current).map { (field.label, $0) }
         }
-        // Defaults count as chosen: saved, so the locked view shows them.
-        for field in fieldList where value(form: form, name: field.name) == nil {
-            if let d = field.defaultValue { fields[form ?? "", default: [:]][field.name] = d }
+        // Defaults count as chosen, and bound fields save what they show: the locked view shows what was sent.
+        for (field, current) in zip(fieldList, currents) {
+            if let current { fields[form ?? "", default: [:]][field.name] = current }
         }
         return OUISubmission(text: OUISubmission.text(message: message, values: values, context: context),
                              saved: snapshot(label: label, form: form))

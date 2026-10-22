@@ -36,11 +36,16 @@ struct OUIControlNode: View {
         case "Form":
             OUIForm(component: c, scope: scope.inForm(c.string("name") ?? ""))
         case "FormControl":
+            // VoiceOver reads the label and hint on the input itself, not as text beside it.
             VStack(alignment: .leading, spacing: DS.Spacing.xs + 2) {
                 Text(c.string("label") ?? "").font(DS.Typography.uiSmall.weight(.medium)).foregroundStyle(theme.textSecondary)
-                if let input = c["input"] { OUIValueView(value: input, scope: scope) }
+                    .accessibilityHidden(c["input"] != nil)
+                if let input = c["input"] {
+                    OUIValueView(value: input, scope: scope.labeled(c.string("label"), hint: c.string("hint")))
+                }
                 if let hint = c.string("hint") {
                     Text(hint).font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
+                        .accessibilityHidden(c["input"] != nil)
                 }
             }
         default:
@@ -210,10 +215,23 @@ struct OUIInput: View {
     private var field: OUIField { OUIField(name: name, label: component.string("label") ?? name, component: component) }
     private var binding: String? { component.bindings["value"] }
 
-    /// The current value: the bound state, what the person set, or the default.
-    private var current: OUIValue? {
-        if binding != nil, let v = component["value"] { return scope.runtime.state[binding!] ?? v }
-        return scope.runtime.value(form: scope.form, name: name) ?? field.defaultValue
+    /// The current value: the bound state, what the person set, or the default (as checked and sent).
+    private var current: OUIValue? { scope.runtime.current(field, form: scope.form, program: scope.rendered.program) }
+
+    /// What VoiceOver calls the control: its FormControl's label, else its own label or placeholder.
+    private var spokenName: String {
+        [scope.fieldLabel, component.string("label"), component.string("placeholder")]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }.first { !$0.isEmpty } ?? name
+    }
+
+    /// The control as one VoiceOver element with its name and the FormControl's hint.
+    private func spoken<V: View>(_ control: V) -> some View {
+        control.accessibilityLabel(Text(spokenName)).accessibilityHint(Text(scope.fieldHint ?? ""))
+    }
+
+    /// A group of choices: each keeps its own label, the group is named after the field.
+    private func spokenGroup<V: View>(_ group: V) -> some View {
+        spoken(group.accessibilityElement(children: .contain))
     }
 
     private func set(_ value: OUIValue) {
@@ -249,12 +267,12 @@ struct OUIInput: View {
         case "Select":
             select
         case "RadioGroup":
-            options(c.components("items").map { ($0.string("value") ?? $0.string("label") ?? "", $0.string("label") ?? "", $0.string("description")) },
-                    multiple: false)
+            spokenGroup(options(c.components("items").map { ($0.string("value") ?? $0.string("label") ?? "", $0.string("label") ?? "", $0.string("description")) },
+                                multiple: false))
         case "Chips":
-            chips
+            spokenGroup(chips)
         case "CheckBoxGroup", "SwitchGroup":
-            toggles(switches: c.type == "SwitchGroup")
+            spokenGroup(toggles(switches: c.type == "SwitchGroup"))
         case "Slider":
             slider
         case "DatePicker":
@@ -294,6 +312,8 @@ struct OUIInput: View {
             .font(DS.Typography.ui)
             .foregroundStyle(theme.textPrimary)
             .textFieldStyle(.plain)
+            .accessibilityLabel(Text(spokenName))
+            .accessibilityHint(Text(scope.fieldHint ?? ""))
             #if os(iOS)
             .keyboardType(type == "email" ? .emailAddress : type == "number" ? .decimalPad : type == "url" ? .URL : .default)
             .textInputAutocapitalization(type == "email" || type == "url" ? .never : .sentences)
@@ -306,7 +326,7 @@ struct OUIInput: View {
         let items = component.components("items")
         let selected = current?.stringForm
         let label = items.first { $0.string("value") == selected }?.string("label")
-        return Menu {
+        return spoken(Menu {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 let value = item.string("value") ?? item.string("label") ?? ""
                 Button {
@@ -329,7 +349,8 @@ struct OUIInput: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .menuIndicator(.hidden)
+        .menuIndicator(.hidden))
+        .accessibilityValue(Text(label ?? ""))
     }
 
     /// Radio rows (one choice).
@@ -446,13 +467,13 @@ struct OUIInput: View {
             set: { set(.array([.number(step == nil ? ($0 * 100).rounded() / 100 : $0)])) })
         let shown = Text(OUIValue.format(value.wrappedValue)).font(DS.Typography.uiSmall.weight(.semibold)).monospacedDigit()
             .foregroundStyle(theme.textPrimary)
-        let bar = Group {
+        let bar = spoken(Group {
             if let step {
                 Slider(value: value, in: lower...upper, step: step).tint(theme.accent)
             } else {
                 Slider(value: value, in: lower...upper).tint(theme.accent)
             }
-        }
+        })
         // With its own label the value sits on the label's line; otherwise beside the bar (the field label is above).
         return VStack(alignment: .leading, spacing: DS.Spacing.xs) {
             if let label = component.string("label") {
@@ -479,17 +500,23 @@ struct OUIInput: View {
             HStack(spacing: DS.Spacing.sm) {
                 DatePicker("", selection: Binding(get: { date(0) }, set: { set(.array([.string(format.string(from: $0)), .string(format.string(from: max($0, date(1))))])) }),
                            displayedComponents: .date).labelsHidden()
-                Text("to").font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary)
+                    .accessibilityLabel(Text("Start date"))
+                Text("to").font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary).accessibilityHidden(true)
                 DatePicker("", selection: Binding(get: { date(1) }, set: { set(.array([.string(format.string(from: min($0, date(0)))), .string(format.string(from: $0))])) }),
                            displayedComponents: .date).labelsHidden()
+                    .accessibilityLabel(Text("End date"))
             }
             .tint(theme.accent)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(Text(spokenName))
         } else {
             DatePicker("", selection: Binding(get: { current.flatMap { format.date(from: $0.stringForm) } ?? .now },
                                               set: { set(.string(format.string(from: $0))) }),
                        displayedComponents: .date)
                 .labelsHidden()
                 .tint(theme.accent)
+                .accessibilityLabel(Text(spokenName))
+                .accessibilityHint(Text(scope.fieldHint ?? ""))
         }
     }
 }
