@@ -10,6 +10,7 @@ struct AppPromptTests {
         #expect(tools.hasPrefix(AppPrompt.base) && tools.contains("[1][2]"))
         #expect(!tools.contains("run_python"))
         #expect(AppPrompt.text(tools: true, python: true).hasSuffix(AppPrompt.python))
+        #expect(AppPrompt.text(tools: false, python: false, views: true) == AppPrompt.base + "\n\n" + AppPrompt.views)
     }
 
     @Test func skillOfferComesOnlyWithSkills() {
@@ -154,6 +155,22 @@ struct ConversationPreferencesTests {
         r.controller.send(text: "hi", images: [], conversation: next, context: r.context)
         await r.controller.waitUntilIdle()
         #expect(system(r.streamer.requests[2]).contains("- wikipedia_summary:"))
+    }
+
+    @Test func aModelWithoutToolsGetsOnlyTheViews() async throws {
+        let r = try rig()
+        var strata = try #require(r.connections.connection(Connection.testID))
+        strata.models = [ModelInfo(id: "m", supportsTools: false)]
+        r.connections.upsert(strata)
+        let chat = newChat(r)
+        chat.toolSwitches = [.web, .views]
+        r.controller.send(text: "hi", images: [], conversation: chat, context: r.context)
+        await r.controller.waitUntilIdle()
+
+        let request = try #require(r.streamer.requests.first)
+        #expect(system(request).hasPrefix(AppPrompt.text(tools: false, python: false, views: true)))
+        #expect(!system(request).contains("[1][2]"))
+        #expect(request.tools?.isEmpty ?? true)
     }
 
     @Test func theContextEstimateDoesNotFreeze() throws {

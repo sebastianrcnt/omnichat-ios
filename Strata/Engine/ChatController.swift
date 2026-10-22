@@ -784,7 +784,8 @@ final class ChatController {
     /// `freeze` is false for display-only estimates, which must not pin the chat's preferences or tools before it sends.
     private func apiHistory(path: [Message], conversation: Conversation, endpoint: Endpoint, freeze: Bool = true) -> [APIMessage] {
         let tools = endpoint.model.supportsTools
-        let offered = tools ? offeredTools(conversation, freeze: freeze) : []
+        // A model without tools is offered no tool group, only the views (a prompt section, no tools).
+        let offered = tools ? offeredTools(conversation, freeze: freeze) : offeredTools(conversation, freeze: freeze).intersection([.views])
         // Like the skill list: a chat keeps the plugin section it first had with web tools on.
         let currentPlugins = { PluginRegistry.bundled.promptSection(enabled: AppSettings.currentEnabledPlugins) }
         let plugins = !offered.contains(.web) ? ""

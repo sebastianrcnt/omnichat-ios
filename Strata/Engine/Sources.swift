@@ -143,7 +143,8 @@ enum AppPrompt {
     /// views (`views`, `OpenUIPrompt.swift`) or not.
     static func text(tools: Bool, python: Bool, browser: Bool = false, skills: Bool = false, video: Bool = false,
                      ssh: Bool = false, health: Bool = false, views: Bool = false) -> String {
-        guard tools else { return base }
+        // Views need no tools: a model without them still writes `openui` blocks.
+        guard tools else { return base + (views ? "\n\n" + Self.views : "") }
         return base + "\n\n" + Self.tools + (python ? "\n" + Self.python : "") + (browser ? "\n" + Self.browser : "")
             + (skills ? "\n" + Self.skillOffer : "") + (video ? "\n" + Self.video : "") + (ssh ? "\n" + Self.ssh : "")
             + (health ? "\n" + Self.health : "") + (views ? "\n\n" + Self.views : "")

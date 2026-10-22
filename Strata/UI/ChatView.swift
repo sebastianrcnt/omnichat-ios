@@ -712,12 +712,14 @@ struct ChatView: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { composerHeight = $0 }
     }
 
-    /// The "+" menu's toggles: this chat's switches, or a new chat's (the defaults until changed). None for a model
-    /// without tools.
+    /// The "+" menu's toggles: this chat's switches, or a new chat's (the defaults until changed). Only the views for
+    /// a model without tools; only the web for Apple's on-device model, whose tools are web search and fetch.
     private var toolSwitchItems: [ComposerToolSwitch] {
-        guard selectedModel?.supportsTools ?? true else { return [] }
+        let groups: [ToolGroup] = if connections.connection(selection.connectionID)?.isAppleOnDevice == true { [.web] }
+            else if selectedModel?.supportsTools ?? true { ToolGroup.supported }
+            else { [.views] }
         let on = conversation.map { controller.toolSwitches($0) } ?? newChatTools ?? settings.defaultToolGroups
-        return ToolGroup.supported.map { ComposerToolSwitch(id: $0.rawValue, title: $0.title, systemImage: $0.systemImage, isOn: on.contains($0)) }
+        return groups.map { ComposerToolSwitch(id: $0.rawValue, title: $0.title, systemImage: $0.systemImage, isOn: on.contains($0)) }
     }
 
     /// Applies from the next message.
