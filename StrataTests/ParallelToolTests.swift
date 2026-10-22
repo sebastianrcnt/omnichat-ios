@@ -213,12 +213,24 @@ struct InFlightLoadTests {
         let counter = Counter()
         let t = tool(inFlight: inFlight, counter: counter)
         async let a = ToolContext.$callID.withValue("a") { await t.run(urlString: "https://example.com/page") }
-        async let b = ToolContext.$callID.withValue("b") { await t.run(urlString: "https://example.com/page#section") }
+        async let b = ToolContext.$callID.withValue("b") { await t.run(urlString: "https://EXAMPLE.com/page") }
         let (ra, rb) = await (a, b)
         #expect(counter.loads == 1)
         #expect(!ra.isError && !rb.isError)
         #expect(ra.sources.first?.url == rb.sources.first?.url)
         #expect(inFlight.count == 0)
+    }
+
+    @Test func hashRoutesLoadSeparately() async {
+        // A fragment can pick a different page in a web app (`#/reports/second`): not one shared load.
+        let inFlight = InFlightLoads()
+        let counter = Counter()
+        let t = tool(inFlight: inFlight, counter: counter)
+        async let a = ToolContext.$callID.withValue("a") { await t.run(urlString: "https://example.com/#/reports/first") }
+        async let b = ToolContext.$callID.withValue("b") { await t.run(urlString: "https://example.com/#/reports/second") }
+        let (ra, rb) = await (a, b)
+        #expect(counter.loads == 2)
+        #expect(ra.text.contains("#/reports/first") && rb.text.contains("#/reports/second"))
     }
 
     @Test func differentPagesLoadSeparately() async {
