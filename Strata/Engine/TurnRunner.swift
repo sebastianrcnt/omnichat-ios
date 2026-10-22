@@ -168,6 +168,11 @@ struct TurnRunner: Sendable {
             }
             try onEvent(.checkpoint(checkpoint))
             if !checkpoint.streamDone {
+                // A restored round was submitted as a resumable request. With recovery now off for the connection,
+                // sending it again would start a second, unkeyed generation appended to the saved partial answer.
+                if restored != nil, round == restored?.round, checkpoint.submissionStarted, !endpoint.supportsResumable {
+                    throw APIError.server(String(localized: "This reply was interrupted and can't be resumed: resumable replies are now off for this connection. Try again to send it again."))
+                }
                 if endpoint.supportsResumable && checkpoint.idempotencyKey == nil {
                     // Legacy checkpoints created before the gateway supported idempotency.
                     // Never invent a key for an unidentified request already sent without one.

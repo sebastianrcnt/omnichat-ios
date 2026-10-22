@@ -220,6 +220,21 @@ struct ResumeTests {
         #expect(streamer.checkpoints.isEmpty && streamer.plainRequests == 0)
     }
 
+    /// From the audit: turning resumable replies off for the connection made a restored, already-submitted round go
+    /// out again as a plain request, its answer appended to the saved partial one.
+    @Test func aSubmittedRoundIsNotResentPlainOnceRecoveryIsOff() async throws {
+        var snapshot = try TurnCheckpoint(messages: [.user("hi")])
+        snapshot.requestData = try ChatRequest(model: "m", messages: [.user("hi")]).encoded()
+        snapshot.submissionStarted = true
+        _ = try snapshot.apply(ChatDelta(content: "partial", requestID: rid, sequence: 1))
+        let streamer = RecoveryStreamer()
+        await #expect(throws: APIError.self) {
+            _ = try await TurnRunner(streamer: streamer, tools: FakeTools()).run(
+                endpoint: endpoint(resumable: false), messages: [], effort: nil, checkpoint: snapshot) { _ in }
+        }
+        #expect(streamer.plainRequests == 0 && streamer.checkpoints.isEmpty)
+    }
+
     @Test func originalBodyAndKeySurviveSettingsChanges() async throws {
         var snapshot = try TurnCheckpoint(messages: [.user("hi")])
         let original = try ChatRequest(model: "original-model", messages: [.user("hi")]).encoded()
