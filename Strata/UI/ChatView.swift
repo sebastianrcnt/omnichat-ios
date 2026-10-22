@@ -204,11 +204,17 @@ struct ChatView: View {
             .sheet(item: Binding(get: { SkillApprovals.shared.pending(for: conversation?.id) }, set: { _ in })) { request in
                 SkillApprovalSheet(request: request) { SkillApprovals.shared.answer(request.id, approved: $0) }
                     .environment(\.theme, theme)
+                    #if DEBUG
+                    .task { await DebugHooks.autoAnswerSheet { SkillApprovals.shared.answer(request.id, approved: true) } }
+                    #endif
             }
             .sheet(item: Binding(get: { BrowserShowRequests.shared.pending(for: conversation?.id) },
                                  set: { if $0 == nil, let open = BrowserShowRequests.shared.pending(for: conversation?.id) { BrowserShowRequests.shared.answer(open.id, done: false) } })) { request in
                 BrowserShowSheet(request: request) { BrowserShowRequests.shared.answer(request.id, done: $0) }
                     .environment(\.theme, theme)
+                    #if DEBUG
+                    .task { await DebugHooks.autoAnswerSheet { BrowserShowRequests.shared.answer(request.id, done: true) } }
+                    #endif
             }
             .sheet(isPresented: $showAddConnection) {
                 ConnectionSetupSheet(start: .presets)
