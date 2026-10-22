@@ -139,7 +139,7 @@ struct ResponsesRequest: Encodable, Sendable {
         }
     }
 
-    /// Effort names the Responses API takes. Strata's top level ("Max") has no equal and asks for the highest.
+    /// Effort names the Responses API takes. The app's top level ("Max") has no equal and asks for the highest.
     static func effort(_ value: String) -> String {
         switch value {
         case "max": "xhigh"
@@ -423,9 +423,8 @@ struct ResponsesErrorBody: Decodable, Sendable, Equatable {
 enum ResponsesErrorMapper {
     static func error(_ body: ResponsesErrorBody, status: Int?) -> APIError {
         let code = body.code ?? ""
+        if code == "subscription_sharing_usage_limit_exceeded" { return .chatGPTUsageLimit }
         let known: String? = switch code {
-        case "subscription_sharing_usage_limit_exceeded":
-            String(localized: "You've reached a ChatGPT usage limit for Strata. Check your plan usage and app limits at chatgpt.com/settings/usage.")
         case "subscription_sharing_user_not_eligible":
             String(localized: "Using your ChatGPT plan isn't available for this account or workspace.")
         case "subscription_sharing_usage_unavailable", "subscription_sharing_user_unavailable":
@@ -450,11 +449,11 @@ enum ResponsesErrorMapper {
         struct Wrapper: Decodable { var error: ResponsesErrorBody?; var detail: String? }
         let wrapper = try? JSONDecoder().decode(Wrapper.self, from: data)
         if let body = wrapper?.error, body.code != nil || body.message != nil { return error(body, status: status) }
+        if status == 429 { return .chatGPTUsageLimit }
         let detail = wrapper?.detail ?? HTTP.errorMessage(from: data)
         let message: String = switch status {
         case 401: String(localized: "ChatGPT didn't accept the sign-in. Sign in again in Settings.")
         case 403: String(localized: "ChatGPT refused the request: \(detail)")
-        case 429: String(localized: "You've reached a ChatGPT usage limit for Strata. Check your plan usage and app limits at chatgpt.com/settings/usage.")
         case 503: String(localized: "ChatGPT is temporarily unavailable. Try again shortly.")
         default: detail
         }

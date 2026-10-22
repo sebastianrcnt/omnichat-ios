@@ -23,6 +23,7 @@ struct ModelPickerSheet: View {
     @Environment(\.connectionStore) private var connections
     @Environment(\.appSettings) private var settings
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
 
     let selectedConnectionID: UUID?
     let selectedModelID: String?
@@ -81,6 +82,7 @@ struct ModelPickerSheet: View {
         // Connections with nothing to pick yet (signed out, or models not fetched): listed so they don't just vanish.
         let unset = connections.connections.filter { c in !groups.contains { $0.connectionID == c.id } }
         return SheetScaffold(title: "Select model") {
+            planUsageSection
             if groups.isEmpty {
                 GroupedSection(footer: "Add a connection in Settings, then fetch its models or add one by hand.") {
                     SettingsRow(title: "No models yet")
@@ -177,6 +179,18 @@ struct ModelPickerSheet: View {
                 Button("Reset name", systemImage: "arrow.counterclockwise") {
                     connections.setModelAlias(nil, connectionID: item.connectionID, modelID: item.modelID)
                 }
+            }
+        }
+    }
+
+    /// While the chat's model is on a ChatGPT connection: "Using ChatGPT plan" with the "Manage usage" link, which
+    /// OpenAI's guidelines put near the composer or the model selector. First in the selector, where the model is
+    /// chosen, rather than on the composer itself.
+    @ViewBuilder private var planUsageSection: some View {
+        if connections.connection(selectedConnectionID)?.isChatGPT == true {
+            GroupedSection {
+                SettingsRow(systemImage: "chart.bar", title: "Using ChatGPT plan", value: String(localized: "Manage usage"),
+                            showsChevron: true) { openURL(ChatGPTOAuth.usageURL) }
             }
         }
     }

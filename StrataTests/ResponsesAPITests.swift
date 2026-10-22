@@ -250,8 +250,9 @@ struct ResponsesStreamTests {
         #expect {
             try ResponsesSamples.deltas(sse)
         } throws: { error in
-            guard case .server(let message) = error as? APIError else { return false }
-            return message.contains("usage limit") && message.contains("chatgpt.com/settings/usage")
+            // "Manage usage" (ChatGPT's usage settings) is the chat's action for it, so the text names ChatGPT, no URL.
+            guard let api = error as? APIError, api == .chatGPTUsageLimit, api.managesUsage else { return false }
+            return api.errorDescription?.contains("ChatGPT usage limit") == true
         }
     }
 
@@ -266,7 +267,9 @@ struct ResponsesStreamTests {
 
     @Test func errorsBeforeTheStream() {
         let limit = ResponsesErrorMapper.error(status: 429, data: Data(#"{"error":{"code":"subscription_sharing_usage_limit_exceeded","message":"x"}}"#.utf8))
-        #expect(limit.errorDescription?.contains("usage limit") == true)
+        #expect(limit == .chatGPTUsageLimit && limit.managesUsage && !limit.needsSettings)
+        // 429 with only an admission `detail` is the same limit.
+        #expect(ResponsesErrorMapper.error(status: 429, data: Data(#"{"detail":"Too many"}"#.utf8)) == .chatGPTUsageLimit)
         let admission = ResponsesErrorMapper.error(status: 403, data: Data(#"{"detail":"Region not supported"}"#.utf8))
         #expect(admission == .http(status: 403, message: "ChatGPT refused the request: Region not supported"))
         let unsupported = ResponsesErrorMapper.error(status: 400, data: Data(#"{"error":{"code":"subscription_sharing_unsupported_capability","param":"tools[0]"}}"#.utf8))

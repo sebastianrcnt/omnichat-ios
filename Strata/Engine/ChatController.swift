@@ -573,6 +573,7 @@ final class ChatController {
             assistant.conversation = conversation
             assistant.errorText = nil // a reconnect after an outage clears the outage's message
             assistant.errorNeedsSettings = false
+            assistant.errorManagesUsage = false
         }
         try? context.save()
 
@@ -1085,6 +1086,7 @@ final class ChatController {
         if let error {
             message.errorText = error.localizedDescription
             message.errorNeedsSettings = (error as? APIError)?.needsSettings ?? false
+            message.errorManagesUsage = (error as? APIError)?.managesUsage ?? false
         }
         // An outage keeps the checkpoint: the reply is still on the server, and the next foreground reconnects.
         if !message.cancelPending && !(error is StreamOutage) { message.clearResume() }

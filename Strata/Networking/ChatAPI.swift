@@ -465,6 +465,9 @@ enum APIError: Error, LocalizedError, Equatable {
     case openCodeSignInRequired(connection: String)
     /// The server refused the connection's API key (an Anthropic connection: 401).
     case rejectedAPIKey(connection: String)
+    /// A ChatGPT usage limit (`subscription_sharing_usage_limit_exceeded`, or 429 before the stream): the plan's or this
+    /// app's limit in ChatGPT. Never retried; the chat offers "Manage usage" first.
+    case chatGPTUsageLimit
     case http(status: Int, message: String)
     case server(String)
     case transport(String)
@@ -477,14 +480,19 @@ enum APIError: Error, LocalizedError, Equatable {
         }
     }
 
+    /// Errors whose first action is "Manage usage" (ChatGPT's usage settings), as OpenAI's guidelines ask.
+    var managesUsage: Bool { self == .chatGPTUsageLimit }
+
     var errorDescription: String? {
         switch self {
         case .invalidBaseURL: String(localized: "The base URL is not valid.")
         case .missingModel: String(localized: "No model available. Add a connection in Settings, or fetch its models, then pick one.")
         case .missingAPIKey(let name): String(localized: "Add an API key for \(name) in Settings.")
-        case .chatGPTSignInRequired(let name): String(localized: "Sign in with ChatGPT for \(name) in Settings.")
+        case .chatGPTSignInRequired(let name): String(localized: "Sign in to ChatGPT for \(name) in Settings.")
         case .openCodeSignInRequired(let name): String(localized: "Sign in with OpenCode, or enter a valid API key, for \(name) in Settings.")
         case .rejectedAPIKey(let name): String(localized: "The API key for \(name) was not accepted. Check it in Settings.")
+        // No reset time: the limit may be the app's rather than the whole plan's (the errors-and-recovery docs).
+        case .chatGPTUsageLimit: String(localized: "ChatGPT usage limit reached. The limit may be on your ChatGPT plan or on OpenChat's use of it.")
         case .http(let status, let message):
             message.isEmpty ? String(localized: "The server returned HTTP \(status).")
                             : String(localized: "HTTP \(status): \(message)")
