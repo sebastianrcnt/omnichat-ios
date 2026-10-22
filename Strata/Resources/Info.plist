@@ -12,13 +12,14 @@
 	<array>
 		<dict>
 			<key>CFBundleTypeName</key>
-			<string>OpenChat package</string>
+			<string>OmniChat package</string>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
+				<string>cc.coolservices.omnichat.package</string>
 				<string>cc.coolservices.openchat.package</string>
 			</array>
 		</dict>
@@ -39,9 +40,10 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>OpenChat links</string>
+			<string>OmniChat links</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>omnichat</string>
 				<string>openchat</string>
 			</array>
 		</dict>
@@ -88,9 +90,9 @@
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>OpenChat package</string>
+			<string>OmniChat package</string>
 			<key>UTTypeIdentifier</key>
-			<string>cc.coolservices.openchat.package</string>
+			<string>cc.coolservices.omnichat.package</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
@@ -98,6 +100,20 @@
 					<string>ocpkg</string>
 				</array>
 			</dict>
+		</dict>
+	</array>
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.zip-archive</string>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>OmniChat package</string>
+			<key>UTTypeIdentifier</key>
+			<string>cc.coolservices.openchat.package</string>
 		</dict>
 	</array>
 </dict>

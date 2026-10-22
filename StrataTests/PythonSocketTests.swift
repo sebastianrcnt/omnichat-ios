@@ -766,7 +766,7 @@ struct PythonSocketTests {
         #expect(body(out).hasPrefix("""
         64 True
         no raw sockets
-        [Network] Multicast and broadcast need an entitlement from Apple that OpenChat doesn't have.
+        [Network] Multicast and broadcast need an entitlement from Apple that OmniChat doesn't have.
         no multicast
         """), "\(out.text)")
         #expect(python.testHost?.sockets?.openCount == 3)

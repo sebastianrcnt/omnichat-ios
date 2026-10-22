@@ -3,7 +3,7 @@ import CoreSpotlight
 import Foundation
 import SwiftData
 
-/// A chat, for Shortcuts, Siri and Spotlight: "Open Chat", and the chat Ask OpenChat continues.
+/// A chat, for Shortcuts, Siri and Spotlight: "Open Chat", and the chat Ask OmniChat continues.
 struct ConversationEntity: IndexedEntity {
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Chat", numericFormat: "\(placeholder: .int) chats")
     static let defaultQuery = ConversationQuery()

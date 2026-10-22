@@ -97,8 +97,8 @@ struct PackageInstallTests {
     }
 
     @Test func pageToolsAndBuiltInIDsAreRefused() throws {
-        let i = installer(store(builtIn: [try TestPackages.bundle(TestPackages.manifest(id: "app.openchat.wikipedia", namespace: "wiki"))]))
-        let impostor = i.candidate(try TestPackages.bundle(TestPackages.manifest(id: "app.openchat.wikipedia", namespace: "wikix")), source: .file("x"))
+        let i = installer(store(builtIn: [try TestPackages.bundle(TestPackages.manifest(id: "app.omnichat.wikipedia", namespace: "wiki"))]))
+        let impostor = i.candidate(try TestPackages.bundle(TestPackages.manifest(id: "app.omnichat.wikipedia", namespace: "wikix")), source: .file("x"))
         #expect(impostor.blocker != nil)
         let tool: [String: Any] = ["name": "read", "kind": "page", "description": "Read.", "page": ["url": "https://a.example/x"], "script": "a.js"]
         let page = try TestPackages.bundle(TestPackages.manifest(extra: ["contents": ["tools": [tool]], "permissions": ["network": ["a.example"]]]),
@@ -107,12 +107,12 @@ struct PackageInstallTests {
     }
 
     @Test func addPackageLinks() {
-        let link = AddPackageLink(URL(string: "openchat://add-package?url=https%3A%2F%2Fexample.com%2Fa.ocpkg&sha256=" + String(repeating: "ab", count: 32))!)
+        let link = AddPackageLink(URL(string: "omnichat://add-package?url=https%3A%2F%2Fexample.com%2Fa.ocpkg&sha256=" + String(repeating: "ab", count: 32))!)
         #expect(link?.url.absoluteString == "https://example.com/a.ocpkg" && link?.sha256?.count == 64)
-        #expect(AddPackageLink(URL(string: "openchat://add-package?url=http%3A%2F%2Fexample.com%2Fa.ocpkg")!) == nil, "https only")
-        #expect(AddPackageLink(URL(string: "openchat://add-package?url=https%3A%2F%2Fu%3Ap%40example.com%2Fa")!) == nil, "no user info")
-        #expect(AddPackageLink(URL(string: "openchat://add-package?url=https%3A%2F%2Fexample.com%2Fa&sha256=xyz")!) == nil)
-        #expect(AddPackageLink(URL(string: "openchat://add-connection?url=https%3A%2F%2Fexample.com")!) == nil)
+        #expect(AddPackageLink(URL(string: "omnichat://add-package?url=http%3A%2F%2Fexample.com%2Fa.ocpkg")!) == nil, "https only")
+        #expect(AddPackageLink(URL(string: "omnichat://add-package?url=https%3A%2F%2Fu%3Ap%40example.com%2Fa")!) == nil, "no user info")
+        #expect(AddPackageLink(URL(string: "omnichat://add-package?url=https%3A%2F%2Fexample.com%2Fa&sha256=xyz")!) == nil)
+        #expect(AddPackageLink(URL(string: "omnichat://add-connection?url=https%3A%2F%2Fexample.com")!) == nil)
         let round = AddPackageLink(url: URL(string: "https://example.com/p.ocpkg")!, sha256: nil)
         #expect(AddPackageLink(round.link) == round)
     }

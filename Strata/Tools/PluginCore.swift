@@ -1,11 +1,11 @@
 import Foundation
-#if canImport(OpenChatPackageKit)
-import OpenChatPackageKit
+#if canImport(OmniChatPackageKit)
+import OmniChatPackageKit
 #endif
 
 // Site plugins: a manifest plus one script defining `window.strataPlugin(args)`, run in a hidden web view through the
 // one fixed `run_plugin` tool. Everything here is plain Foundation (no app types), so `Tools/plugin-check` compiles this
-// file as is, with OpenChatPackageKit's URLTemplate.swift, and runs a plugin on the Mac exactly as the app would.
+// file as is, with OmniChatPackageKit's URLTemplate.swift, and runs a plugin on the Mac exactly as the app would.
 
 /// One argument a plugin takes, as its manifest lists it.
 struct PluginArgument: Codable, Sendable, Equatable {

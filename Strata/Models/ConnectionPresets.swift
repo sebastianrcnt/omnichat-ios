@@ -2,7 +2,7 @@ import Foundation
 
 /// A starting point for a new connection: the add-connection screen lists these, and each prefills the connection's
 /// editor. The OpenAI-compatible services (OpenAI, OpenRouter, Groq, Ollama, LM Studio) are data: the presets of the
-/// built-in package `app.openchat.connections` (`PackageConnectionPreset`), listed with those of installed packages. Only
+/// built-in package `app.omnichat.connections` (`PackageConnectionPreset`), listed with those of installed packages. Only
 /// the connections with code of their own (Anthropic's Messages API, the accounts that sign in) and "Other server" are here.
 enum ConnectionPreset: String, CaseIterable, Identifiable, Sendable {
     case anthropic, chatGPT, openCode, custom
@@ -82,12 +82,13 @@ extension PackageConnectionPreset {
     }
 }
 
-/// `openchat://add-connection?name=…&url=…&api=openai|responses&images=1&effort=1&resumable=1`: a link that offers to
+/// `omnichat://add-connection?name=…&url=…&api=openai|responses&images=1&effort=1&resumable=1`: a link that offers to
 /// add an OpenAI-compatible connection. `api=anthropic` adds an Anthropic connection instead, at `url` or, without one,
 /// at Anthropic's own API; its models say what they take, so the flags are ignored. It never carries a key (a `key`
-/// parameter is dropped and the confirmation says so); after the user confirms, the editor asks for one.
+/// parameter is dropped and the confirmation says so); after the user confirms, the editor asks for one. `openchat://`
+/// links from before the rename work the same.
 struct AddConnectionLink: Equatable, Sendable {
-    static let scheme = "openchat"
+    static let scheme = AppURLScheme.current
     static let host = "add-connection"
 
     var name: String
@@ -110,16 +111,16 @@ struct AddConnectionLink: Equatable, Sendable {
 
         var errorDescription: String? {
             switch self {
-            case .notAnAddLink: String(localized: "This link isn't an OpenChat add-connection link.")
+            case .notAnAddLink: String(localized: "This link isn't an OmniChat add-connection link.")
             case .missingURL: String(localized: "The link doesn't say which server to add.")
             case .invalidURL: String(localized: "The server address in the link isn't an http or https URL.")
-            case .unsupportedAPI(let api): String(localized: "The link asks for an API OpenChat doesn't know (\(api)).")
+            case .unsupportedAPI(let api): String(localized: "The link asks for an API OmniChat doesn't know (\(api)).")
             }
         }
     }
 
     static func isAddLink(_ url: URL) -> Bool {
-        url.scheme?.lowercased() == scheme && url.host()?.lowercased() == host
+        AppURLScheme.matches(url) && url.host()?.lowercased() == host
     }
 
     static func parse(_ url: URL) -> Result<AddConnectionLink, Failure> {

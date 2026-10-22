@@ -37,7 +37,7 @@ UI mockups: `reference/mockups/`.
 ### Multiple OpenAI-compatible connections
 - Settings has a "Connections" list. Each connection has a name, base URL, API key (Keychain, one item per connection), optional custom headers, and a model list fetched from `/models` (manual model entry as fallback).
 - Per model: context length, supports images, supports reasoning effort (whether `reasoning_effort` is sent), supports tools (default on).
-- No connection ships with the app. First run shows "Add a connection" with presets (OpenAI, OpenRouter, Groq, Ollama, LM Studio, ChatGPT, OpenCode, other server); `openchat://add-connection?name=…&url=…` links add one after a confirmation. The connection that used to be built in stays as an ordinary one on existing installs.
+- No connection ships with the app. First run shows "Add a connection" with presets (OpenAI, OpenRouter, Groq, Ollama, LM Studio, ChatGPT, OpenCode, other server); `omnichat://add-connection?name=…&url=…` links add one after a confirmation. The connection that used to be built in stays as an ordinary one on existing installs.
 - The model picker is back: the composer chip shows model + effort. Tapping it opens a sheet with models grouped by connection, an Effort row (only when the model supports effort), and a checkmark on the current model.
 - Each conversation remembers its model. The Usage sheet's Balance section has no provider yet.
 - web_search / web_fetch are sent to any model whose "supports tools" flag is on; the definitions stay byte-identical.

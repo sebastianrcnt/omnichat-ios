@@ -92,7 +92,7 @@ enum OnDeviceFailure: Error, Equatable, Sendable {
         case .unsupportedLanguage:
             String(localized: "The on-device model doesn't support this language yet. Try English or another supported language, or use another connection.")
         case .rateLimited:
-            String(localized: "The on-device model is busy. Try again in a moment, with OpenChat open.")
+            String(localized: "The on-device model is busy. Try again in a moment, with OmniChat open.")
         case .assetsUnavailable:
             String(localized: "The on-device model isn't available right now (it may be updating). Try again later.")
         case .refusal(let explanation):

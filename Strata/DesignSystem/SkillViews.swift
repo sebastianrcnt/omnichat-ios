@@ -79,7 +79,7 @@ struct SkillsSettingsView: View {
         let skills = store.all
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                GroupedSection(header: "Built in", footer: "Skills that come with OpenChat. They can't be changed.") {
+                GroupedSection(header: "Built in", footer: "Skills that come with OmniChat. They can't be changed.") {
                     ForEach(skills.filter(\.isBuiltIn)) { skill in
                         NavigationLink { SkillDetailView(skill: skill) } label: { row(skill) }.buttonStyle(.plain)
                     }

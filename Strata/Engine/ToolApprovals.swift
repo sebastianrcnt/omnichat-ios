@@ -51,7 +51,7 @@ struct NetworkApproval: Sendable, Equatable {
 
 /// The cards tool calls wait on: SSH approvals and prompts (`SSHRequests` is a view of these), package tool
 /// approvals, and Python's connections to local addresses. Each is tied to its chat and its call, so the feed shows it under that call's line, in that chat only;
-/// call ids repeat across chats (`call_0`). A cancelled turn denies. While OpenChat is in the background a notification
+/// call ids repeat across chats (`call_0`). A cancelled turn denies. While OmniChat is in the background a notification
 /// says a card waits, and the Live Activity reads "Needs you".
 @MainActor
 @Observable
@@ -152,7 +152,7 @@ final class ToolApprovals {
     }
 }
 
-/// A card that waits while OpenChat is in the background: a notification says so (tapping it opens the chat).
+/// A card that waits while OmniChat is in the background: a notification says so (tapping it opens the chat).
 enum ToolApprovalNotifier {
     @MainActor
     static func notify(_ request: ToolApprovals.Request) {
@@ -163,6 +163,6 @@ enum ToolApprovalNotifier {
         case .package(let p): String(localized: "Approve \(p.packageName) › \(p.toolTitle)?")
         case .network(let n): String(localized: "Allow Python to connect to \(n.host)?")
         }
-        ReplyBackgroundExecution.notifyCompletion(title: "OpenChat", body: body, conversationID: conversation)
+        ReplyBackgroundExecution.notifyCompletion(title: "OmniChat", body: body, conversationID: conversation)
     }
 }

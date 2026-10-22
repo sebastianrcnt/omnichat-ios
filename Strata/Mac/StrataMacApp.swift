@@ -33,7 +33,7 @@ struct StrataMacApp: App {
 
     var body: some Scene {
         // One window: the controller runs one reply at a time, so a second window would only show the same state twice.
-        Window("OpenChat", id: "main") {
+        Window("OmniChat", id: "main") {
             MacRootView()
                 .strataEnvironment(settings: settings, container: container)
         }

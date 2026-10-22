@@ -12,7 +12,7 @@ struct ICloudSettingsView: View {
         @Bindable var sync = CloudSync.shared
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                GroupedSection(header: "iCloud", footer: "Everything syncs through your private iCloud storage, between the devices signed in to your Apple Account. OpenChat's developer never sees it.") {
+                GroupedSection(header: "iCloud", footer: "Everything syncs through your private iCloud storage, between the devices signed in to your Apple Account. OmniChat's developer never sees it.") {
                     SettingsRow(title: "iCloud account", value: accountStatus)
                     // Without an account every attempt "fails"; that says nothing the account row doesn't.
                     SettingsRow(title: "Last synced",
@@ -111,9 +111,9 @@ struct ICloudSettingsView: View {
 
     private var chatFooter: LocalizedStringKey {
         CloudSync.shared.needsRelaunch
-            ? "Chat sync changes the next time OpenChat opens. Close and reopen it to apply."
+            ? "Chat sync changes the next time OmniChat opens. Close and reopen it to apply."
             : HealthSettings.isSupported
-                ? "Off by default. Chats sync in the background; turning chat sync off or on applies the next time OpenChat opens. While it is on, Apple Health can't be used on this device."
-                : "Off by default. Chats sync in the background; turning chat sync off or on applies the next time OpenChat opens."
+                ? "Off by default. Chats sync in the background; turning chat sync off or on applies the next time OmniChat opens. While it is on, Apple Health can't be used on this device."
+                : "Off by default. Chats sync in the background; turning chat sync off or on applies the next time OmniChat opens."
     }
 }

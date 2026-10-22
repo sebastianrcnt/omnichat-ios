@@ -70,7 +70,7 @@ struct HTTPToolRunner: Sendable {
         request.httpMethod = built.method
         for (name, value) in built.headers { request.setValue(value, forHTTPHeaderField: name) }
         request.httpBody = built.body
-        if request.value(forHTTPHeaderField: "User-Agent") == nil { request.setValue("OpenChat", forHTTPHeaderField: "User-Agent") }
+        if request.value(forHTTPHeaderField: "User-Agent") == nil { request.setValue("OmniChat", forHTTPHeaderField: "User-Agent") }
 
         let redirects = RedirectBudget(max: Self.maxRedirects, startsSecure: built.url.scheme?.lowercased() == "https")
         let network = manifest.network

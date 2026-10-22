@@ -132,7 +132,7 @@ final class ShareImporter {
     }
 }
 
-/// Picks up shares at launch, on coming to the foreground and from `openchat://share` links, and opens the chat they
+/// Picks up shares at launch, on coming to the foreground and from `omnichat://share` links, and opens the chat they
 /// start. Keeps the sheet's `ShareContext` current whenever the app leaves the foreground.
 private struct ShareImportHandler: ViewModifier {
     @Environment(\.scenePhase) private var scenePhase
@@ -184,7 +184,7 @@ private struct ShareImportHandler: ViewModifier {
 }
 
 extension View {
-    /// Starts chats from what was shared into OpenChat (see `ShareImportHandler`).
+    /// Starts chats from what was shared into OmniChat (see `ShareImportHandler`).
     func shareImports(selected: Binding<Conversation?>) -> some View {
         modifier(ShareImportHandler(selected: selected))
     }

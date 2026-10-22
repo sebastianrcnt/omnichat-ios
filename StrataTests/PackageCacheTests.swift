@@ -9,7 +9,8 @@ import CryptoKit
 struct PackageCacheGoldenTests {
     /// R1: a chat without packages sends the bytes it sent before packages existed, for every combination of tool
     /// groups, with and without image input. The digest was taken from the code before packages were added, and
-    /// retaken when run_python's description changed for sockets (the only change in those bytes).
+    /// retaken when run_python's description changed for sockets, and again when the app was renamed from OpenChat to
+    /// OmniChat (the system prompt's first line and health_query's description name the app; nothing else changed).
     @Test func chatsWithoutPackagesSendTheSameBytes() async throws {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
                                            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
@@ -41,7 +42,7 @@ struct PackageCacheGoldenTests {
             #expect(streamer.requests.count == 1 << all.count)
         }
         let digest = hasher.finalize().map { String(format: "%02x", $0) }.joined()
-        #expect(digest == "75c3fa460205edcd2c7a5d84a3ddd15786e8a9a1e0506a29c6f13ceee446133d")
+        #expect(digest == "3fa182a28110dac940a15fd527039d5f3a62bf571508d166ee0225dcf341129e")
     }
 }
 
@@ -216,10 +217,10 @@ struct PackageCacheRuleTests {
     }
 
     @Test func requiredGroupsGateDefaultsAndTurnOnWithThePackage() async throws {
-        let b = try TestPackages.bundle(TestPackages.manifest(id: "app.openchat.korea", name: "Korea", namespace: "kr", extra: [
+        let b = try TestPackages.bundle(TestPackages.manifest(id: "app.omnichat.korea", name: "Korea", namespace: "kr", extra: [
             "requires": ["groups": ["browser"]], "contents": ["skills": ["skills/a.md"]]]),
             ["skills/a.md": "---\nname: places\ndescription: Find places.\n---\n\nBody.\n"])
-        let s = PackageStore(directory: nil, builtIn: [b], builtInDefault: { $0.id == "app.openchat.korea" })
+        let s = PackageStore(directory: nil, builtIn: [b], builtInDefault: { $0.id == "app.omnichat.korea" })
         // Browser off: the pack that needs it starts off.
         let off = try PackageRig(store: s, defaults: [.web])
         let a = off.chat()
@@ -229,11 +230,11 @@ struct PackageCacheRuleTests {
         let on = try PackageRig(store: s, defaults: [.web, .browser])
         let b2 = on.chat()
         await on.send("hi", in: b2)
-        #expect(b2.packageSnapshot?.ids == ["app.openchat.korea"])
+        #expect(b2.packageSnapshot?.ids == ["app.omnichat.korea"])
         #expect(PackageRig.system(on.last).contains("- kr:places: Find places."))
         // Turning the pack on turns on the group it needs.
         let c = off.chat()
-        off.controller.setPackage("app.openchat.korea", on: true, conversation: c)
+        off.controller.setPackage("app.omnichat.korea", on: true, conversation: c)
         #expect(c.toolSwitches?.contains(.browser) == true)
         // Turning the group off turns the pack off with it.
         off.controller.setTool(.browser, on: false, conversation: c)

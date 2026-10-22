@@ -2,8 +2,10 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 extension UTType {
-    /// `.ocpkg`: an OpenChat package, a zip archive (declared in Info.plist).
-    static let openChatPackage = UTType(exportedAs: "cc.coolservices.openchat.package", conformingTo: .zip)
+    /// `.ocpkg`: an OmniChat package, a zip archive (declared in Info.plist).
+    static let omniChatPackage = UTType(exportedAs: PackageFileType.identifier, conformingTo: .zip)
+    /// The same files as typed by builds from before the rename to OmniChat (imported in Info.plist).
+    static let legacyPackages = PackageFileType.legacyIdentifiers.sorted().map { UTType(importedAs: $0, conformingTo: .zip) }
 }
 
 /// Settings › Packages: the built-in packages and those the user installed, each with "On in new chats", and Import.
@@ -36,7 +38,7 @@ struct PackagesSettingsView: View {
         .background(theme.background.ignoresSafeArea())
         .navigationTitle("Packages")
         .inlineNavigationTitle()
-        .fileImporter(isPresented: $importing, allowedContentTypes: [.openChatPackage, .zip, .folder]) { result in
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.omniChatPackage] + UTType.legacyPackages + [.zip, .folder]) { result in
             guard case .success(let url) = result else { return }
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
@@ -421,7 +423,7 @@ struct PackageReviewSheet: View {
 
 // MARK: - Links and files
 
-/// A package the app was asked to open (an `openchat://add-package` link, or a `.ocpkg` file), waiting for its review.
+/// A package the app was asked to open (an `omnichat://add-package` link, or a `.ocpkg` file), waiting for its review.
 @MainActor
 @Observable
 final class PackageLinks {
@@ -438,13 +440,13 @@ final class PackageLinks {
     /// Takes an add-package link or a package file; false for any other URL.
     @discardableResult
     func receive(_ url: URL) -> Bool {
-        if url.isFileURL, url.pathExtension.lowercased() == "ocpkg" {
+        if url.isFileURL, url.pathExtension.lowercased() == PackageFileType.fileExtension {
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             pending = Pending(result: Result { try PackageInstaller().candidate(file: url) })
             return true
         }
-        guard url.scheme?.lowercased() == "openchat", url.host()?.lowercased() == AddPackageLink.host else { return false }
+        guard AppURLScheme.matches(url), url.host()?.lowercased() == AddPackageLink.host else { return false }
         guard let link = AddPackageLink(url) else {
             pending = Pending(result: .failure(PackageError.invalid(String(localized: "The add-package link needs an https url of at most 2 KB, and an optional 64-character sha256."))))
             return true

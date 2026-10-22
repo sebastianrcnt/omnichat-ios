@@ -43,7 +43,7 @@ enum PySocketPolicy {
 
     static func verdict(host: String, addresses: [String]) -> Verdict {
         if addresses.contains(where: isMulticastOrBroadcast) {
-            return .refuse(note: "Multicast and broadcast need an entitlement from Apple that OpenChat doesn't have.")
+            return .refuse(note: "Multicast and broadcast need an entitlement from Apple that OmniChat doesn't have.")
         }
         if URLGuard.isBlockedHostname(host) || addresses.contains(where: { URLGuard.isBlocked(address: $0) }) { return .ask }
         return .allow

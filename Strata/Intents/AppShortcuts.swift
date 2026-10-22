@@ -2,14 +2,14 @@ import AppIntents
 
 /// The App Shortcuts: in Shortcuts and Spotlight from installation, and spoken to Siri with no setup. Every phrase
 /// names the app (the system requires it); Siri asks for the prompt or the chat when the phrase doesn't give it.
-struct OpenChatShortcuts: AppShortcutsProvider {
+struct OmniChatShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
-        AppShortcut(intent: AskOpenChatIntent(), phrases: [
+        AppShortcut(intent: AskOmniChatIntent(), phrases: [
             "Ask \(.applicationName)",
             "Ask \(.applicationName) a question",
             "Ask a question in \(.applicationName)",
             "Chat with \(.applicationName)",
-        ], shortTitle: "Ask OpenChat", systemImageName: "bubble.left.and.text.bubble.right")
+        ], shortTitle: "Ask OmniChat", systemImageName: "bubble.left.and.text.bubble.right")
         AppShortcut(intent: NewChatIntent(), phrases: [
             "New chat in \(.applicationName)",
             "Start a new chat in \(.applicationName)",

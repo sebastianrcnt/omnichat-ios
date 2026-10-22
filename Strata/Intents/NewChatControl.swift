@@ -8,7 +8,7 @@ import WidgetKit
 /// app, which it opens first; the extension's copy only names it.
 struct NewChatControlIntent: AppIntent {
     static let title: LocalizedStringResource = "New Chat"
-    static let description = IntentDescription("Opens OpenChat to a new chat.")
+    static let description = IntentDescription("Opens OmniChat to a new chat.")
     static let supportedModes: IntentModes = .foreground(.immediate)
     /// Shortcuts lists New Chat already; this one is for the control.
     static let isDiscoverable = false
@@ -35,7 +35,7 @@ struct NewChatControl: ControlWidget {
             }
         }
         .displayName("New Chat")
-        .description("Opens OpenChat to a new chat.")
+        .description("Opens OmniChat to a new chat.")
     }
 }
 #endif

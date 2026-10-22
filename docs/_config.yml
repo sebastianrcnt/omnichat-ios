@@ -1,4 +1,4 @@
 # GitHub Pages serves only the public pages; the design notes stay on GitHub as plain Markdown.
-title: OpenChat
+title: OmniChat
 exclude: ["*.md", "screenshots"]
 include: ["index.md", "privacy.md", "support.md"]

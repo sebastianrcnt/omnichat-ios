@@ -1,4 +1,4 @@
-# OpenChat
+# OmniChat
 
 A native chat app for iPhone, iPad and Mac that talks to the models you already have: your own API keys, your ChatGPT
 plan, Anthropic's API, servers on your own network, or Apple's on-device model.
@@ -26,7 +26,7 @@ Design notes live in [docs/](docs/).
 
 ## Support
 
-Questions and bug reports: [GitHub Issues](https://github.com/sebastianrcnt/openchat-ios/issues). See
+Questions and bug reports: [GitHub Issues](https://github.com/sebastianrcnt/omnichat-ios/issues). See
 [docs/support.md](docs/support.md).
 
 ## License

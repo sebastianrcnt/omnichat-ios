@@ -13,7 +13,7 @@ struct OpenCodeClient: ChatStreaming {
                 do {
                     let api = endpoint.openCodeAPI
                     guard api.isSupported else {
-                        throw APIError.server(String(localized: "OpenChat can't talk to \(endpoint.model.id) yet. Choose another model."))
+                        throw APIError.server(String(localized: "OmniChat can't talk to \(endpoint.model.id) yet. Choose another model."))
                     }
                     let body = try Self.body(request, endpoint: endpoint)
                     OpenCodeAuth.log.debug("""

@@ -1,12 +1,12 @@
-# OpenChat packages: design
+# OmniChat packages: design
 
 Status: MVP implemented on branch `packages` (2026-10-22); see "MVP as built" at the end of section 11 for what
 differs from this proposal and what is left. Phases 2 and 3 are still proposals.
 
-Packages extend OpenChat without new app releases. A package is a signed or unsigned bundle of data and sandboxed JavaScript
+Packages extend OmniChat without new app releases. A package is a signed or unsigned bundle of data and sandboxed JavaScript
 that adds tools, prompt text, skills, views, commands, connection presets, policies and declarative hooks. The idea comes
 from pi (badlogic/pi-mono): keep a small core, put everything else in extensions, and let agents write their own. For
-OpenChat that means a company, or the company's agent, writes the "Jira tool" or the "use our gateway, never SSH" policy as
+OmniChat that means a company, or the company's agent, writes the "Jira tool" or the "use our gateway, never SSH" policy as
 a package. We don't build per-customer features.
 
 This document is grounded in the code at `65c1c1a` plus the `main` merge with App Intents, Share, OnDevice and Live
@@ -19,13 +19,13 @@ Activities. File paths are relative to the repo root.
 - **Format**: a zip with the `.ocpkg` extension, or a folder in developer mode. `manifest.json` sits at the root, with `CHECKSUMS` and
   `SIGNATURE` (Ed25519) beside it. Content is data (JSON and Markdown) plus optional JS files.
 - **Content types**: skills (today's format, unchanged), declarative HTTP tools (no code), JS tools (sandboxed WKWebView
-  with a narrow `openchat.*` host API), page tools (today's site plugins), prompt fragments, OpenUI view templates,
+  with a narrow `omnichat.*` host API), page tools (today's site plugins), prompt fragments, OpenUI view templates,
   commands, connection presets, policies, and declarative hooks.
 - **Cache safety**: a chat freezes the packages it offers at its first send, as it already freezes tool groups
   (`Conversation.offeredTools`). It also snapshots the exact bytes of their tool definitions and prompt sections into
   the conversation. Package tools are appended after the built-in tools, sorted by package id. A chat without packages
   sends byte-identical requests to today.
-- **Trust**: there are four levels: OpenChat-known publisher, company key (MDM or policy), user-trusted key (TOFU), and unsigned
+- **Trust**: there are four levels: OmniChat-known publisher, company key (MDM or policy), user-trusted key (TOFU), and unsigned
   personal. What a package may declare depends on its level. Everything a package can reach is listed at install time.
   Writes and sensitive reads ask again on first use or on every use.
 - **Secrets** live in the Keychain and are referenced by name. The host injects them into requests. The model and the
@@ -33,7 +33,7 @@ Activities. File paths are relative to the repo root.
 - **App Store**: this falls under 4.7 (plug-ins, mini apps and chatbots in WebKit/JavaScriptCore). There is no native code, no
   `eval` of fetched text, and no bridging of native platform APIs (HealthKit, location, Contacts) to package code
   (4.7.2). There is no in-app package directory until we can meet 4.7.1, 4.7.4 and 4.7.5.
-- **Licensing**: the app is GPLv3 with a CLA. `OpenChatPackageKit`, the spec, the JS SDK shim and the examples are MIT,
+- **Licensing**: the app is GPLv3 with a CLA. `OmniChatPackageKit`, the spec, the JS SDK shim and the examples are MIT,
   with a GPL section 7 exception saying that packages are separate works. Enterprise servers stay closed. See section 10.
 - **MVP**: package format v1, skills, prompt fragments and declarative HTTP tools, Keychain secrets, install from a link or
   a file, per-chat frozen enablement, approval cards, and a local audit log. JS tools, agent authoring and enterprise
@@ -74,13 +74,13 @@ Activities. File paths are relative to the repo root.
 | Author | Typical content | Trust | Notes |
 | --- | --- | --- | --- |
 | Power users and self-hosters | Skills, HTTP tools for their home-lab APIs (Home Assistant, Immich, Paperless), presets for their own server | Unsigned personal, or a self-generated key (TOFU) | They edit in the Mac developer folder, or ask the model to draft. |
-| Company developers | HTTP and JS tools for internal APIs, org prompt, connection presets, policy, DLP hooks | Company key | Built with the MIT `openchat-pkg` CLI (validate, sign, test). Distributed by MDM or a link. |
+| Company developers | HTTP and JS tools for internal APIs, org prompt, connection presets, policy, DLP hooks | Company key | Built with the MIT `omnichat-pkg` CLI (validate, sign, test). Distributed by MDM or a link. |
 | The model | Skills and HTTP tools first, JS tools later | Always unsigned personal, created through the review sheet | It can never declare policy, hooks, private-network access or `exposeToScript` secrets. |
-| OpenChat (us) | Built-in packages: today's `naver-places` skill and `wikipedia_summary` plugin, examples | OpenChat-known publisher | Shipped in the bundle, MIT-licensed, forkable. |
+| OmniChat (us) | Built-in packages: today's `naver-places` skill and `wikipedia_summary` plugin, examples | OmniChat-known publisher | Shipped in the bundle, MIT-licensed, forkable. |
 
 ### Mapping from pi's extension types
 
-| pi | OpenChat package content |
+| pi | OmniChat package content |
 | --- | --- |
 | tools | `http`, `js` and `page` tools (sections 3.3 to 3.5) |
 | commands | `commands`: composer prompt templates (section 3.9) |
@@ -97,7 +97,7 @@ Activities. File paths are relative to the repo root.
 | --- | --- | --- |
 | Skills | `Strata/Tools/Skills.swift`: `Skill` (front matter `name` and `description`, body, named `js script=NAME` fences), `SkillStore` (bundle `Resources/Skills` plus `Application Support/Skills/<name>.md`), `SkillIndex`, `LoadSkillTool`, `RunSkillScriptTool` (runs in the chat's browser page via `BrowserEvalTool`), `SaveSkillTool`, `SkillApprovals` | The skill format becomes a package content type as is. Existing saved skills keep working (section 3.2). The `SkillApprovals` queue pattern becomes the package review queue. |
 | Save as skill | `Strata/Engine/SkillOffer.swift` (`isOffered`, `instruction`), `AppPrompt.skillOffer` | It is extended to offer a package when the work was an API call (section 6). |
-| Site plugins | `Strata/Tools/PluginCore.swift` (`PluginManifest`, URL template building with `unreserved` percent-encoding, `hostAllowed`, `resolveArguments`, `PluginRegistry.promptSection`), `PluginRunner.swift` (`PluginPipeline`), `Resources/Plugins/wikipedia_summary.plugin.*`, `AppSettings.enabledPlugins` | They become the `page` tool kind. The URL builder and host matcher move into `OpenChatPackageKit`. **Existing cache leak:** `ChatController.apiHistory` builds the plugin prompt section from `AppSettings.currentEnabledPlugins` on every request, so toggling a plugin in Settings changes the system message of running chats. Packages freeze it (section 4.3). |
+| Site plugins | `Strata/Tools/PluginCore.swift` (`PluginManifest`, URL template building with `unreserved` percent-encoding, `hostAllowed`, `resolveArguments`, `PluginRegistry.promptSection`), `PluginRunner.swift` (`PluginPipeline`), `Resources/Plugins/wikipedia_summary.plugin.*`, `AppSettings.enabledPlugins` | They become the `page` tool kind. The URL builder and host matcher move into `OmniChatPackageKit`. **Existing cache leak:** `ChatController.apiHistory` builds the plugin prompt section from `AppSettings.currentEnabledPlugins` on every request, so toggling a plugin in Settings changes the system message of running chats. Packages freeze it (section 4.3). |
 | Tool groups and freezing | `Strata/Engine/ChatTools.swift` (`ToolGroup`, `note`, `encode`/`decode`, which ignores unknown values), `Conversation.offeredToolsRaw`, `toolSwitchesRaw`, `announcedToolsRaw`, `frozenTools`, `frozenSkillIndex`, `ChatController.offeredTools(_:freeze:)`, `applyToolSwitches`, `OfferedTools` (refuses calls at execution), `StrataTests/ToolSwitchTests.swift` | Packages join the same three fields as `pkg:<id>` entries. Old builds drop them in `decode`. A package snapshot sits next to `skillIndexSnapshot`. |
 | Tool list | `ToolDefinition` in `Strata/Networking/ChatAPI.swift` (typed `Parameters`, encoded with `ChatRequest.encoder` using `.sortedKeys`), `ToolDefinition.available(groups:images:)` | Package tools are appended after `available(...)`. `ToolDefinition` needs a raw-schema variant (section 4.3). `ResponsesAPI.swift` and `OpenCode/AnthropicMessages.swift` convert the same list. |
 | System prompt | `AppPrompt` (`Strata/Engine/Sources.swift`), `AppPrompt.views` (`Rendering/OpenUI/OpenUIPrompt.swift`), `ConversationDate.systemPrompt(base:day:plugins:)` (`Models/Conversation.swift`), assembled in `ChatController.apiHistory` | Package prompt sections go between the skill index and the user's preferences. Empty sections are filtered out, so chats without packages keep their bytes. |
@@ -106,10 +106,10 @@ Activities. File paths are relative to the repo root.
 | Approvals | `SSHRequests` / `SSHApprovalPolicy` (`Strata/SSH/SSHRequests.swift`): cards tied to (chat, call id), cancel means deny, "Always" persisted, and a notification when the app is in the background (`SSHRequestNotifier`). Live Activity "Needs you": `ReplyLiveActivities.approval(for:)` maps to `ReplyActivityInput.Approval` | They are generalized into `ToolApprovals`, with a `.packageTool` approval case for the Live Activity. |
 | Secrets | `KeychainKeyStore` (`Security/KeyStore.swift`, `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`), `KeychainSSHVault` (`SSH/SSHStore.swift`), `SSHMask`, `DebugRedaction` (`Diagnostics/Redaction.swift`) | A `PackageSecretStore` follows the `SSHVault` pattern. `DebugRedaction` gets an exact-value registry. |
 | Sandboxes | Python: `PythonWebHost` with a custom scheme, `PyodideServer` CSP `default-src 'none'; script-src strata-py: 'wasm-unsafe-eval'; connect-src strata-py:`, `.nonPersistent()` store. Artifacts: `ArtifactNavigation.makeWebView` (no message handlers, no base URL, `LocalNetworkRules`). Agent world: `HiddenWebView.agentWorld` | The JS tool host copies the Pyodide pattern: a custom scheme, a strict CSP, no network from JS, and a host bridge as the only way out. |
-| Links | `AddConnectionLink` (`Models/ConnectionPresets.swift`) drops `key`. `ConnectionLinks` and `ConnectionLinkHandler` (`UI/ConnectionSetup.swift`) show a confirmation sheet. `openchat` URL scheme in `project.yml` | `openchat://add-package` follows the same pattern, and connection presets reuse `AddConnectionLink`. |
+| Links | `AddConnectionLink` (`Models/ConnectionPresets.swift`) drops `key`. `ConnectionLinks` and `ConnectionLinkHandler` (`UI/ConnectionSetup.swift`) show a confirmation sheet. `omnichat` URL scheme in `project.yml` | `omnichat://add-package` follows the same pattern, and connection presets reuse `AddConnectionLink`. |
 | Multi-chat | `ChatRun`, `RunSlots`/`FairSlots`, call ids keyed by chat (`ToolProgress.Key`) | Per-package concurrency slots, and approvals keyed by chat and call. |
 | On-device model | `OnDevicePromptBuilder.toolSpecs` offers only `web_search` and `web_fetch` to the ~3B model with a 4K window, and replaces the app prompt | Package tools are **not** offered on device unless the package marks a tool `onDevice: true` with a short description (section 5.8). |
-| App Intents | `Strata/Intents/` (`AskOpenChatIntent`, `IntentChat.conversation(... requiredTools:)` turns off `.views`) | Intent chats get packages that are "on in new chats", except those that need approvals the intent can't show (section 5.8). |
+| App Intents | `Strata/Intents/` (`AskOmniChatIntent`, `IntentChat.conversation(... requiredTools:)` turns off `.views`) | Intent chats get packages that are "on in new chats", except those that need approvals the intent can't show (section 5.8). |
 | Share / App Group | `Strata/Share/`, App Group `group.cc.coolservices.strata` (`SharePayload.identifier`) | `.ocpkg` files shared into the app are routed to the install sheet (section 5.2). |
 
 ---
@@ -138,7 +138,7 @@ acme-jira-1.4.0.ocpkg            zip (deflate or store); also a plain folder in 
 
 Limits: 5 MB zipped, 15 MB unzipped, 200 files. Paths must be relative, UTF-8, without `..`, without absolute paths and without
 symlinks, which zip-slip protection rejects. Text files must be UTF-8 and are normalized to LF and NFC at install. The
-normalized bytes are what the checksums cover, so the author's tool (`openchat-pkg pack`) normalizes before hashing.
+normalized bytes are what the checksums cover, so the author's tool (`omnichat-pkg pack`) normalizes before hashing.
 
 ### 3.2 `manifest.json`
 
@@ -152,9 +152,9 @@ normalized bytes are what the checksums cover, so the author's tool (`openchat-p
   "description": "Search, read and create Acme Jira issues.",   // one line, ≤ 200, shown in UI (not to the model)
   "publisher": { "name": "Acme Corp", "key": "ed25519:Q2hhbmdlTWUu..." },  // key optional (unsigned)
   "license": "Proprietary",                     // SPDX id or free text; informational
-  "homepage": "https://wiki.acme.internal/openchat",
+  "homepage": "https://wiki.acme.internal/omnichat",
   "requires": {
-    "app": ">=1.3.0",                           // OpenChat version range (SemVer range subset: >=, <, ^, ~)
+    "app": ">=1.3.0",                           // OmniChat version range (SemVer range subset: >=, <, ^, ~)
     "hostAPI": 1,                               // JS host API major version (only when js tools exist)
     "groups": []                                // built-in tool groups this package needs on, e.g. ["browser"] for skills with scripts
   },
@@ -185,19 +185,19 @@ normalized bytes are what the checksums cover, so the author's tool (`openchat-p
 }
 ```
 
-Validation lives in `OpenChatPackageKit.PackageManifest.validate()`, which follows `PluginManifest.validate()`. It throws
+Validation lives in `OmniChatPackageKit.PackageManifest.validate()`, which follows `PluginManifest.validate()`. It throws
 one error naming the first problem, worded for whoever fixes it. These errors are also read by the model when it drafts a
 package, so each says what to do instead, in the style of `Skill.Problem`.
 
 **Versioning and compatibility**
 
-- `format` is an integer. A newer format than the app knows is refused with "Update OpenChat to install this package".
+- `format` is an integer. A newer format than the app knows is refused with "Update OmniChat to install this package".
   Unknown top-level keys and unknown keys inside known objects are ignored, with a warning in the review sheet. An unknown
   content kind or tool `kind` is refused unless the entry says `"optional": true`.
 - `requires.app` is checked at install and at launch. If the app falls below the minimum after a downgrade, the package
   is disabled with a reason.
 - `requires.hostAPI` is a major version. The host keeps old majors for at least a year, and minor additions are feature-detected
-  (`openchat.version`).
+  (`omnichat.version`).
 - Package `version` is SemVer. Updates must increase it. A downgrade happens only through an explicit Revert, or when MDM
   pins a version.
 - Each tool may carry `"schemaVersion"` (integer, default 1). Bump it when the parameters or meaning change
@@ -210,7 +210,7 @@ package, so each says what to do instead, in the style of `Skill.Problem`.
 - **Existing saved skills** in `Application Support/Skills` are not migrated on disk. `SkillStore` keeps reading them, and the
   Packages screen shows them as a built-in pseudo-package "My skills" (`local.skills`, personal trust). `save_skill` keeps
   writing there, so nothing changes for current users. The bundled `naver-places` becomes the built-in package
-  `app.openchat.naver-places`.
+  `app.omnichat.naver-places`.
 - **Package skills** are named `<namespace>:<name>`, for example `jira:triage`. `Skill.isValidName` gets a second
   accepted form: one `:` between a namespace and a name, each valid on its own. Plain names stay reserved for personal
   and built-in skills, so packages can't shadow them.
@@ -267,7 +267,7 @@ optional sources.
 
 Rules:
 
-- **URL building** reuses `PluginManifest.build`, moved to `OpenChatPackageKit.URLTemplate`. Values are
+- **URL building** reuses `PluginManifest.build`, moved to `OmniChatPackageKit.URLTemplate`. Values are
   percent-encoded with `unreserved`, so a value can't add a path, query, port or user. Placeholders are allowed only in
   path segments, never in the scheme, host or port. The host must match `permissions.network`
   (`PluginManifest.hostAllowed` semantics). `{arg|default}` supplies a default. An optional argument without a default
@@ -314,28 +314,28 @@ These are for logic a declarative tool can't express: pagination, joining two ca
 ```
 
 ```js
-// tools/sprint.js — ES module. The only globals beyond standard JS are `openchat` (host API) and `console`.
+// tools/sprint.js — ES module. The only globals beyond standard JS are `omnichat` (host API) and `console`.
 export default async function run(args, ctx) {
-  const res = await openchat.fetch(`https://acme.atlassian.net/rest/agile/1.0/board/${encodeURIComponent(args.board)}/sprint?state=active`,
+  const res = await omnichat.fetch(`https://acme.atlassian.net/rest/agile/1.0/board/${encodeURIComponent(args.board)}/sprint?state=active`,
                                    { auth: "token" });
   if (!res.ok) throw new Error(`Jira said ${res.status}`);
   const sprint = (await res.json()).values[0];
-  openchat.progress(0.5, "Reading issues");
+  omnichat.progress(0.5, "Reading issues");
   // ...
   return { text: "...", data: { done, inProgress, blocked }, sources: [{ title, url, content }], view: { template: "issue", data: {...} } };
 }
 ```
 
-Host API v1. The full TypeScript declaration ships as MIT `@openchat/package-sdk/host.d.ts`.
+Host API v1. The full TypeScript declaration ships as MIT `@omnichat/package-sdk/host.d.ts`.
 
 | Call | Behavior |
 | --- | --- |
-| `openchat.fetch(url, {method, headers, body, auth, timeout})` | Performed by the app (`URLSession`), not by WebKit. The host must be in `permissions.network`. `auth: "<secret name>"` injects the secret as declared, and the JS never sees the value. Responses are capped at 2 MB, and secret values are scrubbed from them. It returns `{ok, status, headers, text(), json()}`. Set-Cookie is dropped. |
-| `openchat.storage.get/set/delete/keys(scope?)` | A JSON key-value store per package, up to `permissions.storage` bytes. `scope: "package"` (default) or `"chat"`, which is keyed by `ToolContext.conversationID` and deleted with the chat. |
-| `openchat.progress(value, label?)` | Feeds `ToolProgress` for the call's card. |
-| `openchat.confirm(summary)` | Shows an approval card under the call (section 4.5) and resolves to a boolean. A cancelled turn resolves false. |
-| `openchat.ask({title, fields})` | Shows an input card rendered as a native OpenUI `Form` and resolves to answers or `null`. This is phase 2. |
-| `openchat.log(...)` / `console.*` | Writes to the package's debug log (Settings › Packages › Log, at most 200 lines). It is never sent to the model. |
+| `omnichat.fetch(url, {method, headers, body, auth, timeout})` | Performed by the app (`URLSession`), not by WebKit. The host must be in `permissions.network`. `auth: "<secret name>"` injects the secret as declared, and the JS never sees the value. Responses are capped at 2 MB, and secret values are scrubbed from them. It returns `{ok, status, headers, text(), json()}`. Set-Cookie is dropped. |
+| `omnichat.storage.get/set/delete/keys(scope?)` | A JSON key-value store per package, up to `permissions.storage` bytes. `scope: "package"` (default) or `"chat"`, which is keyed by `ToolContext.conversationID` and deleted with the chat. |
+| `omnichat.progress(value, label?)` | Feeds `ToolProgress` for the call's card. |
+| `omnichat.confirm(summary)` | Shows an approval card under the call (section 4.5) and resolves to a boolean. A cancelled turn resolves false. |
+| `omnichat.ask({title, fields})` | Shows an input card rendered as a native OpenUI `Form` and resolves to answers or `null`. This is phase 2. |
+| `omnichat.log(...)` / `console.*` | Writes to the package's debug log (Settings › Packages › Log, at most 200 lines). It is never sent to the model. |
 | `ctx` | `{ callID, tool, packageVersion, locale }`. It has no chat id, no messages and no user identity. |
 
 The return value is `string | { text, data?, sources?, view? }`. `text`, or the JSON of `data` when there is no text, is what the
@@ -351,7 +351,7 @@ describes the sandbox.
 A `PluginManifest` is embedded as a tool: `url`, `hosts`, `settle`, `waitFor` and `script` (defines `window.strataPlugin`).
 It runs exactly as `RunPluginTool` does today, in the shared hidden web views. It is the right kind for a site
 without an API. `hosts` must be a subset of `permissions.network`. The bundled `wikipedia_summary` becomes the built-in package
-`app.openchat.wikipedia` with one page tool.
+`app.omnichat.wikipedia` with one page tool.
 
 After migration (phase 2), `run_plugin` stays in `ToolDefinition.standard` for old chats, since its definition is part of
 their cached prefix. Calls by plugin name are routed to the page tool. New chats get page tools as package tools.
@@ -374,7 +374,7 @@ their cached prefix. Calls by plugin name are routed to the page tool. New chats
 
 ### 3.8 Views (OpenUI templates) and rendered results
 
-OpenUI Lang (`Strata/Rendering/OpenUI/`) renders native SwiftUI from a fixed component library, `OUILibrary.openChat`.
+OpenUI Lang (`Strata/Rendering/OpenUI/`) renders native SwiftUI from a fixed component library, `OUILibrary.omniChat`.
 Packages can't add components, because there is no native code. They can:
 
 1. **Render tool results as cards.** A tool returns `view: { template, data }`, or `{ program }` holding raw OpenUI Lang.
@@ -443,10 +443,13 @@ JS hooks (`message.beforeSend` with a 300 ms budget, company trust only) are a p
 ```jsonc
 // SIGNATURE
 { "alg": "ed25519", "key": "ed25519:<base64url public key>", "sig": "<base64url signature over CHECKSUMS bytes>",
-  "chain": [ /* optional rotation: { "key": "ed25519:new", "sig": "<old key signs 'openchat-key-rotation:v1\n'+new key>" } */ ] }
+  "chain": [ /* optional rotation: { "key": "ed25519:new", "sig": "<old key signs 'omnichat-key-rotation:v1\n'+new key>" } */ ] }
 ```
 
 - CryptoKit `Curve25519.Signing` verifies the signature.
+- Rotation links signed before the rename to OmniChat use the prefix `openchat-key-rotation:v1\n`. Verification accepts
+  it as well (`PackageSignature.legacyRotationPrefixes`); new links always use `omnichat-key-rotation:v1\n`. CHECKSUMS
+  and the signature over it never contained the name.
 - `CHECKSUMS` must list every file except `SIGNATURE`, with nothing more and nothing less. `manifest.json`'s `publisher.key` must
   equal `key`, or the last key of `chain`.
 - Ed25519 is used because it is small, deterministic, and verifiable with CryptoKit on iOS 13+. X.509 or CMS
@@ -460,7 +463,7 @@ JS hooks (`message.beforeSend` with a 300 ms budget, company trust only) are a p
 
 | Type | File | Role |
 | --- | --- | --- |
-| `PackageManifest`, `PackageTool`, `JSONSchemaSubset`, `URLTemplate`, `ResponseProjection`, `PackageSignature`, `CanonicalJSON` | `Packages/OpenChatPackageKit/Sources/...` (MIT, Foundation and CryptoKit only) | Parse, validate, verify, build requests, project responses, render prompt and tool definitions. Shared with the `openchat-pkg` CLI. `Tools/plugin-check` is the precedent. |
+| `PackageManifest`, `PackageTool`, `JSONSchemaSubset`, `URLTemplate`, `ResponseProjection`, `PackageSignature`, `CanonicalJSON` | `Packages/OmniChatPackageKit/Sources/...` (MIT, Foundation and CryptoKit only) | Parse, validate, verify, build requests, project responses, render prompt and tool definitions. Shared with the `omnichat-pkg` CLI. `Tools/plugin-check` is the precedent. |
 | `PackageStore` | `Strata/Packages/PackageStore.swift` | Installed packages on disk, the registry, active and previous versions, enablement defaults. Thread-safe in the style of `SkillStore`, with an observable `PackagesVersion` for UI. |
 | `PackageInstaller` | `Strata/Packages/PackageInstaller.swift` | Download or import, unzip (with zip-slip checks), normalize, verify, diff against the installed version, and hand off to the review sheet. |
 | `PackageSecretStore` | `Strata/Packages/PackageSecrets.swift` | Keychain service `cc.coolservices.strata.package`, account `<id>/<secret>`. Includes `scrub(_:)`. |
@@ -480,14 +483,14 @@ JS hooks (`message.beforeSend` with a 300 ms budget, company trust only) are a p
 LRU disposal. This mirrors `PythonWebHost`:
 
 - `WKWebViewConfiguration.websiteDataStore = .nonPersistent()`, so there are no cookies or storage across calls. Persistence
-  goes only through `openchat.storage`.
+  goes only through `omnichat.storage`.
 - A `WKURLSchemeHandler` for `ocpkg:` serves only `host.html`, `bootstrap.js` and the package's own files from its
   installed, verified directory. Every response carries the CSP
   `default-src 'none'; script-src ocpkg:; connect-src 'none'; img-src 'none'; style-src 'none'; frame-src 'none'; worker-src 'none'`.
 - A `WKContentRuleList` blocks every `http(s)` and `ws(s)` load, and `LocalNetworkRules` is installed as well. The navigation
   delegate cancels every navigation except the initial `ocpkg://<id>/host.html`.
-- Messaging uses one `WKScriptMessageHandlerWithReply` named `openchat`, in the page world. `bootstrap.js` wraps it as the
-  `openchat` global and freezes it. Every message is validated on the Swift side: the method name comes from a fixed
+- Messaging uses one `WKScriptMessageHandlerWithReply` named `omnichat`, in the page world. `bootstrap.js` wraps it as the
+  `omnichat` global and freezes it. Every message is validated on the Swift side: the method name comes from a fixed
   set, and the arguments have a schema. Each call carries the call token the host issued for that run, so stale or
   forged replies from an earlier run are ignored.
 - **Isolation between calls and chats**: the page is reloaded before each call, which is cheap because it is local. JS
@@ -572,7 +575,7 @@ one cache miss (`applyToolSwitches`). Packages follow exactly these rules.
 
 - A tool's full name is `<namespace>__<tool>`, at most 64 characters, matching the OpenAI `^[a-zA-Z0-9_-]{1,64}$` rule.
 - Reserved namespaces: `web`, `browser`, `run`, `view`, `load`, `save`, `show`, `current`, `video`, `ssh`, `python`,
-  `openchat`, `app`, `test`, `pkg`. A full name may not equal anything in `ToolNames` or `SSHToolNames.all`.
+  `omnichat`, `app`, `test`, `pkg`. A full name may not equal anything in `ToolNames` or `SSHToolNames.all`.
 - If two installed packages want the same namespace, the second install asks for a local alias (`jira2`). The alias is
   stored in the registry and in snapshots.
 
@@ -647,10 +650,10 @@ in Settings › Packages › Acme Jira.`, and the feed card shows a "Add token" 
 
 | Permission | Enforced where | Install sheet wording |
 | --- | --- | --- |
-| `network` | `HTTPToolRunner`, `openchat.fetch`, page tool `hosts`, and every redirect | "Can send data to: acme.atlassian.net" |
+| `network` | `HTTPToolRunner`, `omnichat.fetch`, page tool `hosts`, and every redirect | "Can send data to: acme.atlassian.net" |
 | `privateNetwork` | `URLGuard` bypass only for declared hosts. Trust ≥ user key, or personal with explicit user toggle | "Can reach devices on your local or company network: nas.local" |
 | `secrets` | `PackageSecretStore`, used only by injection | "Uses a Jira API token that you enter. The model never sees it." |
-| `storage` | `openchat.storage` quota | "Stores up to 1 MB on this device" |
+| `storage` | `omnichat.storage` quota | "Stores up to 1 MB on this device" |
 | `exclusive` | `ChatController.setTool` and package enablement: turning on one side turns off the other, with a note in the menu | "Can't be used in the same chat as web search or the browser" (protects company data from exfiltration through web tools) |
 | `requires.groups` | Enabling the package turns them on | "Turns on: Browser" |
 | `data` (reserved) | Not in format 1. HealthKit, location, contacts and photos are never exposed to package code in App Store builds (4.7.2). Packages get that data only if the model passes it in arguments, from built-in tools the user turned on and calls the user can see. | n/a |
@@ -668,7 +671,7 @@ The consent record (permissions, version, date) is stored in the registry and th
 
 - Values are entered in the package detail page with a `SecureField`. They are stored as Keychain generic passwords with
   `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`, never synced. The Mac uses the file keychain as today, per PLAN.md.
-- Secrets are injected only at request build time, inside `HTTPToolRunner` and the `openchat.fetch` bridge. They never
+- Secrets are injected only at request build time, inside `HTTPToolRunner` and the `omnichat.fetch` bridge. They never
   appear in the model's context, tool arguments, results, feed, checkpoints (`TurnCheckpoint`) or the audit log.
 - **Scrub**: before a result reaches the model, the feed or the logs, every occurrence of any secret value of that package
   is replaced with `[secret]`. Base64 and URL-encoded forms are replaced too. This catches APIs that echo the token back.
@@ -683,7 +686,7 @@ The consent record (permissions, version, date) is stored in the registry and th
 
 - Approvals, progress and live state are keyed by (conversation, call id). Call ids repeat across chats (`call_0`), as
   `ToolProgress.Key` already handles.
-- The JS realm is reloaded per call, so nothing is shared in memory. `openchat.storage` scope `chat` is keyed by
+- The JS realm is reloaded per call, so nothing is shared in memory. `omnichat.storage` scope `chat` is keyed by
   conversation and deleted in `ChatController`'s chat deletion path. Scope `package` is shared on purpose, for caches and
   settings, and the review sheet says so.
 - Concurrency uses `FairSlots`-style per-host slots. A package declares `"concurrency": 1–4` (default 2) for HTTP tools so
@@ -705,7 +708,7 @@ The consent record (permissions, version, date) is stored in the registry and th
 
 ## 5. Install, update, trust
 
-### 5.1 Link: `openchat://add-package?url=…&sha256=…`
+### 5.1 Link: `omnichat://add-package?url=…&sha256=…`
 
 - `AddPackageLink` parses the link, as `AddConnectionLink` does. `url` must be https, without user info, and at most 2 KB.
   `sha256` is optional, and when present the download must match it. Any other parameter is ignored.
@@ -715,14 +718,19 @@ The consent record (permissions, version, date) is stored in the registry and th
 - Download: an ephemeral `URLSession`, no cookies, a 5 MB cap (`LimitedDownload.swift`), and a 60 s timeout.
 - The confirmation sheet is the review sheet from section 5.3. Nothing is written into the package store before the user
   taps Install.
-- Universal links of the form `https://openchat.app/p/<id>` resolve to the same flow. They are needed for the 4.7.4 index
+- `openchat://`, the scheme before the rename to OmniChat, stays registered and every link handler reads it like
+  `omnichat://` (`AppURLScheme`). The app only writes `omnichat://` links.
+- Universal links of the form `https://omnichat.app/p/<id>` resolve to the same flow. They are needed for the 4.7.4 index
   in phase 3.
 
 ### 5.2 File import
 
-- Declare an exported UTType `cc.coolservices.openchat.package` with the `.ocpkg` extension, conforming to
+- Declare an exported UTType `cc.coolservices.omnichat.package` with the `.ocpkg` extension, conforming to
   `public.zip-archive`. Add `CFBundleDocumentTypes` to `project.yml`, and `LSSupportsOpeningDocumentsInPlace = NO`.
   Opening the file from Files, Mail or AirDrop launches the import.
+- Builds before the rename to OmniChat declared the type as `cc.coolservices.openchat.package`. It stays declared (as an
+  imported type), listed in the document type and accepted by the importer and the share extension (`PackageFileType`).
+  The `.ocpkg` extension didn't change.
 - Share extension (`Strata/Share/`): `ShareItemLoader` recognizes `.ocpkg` file URLs. It writes the file to the App Group
   inbox as a new `SharePayload` kind, `.package`, and opens the app, where `ShareImporter` hands it to `PackageInstaller`
   instead of making a chat. The extension itself never installs.
@@ -773,7 +781,7 @@ approval cards (section 6).
 
 ### 5.5 Trust levels
 
-| | OpenChat-known publisher | Company key | User-trusted key (TOFU) | Unsigned personal |
+| | OmniChat-known publisher | Company key | User-trusted key (TOFU) | Unsigned personal |
 | --- | --- | --- | --- | --- |
 | How it gets that status | Key compiled into the app, plus a signed key list update | Key in MDM config or in an installed policy (phase 3) | The user accepted the key at first install | No signature, or an agent draft |
 | Skills, prompt, commands, views | yes | yes | yes | yes |
@@ -810,12 +818,12 @@ approval cards (section 6).
 
 ### 5.8 Interaction with App Intents, Share, on-device model, Live Activities
 
-- **App Shortcuts are static.** `OpenChatShortcuts: AppShortcutsProvider` is compiled, and its phrases are extracted at
+- **App Shortcuts are static.** `OmniChatShortcuts: AppShortcutsProvider` is compiled, and its phrases are extracted at
   build time. Packages can't add App Shortcuts, intents or Siri phrases at runtime. Instead:
   - Package commands could be exposed as `AppEntity` values of a generic "Run command" intent: `RunPackageCommandIntent`
     with a `PackageCommandEntity` parameter backed by an `EntityQuery` over installed commands. This is dynamic data,
     which the system allows, but the user must build the shortcut. It is a phase 3 option.
-  - `AskOpenChatIntent` and `SummarizeIntent` chats (`IntentChat.conversation`) use the "On in new chats" packages, but
+  - `AskOmniChatIntent` and `SummarizeIntent` chats (`IntentChat.conversation`) use the "On in new chats" packages, but
     only those whose tools need no approval (`confirm: never`). A Siri or background run can't show cards. Packages that
     need approval are left out, and the intent's answer says so if it matters.
 - **On-device model** (`Strata/OnDevice/`): `OnDevicePromptBuilder` replaces the app prompt with short instructions and offers
@@ -842,7 +850,7 @@ otherwise. It sits last in `ToolGroup.allCases`. Enum order is the encoding orde
 
 | Tool | What it does |
 | --- | --- |
-| `save_package(manifest, files)` | `manifest` is the manifest JSON, and `files` is an object mapping path to text. The tool validates with `OpenChatPackageKit` and returns errors in model-readable form, so the model fixes and retries. If validation passes, it queues a `PackageReviewSheet` request through `PackageApprovals`, a `SkillApprovals` clone keyed by chat. It returns only after the user's answer: `Saved package com.user.immich 0.1.0. New chats can turn it on.`, or `Error: the user declined…`. |
+| `save_package(manifest, files)` | `manifest` is the manifest JSON, and `files` is an object mapping path to text. The tool validates with `OmniChatPackageKit` and returns errors in model-readable form, so the model fixes and retries. If validation passes, it queues a `PackageReviewSheet` request through `PackageApprovals`, a `SkillApprovals` clone keyed by chat. It returns only after the user's answer: `Saved package com.user.immich 0.1.0. New chats can turn it on.`, or `Error: the user declined…`. |
 | `test_package_tool(manifest, files, tool, args)` | Runs one tool of an unsaved draft once, with the same sandbox and permission checks. Each declared host needs an approval card, with "Allow for this draft". Secrets the draft declares must already exist under the same package id, or the card asks for a value for this test only, held in memory. It returns the result or the error, so the model can iterate on response projection before saving. |
 | `read_package(id)` | Returns an installed personal package's manifest and files, for editing. It is refused for company and known-publisher packages unless policy allows it. |
 
@@ -885,14 +893,14 @@ It says to:
 
 ## 7. Enterprise
 
-### 7.1 Policy schema (`policy.json` or MDM `OpenChatPolicy`)
+### 7.1 Policy schema (`policy.json` or MDM `OmniChatPolicy`)
 
 ```jsonc
 {
   "format": 1,
   "organization": "Acme Corp",
   "packages": {
-    "allow": ["com.acme.*", "app.openchat.*"],      // glob on ids; absent = all
+    "allow": ["com.acme.*", "app.omnichat.*"],      // glob on ids; absent = all
     "block": ["user.*"],
     "allowUnsigned": false,
     "trustedKeys": ["ed25519:…"],                   // company keys
@@ -912,7 +920,7 @@ It says to:
   "authoring": { "savePackage": false, "saveSkill": true },
   "prompt": "You are assisting Acme employees. Never paste customer data into web_search.",   // org fragment, ≤ 4k
   "dlp": [ { "match": "\\bACME-[A-Z]{3}-\\d{6}\\b", "action": "redact", "message": "Customer ids are redacted." } ],
-  "audit": { "level": "calls", "endpoint": "https://audit.acme.internal/openchat/v1/events", "retentionDays": 30 },
+  "audit": { "level": "calls", "endpoint": "https://audit.acme.internal/omnichat/v1/events", "retentionDays": 30 },
   "minAppVersion": "1.3.0",
   "purgeFromChats": []                              // package ids to remove from frozen chats (R7)
 }
@@ -943,11 +951,11 @@ Enforcement points:
 - Read `UserDefaults.standard.dictionary(forKey: "com.apple.configuration.managed")` and observe
   `UserDefaults.didChangeNotification`.
 - Keys:
-  - `OpenChatPolicy` (inline JSON string or `https` URL + sha256)
-  - `OpenChatPackages` (array of `{url, sha256}`)
-  - `OpenChatTrustedKeys`
-  - `OpenChatConnections`
-  - `OpenChatAuditToken` (stored to the Keychain at first read)
+  - `OmniChatPolicy` (inline JSON string or `https` URL + sha256)
+  - `OmniChatPackages` (array of `{url, sha256}`)
+  - `OmniChatTrustedKeys`
+  - `OmniChatConnections`
+  - `OmniChatAuditToken` (stored to the Keychain at first read)
 - Report status back to MDM through `com.apple.feedback.managed`: installed package versions, policy digest, last error.
 - On the Mac, managed preferences from configuration profiles appear in the same defaults domain.
 - Offline: MDM-provided packages that are URLs are fetched when the network is available. Until then, the policy still
@@ -955,8 +963,8 @@ Enforcement points:
 
 ### 7.3 Company signing keys
 
-- The company generates an Ed25519 key, either with `openchat-pkg keygen` or in the admin console in phase 3. The public key
-  goes into MDM `OpenChatTrustedKeys` or a policy's `trustedKeys`. CI signs packages with `openchat-pkg sign`.
+- The company generates an Ed25519 key, either with `omnichat-pkg keygen` or in the admin console in phase 3. The public key
+  goes into MDM `OmniChatTrustedKeys` or a policy's `trustedKeys`. CI signs packages with `omnichat-pkg sign`.
 - Rotation uses `chain` (section 3.13). Revocation means removing the key from the policy. Packages signed only by a
   removed key are disabled.
 - Without MDM, a company can hand out a policy-only package signed by its key, together with a fingerprint the user
@@ -983,7 +991,7 @@ Enforcement points:
   - `calls` (default): no arguments, only their hash.
   - `calls+args`: arguments with secrets masked by `SSHMask`-style masking.
   - `full`: results too, capped at 4k per call. Users see this level on a "This device is managed" screen.
-- Upload: batches are POSTed to `audit.endpoint` with the `OpenChatAuditToken` bearer, in the foreground and through
+- Upload: batches are POSTed to `audit.endpoint` with the `OmniChatAuditToken` bearer, in the foreground and through
   `BGAppRefreshTask`. Failures retry with backoff. Upload never blocks a turn. Without an endpoint, the log is local
   only and exportable through the share sheet for B2C users.
 - Personal users get the log too, off by default, as a "Package activity" view.
@@ -998,11 +1006,11 @@ Enforcement points:
   - produces the MDM config plist
 - **Strata gateway** (existing server side, closed): an org's gateway connection can carry the org's identity. Two
   options:
-  1. The console publishes the policy at the gateway, `GET /v1/openchat/policy` (signed with the org key). When a user
+  1. The console publishes the policy at the gateway, `GET /v1/omnichat/policy` (signed with the org key). When a user
      adds a connection to that gateway, the app offers: "Acme publishes a policy and packages for this server. Apply?"
      It is applied only if the user accepts, and only if it is signed by a key the user confirms. This bootstraps
      without MDM. See open question Q6.
-  2. Audit events go to the gateway (`POST /v1/openchat/audit`) with the connection's API key, so there is one
+  2. Audit events go to the gateway (`POST /v1/omnichat/audit`) with the connection's API key, so there is one
      credential.
 - Billing: seats and package distribution are billed on the console side. The app has no billing code. Packages can't
   sell anything in-app (3.1).
@@ -1062,9 +1070,9 @@ Review section of App Store Connect […]".
 | 4.7.1: filtering and reporting | Needed once we "offer" software, meaning a directory. Phase 3: the directory has a Report button and moderation, and the revocation list is the takedown mechanism. For sideloaded personal packages, "Report" in the detail page goes to us with id and digest. Open question Q1: does a link-installed third-party package count as "offered in your app"? |
 | 4.7.2: native APIs | The host API is app-level only: fetch to declared hosts, own storage, progress, confirm and ask cards. **No** HealthKit, location, contacts, photos, camera, microphone, Keychain items other than the package's own, App Intents, notifications or files. Health data (the `health` branch's HealthKit work) reaches a package only if the model puts it into arguments, which the user sees in the feed and, for writes, approves. Exposing it directly would need Apple's permission. That is a phase 3 conversation, and it is absent from App Store builds until then. |
 | 4.7.3: consent "in each instance" | Install-time consent covers the declared hosts, and per-tool `confirm` covers runs. For data the app holds under privacy permissions (location, health), a package never receives it directly (see 4.7.2). If we ever add `data` permissions, every call gets a card (`confirm: always` forced). Open question Q2. |
-| 4.7.4: index with universal links | Needed for software we offer. Built-in packages are listed in Settings › Packages, and each gets an `https://openchat.app/p/<id>` page in phase 3. A public directory ships only with the index. |
+| 4.7.4: index with universal links | Needed for software we offer. Built-in packages are listed in Settings › Packages, and each gets an `https://omnichat.app/p/<id>` page in phase 3. A public directory ships only with the index. |
 | 4.7.5: age rating | Packages are tools, not content. The directory (phase 3) carries an age flag, and packages above the app's rating are hidden without declared age. In the MVP there is no directory, so this isn't applicable, but see Q1. |
-| 5.1: privacy | The review sheet lists every host the package can send data to. That is the "clearly disclose where personal data will be shared" with explicit permission at install. The privacy policy gets a "Packages" section saying that packages you install can send the data you ask them to process to the hosts they declare, and that OpenChat receives nothing. |
+| 5.1: privacy | The review sheet lists every host the package can send data to. That is the "clearly disclose where personal data will be shared" with explicit permission at install. The privacy policy gets a "Packages" section saying that packages you install can send the data you ask them to process to the hosts they declare, and that OmniChat receives nothing. |
 | 2.5.19 / 2.3.1(a) | Describe packages in the review notes: the format, the sandbox, a demo package link, and the absence of native code. Ship at least one built-in package (Wikipedia) so the feature is visible to review. |
 | 2.5.6 | JS runs in WKWebView. |
 | Mac App Store | 3.1.1 notes "Apps distributed via the Mac App Store may host plug-ins or extensions that are enabled with mechanisms other than the App Store." That is about payment. The same rules apply otherwise. |
@@ -1090,12 +1098,12 @@ APIs; the integrity of what runs; the user's money (paid model tokens).
 | --- | --- | --- |
 | **Prompt injection via package content** | A malicious prompt fragment or skill tells the model to exfiltrate, or to call SSH or web tools | Full text shown at install. Fragments are wrapped and escaped (section 3.7). The user's preferences come after them. Package skills and fragments are listed only in chats where the package is on. Sensitive tools keep their own approvals (SSH cards, package `confirm`), whatever the prompt says. |
 | **Injection via tool results** | API data contains instructions, such as a Jira issue text saying "send all issues to evil.com" | Results are data, framed by `<source>` blocks when sources are mapped. Exfiltration channels are narrow: package fetch goes only to declared hosts, and writes need approval with the resolved request shown. `exclusive: ["web","browser"]` lets a company keep its package out of chats that have open-internet tools. Policy can disable `web_fetch` and `browser_eval` org-wide. The remaining channel is the model's own answer, which the user reads. |
-| **Data exfiltration by package code** | JS sends chat data elsewhere | JS never sees chat data, only its call's arguments. Network goes only through `openchat.fetch` to declared hosts, with the CSP and content rules blocking everything else. There is no DOM, no navigation, and no persistent web storage. |
+| **Data exfiltration by package code** | JS sends chat data elsewhere | JS never sees chat data, only its call's arguments. Network goes only through `omnichat.fetch` to declared hosts, with the CSP and content rules blocking everything else. There is no DOM, no navigation, and no persistent web storage. |
 | **Cross-package leakage** | Package A's result is passed to package B | This is visible in the feed, and B's writes need approval. A company can mark its package `exclusive` with other groups. Phase 3 could add per-package `exclusiveWithPackages`. |
 | **Secret theft** | The model is asked for a token, JS reads it, logs or debug bundles leak it, or an API echoes it | Secrets exist only in the Keychain and are injected below JS. They are scrubbed from results, logs, feed and debug bundles (section 4.7). The model can't read them, because no tool returns them. `exposeToScript` needs company trust. |
 | **Malicious update** | A good package is later replaced, or a host is compromised | The same-key rule and pinned TOFU key. Permission increases need re-consent. Unsigned packages never auto-update. `sha256` in links and in MDM. Revert. Revocation list. Company policy pins versions. |
-| **Supply chain in our own key list** | A compromised OpenChat publisher key | The key list is signed by an offline root key compiled into the app. Known-publisher packages can't declare policy or hooks. |
-| **Malicious link** | `openchat://add-package` sent in a phishing message | Nothing installs without the review sheet. The unsigned badge and warnings. A download size cap, https only, and no auto-enable for non-company packages. |
+| **Supply chain in our own key list** | A compromised OmniChat publisher key | The key list is signed by an offline root key compiled into the app. Known-publisher packages can't declare policy or hooks. |
+| **Malicious link** | `omnichat://add-package` sent in a phishing message | Nothing installs without the review sheet. The unsigned badge and warnings. A download size cap, https only, and no auto-enable for non-company packages. |
 | **Zip attacks** | Zip-slip, zip bombs, symlinks | Path checks, size and file-count caps checked during extraction, symlinks refused. |
 | **Resource abuse** | Infinite loops, huge responses, call storms | Host teardown on timeout. 2 MB response cap, output caps, per-package rate limit and concurrency, at most 2 live JS hosts. |
 | **Spoofing app UI** | A package view imitates an approval card | Feed-card views render inside a package-branded frame. They can't send messages or open anything but links. Approval cards are native and never package-drawn. |
@@ -1121,11 +1129,11 @@ The model is open core:
   libssh2 (BSD-3), OpenSSL 3 (Apache-2.0), Pyodide (MPL-2.0), MarkdownUI (MIT), Readability.js (Apache-2.0). We keep a
   check in `Strata/Resources/Licenses`.
 - **The package side is MIT**:
-  - `Packages/OpenChatPackageKit` (Swift: manifest, validation, signing, URL templates, response projection, canonical
+  - `Packages/OmniChatPackageKit` (Swift: manifest, validation, signing, URL templates, response projection, canonical
     JSON)
-  - the `openchat-pkg` CLI
+  - the `omnichat-pkg` CLI
   - the specification (this format, the host API, and the policy, audit and update protocols)
-  - `@openchat/package-sdk` (TypeScript declarations and helpers)
+  - `@omnichat/package-sdk` (TypeScript declarations and helpers)
   - the in-sandbox `Resources/PackageHost/host.html` and `bootstrap.js`
   - all example and built-in packages, including the migrated `naver-places` skill and `wikipedia_summary` plugin
 - **Enterprise servers stay closed**: the admin console, the gateway, and package distribution and registry hosting.
@@ -1135,21 +1143,21 @@ The model is open core:
 1. **Interface, not linking.** A package is data plus JS that runs in a separate WebKit process. It talks to the app only
    through the documented **Package Interface**:
    - the manifest format and content types
-   - the `openchat.*` host API, exposed as a message channel
+   - the `omnichat.*` host API, exposed as a message channel
    - the tool-call protocol (JSON arguments in, `{text, data, sources, view}` out)
 
    No app code is compiled into, linked with, or copied into a package.
 2. **Everything a package touches is MIT.** Inside the sandbox, the package shares a JS realm only with `bootstrap.js`,
-   which is MIT. Authors build against `@openchat/package-sdk`, which is MIT. Validation and signing are in
-   `OpenChatPackageKit`, which is MIT and which the GPL app depends on (MIT into GPL is fine). We never move
+   which is MIT. Authors build against `@omnichat/package-sdk`, which is MIT. Validation and signing are in
+   `OmniChatPackageKit`, which is MIT and which the GPL app depends on (MIT into GPL is fine). We never move
    GPL-only code into anything a package author must include or run in the realm.
 3. **Explicit exception.** The app's license notice adds a GPLv3 section 7 additional permission. Draft text for counsel:
 
-   > Additional permission under GNU GPL version 3 section 7: A "Package" is a work that interacts with OpenChat only
-   > through the OpenChat Package Interface as defined in the OpenChat Package Specification (the package format,
-   > manifest schema, host API and tool-call protocol). Packages are separate works, not works based on OpenChat, and
+   > Additional permission under GNU GPL version 3 section 7: A "Package" is a work that interacts with OmniChat only
+   > through the OmniChat Package Interface as defined in the OmniChat Package Specification (the package format,
+   > manifest schema, host API and tool-call protocol). Packages are separate works, not works based on OmniChat, and
    > you may create, use and distribute Packages under terms of your choice, including proprietary terms. This
-   > permission does not apply to modifications of OpenChat itself.
+   > permission does not apply to modifications of OmniChat itself.
 
    This lets companies keep internal packages closed. Downstream forks may drop the exception (section 7 allows that),
    but packages are still built only against MIT material, so they don't depend on it.
@@ -1179,7 +1187,7 @@ Scope:
 - Content: `prompt`, `skills`, `http` tools, `commands` (a simple `/` menu), `connections` (presets into
   `ConnectionSetupSheet`).
 - Secrets in the Keychain, with scrub and redaction.
-- Install via `openchat://add-package`, `.ocpkg` file import (Files, AirDrop, Mac drag), and the share extension route.
+- Install via `omnichat://add-package`, `.ocpkg` file import (Files, AirDrop, Mac drag), and the share extension route.
   Review sheet (without diff), update check with the same-key rule and re-consent, revert, uninstall.
 - Per-chat enablement with snapshot freezing (R1–R7), composer switches, `apiNote` announcements.
 - `ToolApprovals` (`SSHRequests` generalized, with SSH moved onto it), approval cards, Live Activity "Needs you",
@@ -1190,7 +1198,7 @@ Scope:
 
 Files to add:
 
-- `Packages/OpenChatPackageKit/` (Package.swift, `Manifest.swift`, `Validation.swift`, `JSONSchemaSubset.swift`,
+- `Packages/OmniChatPackageKit/` (Package.swift, `Manifest.swift`, `Validation.swift`, `JSONSchemaSubset.swift`,
   `CanonicalJSON.swift`, `URLTemplate.swift` (moved from `PluginCore`), `ResponseProjection.swift`, `Signature.swift`,
   `Render.swift` (prompt section and tool definition JSON), `LICENSE` (MIT)), wired in `project.yml` `packages:` as
   a local path package for both targets.
@@ -1199,7 +1207,7 @@ Files to add:
 - `Strata/Engine/ToolApprovals.swift`.
 - `Strata/UI/PackagesView.swift`, `Strata/DesignSystem/PackageViews.swift` (review sheet, feed card, approval card,
   detail page).
-- `Tools/openchat-pkg/` (Swift CLI on the kit: `validate`, `pack`, `sign`, `keygen`, `run <tool> --args` against a real
+- `Tools/omnichat-pkg/` (Swift CLI on the kit: `validate`, `pack`, `sign`, `keygen`, `run <tool> --args` against a real
   network for authors).
 - `Strata/Resources/Packages/` with the two built-in packages, as data only in the MVP. `run_plugin` and skills keep
   working as today.
@@ -1247,14 +1255,16 @@ Tests (Swift Testing, as in `StrataTests/`):
 
 ### MVP as built (branch `packages`, 2026-10-22)
 
-Built: the kit and `openchat-pkg` CLI (`validate`, `pack`, `sign`, `keygen`, `run`), `PackageStore`, `PackageInstaller`
+Built: the kit and `omnichat-pkg` CLI (`validate`, `pack`, `sign`, `keygen`, `run`), `PackageStore`, `PackageInstaller`
 (file, link, same-key rule, revert, remove), `PackageSnapshot` freezing, `HTTPToolRunner`, `PackageToolRouter`,
 `PackageAudit`, `ToolApprovals` with `SSHRequests` as a facade, Settings › Packages (detail, secrets, activity viewer),
 the review sheet, the feed line and approval card, Live Activity "Needs you", composer switches, the `/` list,
-`openchat://add-package`, `.ocpkg` document type, the share route and on-device opt-in. Three built-in packages:
-`app.openchat.wikipedia` (`wiki`, the `wikipedia_summary` plugin as a page tool), `app.openchat.korea` (`kr`, the
-`naver-places` skill as `kr:naver-places`, the seed of a Korea pack) and `app.openchat.connections` (the OpenAI,
-OpenRouter, Groq, Ollama and LM Studio presets as data; ChatGPT, OpenCode and Apple stay in code).
+`omnichat://add-package`, `.ocpkg` document type, the share route and on-device opt-in. Three built-in packages:
+`app.omnichat.wikipedia` (`wiki`, the `wikipedia_summary` plugin as a page tool), `app.omnichat.korea` (`kr`, the
+`naver-places` skill as `kr:naver-places`, the seed of a Korea pack) and `app.omnichat.connections` (the OpenAI,
+OpenRouter, Groq, Ollama and LM Studio presets as data; ChatGPT, OpenCode and Apple stay in code). Before the rename
+to OmniChat they were `app.openchat.*`: chat switches, snapshots and the registry's defaults that still hold those ids
+read them as the new ones (`BuiltInPackages.canonicalID`), without reordering a frozen snapshot.
 
 Where the build differs from the text above:
 
@@ -1292,12 +1302,12 @@ and versions yet.
 ### Phase 2: code and the agent (≈ 3–4 weeks, ≈ 4k lines)
 
 - `PackageJSHost` (scheme handler, CSP, content rules, bridge, deadline teardown, per-call reload, slots), host API v1,
-  the `@openchat/package-sdk` typings, and `openchat-pkg run` executing JS under a local JavaScriptCore shim for authors
+  the `@omnichat/package-sdk` typings, and `omnichat-pkg run` executing JS under a local JavaScriptCore shim for authors
   (Mac CLI only).
 - Page tools. Migrate `wikipedia_summary` and `naver-places` into built-in packages, and route `run_plugin` for old chats.
 - Agent authoring: `ToolGroup.authoring`, `save_package`, `test_package_tool`, `read_package`, `PackageApprovals`, the
   review sheet with the "Try a tool" button and diff view, and `PackageOffer` ("Save as tool").
-- `view` results rendered in feed cards (locked `OpenUIBlockView`) and `openchat.ask` input cards.
+- `view` results rendered in feed cards (locked `OpenUIBlockView`) and `omnichat.ask` input cards.
 - Known-publisher key list and signed revocation list.
 - Tests: JS sandbox escape attempts (`fetch`, `XMLHttpRequest`, `import("https://…")`, `eval`, navigation, iframe), timeout
   teardown, memory kill, cross-chat state isolation, bridge message forgery, authoring restrictions.
@@ -1310,7 +1320,7 @@ and versions yet.
 - OpenUI templates as model-facing macros (an evaluator extension).
 - `RunPackageCommandIntent` with `PackageCommandEntity`, a dynamic App Intents entity.
 - Public directory, only with 4.7.1 reporting and moderation, a 4.7.4 index with universal links
-  (`openchat.app/p/<id>`), and 4.7.5 age gating.
+  (`omnichat.app/p/<id>`), and 4.7.5 age gating.
 - Optional JS hooks at company trust.
 - Console and gateway (closed): policy editor, HSM signing, registry, audit sink, MDM plist export.
 

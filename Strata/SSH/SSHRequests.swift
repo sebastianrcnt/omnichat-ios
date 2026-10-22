@@ -132,7 +132,7 @@ final class SSHBackgroundGuard {
     func begin() {
         #if canImport(UIKit)
         if !AppLifecycle.isActive { wentToBackground = true }
-        task = UIApplication.shared.beginBackgroundTask(withName: "OpenChat SSH") { [weak self] in
+        task = UIApplication.shared.beginBackgroundTask(withName: "OmniChat SSH") { [weak self] in
             Task { @MainActor in self?.end() }
         }
         observer = NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil,

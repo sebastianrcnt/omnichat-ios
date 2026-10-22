@@ -291,7 +291,7 @@ struct UsageCard: View {
         }
         GroupedSection(header: "Fields") {
             SettingsToggleRow(title: "Smooth streaming", subtitle: "Reveal text at a steady pace.", isOn: .constant(true))
-            SettingsFieldRow(title: "Name", prompt: "OpenChat", text: .constant("My gateway"))
+            SettingsFieldRow(title: "Name", prompt: "OmniChat", text: .constant("My gateway"))
             SettingsFieldRow(title: "API key", prompt: "sk-", text: .constant("secret"), isSecure: true)
         }
         GroupedSection(header: "Effort", footer: "Higher effort thinks longer.") {

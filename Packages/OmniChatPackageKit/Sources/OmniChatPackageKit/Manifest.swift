@@ -11,7 +11,7 @@ public enum PackageError: Error, LocalizedError, Equatable, Sendable {
     case archive(String)
     /// CHECKSUMS or SIGNATURE don't hold.
     case signature(String)
-    /// The package needs a newer OpenChat.
+    /// The package needs a newer OmniChat.
     case newerFormat(Int)
 
     public var errorDescription: String? {
@@ -19,7 +19,7 @@ public enum PackageError: Error, LocalizedError, Equatable, Sendable {
         case .invalid(let m): m
         case .archive(let m): m
         case .signature(let m): m
-        case .newerFormat(let f): "This package uses format \(f). Update OpenChat to install this package."
+        case .newerFormat(let f): "This package uses format \(f). Update OmniChat to install this package."
         }
     }
 }
@@ -69,7 +69,7 @@ public struct PackageManifest: Codable, Sendable, Equatable {
     }
 
     public struct Requirements: Codable, Sendable, Equatable {
-        /// An OpenChat version range: `>=1.3.0`, `<2`, `^1.2`, `~1.2.3`, several separated by spaces.
+        /// An OmniChat version range: `>=1.3.0`, `<2`, `^1.2`, `~1.2.3`, several separated by spaces.
         public var app: String?
         public var hostAPI: Int?
         /// Built-in tool groups the package needs on (`browser` for skills with scripts).

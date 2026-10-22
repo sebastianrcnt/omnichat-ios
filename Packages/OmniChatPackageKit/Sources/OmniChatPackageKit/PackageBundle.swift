@@ -142,7 +142,7 @@ public struct PackageBundle: Sendable {
         }
     }
 
-    /// The files with a fresh CHECKSUMS (and no SIGNATURE): what `openchat-pkg pack` writes before signing.
+    /// The files with a fresh CHECKSUMS (and no SIGNATURE): what `omnichat-pkg pack` writes before signing.
     public static func packed(_ files: [String: Data]) throws -> [String: Data] {
         var out: [String: Data] = [:]
         for (path, data) in files where path != PackageChecksums.fileName && path != PackageSignature.fileName {

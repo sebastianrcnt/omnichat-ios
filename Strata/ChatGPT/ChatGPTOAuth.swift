@@ -23,7 +23,7 @@ enum ChatGPTOAuth {
     /// Sent as `agent_name_hint` on first registration only: the app's actual name, the same on every installation (the
     /// sign-in docs). The user can rename it on the consent page; it is display metadata, so registrations made under an
     /// earlier name keep working (returning sign-ins send the issued client id and no name).
-    static let agentName = "OpenChat"
+    static let agentName = "OmniChat"
     /// Only the port of the redirect URI may vary between sign-ins.
     static let callbackPath = "/auth/callback"
     /// ChatGPT Settings → Usage: plan usage and per-app limits.

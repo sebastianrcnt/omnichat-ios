@@ -1,7 +1,7 @@
 import Foundation
 
 /// Builds the request of a declarative HTTP tool from its template and a call's validated arguments. Pure: no network,
-/// no Keychain (secrets come from a closure), so the app and `openchat-pkg run` build the same bytes.
+/// no Keychain (secrets come from a closure), so the app and `omnichat-pkg run` build the same bytes.
 public enum HTTPRequestBuilder {
     public struct Built: Sendable, Equatable {
         public var method: String

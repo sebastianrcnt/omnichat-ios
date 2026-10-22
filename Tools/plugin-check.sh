@@ -12,7 +12,7 @@ set -e
 ROOT=${0:A:h:h}
 HERE=$ROOT/tools/plugin-check
 CORE=$ROOT/Strata/Tools/PluginCore.swift
-TEMPLATE=$ROOT/Packages/OpenChatPackageKit/Sources/OpenChatPackageKit/URLTemplate.swift
+TEMPLATE=$ROOT/Packages/OmniChatPackageKit/Sources/OmniChatPackageKit/URLTemplate.swift
 BIN=${TMPDIR:-/tmp}/strata-plugin-check
 if [[ ! -x $BIN || $HERE/main.swift -nt $BIN || $CORE -nt $BIN || $TEMPLATE -nt $BIN ]]; then
   swiftc -O $CORE $TEMPLATE $HERE/main.swift -o $BIN 2>&1 | grep -v warning || true

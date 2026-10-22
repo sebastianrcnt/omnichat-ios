@@ -79,7 +79,7 @@ enum SSHError: Error, LocalizedError, Equatable {
         case .cancelled: "Cancelled."
         case .handshake(let host, let detail): "The SSH handshake with \(host) failed: \(detail)."
         case .hostKeyChanged(let hostPort, let type, let expected, let actual):
-            "The host key of \(hostPort) changed: it is now \(type) \(actual), but \(expected) was saved when OpenChat first connected. The server may have been reinstalled, or someone may be intercepting the connection. Nothing was sent. If the change is expected, the user can reset this host in Settings > SSH > Known hosts."
+            "The host key of \(hostPort) changed: it is now \(type) \(actual), but \(expected) was saved when OmniChat first connected. The server may have been reinstalled, or someone may be intercepting the connection. Nothing was sent. If the change is expected, the user can reset this host in Settings > SSH > Known hosts."
         case .authentication(let hop, let tried, let allowed, let detail):
             "Authentication failed for \(hop)"
                 + (tried.isEmpty ? ": no credentials to try" : " (tried \(tried.joined(separator: ", ")))")

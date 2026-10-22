@@ -62,7 +62,7 @@ cat > "$OUT/manifest.plist" <<EOF
     <key>bundle-identifier</key><string>$BUNDLE</string>
     <key>bundle-version</key><string>$VERSION</string>
     <key>kind</key><string>software</string>
-    <key>title</key><string>Strata</string>
+    <key>title</key><string>OmniChat</string>
   </dict>
 </dict></array></dict></plist>
 EOF
@@ -72,7 +72,7 @@ COMMIT_HTML=$(python3 -c 'import html,sys; print(html.escape(sys.argv[1]))' "$CO
 cat > "$OUT/index.html" <<EOF
 <!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Strata build</title>
+<title>OmniChat build</title>
 <style>
   :root { color-scheme: light dark; }
   body { font: 17px -apple-system, system-ui, sans-serif; margin: 0; padding: 32px 16px; text-align: center; }
@@ -81,7 +81,7 @@ cat > "$OUT/index.html" <<EOF
   p { color: #888; margin: 6px 0; }
 </style></head>
 <body>
-  <h1>Strata</h1>
+  <h1>OmniChat</h1>
   <p>$COMMIT_HTML</p>
   <p>Built $BUILT</p>
   <a class="install" href="itms-services://?action=download-manifest&amp;url=$MANIFEST">Install</a>

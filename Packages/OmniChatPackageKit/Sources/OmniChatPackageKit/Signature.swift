@@ -37,7 +37,7 @@ public enum PackageChecksums {
         let listed = try parse(text)
         let present = Set(files.keys).subtracting([fileName, PackageSignature.fileName])
         if let missing = present.sorted().first(where: { listed[$0] == nil }) {
-            throw PackageError.signature("CHECKSUMS doesn't list \(missing). Pack the package again with openchat-pkg pack.")
+            throw PackageError.signature("CHECKSUMS doesn't list \(missing). Pack the package again with omnichat-pkg pack.")
         }
         if let extra = listed.keys.sorted().first(where: { !present.contains($0) }) {
             throw PackageError.signature("CHECKSUMS lists \(extra), which isn't in the package.")
@@ -81,7 +81,9 @@ public struct PackageKey: Sendable, Hashable {
 public struct PackageSignature: Codable, Sendable, Equatable {
     public static let fileName = "SIGNATURE"
     /// Signed by the old key to vouch for the next one in a rotation chain.
-    public static let rotationPrefix = "openchat-key-rotation:v1\n"
+    public static let rotationPrefix = "omnichat-key-rotation:v1\n"
+    /// The prefix links signed before the rename to OmniChat carry: still verified, never written.
+    public static let legacyRotationPrefixes = ["openchat-key-rotation:v1\n"]
 
     public var alg: String
     /// The original key.
@@ -93,7 +95,7 @@ public struct PackageSignature: Codable, Sendable, Equatable {
     public struct Link: Codable, Sendable, Equatable {
         /// The next key.
         public var key: String
-        /// The previous key's signature over `rotationPrefix + key`.
+        /// The previous key's signature over `rotationPrefix + key` (or a legacy prefix + key).
         public var sig: String
         public init(key: String, sig: String) { self.key = key; self.sig = sig }
     }
@@ -121,8 +123,11 @@ public struct PackageSignature: Codable, Sendable, Equatable {
         var keys = [try PackageKey(key)]
         for link in chain ?? [] {
             let next = try PackageKey(link.key)
+            let previous = try keys.last!.publicKey()
             guard let sig = Base64URL.decode(link.sig),
-                  try keys.last!.publicKey().isValidSignature(sig, for: Data((Self.rotationPrefix + next.string).utf8)) else {
+                  ([Self.rotationPrefix] + Self.legacyRotationPrefixes).contains(where: {
+                      previous.isValidSignature(sig, for: Data(($0 + next.string).utf8))
+                  }) else {
                 throw PackageError.signature("The key rotation chain in SIGNATURE is broken at \(next.fingerprint).")
             }
             keys.append(next)
@@ -162,7 +167,7 @@ public enum PackageKeys {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let data = Base64URL.decode(trimmed.hasPrefix("ed25519:") ? String(trimmed.dropFirst(8)) : trimmed),
               let key = try? Curve25519.Signing.PrivateKey(rawRepresentation: data) else {
-            throw PackageError.signature("The private key file doesn't hold an Ed25519 key from openchat-pkg keygen.")
+            throw PackageError.signature("The private key file doesn't hold an Ed25519 key from omnichat-pkg keygen.")
         }
         return key
     }

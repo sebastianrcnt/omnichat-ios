@@ -9,8 +9,8 @@ packages:
   MarkdownUI:
     url: https://github.com/gonzalezreal/swift-markdown-ui
     exactVersion: 2.4.1
-  OpenChatPackageKit: # the package format, MIT (docs/PACKAGES.md), shared with Tools/openchat-pkg
-    path: Packages/OpenChatPackageKit
+  OmniChatPackageKit: # the package format, MIT (docs/PACKAGES.md), shared with Tools/omnichat-pkg
+    path: Packages/OmniChatPackageKit
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -46,10 +46,10 @@ targets:
         buildPhase: resources
     dependencies:
       - package: MarkdownUI
-      - package: OpenChatPackageKit
+      - package: OmniChatPackageKit
       - framework: Vendor/CLibSSH2.xcframework # libssh2 + OpenSSL libcrypto, static (Tools/build-libssh2.sh)
         embed: false
-      - target: OpenChatWidgets # the Live Activity and the New Chat control, embedded in PlugIns
+      - target: OmniChatWidgets # the Live Activity and the New Chat control, embedded in PlugIns
       - target: StrataShare
     entitlements:
       path: Strata/Strata.entitlements
@@ -73,21 +73,21 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        INFOPLIST_KEY_CFBundleDisplayName: OpenChat
+        INFOPLIST_KEY_CFBundleDisplayName: OmniChat
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
-        INFOPLIST_KEY_NSCameraUsageDescription: OpenChat uses the camera to attach photos to your messages.
-        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: OpenChat reads photos you choose to attach to your messages.
-        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: OpenChat saves figures you choose to your photo library.
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: OpenChat uses the microphone when you dictate a message.
-        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: OpenChat turns your dictation into text on this device.
-        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: OpenChat uses your approximate location when you ask the assistant to find places near you.
-        INFOPLIST_KEY_NSLocalNetworkUsageDescription: OpenChat connects to devices on your local network when the assistant runs commands over SSH, or Python code connects to a device you allowed.
-        INFOPLIST_KEY_NSHealthShareUsageDescription: OpenChat reads only the health data you allow, when you ask the assistant about your health. It is sent to the model connection your chat uses to answer you, never used for advertising, and never written back to Health.
+        INFOPLIST_KEY_NSCameraUsageDescription: OmniChat uses the camera to attach photos to your messages.
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: OmniChat reads photos you choose to attach to your messages.
+        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: OmniChat saves figures you choose to your photo library.
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: OmniChat uses the microphone when you dictate a message.
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: OmniChat turns your dictation into text on this device.
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: OmniChat uses your approximate location when you ask the assistant to find places near you.
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: OmniChat connects to devices on your local network when the assistant runs commands over SSH, or Python code connects to a device you allowed.
+        INFOPLIST_KEY_NSHealthShareUsageDescription: OmniChat reads only the health data you allow, when you ask the assistant about your health. It is sent to the model connection your chat uses to answer you, never used for advertising, and never written back to Health.
         # Release builds never write; App Store Connect still requires the key for an app with the HealthKit entitlement.
-        INFOPLIST_KEY_NSHealthUpdateUsageDescription: OpenChat never writes to Health. It only reads the health data you allow, when you ask the assistant about your health.
+        INFOPLIST_KEY_NSHealthUpdateUsageDescription: OmniChat never writes to Health. It only reads the health data you allow, when you ask the assistant about your health.
         INFOPLIST_KEY_UIUserInterfaceStyle: Automatic
         SWIFT_EMIT_LOC_STRINGS: YES
       configs:
@@ -118,43 +118,53 @@ targets:
           - nmap
         LSSupportsOpeningDocumentsInPlace: true
         CFBundleURLTypes:
-          - CFBundleURLName: OpenChat links
+          - CFBundleURLName: OmniChat links
             CFBundleURLSchemes:
-              - openchat
+              - omnichat
+              - openchat # links made before the rename to OmniChat (AppURLScheme)
         UTExportedTypeDeclarations:
-          - UTTypeIdentifier: cc.coolservices.openchat.package
-            UTTypeDescription: OpenChat package
+          - UTTypeIdentifier: cc.coolservices.omnichat.package
+            UTTypeDescription: OmniChat package
             UTTypeConformsTo:
               - public.zip-archive
               - public.data
             UTTypeTagSpecification:
               public.filename-extension:
                 - ocpkg
+        # Package files typed by builds from before the rename to OmniChat (PackageFileType).
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: cc.coolservices.openchat.package
+            UTTypeDescription: OmniChat package
+            UTTypeConformsTo:
+              - public.zip-archive
+              - public.data
         CFBundleDocumentTypes:
-          - CFBundleTypeName: OpenChat package
+          - CFBundleTypeName: OmniChat package
             CFBundleTypeRole: Viewer
             LSHandlerRank: Owner
             LSItemContentTypes:
+              - cc.coolservices.omnichat.package
               - cc.coolservices.openchat.package
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
   # Widget extension: the Live Activity of running replies (`Strata/LiveActivity`) and the New Chat control. Named
   # for widgets in general, so Home Screen widgets and more controls can join it.
-  OpenChatWidgets:
+  OmniChatWidgets:
     type: app-extension
     platform: iOS
     sources:
       - path: Widgets
       - path: Strata/LiveActivity/ReplyActivityAttributes.swift
+      - path: Strata/App/AppLinks.swift
       - path: Strata/LiveActivity/ReplyActivityViews.swift
       - path: Strata/Intents/NewChatControl.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cc.coolservices.strata.widgets
-        PRODUCT_NAME: OpenChatWidgets
+        PRODUCT_NAME: OmniChatWidgets
         TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: OpenChat
+        INFOPLIST_KEY_CFBundleDisplayName: OmniChat
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) WIDGET_EXTENSION
@@ -166,12 +176,13 @@ targets:
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
   StrataShare:
-    # The share extension: "Share to OpenChat" from Safari, YouTube, Photos, Files and the rest (Strata/Share).
+    # The share extension: "Share to OmniChat" from Safari, YouTube, Photos, Files and the rest (Strata/Share).
     type: app-extension
     platform: iOS
     sources:
       - path: StrataShare
       - path: Strata/Share/SharePayload.swift
+      - path: Strata/App/AppLinks.swift
       - path: Strata/Share/ShareComposeView.swift
       - path: Strata/Share/ShareItemLoader.swift
       - path: Strata/DesignSystem/Tokens.swift
@@ -185,8 +196,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cc.coolservices.strata.share
-        PRODUCT_NAME: OpenChatShare
-        INFOPLIST_KEY_CFBundleDisplayName: OpenChat
+        PRODUCT_NAME: OmniChatShare
+        INFOPLIST_KEY_CFBundleDisplayName: OmniChat
         TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: YES
         # Leaves out the parts of the shared design system files that need UIApplication.shared.
@@ -231,7 +242,7 @@ targets:
         buildPhase: resources
     dependencies:
       - package: MarkdownUI
-      - package: OpenChatPackageKit
+      - package: OmniChatPackageKit
       - framework: Vendor/CLibSSH2.xcframework # libssh2 + OpenSSL libcrypto, static (Tools/build-libssh2.sh)
         embed: false
     entitlements:
@@ -255,42 +266,51 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cc.coolservices.strata.mac
-        # OpenChat.app, named OpenChat in the menu bar; the Swift module keeps its name.
-        PRODUCT_NAME: OpenChat
+        # OmniChat.app, named OmniChat in the menu bar; the Swift module keeps its name.
+        PRODUCT_NAME: OmniChat
         PRODUCT_MODULE_NAME: Strata
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_HARDENED_RUNTIME: YES
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: OpenChat
+        INFOPLIST_KEY_CFBundleDisplayName: OmniChat
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: OpenChat uses the microphone when you dictate a message.
-        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: OpenChat turns your dictation into text on this Mac.
-        INFOPLIST_KEY_NSLocationUsageDescription: OpenChat uses your approximate location when you ask the assistant to find places near you.
-        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: OpenChat uses your approximate location when you ask the assistant to find places near you.
-        INFOPLIST_KEY_NSLocalNetworkUsageDescription: OpenChat connects to devices on your local network when the assistant runs commands over SSH, or Python code connects to a device you allowed.
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: OmniChat uses the microphone when you dictate a message.
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: OmniChat turns your dictation into text on this Mac.
+        INFOPLIST_KEY_NSLocationUsageDescription: OmniChat uses your approximate location when you ask the assistant to find places near you.
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: OmniChat uses your approximate location when you ask the assistant to find places near you.
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: OmniChat connects to devices on your local network when the assistant runs commands over SSH, or Python code connects to a device you allowed.
         SWIFT_EMIT_LOC_STRINGS: YES
     info:
       path: StrataMac/Info.plist
       properties:
         CFBundleURLTypes:
-          - CFBundleURLName: OpenChat links
+          - CFBundleURLName: OmniChat links
             CFBundleURLSchemes:
-              - openchat
+              - omnichat
+              - openchat # links made before the rename to OmniChat (AppURLScheme)
         UTExportedTypeDeclarations:
-          - UTTypeIdentifier: cc.coolservices.openchat.package
-            UTTypeDescription: OpenChat package
+          - UTTypeIdentifier: cc.coolservices.omnichat.package
+            UTTypeDescription: OmniChat package
             UTTypeConformsTo:
               - public.zip-archive
               - public.data
             UTTypeTagSpecification:
               public.filename-extension:
                 - ocpkg
+        # Package files typed by builds from before the rename to OmniChat (PackageFileType).
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: cc.coolservices.openchat.package
+            UTTypeDescription: OmniChat package
+            UTTypeConformsTo:
+              - public.zip-archive
+              - public.data
         CFBundleDocumentTypes:
-          - CFBundleTypeName: OpenChat package
+          - CFBundleTypeName: OmniChat package
             CFBundleTypeRole: Viewer
             LSHandlerRank: Owner
             LSItemContentTypes:
+              - cc.coolservices.omnichat.package
               - cc.coolservices.openchat.package
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true

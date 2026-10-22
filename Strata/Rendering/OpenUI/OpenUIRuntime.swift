@@ -15,7 +15,7 @@ struct OUIRendered {
     var unresolved: Set<String>
 
     static func make(_ statements: [OUIStatement], problems: [String] = [], state: [String: OUIValue] = [:],
-                     library: OUILibrary = .openChat) -> OUIRendered {
+                     library: OUILibrary = .omniChat) -> OUIRendered {
         let program = OUIProgram(statements)
         var evaluator = OUIEvaluator(program: program, library: library, state: state)
         let root = evaluator.root()
@@ -37,7 +37,7 @@ struct OUIRendered {
 
 enum OUITree {
     /// The components directly inside `c` (through lists and nested lists), in prop order.
-    static func children(_ c: OUIComponent, library: OUILibrary = .openChat) -> [OUIComponent] {
+    static func children(_ c: OUIComponent, library: OUILibrary = .omniChat) -> [OUIComponent] {
         if !c.known { return c.args.flatMap(OUIValue.components) }
         let order = library.spec(c.type)?.props ?? []
         return order.compactMap { c.props[$0] }.flatMap(OUIValue.components)

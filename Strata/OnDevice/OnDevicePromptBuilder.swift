@@ -62,7 +62,7 @@ enum OnDevicePromptBuilder {
     /// Any other system message is kept as it is.
     static func instructions(from system: String, tools: [OnDeviceToolSpec]) -> String {
         guard system.hasPrefix(appPromptMarker) else { return system }
-        var parts = ["You are a helpful assistant in OpenChat, running privately on the user's device."]
+        var parts = ["You are a helpful assistant in OmniChat, running privately on the user's device."]
         if let date = system.components(separatedBy: "\n").last(where: { $0.hasPrefix("Current date:") }) {
             parts.append(date)
         }

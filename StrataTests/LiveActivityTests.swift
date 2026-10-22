@@ -183,9 +183,9 @@ struct LiveActivityTests {
 
     @Test func linksOpenTheirChat() {
         let url = ReplyActivityLink.url(for: id)
-        #expect(url.absoluteString == "openchat://chat/\(id.uuidString)")
+        #expect(url.absoluteString == "omnichat://chat/\(id.uuidString)")
         #expect(ReplyActivityLink.conversationID(from: url) == id)
-        #expect(ReplyActivityLink.conversationID(from: URL(string: "openchat://add-connection?url=x")!) == nil)
+        #expect(ReplyActivityLink.conversationID(from: URL(string: "omnichat://add-connection?url=x")!) == nil)
         #expect(ReplyActivityLink.conversationID(from: URL(string: "https://chat/\(id.uuidString)")!) == nil)
     }
 

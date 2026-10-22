@@ -646,7 +646,7 @@ private struct OUIListBlock: View {
     }
 }
 
-/// `Metric` (OpenChat's) and OpenUI's metric indicators: a big value, a label, and a coloured change.
+/// `Metric` (OmniChat's) and OpenUI's metric indicators: a big value, a label, and a coloured change.
 private struct OUIMetric: View {
     @Environment(\.theme) private var theme
     @Environment(\.ouiStretchesTiles) private var stretches

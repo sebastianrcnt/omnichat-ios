@@ -109,7 +109,7 @@ struct ReplyActivityStatusLine: View {
     }
 
     private var label: String {
-        isStale && chat.status.isActive ? String(localized: "Open OpenChat to continue") : chat.label
+        isStale && chat.status.isActive ? String(localized: "Open OmniChat to continue") : chat.label
     }
 
     private var labelColor: Color {

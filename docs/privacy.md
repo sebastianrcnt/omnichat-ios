@@ -1,17 +1,17 @@
 ---
-title: OpenChat Privacy Policy
+title: OmniChat Privacy Policy
 permalink: /privacy/
 ---
 
-# OpenChat Privacy Policy
+# OmniChat Privacy Policy
 
 Effective October 22, 2026.
 
-OpenChat is made by an independent developer ("we"). This policy covers the OpenChat apps for iPhone, iPad and Mac.
+OmniChat is made by an independent developer ("we"). This policy covers the OmniChat apps for iPhone, iPad and Mac.
 
 ## The short version
 
-- We don't collect any data. There is no OpenChat account, no analytics, no advertising, no tracking and no server of
+- We don't collect any data. There is no OmniChat account, no analytics, no advertising, no tracking and no server of
   ours that your chats pass through.
 - Your messages go only to the model services and servers **you** choose to connect, from your device.
 - Your chats are stored on your device. If you turn on iCloud sync, they are stored in your own private iCloud database,
@@ -26,7 +26,7 @@ Improvements.
 
 ## Where your data goes
 
-OpenChat sends data directly from your device to services you set up or ask it to use:
+OmniChat sends data directly from your device to services you set up or ask it to use:
 
 - **Model connections.** When you send a message, the conversation (your messages, attachments, the system prompt and
   tool results) is sent to the model connection the chat uses: an OpenAI-compatible server you add, your ChatGPT account
@@ -42,7 +42,7 @@ OpenChat sends data directly from your device to services you set up or ask it t
 - **Health.** Only if you turn on Health in Settings and allow the data types, the assistant can read the health data you
   allowed, when you ask about your health. The data is sent to the chat's model connection to answer, and you can limit
   it to on-device or local-network models. Health data is never synced to iCloud, never used for advertising and never
-  sold. OpenChat never writes to Health.
+  sold. OmniChat never writes to Health.
 - **Camera, photos, microphone.** Photos and files you attach are sent with your message. Dictation is turned into text
   on your device.
 
@@ -57,12 +57,12 @@ turns off Health.
 ## Deleting your data
 
 Delete a chat in the app, or delete the app to remove everything on the device. To remove synced data, turn off sync and
-delete OpenChat's data in Settings → [your name] → iCloud → Manage Storage. To remove a sign-in, remove the connection;
-you can also revoke OpenChat's access in your ChatGPT or other account settings.
+delete OmniChat's data in Settings → [your name] → iCloud → Manage Storage. To remove a sign-in, remove the connection;
+you can also revoke OmniChat's access in your ChatGPT or other account settings.
 
 ## Children
 
-OpenChat is not directed to children under 13 and we don't knowingly collect data from anyone.
+OmniChat is not directed to children under 13 and we don't knowingly collect data from anyone.
 
 ## Changes
 
@@ -71,4 +71,4 @@ We will post changes to this policy here, with a new effective date.
 ## Contact
 
 Questions about this policy: open an issue at
-[github.com/sebastianrcnt/openchat-ios/issues](https://github.com/sebastianrcnt/openchat-ios/issues).
+[github.com/sebastianrcnt/omnichat-ios/issues](https://github.com/sebastianrcnt/omnichat-ios/issues).

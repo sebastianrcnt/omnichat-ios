@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Builds the Mac app (Debug, like the iPhone OTA builds) and installs it as ~/Applications/OpenChat.app: quits the
+# Builds the Mac app (Debug, like the iPhone OTA builds) and installs it as ~/Applications/OmniChat.app: quits the
 # running copy, swaps the bundle, and opens the new one. The app's data lives in its container, so it survives.
 #
 #   Tools/mac-install.sh
@@ -7,8 +7,10 @@ set -euo pipefail
 
 REPO=${0:A:h:h}
 DD=${STRATA_MAC_DD:-$REPO/build-mac}
-DEST=$HOME/Applications/OpenChat.app
-OLD=$HOME/Applications/Strata.app  # the name before 2026-10-21
+DEST=$HOME/Applications/OmniChat.app
+# Earlier names of the same app: Strata.app (before 2026-10-21), OpenChat.app (before the rename to OmniChat).
+OLDS=($HOME/Applications/Strata.app $HOME/Applications/OpenChat.app)
+RUNNING="($DEST|${(j:|:)OLDS})/Contents/MacOS"
 BUNDLE=cc.coolservices.strata.mac
 
 LOG=$(mktemp -t strata-mac-build)
@@ -19,13 +21,13 @@ if ! xcodebuild -project "$REPO/Strata.xcodeproj" -scheme StrataMac -configurati
   exit 1
 fi
 rm -f "$LOG"
-APP="$DD/Build/Products/Debug/OpenChat.app"
+APP="$DD/Build/Products/Debug/OmniChat.app"
 
-if pgrep -f "($DEST|$OLD)/Contents/MacOS" >/dev/null; then
+if pgrep -f "$RUNNING" >/dev/null; then
   osascript -e "tell application id \"$BUNDLE\" to quit" || true
-  for _ in {1..20}; do pgrep -f "($DEST|$OLD)/Contents/MacOS" >/dev/null || break; sleep 0.25; done
+  for _ in {1..20}; do pgrep -f "$RUNNING" >/dev/null || break; sleep 0.25; done
 fi
-rm -rf "$OLD"
+rm -rf "${OLDS[@]}"
 mkdir -p "$HOME/Applications"
 rm -rf "$DEST"
 ditto "$APP" "$DEST"

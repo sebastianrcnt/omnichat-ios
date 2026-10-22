@@ -242,7 +242,7 @@ struct ConnectionEditor: View {
                         }
 
                         GroupedSection(header: "Stream recovery") {
-                            SettingsToggleRow(title: "Resumable replies", subtitle: "Enable only for gateways supporting OpenChat stream replay.", isOn: binding(\.supportsResumable, fallback: false))
+                            SettingsToggleRow(title: "Resumable replies", subtitle: "Enable only for gateways supporting OmniChat stream replay.", isOn: binding(\.supportsResumable, fallback: false))
                         }
                     }
 
@@ -531,7 +531,7 @@ struct RobotCheckSettingsSection: View {
 
     var body: some View {
         @Bindable var settings = settings
-        GroupedSection(header: "Robot checks", footer: "OpenChat stops at a robot check (CAPTCHA) and asks you to solve it on the page; it never solves one itself. With this off, a page that shows one isn't read.") {
+        GroupedSection(header: "Robot checks", footer: "OmniChat stops at a robot check (CAPTCHA) and asks you to solve it on the page; it never solves one itself. With this off, a page that shows one isn't read.") {
             SettingsToggleRow(title: "Ask me to solve robot checks", isOn: $settings.askRobotChecks)
         }
     }
@@ -541,7 +541,7 @@ struct RobotCheckSettingsSection: View {
 struct BrowsingDataSection: View {
     @State private var confirm = false
 
-    static let clearMessage = String(localized: "Cookies, storage and caches of OpenChat's browser, used by search, fetch and browsing. Sites you signed in to will ask again, and robot checks may come back.")
+    static let clearMessage = String(localized: "Cookies, storage and caches of OmniChat's browser, used by search, fetch and browsing. Sites you signed in to will ask again, and robot checks may come back.")
 
     var body: some View {
         GroupedSection(header: "Browsing data", footer: "Search, fetch and the browser share one set of cookies, so a sign-in or a solved robot check works everywhere. They are kept on this device and never shared with Safari.") {
@@ -774,7 +774,7 @@ private struct ToolSettingsView: View {
                 }
 
                 #if os(iOS)
-                GroupedSection(footer: "With this off, web searches and browsing can stop while OpenChat is in the background. The sound plays only while the model is using the web and OpenChat is not on screen, even in silent mode, and may pause other audio until it ends.") {
+                GroupedSection(footer: "With this off, web searches and browsing can stop while OmniChat is in the background. The sound plays only while the model is using the web and OmniChat is not on screen, even in silent mode, and may pause other audio until it ends.") {
                     SettingsToggleRow(title: "Play a sound while browsing in the background", isOn: $settings.backgroundLoadingSound)
                 }
                 #endif
@@ -896,7 +896,7 @@ private struct ChatSettingsView: View {
                 GroupedSection(header: "Answers", footer: "If the model searches and then stops without writing anything, it is asked once more for the answer. Tapping a notification opens its chat.") {
                     SettingsToggleRow(title: "Continue when the answer is empty", isOn: $settings.continueOnEmptyAnswer)
                     SettingsToggleRow(title: "Notify when a reply finishes",
-                                      subtitle: "When OpenChat is in the background: the chat's title and the start of the answer.",
+                                      subtitle: "When OmniChat is in the background: the chat's title and the start of the answer.",
                                       isOn: $settings.notifyReplies)
                     #if os(iOS)
                     SettingsToggleRow(title: "Live Activities",

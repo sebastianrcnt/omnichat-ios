@@ -22,7 +22,7 @@ struct SSHSettingsView: View {
         let servers = store.servers, credentials = store.credentials, hosts = store.knownHosts, allowed = store.alwaysAllowed
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                GroupedSection(header: "SSH", footer: "The model can run commands and move files on your servers over SSH, and save the passwords and keys you give it in the Keychain on this device. A chat turns SSH on or off from the + menu. Each command connects anew; a connection drops soon after OpenChat leaves the screen.") {
+                GroupedSection(header: "SSH", footer: "The model can run commands and move files on your servers over SSH, and save the passwords and keys you give it in the Keychain on this device. A chat turns SSH on or off from the + menu. Each command connects anew; a connection drops soon after OmniChat leaves the screen.") {
                     SettingsToggleRow(title: "SSH in new chats", isOn: $settings.sshEnabled)
                     SettingsToggleRow(title: "Ask before running commands", subtitle: "Approve each command and upload, or always allow a server.",
                                       isOn: $asks)
@@ -44,7 +44,7 @@ struct SSHSettingsView: View {
                     SettingsRow(systemImage: "plus", title: "Add credential") { route = .credential(nil) }
                 }
 
-                GroupedSection(header: "Known hosts", footer: "Each server's host key is saved the first time OpenChat connects; a different key later stops the connection. Reset a host after reinstalling it.") {
+                GroupedSection(header: "Known hosts", footer: "Each server's host key is saved the first time OmniChat connects; a different key later stops the connection. Reset a host after reinstalling it.") {
                     if hosts.isEmpty { SettingsRow(title: "None yet") }
                     ForEach(hosts) { host in
                         HStack(spacing: DS.Spacing.md) {
@@ -344,7 +344,7 @@ private struct SSHCredentialEditor: View {
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             guard let text = try? String(contentsOf: url, encoding: .utf8), SSHKeyFormat.isPrivateKey(text) else {
-                error = String(localized: "That file isn't a private key OpenChat can read.")
+                error = String(localized: "That file isn't a private key OmniChat can read.")
                 return
             }
             privateKey = text
@@ -375,7 +375,7 @@ private struct SSHCredentialEditor: View {
             if !privateKey.isEmpty {
                 SettingsRow(systemImage: revealKey ? "eye.slash" : "eye",
                             title: revealKey ? "Hide key" : "Show key",
-                            subtitle: keyInfo?.summary ?? String(localized: "Not a key OpenChat can read")) { revealKey.toggle() }
+                            subtitle: keyInfo?.summary ?? String(localized: "Not a key OmniChat can read")) { revealKey.toggle() }
             }
             SettingsRow(systemImage: "doc", title: "Import file…") { importing = true }
             SettingsRow(systemImage: "key", title: generating ? "Generating…" : "Generate ED25519 key") { generate(.ed25519) }
@@ -418,7 +418,7 @@ private struct SSHCredentialEditor: View {
 
     private func generate(_ type: SSHKeyGenerator.KeyType) {
         generating = true
-        let comment = draft.name.isEmpty ? "openchat" : draft.name
+        let comment = draft.name.isEmpty ? "omnichat" : draft.name
         Task {
             do {
                 let key = try await Task.detached(priority: .userInitiated) { try SSHKeyGenerator.generate(type, comment: comment) }.value

@@ -389,7 +389,7 @@ extension ConnectionStore.ModelFetch {
         guard let count, let finished else { return nil }
         let when = finished.formatted(.relative(presentation: .named))
         var text = String(localized: "Fetched \(count) models \(when).")
-        if unsupported > 0 { text += " " + String(localized: "\(unsupported) more use an API OpenChat doesn't support yet.") }
+        if unsupported > 0 { text += " " + String(localized: "\(unsupported) more use an API OmniChat doesn't support yet.") }
         if free > 0 { text += " " + String(localized: "Free models are hidden: OpenCode allows them only in its own apps.") }
         return text
     }

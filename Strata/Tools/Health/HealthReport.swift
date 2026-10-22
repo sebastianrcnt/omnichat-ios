@@ -355,7 +355,7 @@ struct HealthReport {
             }
             rows.append([metric.rawValue, status])
         }
-        return "\(Self.marker) types (read-only). iOS doesn't tell apps whether the user denied reading a type, so \"no data or not allowed\" can mean either; the user can change it in the Settings app > Health > Data Access & Devices > OpenChat.\n"
+        return "\(Self.marker) types (read-only). iOS doesn't tell apps whether the user denied reading a type, so \"no data or not allowed\" can mean either; the user can change it in the Settings app > Health > Data Access & Devices > OmniChat.\n"
             + Self.table(rows)
     }
 

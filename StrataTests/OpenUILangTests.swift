@@ -282,7 +282,7 @@ struct OpenUIErrorTests {
 
     @Test func nothingParsesMeansNoRoot() {
         for source in ["", "root = ", "root = Card([\n  x = = (\n", "((((", "\"unterminated", "]]]]", "= = =", "@@@"] {
-            #expect(render(source, library: .openChat).root.map(OUITree.isBlank) ?? true, "\(source)")
+            #expect(render(source, library: .omniChat).root.map(OUITree.isBlank) ?? true, "\(source)")
         }
     }
 

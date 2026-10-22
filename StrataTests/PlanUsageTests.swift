@@ -43,19 +43,19 @@ struct PlanUsageTests {
 
     // MARK: Names
 
-    @Test func servicesSeeTheAppAsOpenChat() throws {
-        #expect(ChatGPTOAuth.agentName == "OpenChat")
+    @Test func servicesSeeTheAppAsOmniChat() throws {
+        #expect(ChatGPTOAuth.agentName == "OmniChat")
         let attempt = ChatGPTOAuth.Attempt.make(port: 1455, hostID: "urn:uuid:abc", savedClientID: nil, loginHint: nil)
-        #expect(attempt.authorizationURL.absoluteString.contains("agent_name_hint=OpenChat"))
+        #expect(attempt.authorizationURL.absoluteString.contains("agent_name_hint=OmniChat"))
 
         let agent = OpenCodeAPI.userAgent
-        #expect(agent.hasPrefix("OpenChat/"))
+        #expect(agent.hasPrefix("OmniChat/"))
         #if os(macOS)
         #expect(agent.hasSuffix(" (macOS)"))
         #else
         #expect(agent.hasSuffix(" (iOS)"))
         #endif
-        #expect(OpenCodeAPI.clientName == "openchat")
+        #expect(OpenCodeAPI.clientName == "omnichat")
         // The OAuth client id stays: refreshing existing sign-ins sends it.
         #expect(OpenCodeAPI.clientID == "strata")
         let refresh = try #require(try JSONSerialization.jsonObject(with: OpenCodeAPI.refreshRequestBody(refreshToken: "r")) as? [String: String])
@@ -72,7 +72,7 @@ struct PlanUsageTests {
         let first = try #require(store.endpoint(connectionID: c.id, modelID: "glm-5.3", sessionID: conversation))
         let again = try #require(store.endpoint(connectionID: c.id, modelID: "kimi-k3", sessionID: conversation))
         #expect(first.headers["x-opencode-session"] == conversation && again.headers["x-opencode-session"] == conversation)
-        #expect(first.headers["x-opencode-client"] == "openchat")
+        #expect(first.headers["x-opencode-client"] == "omnichat")
         #expect(first.headers["User-Agent"] == OpenCodeAPI.userAgent)
     }
 

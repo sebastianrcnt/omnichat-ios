@@ -207,7 +207,7 @@ struct AddConnectionLinkTests {
     }
 
     @Test func readsAFullLink() throws {
-        let link = try parse("openchat://add-connection?name=My%20Server&url=https%3A%2F%2Fllm.example.com%2Fv1%2F&api=openai&images=1&resumable=1").get()
+        let link = try parse("omnichat://add-connection?name=My%20Server&url=https%3A%2F%2Fllm.example.com%2Fv1%2F&api=openai&images=1&resumable=1").get()
         #expect(link.name == "My Server")
         #expect(link.baseURL.absoluteString == "https://llm.example.com/v1")
         #expect(link.api == nil && link.images && link.resumable && !link.effort && !link.droppedKey)
@@ -219,43 +219,43 @@ struct AddConnectionLinkTests {
     }
 
     @Test func defaultsAndOptions() throws {
-        let link = try parse("OpenChat://add-connection?url=https://api.example.org/v1&api=responses&effort=true").get()
+        let link = try parse("OmniChat://add-connection?url=https://api.example.org/v1&api=responses&effort=true").get()
         #expect(link.name == "api.example.org") // no name: the host
         #expect(link.api == .responses && link.effort && !link.images && !link.resumable)
         #expect(link.makeConnection().defaultChatAPI == .responses)
     }
 
     @Test func aKeyIsNeverTaken() throws {
-        let link = try parse("openchat://add-connection?url=https://x.example/v1&key=sk-secret").get()
+        let link = try parse("omnichat://add-connection?url=https://x.example/v1&key=sk-secret").get()
         #expect(link.droppedKey)
         let c = link.makeConnection()
         let encoded = String(decoding: try JSONEncoder().encode(c), as: UTF8.self)
         #expect(!encoded.contains("sk-secret"))
         // Credentials inside the URL are refused too.
-        #expect(parse("openchat://add-connection?url=https%3A%2F%2Fuser%3Apass%40x.example%2Fv1") == .failure(.invalidURL))
+        #expect(parse("omnichat://add-connection?url=https%3A%2F%2Fuser%3Apass%40x.example%2Fv1") == .failure(.invalidURL))
     }
 
     @Test func flagsPlainHTTPAndPrivateAddresses() throws {
-        let lan = try parse("openchat://add-connection?url=http://192.168.1.20:11434/v1").get()
+        let lan = try parse("omnichat://add-connection?url=http://192.168.1.20:11434/v1").get()
         #expect(lan.isPlainHTTP && lan.isPrivateAddress)
-        let local = try parse("openchat://add-connection?url=http://localhost:1234/v1").get()
+        let local = try parse("omnichat://add-connection?url=http://localhost:1234/v1").get()
         #expect(local.isPrivateAddress)
-        let mdns = try parse("openchat://add-connection?url=https://studio.local/v1").get()
+        let mdns = try parse("omnichat://add-connection?url=https://studio.local/v1").get()
         #expect(!mdns.isPlainHTTP && mdns.isPrivateAddress)
-        let publicHTTP = try parse("openchat://add-connection?url=http://203.0.113.9/v1").get()
+        let publicHTTP = try parse("omnichat://add-connection?url=http://203.0.113.9/v1").get()
         #expect(publicHTTP.isPlainHTTP)
     }
 
     @Test func rejectsWhatItCantUse() {
-        #expect(parse("openchat://add-connection?name=x") == .failure(.missingURL))
-        #expect(parse("openchat://add-connection?url=") == .failure(.missingURL))
-        #expect(parse("openchat://add-connection?url=ftp://x.example/v1") == .failure(.invalidURL))
-        #expect(parse("openchat://add-connection?url=javascript:alert(1)") == .failure(.invalidURL))
-        #expect(parse("openchat://add-connection?url=file:///etc/passwd") == .failure(.invalidURL))
-        #expect(parse("openchat://add-connection?url=not%20a%20url") == .failure(.invalidURL))
-        #expect((try? parse("openchat://add-connection?url=https://x.example/v1&api=anthropic").get())?.anthropic == true)
-        #expect(parse("openchat://add-connection?url=https://x.example/v1&api=grpc") == .failure(.unsupportedAPI("grpc")))
-        #expect(parse("openchat://other?url=https://x.example/v1") == .failure(.notAnAddLink))
+        #expect(parse("omnichat://add-connection?name=x") == .failure(.missingURL))
+        #expect(parse("omnichat://add-connection?url=") == .failure(.missingURL))
+        #expect(parse("omnichat://add-connection?url=ftp://x.example/v1") == .failure(.invalidURL))
+        #expect(parse("omnichat://add-connection?url=javascript:alert(1)") == .failure(.invalidURL))
+        #expect(parse("omnichat://add-connection?url=file:///etc/passwd") == .failure(.invalidURL))
+        #expect(parse("omnichat://add-connection?url=not%20a%20url") == .failure(.invalidURL))
+        #expect((try? parse("omnichat://add-connection?url=https://x.example/v1&api=anthropic").get())?.anthropic == true)
+        #expect(parse("omnichat://add-connection?url=https://x.example/v1&api=grpc") == .failure(.unsupportedAPI("grpc")))
+        #expect(parse("omnichat://other?url=https://x.example/v1") == .failure(.notAnAddLink))
         #expect(parse("https://add-connection?url=https://x.example/v1") == .failure(.notAnAddLink))
     }
 

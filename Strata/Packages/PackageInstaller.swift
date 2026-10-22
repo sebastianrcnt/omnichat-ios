@@ -76,13 +76,13 @@ struct PackageInstaller: Sendable {
         return candidate(bundle, source: .file(url.lastPathComponent))
     }
 
-    /// Downloads a link's package (`openchat://add-package?url=…&sha256=…`).
+    /// Downloads a link's package (`omnichat://add-package?url=…&sha256=…`).
     func candidate(link: AddPackageLink) async throws -> PackageCandidate {
         do { try await URLGuard.validate(link.url, resolver: resolver) } catch {
             throw Failure.download((error as? LocalizedError)?.errorDescription ?? "\(error)")
         }
         var request = URLRequest(url: link.url, timeoutInterval: 60)
-        request.setValue("OpenChat", forHTTPHeaderField: "User-Agent")
+        request.setValue("OmniChat", forHTTPHeaderField: "User-Agent")
         let resolver = resolver
         let data: Data
         let response: URLResponse
@@ -113,11 +113,11 @@ struct PackageInstaller: Sendable {
                                          newHosts: m.network, newSecrets: m.secrets.map(\.name), newPrivateNetwork: m.privateNetwork,
                                          changedFiles: [], blocker: nil)
         if store.isBuiltIn(m.id) {
-            candidate.blocker = String(localized: "\(m.id) is built into OpenChat and can't be replaced.")
+            candidate.blocker = String(localized: "\(m.id) is built into OmniChat and can't be replaced.")
             return candidate
         }
         if let page = m.tools.first(where: { $0.kind == "page" }) {
-            candidate.blocker = String(localized: "\(page.name) is a page tool, which only packages built into OpenChat may have for now.")
+            candidate.blocker = String(localized: "\(page.name) is a page tool, which only packages built into OmniChat may have for now.")
             return candidate
         }
         guard let installed else { return candidate }
@@ -161,7 +161,8 @@ struct PackageInstaller: Sendable {
     }
 }
 
-/// `openchat://add-package?url=<https URL>&sha256=<hex>`: a package to download and review.
+/// `omnichat://add-package?url=<https URL>&sha256=<hex>`: a package to download and review (or `openchat://`, from
+/// before the rename).
 struct AddPackageLink: Equatable, Sendable {
     var url: URL
     var sha256: String?
@@ -175,7 +176,7 @@ struct AddPackageLink: Equatable, Sendable {
 
     /// Nil unless the link is ours and its url is https without user info, at most 2 KB.
     init?(_ link: URL) {
-        guard link.scheme?.lowercased() == "openchat", link.host()?.lowercased() == Self.host,
+        guard AppURLScheme.matches(link), link.host()?.lowercased() == Self.host,
               let items = URLComponents(url: link, resolvingAgainstBaseURL: false)?.queryItems,
               let raw = items.first(where: { $0.name == "url" })?.value, raw.utf8.count <= 2048,
               let url = URL(string: raw), url.scheme?.lowercased() == "https", url.host() != nil, url.user == nil, url.password == nil
@@ -187,7 +188,7 @@ struct AddPackageLink: Equatable, Sendable {
 
     var link: URL {
         var c = URLComponents()
-        c.scheme = "openchat"
+        c.scheme = AppURLScheme.current
         c.host = Self.host
         c.queryItems = [URLQueryItem(name: "url", value: url.absoluteString)] + (sha256.map { [URLQueryItem(name: "sha256", value: $0)] } ?? [])
         return c.url!

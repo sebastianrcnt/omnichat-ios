@@ -178,9 +178,9 @@ struct OUILibrary: Sendable {
 }
 
 extension OUILibrary {
-    /// The components OpenChat renders, with the prop order of OpenUI's default library (`@openuidev/react-ui`) where
-    /// it has them, so programs written from its docs work. `Metric`, `Progress` and `Link` are OpenChat's own.
-    static let openChat = OUILibrary(components: [
+    /// The components OmniChat renders, with the prop order of OpenUI's default library (`@openuidev/react-ui`) where
+    /// it has them, so programs written from its docs work. `Metric`, `Progress` and `Link` are OmniChat's own.
+    static let omniChat = OUILibrary(components: [
         // Layout
         "Stack": .init(props: ["children", "direction", "gap", "align", "justify", "wrap"]),
         "Card": .init(props: ["children", "variant", "direction", "gap", "align", "justify", "wrap"]),
@@ -309,7 +309,7 @@ struct OUIEvaluator {
     private var memo: [String: OUIValue?] = [:]
     private var visiting: Set<String> = []
 
-    init(program: OUIProgram, library: OUILibrary = .openChat, state: [String: OUIValue] = [:]) {
+    init(program: OUIProgram, library: OUILibrary = .omniChat, state: [String: OUIValue] = [:]) {
         self.program = program
         self.library = library
         self.state = state

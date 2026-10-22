@@ -1,6 +1,6 @@
 import Foundation
 
-// Sharing into OpenChat from another app's share sheet. The share extension (StrataShare) writes what was shared, and
+// Sharing into OmniChat from another app's share sheet. The share extension (StrataShare) writes what was shared, and
 // what to do with it, into the App Group container; the app picks it up when it opens and starts a chat with it.
 // Shared by the app and the extension, so Foundation only.
 
@@ -22,7 +22,7 @@ struct SharePayload: Codable, Identifiable, Equatable, Sendable {
         var id: String { rawValue }
     }
 
-    /// Where the message goes: a new chat, or the chat that was on screen when OpenChat was last left.
+    /// Where the message goes: a new chat, or the chat that was on screen when OmniChat was last left.
     enum Destination: Codable, Hashable, Sendable {
         case newChat
         case conversation(UUID)
@@ -35,7 +35,7 @@ struct SharePayload: Codable, Identifiable, Equatable, Sendable {
 
     /// A file stored next to the payload, by its file name in the share's folder.
     struct File: Codable, Equatable, Sendable {
-        /// `package`: an OpenChat package (`.ocpkg`), opened in the app's review sheet instead of a chat.
+        /// `package`: an OmniChat package (`.ocpkg`), opened in the app's review sheet instead of a chat.
         enum Kind: String, Codable, Sendable { case pdf, text, other, package }
         /// Shown and named in the message ("report.pdf").
         var name: String
@@ -122,9 +122,10 @@ extension SharePayload {
 
 // MARK: - Links into the app
 
-/// `openchat://share?id=<uuid>`: the extension opens the app with it after saving a share.
+/// `omnichat://share?id=<uuid>`: the extension opens the app with it after saving a share (`openchat://share` from
+/// before the rename is still read).
 enum ShareURL {
-    static let scheme = "openchat"
+    static let scheme = AppURLScheme.current
     static let host = "share"
 
     static func url(for id: UUID) -> URL {
@@ -136,7 +137,7 @@ enum ShareURL {
     }
 
     static func isShareURL(_ url: URL) -> Bool {
-        url.scheme?.lowercased() == scheme && url.host(percentEncoded: false)?.lowercased() == host
+        AppURLScheme.matches(url) && url.host(percentEncoded: false)?.lowercased() == host
     }
 
     /// The share a link names; nil for another link, or a share link without a valid id (which still means "look").

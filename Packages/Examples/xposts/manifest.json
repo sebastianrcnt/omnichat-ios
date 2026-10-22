@@ -1,11 +1,11 @@
 {
   "format": 1,
-  "id": "app.openchat.example.xposts",
+  "id": "app.omnichat.example.xposts",
   "name": "X posts",
   "namespace": "xposts",
   "version": "1.0.0",
   "description": "Read a public post on X (Twitter) from its link: text, author, date and counts.",
-  "publisher": { "name": "OpenChat examples" },
+  "publisher": { "name": "OmniChat examples" },
   "license": "MIT",
   "permissions": { "network": ["cdn.syndication.twimg.com"] },
   "contents": {

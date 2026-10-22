@@ -278,7 +278,7 @@ final class ReplyLiveActivities {
         case .after(let duration): .after(.now + duration.timeInterval)
         }
         // The dwell outlives the background lease, which ended with the last reply: a few seconds of our own.
-        let lease = plan.dwell > .zero ? BackgroundMoment(name: "OpenChat Live Activity") : nil
+        let lease = plan.dwell > .zero ? BackgroundMoment(name: "OmniChat Live Activity") : nil
         Task {
             if plan.dwell > .zero {
                 await activity.update(content)
@@ -329,7 +329,7 @@ private extension Duration {
 }
 
 extension View {
-    /// Opens the chat of a tapped Live Activity (`openchat://chat/<id>`), the way a tapped notification does.
+    /// Opens the chat of a tapped Live Activity (`omnichat://chat/<id>`), the way a tapped notification does.
     func replyActivityLinks() -> some View {
         onOpenURL { url in
             guard let id = ReplyActivityLink.conversationID(from: url) else { return }
