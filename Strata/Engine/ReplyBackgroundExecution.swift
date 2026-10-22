@@ -204,8 +204,13 @@ final class ReplyBackgroundExecution {
         }
     }
 
+    /// Chats whose reply a Shortcuts or Siri intent is waiting for (`IntentChat`): the intent delivers the answer, so
+    /// no notification says it again.
+    static var quietConversations: Set<UUID> = []
+
     /// Tells the person their reply is ready: the chat's title, then the start of the answer. Tapping it opens the chat.
     static func notifyCompletion(title: String, body: String, conversationID: UUID) {
+        guard !quietConversations.contains(conversationID) else { return }
         post(title: title.isEmpty ? String(localized: "Reply ready") : title,
              body: body.isEmpty ? String(localized: "Your OpenChat reply is ready.") : body,
              conversationID: conversationID)
