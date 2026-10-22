@@ -85,3 +85,17 @@ Instead, keep the Emscripten fd-level socket layer and replace its transport wit
   - reset closes sockets
 - Package smoke tests against local servers where they're cheap (`redis` with a fake RESP server, `smtplib` with a
   tiny SMTP server). Real Postgres or MySQL is optional and done by hand. Write down how.
+
+## Tell the model (part of this work)
+
+When the bridge lands, update the `run_python` tool description (`Strata/Networking/ChatAPI.swift`). That's where the
+sandbox's facts belong. `AppPrompt.python` keeps only behavior rules. Say, briefly:
+
+- Real TCP and UDP sockets work through the `socket` module and any library on top (database drivers, `smtplib`,
+  `imaplib`, `paramiko`, `asyncio` streams, `aiohttp`), including TLS.
+- Private and LAN addresses ask the user first. A refusal raises `PermissionError`.
+- Not possible: raw sockets or ICMP (`ping`), multicast or broadcast, connections from the internet to the device,
+  `subprocess` or other programs.
+- Files live only in this chat's interpreter, until the session resets.
+
+Keep it short: the tool list goes with every request. Changing it costs existing chats one cache miss after the update.

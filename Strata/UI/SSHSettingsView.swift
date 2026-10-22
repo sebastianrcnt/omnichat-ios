@@ -105,6 +105,7 @@ private struct SSHServerEditor: View {
     @State private var test: TestState = .idle
     @State private var confirmDelete = false
     @State private var loaded = false
+    @State private var addingCredential = false
 
     enum TestState: Equatable { case idle, running, ok(String), failed(String) }
 
@@ -123,12 +124,22 @@ private struct SSHServerEditor: View {
                     HStack {
                         Text("Credential").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
                         Spacer()
-                        Picker("Credential", selection: $draft.credential) {
-                            Text("None").tag(String?.none)
-                            ForEach(credentials, id: \.self) { Text(verbatim: $0).tag(String?.some($0)) }
+                        // A menu rather than a picker, so a new credential can be made right here and picked.
+                        Menu {
+                            Picker("Credential", selection: $draft.credential) {
+                                Text("None").tag(String?.none)
+                                ForEach(credentials, id: \.self) { Text(verbatim: $0).tag(String?.some($0)) }
+                            }
+                            Divider()
+                            Button("Add credential…", systemImage: "plus") { addingCredential = true }
+                        } label: {
+                            HStack(spacing: DS.Spacing.xxs) {
+                                if let credential = draft.credential { Text(verbatim: credential) } else { Text("None") }
+                                Image(systemName: "chevron.up.chevron.down").font(.system(size: 11, weight: .medium))
+                            }
+                            .font(DS.Typography.ui)
+                            .foregroundStyle(theme.textSecondary)
                         }
-                        .labelsHidden()
-                        .tint(theme.textSecondary)
                     }
                     .padding(.horizontal, DS.Spacing.lg)
                     .padding(.vertical, DS.Spacing.sm)
@@ -173,6 +184,14 @@ private struct SSHServerEditor: View {
         .navigationTitle(name ?? String(localized: "New server"))
         .inlineNavigationTitle()
         .onAppear(perform: load)
+        .sheet(isPresented: $addingCredential) {
+            NavigationStack {
+                SSHCredentialEditor(name: nil, suggestedUser: draft.user, onSave: { draft.credential = $0 })
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { addingCredential = false } }
+                    }
+            }
+        }
         .confirmationDialog("Delete \(name ?? "")?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete server", role: .destructive) {
                 if let name { try? store.deleteServer(name) }
@@ -238,6 +257,9 @@ private struct SSHCredentialEditor: View {
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
     let name: String?
+    /// A new credential made from a server's page starts with its user, and is picked for it once saved.
+    var suggestedUser = ""
+    var onSave: ((String) -> Void)?
 
     @State private var draft = SSHCredential(name: "", kind: .password)
     @State private var password = ""
@@ -380,7 +402,10 @@ private struct SSHCredentialEditor: View {
     private func load() {
         guard !loaded else { return }
         loaded = true
-        guard let name, let c = store.credential(named: name) else { return }
+        guard let name, let c = store.credential(named: name) else {
+            username = suggestedUser
+            return
+        }
         draft = c
         password = c.password ?? ""
         privateKey = c.privateKey ?? ""
@@ -426,6 +451,7 @@ private struct SSHCredentialEditor: View {
             try store.save(c)
             if let name, name != c.name { try? store.deleteCredential(name) }
             error = nil
+            onSave?(c.name)
             dismiss()
         } catch {
             self.error = error.localizedDescription
