@@ -13,10 +13,23 @@ struct ArtifactStoreTests {
         let one = try store.save(title: "Chart", html: "<p>1</p>", conversationID: chat)
         let two = try store.save(title: "Game", html: "<p>2</p>", conversationID: chat)
         let elsewhere = try store.save(title: "Notes", html: "<p>3</p>", conversationID: other)
-        #expect(one.id == "a1" && two.id == "a2" && elsewhere.id == "a1")
+        #expect(one.id.hasPrefix("a1-") && two.id.hasPrefix("a2-") && elsewhere.id.hasPrefix("a1-"))
         #expect(one.version == 1 && two.version == 1)
-        #expect(store.artifacts(conversationID: chat).map(\.id) == ["a1", "a2"])
-        #expect(store.html(id: "a2", conversationID: chat) == "<p>2</p>")
+        #expect(store.artifacts(conversationID: chat).map(\.id) == [one.id, two.id])
+        #expect(store.html(id: two.id, conversationID: chat) == "<p>2</p>")
+        #expect(store.html(id: "a2", conversationID: chat) == "<p>2</p>", "the short form finds it")
+    }
+
+    /// Two devices adding the next artifact to one synced chat before either has the other's write different pages.
+    @Test func idsDifferAcrossDevices() throws {
+        let phone = tempStore(), mac = tempStore()
+        let chat = UUID()
+        let a = try phone.save(title: "One", html: "<p>1</p>", conversationID: chat)
+        let b = try mac.save(title: "Two", html: "<p>2</p>", conversationID: chat)
+        #expect(a.id != b.id)
+        #expect(ArtifactStore.normalizedID(a.id) == a.id)
+        // Chats from before keep their ids.
+        #expect(ArtifactStore.resolve("a1", in: [Artifact(id: "a1", title: "", version: 1, created: .now, updated: .now)]) == "a1")
     }
 
     @Test func anUpdateReplacesTheHTMLAndCountsTheVersion() throws {
@@ -41,7 +54,7 @@ struct ArtifactStoreTests {
         let reopened = ArtifactStore(root: store.root)
         #expect(reopened.artifact(id: "a1", conversationID: chat)?.version == 2)
         #expect(reopened.html(id: "a1", conversationID: chat) == "<p>y</p>")
-        #expect(try reopened.save(title: "Next", html: "<p>z</p>", conversationID: chat).id == "a2")
+        #expect(try reopened.save(title: "Next", html: "<p>z</p>", conversationID: chat).id.hasPrefix("a2-"))
     }
 
     @Test func badSavesSayWhatIsWrong() throws {
@@ -49,9 +62,9 @@ struct ArtifactStoreTests {
         let chat = UUID()
         #expect(throws: ArtifactError.emptyHTML) { try store.save(title: "x", html: "  \n", conversationID: chat) }
         #expect(throws: ArtifactError.unknownID("a9", known: [])) { try store.save(title: "x", html: "<p/>", id: "a9", conversationID: chat) }
-        try store.save(title: "x", html: "<p/>", conversationID: chat)
-        #expect(throws: ArtifactError.unknownID("a9", known: ["a1"])) { try store.save(title: "x", html: "<p/>", id: "a9", conversationID: chat) }
-        #expect(throws: ArtifactError.unknownID("../index", known: ["a1"])) {
+        let first = try store.save(title: "x", html: "<p/>", conversationID: chat)
+        #expect(throws: ArtifactError.unknownID("a9", known: [first.id])) { try store.save(title: "x", html: "<p/>", id: "a9", conversationID: chat) }
+        #expect(throws: ArtifactError.unknownID("../index", known: [first.id])) {
             try store.save(title: "x", html: "<p/>", id: "../index", conversationID: chat)
         }
     }
@@ -64,7 +77,7 @@ struct ArtifactStoreTests {
             try store.save(title: "Big", html: String(repeating: "a", count: limit + 1), conversationID: chat)
         }
         #expect(store.artifacts(conversationID: chat).isEmpty)
-        #expect(try store.save(title: "Fits", html: String(repeating: "a", count: limit), conversationID: chat).id == "a1")
+        #expect(try store.save(title: "Fits", html: String(repeating: "a", count: limit), conversationID: chat).id.hasPrefix("a1-"))
         // Multi-byte text counts in bytes, not characters.
         #expect(throws: ArtifactError.self) {
             try store.save(title: "Big", html: String(repeating: "가", count: limit / 3 + 1), conversationID: chat)
@@ -80,6 +93,9 @@ struct ArtifactStoreTests {
         #expect(ArtifactStore.normalizedID("../a1") == nil)
         #expect(ArtifactStore.normalizedID("a0") == nil)
         #expect(ArtifactStore.normalizedID("index") == nil)
+        #expect(ArtifactStore.normalizedID(" A3-3F9A2C1B ") == "a3-3f9a2c1b")
+        #expect(ArtifactStore.normalizedID("a3-3f9a2c1") == nil)
+        #expect(ArtifactStore.normalizedID("a3-../index") == nil)
     }
 
     @Test func deletingAChatDeletesItsArtifacts() throws {

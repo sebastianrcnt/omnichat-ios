@@ -20,6 +20,22 @@ struct FigureReferenceTests {
         #expect(FigureReference.unplaced(figs, text: "No figures.").count == 3)
     }
 
+    /// New figures carry a random part (`ToolImageStore.newID`); a model that writes the short form still places them.
+    @Test func idsWithTheirRandomPartAreReferencesToo() throws {
+        #expect(FigureReference.block("![Sales](figure-2-3f9a2c1b)") == [.init(id: "figure-2-3f9a2c1b", caption: "Sales")])
+        let figs = ["figure-1-0123abcd", "figure-2-3f9a2c1b"].map { ToolImage(id: $0, width: 1, height: 1, file: "c/\($0).png") }
+        #expect(FigureReference.unplaced(figs, text: "![a](figure-2)").map(\.id) == ["figure-1-0123abcd"])
+        #expect(FigureReference.unplaced(figs, text: "![a](figure-1-0123abcd)").map(\.id) == ["figure-2-3f9a2c1b"])
+
+        let store = ToolImageStore(root: FileManager.default.temporaryDirectory.appendingPathComponent("figs-\(UUID().uuidString)"))
+        let chat = UUID()
+        defer { store.removeAll(conversationID: chat) }
+        let png = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 2, 0, 0, 0, 2])
+        let stored = try #require(store.addFigure(png: png, conversationID: chat))
+        #expect(FigureReference.image(id: "figure-1", conversationID: chat, store: store).file == stored.file)
+        #expect(FigureReference.image(id: stored.id, conversationID: chat, store: store).file == stored.file)
+    }
+
     @Test func theAppPromptSaysHowToShowAFigure() {
         #expect(AppPrompt.text(tools: true, python: true).contains("![short caption](figure-N)"))
         #expect(!AppPrompt.text(tools: true, python: false).contains("figure-N"))
