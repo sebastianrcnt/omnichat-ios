@@ -181,16 +181,6 @@ struct MessageLayoutControllerTests {
 }
 
 struct MessagePartsTests {
-    @Test func newWordsOfAThoughtFadeIn() {
-        let now = Date()
-        let spans = [StreamingMarkdownModel.FreshSpan(length: 3, born: now.addingTimeInterval(-1), duration: 0.15),
-                     StreamingMarkdownModel.FreshSpan(length: 4, born: now, duration: 0.15)]
-        let out = ReasoningLinePreview.fading("Hello world", spans: spans, now: now, color: .gray)
-        #expect(String(out.characters) == "Hello world")
-        let faded = out.runs.filter { $0.foregroundColor != nil }.map { String(out[$0.range].characters) }
-        #expect(faded == ["orld"], "only the newest, still fading span is faint")
-    }
-
     @Test func workLinesAreOneListAndTextStandsOff() {
         #expect(MessageLayout.gap(above: .reasoning(0), after: nil) == 0)
         let lines = [MessageLayout.gap(above: .feed(0), after: .reasoning(0)), MessageLayout.gap(above: .reasoning(3), after: .feed(0)),

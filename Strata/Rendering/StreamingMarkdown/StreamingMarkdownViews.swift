@@ -865,11 +865,10 @@ struct ReasoningLinePreview: View {
                 // Plain, as the finished line shows it (`MessageLayout.plain`), so the words keep their width.
                 let text = MessageLayout.plain(displayed(shown))
                 let translated = text != MessageLayout.plain(shown.text)
-                let spans = translated || reduceMotion ? [] : (model?.freshSpans ?? [])
-                // New words fade in as the answer's do; a translation (a whole sentence) rises in instead.
-                TimelineView(.animation(paused: spans.isEmpty)) { context in
-                    Text(Self.fading(text, spans: spans, now: context.date, color: color ?? theme.textTertiary))
-                }
+                // No per-word fade here: the line is cut at `lines` with "…", and a fast model's fresh words are past the
+                // cut, so their fade landed on the last visible words instead and kept them blinking. A held sentence
+                // (`ThoughtPreviewGate`) isn't the one the fresh words belong to either. A new sentence still rises in.
+                Text(text)
                 .font(font)
                 .foregroundStyle(color ?? theme.textTertiary)
                 .lineLimit(lines)
@@ -906,31 +905,6 @@ struct ReasoningLinePreview: View {
         guard translate, let shown else { return "" }
         let text = displayed(shown)
         return text == shown.text ? "" : text
-    }
-
-    /// `text` with its last characters faint, newest faintest, as `spans` (newest last) were revealed.
-    static func fading(_ text: String, spans: [StreamingMarkdownModel.FreshSpan], now: Date, color: Color) -> AttributedString {
-        let chars = Array(text)
-        var cursor = chars.count
-        var runs: [(range: Range<Int>, alpha: Double)] = []
-        for span in spans.reversed() where cursor > 0 {
-            let alpha = span.alpha(at: now)
-            let lower = max(0, cursor - span.length)
-            if alpha < 1 { runs.append((lower..<cursor, alpha)) }
-            cursor = lower
-        }
-        guard !runs.isEmpty else { return AttributedString(text) }
-        var out = AttributedString(String(chars[0..<(runs.last?.range.lowerBound ?? chars.count)]))
-        var position = runs.last?.range.lowerBound ?? chars.count
-        for run in runs.reversed() {
-            if run.range.lowerBound > position { out += AttributedString(String(chars[position..<run.range.lowerBound])) }
-            var piece = AttributedString(String(chars[run.range]))
-            piece.foregroundColor = color.opacity(run.alpha)
-            out += piece
-            position = run.range.upperBound
-        }
-        if position < chars.count { out += AttributedString(String(chars[position...])) }
-        return out
     }
 
     /// With translation on: the newest finished sentence that has its translation; until then the sentence itself.

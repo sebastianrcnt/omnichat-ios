@@ -37,7 +37,7 @@ struct ModelPickerSheet: View {
     @State private var renaming: ModelRenameTarget?
     @State private var query = ""
 
-    enum Page: Equatable { case root, provider(UUID), effort, search }
+    enum Page: Equatable { case root, provider(UUID), search }
 
     init(selectedConnectionID: UUID?, selectedModelID: String?, effort: Effort,
          onSelectModel: @escaping (UUID, String) -> Void, onSelectEffort: @escaping (Effort) -> Void,
@@ -60,7 +60,6 @@ struct ModelPickerSheet: View {
             switch page {
             case .root: root
             case .provider(let id): providerPage(id)
-            case .effort: effortPage
             case .search: searchPage
             }
         }
@@ -82,6 +81,7 @@ struct ModelPickerSheet: View {
         // Connections with nothing to pick yet (signed out, or models not fetched): listed so they don't just vanish.
         let unset = connections.connections.filter { c in !groups.contains { $0.connectionID == c.id } }
         return SheetScaffold(title: "Select model") {
+            effortSection
             planUsageSection
             if groups.isEmpty {
                 GroupedSection(footer: "Add a connection in Settings, then fetch its models or add one by hand.") {
@@ -197,12 +197,6 @@ struct ModelPickerSheet: View {
 
     @ViewBuilder private var settingsSections: some View {
         GroupedSection {
-            if !(selectedModel?.effortLevels(effortStyle) ?? []).isEmpty { // the same test as the composer's gauge
-                SettingsRow(title: "Effort", value: currentEffort.resolved(in: selectedModel?.effortLevels(effortStyle) ?? []).title,
-                            showsChevron: true) {
-                    withAnimation(DS.Motion.snappy) { page = .effort }
-                }
-            }
             SettingsRow(title: "Search engine", value: settings.searchEngine.label, showsChevron: true) {
                 withAnimation(DS.Motion.snappy) { page = .search }
             }
@@ -214,20 +208,34 @@ struct ModelPickerSheet: View {
 
     private var effortStyle: EffortStyle { connections.connection(selectedConnectionID)?.effortStyle ?? .tokenCaps }
 
-    private var effortPage: some View {
+    /// The model's effort levels, first in the sheet: the composer's chip shows the effort next to the model, so tapping
+    /// it to change the effort lands right on it, one tap per level.
+    @ViewBuilder private var effortSection: some View {
         let style = effortStyle
         let levels = selectedModel?.effortLevels(style) ?? []
-        return SheetScaffold(title: "Effort", leading: .back({ withAnimation(DS.Motion.snappy) { page = .root } })) {
-            GroupedSection(footer: style == .tokenCaps
-                           ? "Higher effort lets the model think longer. It costs more time and tokens. Limits are the engine's thinking-token caps."
-                           : "Higher effort lets the model think longer. It costs more time and plan usage. The model decides how long to think; there is no token cap.") {
-                ForEach(levels) { e in
-                    SettingsRow(title: LocalizedStringKey(e.isRecommended ? String(localized: "\(e.title) (recommended)") : e.title),
-                                subtitle: e.hint(style), isChecked: e == currentEffort.resolved(in: levels)) {
-                        currentEffort = e
-                        onSelectEffort(e)
+        if !levels.isEmpty { // the same test as the composer's chip
+            let current = currentEffort.resolved(in: levels)
+            GroupedSection(header: "Effort", footer: LocalizedStringKey(current.hint(style))) {
+                HStack(spacing: DS.Spacing.xs) {
+                    ForEach(levels) { e in
+                        let selected = e == current
+                        Button {
+                            currentEffort = e
+                            onSelectEffort(e)
+                        } label: {
+                            Text(e.title)
+                                .font(DS.Typography.uiSmall.weight(selected ? .semibold : .regular))
+                                .foregroundStyle(selected ? theme.textPrimary : theme.textSecondary)
+                                .frame(maxWidth: .infinity, minHeight: 36)
+                                .background(selected ? theme.textPrimary.opacity(0.12) : .clear, in: Capsule())
+                                .contentShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(selected ? .isSelected : [])
                     }
                 }
+                .padding(DS.Spacing.xs)
+                .animation(DS.Motion.snappy, value: current)
             }
         }
     }

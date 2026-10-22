@@ -25,6 +25,11 @@ struct ThoughtLine: View {
     /// What the live line was showing when this round's line took its place (a translation whose sentence the round's
     /// last line isn't translated yet): kept until that translation comes, so the English doesn't flash in between.
     @State private var carried: String?
+    /// The live reasoning from before the current tool started, kept on screen until the tool has run for
+    /// `thoughtHold` (then `holdExpired`).
+    @State private var heldReasoning: ReasoningChunkModel?
+    @State private var holdExpired = false
+    static let thoughtHold: Duration = .milliseconds(600)
 
     /// - Parameter takesOverLive: this round's line is replacing the live one now (its message is streaming).
     init(isWorking: Bool, line: String? = nil, seconds: Double? = nil, reasoning: ReasoningChunkModel? = nil,
@@ -53,10 +58,13 @@ struct ThoughtLine: View {
                 .frame(width: DS.Feed.iconColumn)
                 if isWorking {
                     // A new preview per state: after a tool, the slot starts from the placeholder, not the old thought.
-                    ReasoningLinePreview(model: reasoning, font: DS.Typography.thought, color: theme.textSecondary,
+                    // The thought gives way only after a tool has run for a moment: a fast model flips between thinking
+                    // and a quick call several times a second, and the line swapped with the placeholder at that rate.
+                    let shown = reasoning ?? (holdExpired ? nil : heldReasoning)
+                    ReasoningLinePreview(model: shown, font: DS.Typography.thought, color: theme.textSecondary,
                                          placeholder: placeholder, lines: settings.thinkingLines,
                                          translate: settings.translateThinking)
-                        .id(reasoning == nil ? "placeholder" : "reasoning")
+                        .id(shown == nil ? "placeholder" : "reasoning")
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
                     Text(doneTitle).font(DS.Typography.thought).foregroundStyle(theme.textSecondary)
@@ -83,6 +91,17 @@ struct ThoughtLine: View {
         .animation(reduceMotion ? nil : .easeOut(duration: 0.3), value: doneTitle)
         .task(id: settings.translateThinking ? line : nil) {
             if settings.translateThinking, let line { ThoughtTranslator.shared.request(line) }
+        }
+        .task(id: reasoning == nil) {
+            if let reasoning {
+                heldReasoning = reasoning
+                holdExpired = false
+                return
+            }
+            guard heldReasoning != nil else { return }
+            try? await Task.sleep(for: Self.thoughtHold)
+            guard !Task.isCancelled else { return }
+            holdExpired = true
         }
     }
 
