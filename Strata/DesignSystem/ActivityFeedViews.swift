@@ -63,7 +63,7 @@ struct ThoughtLine: View {
                         .lineLimit(settings.thinkingLines).truncationMode(.tail)
                         .fixedSize(horizontal: false, vertical: true)
                         .id(doneTitle) // a translation arriving rises in
-                        .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 6)), removal: .opacity))
+                        .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 6)), removal: .quickExit))
                 }
                 Image(systemName: "chevron.right")
                     .font(.system(size: DS.Feed.mark, weight: .semibold)).foregroundStyle(theme.textTertiary)

@@ -547,3 +547,19 @@ struct CodeBlockContentTests {
         #expect(CodeBlockContent(blockText: "```\n```").lineCount == 0)
     }
 }
+
+struct ReasoningMarkdownTests {
+    @Test func paragraphsSplitIntoLinesWithListMarkers() {
+        let text = "**Planning**\n\n- Start with the bulge.\n  - Then the far side.\n2) Mention `inertia`.\n\nPlain text\nnext line"
+        let p = ReasoningMarkdownText.paragraphs(text)
+        #expect(p.count == 3)
+        #expect(p[0] == [.init(text: "**Planning**")])
+        #expect(p[1] == [.init(marker: "•", level: 0, text: "Start with the bulge."),
+                         .init(marker: "•", level: 1, text: "Then the far side."),
+                         .init(marker: "2)", level: 0, text: "Mention `inertia`.")])
+        #expect(p[2] == [.init(text: "Plain text"), .init(text: "next line")])
+        #expect(ReasoningMarkdownText.paragraphs("\n\n  \n\n").isEmpty)
+        // Emphasis and code stay as Markdown for InlineMarkdownText; a bold word isn't a list item.
+        #expect(ReasoningMarkdownText.paragraphs("**Bold** start")[0][0].marker == nil)
+    }
+}

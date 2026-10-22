@@ -732,14 +732,76 @@ private struct ReasoningFinalized: View {
 }
 
 struct ReasoningChunkView: View, Equatable {
-    @Environment(\.theme) private var theme
     let chunk: ReasoningChunkModel.Chunk
     var body: some View {
-        Text(ReasoningDisplay.trimmed(chunk.text)).font(DS.Typography.uiSmall).dsLeading(.thinking).foregroundStyle(theme.textSecondary)
-            .textSelection(.enabled)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        ReasoningMarkdownText(text: ReasoningDisplay.trimmed(chunk.text))
     }
     nonisolated static func == (a: Self, b: Self) -> Bool { a.chunk == b.chunk }
+}
+
+/// Reasoning with its Markdown, in the thinking style: inline marks (the bold headings models write, code, emphasis,
+/// links) and list lines, paragraph by paragraph. Block syntax beyond lists (tables, code fences) stays as typed.
+struct ReasoningMarkdownText: View {
+    @Environment(\.theme) private var theme
+    let text: String
+    /// New characters fading in at the end (the live tail).
+    var spans: [StreamingMarkdownModel.FreshSpan] = []
+    /// Still streaming: an unclosed mark at the end is closed for display.
+    var isOpen = false
+
+    struct Line: Equatable {
+        var marker: String?
+        var level = 0
+        var text: String
+    }
+
+    /// Paragraphs (split at blank lines), each as lines; a list line has its marker apart.
+    nonisolated static func paragraphs(_ text: String) -> [[Line]] {
+        text.components(separatedBy: "\n\n").compactMap { paragraph in
+            let lines: [Line] = paragraph.split(separator: "\n", omittingEmptySubsequences: true).compactMap { raw in
+                let line = BlockScanner.Line(raw)
+                if line.isBlank { return nil }
+                let rest = line.trimmed
+                if let c = rest.first, "-+*".contains(c), rest.dropFirst().first == " " {
+                    return Line(marker: "•", level: line.indent / 2, text: String(rest.dropFirst(2)))
+                }
+                let digits = rest.prefix { $0.isASCII && $0.isNumber }
+                let after = rest.dropFirst(digits.count)
+                if !digits.isEmpty, digits.count <= 9, let d = after.first, d == "." || d == ")", after.dropFirst().first == " " {
+                    return Line(marker: String(digits) + String(d), level: line.indent / 2, text: String(after.dropFirst(2)))
+                }
+                return Line(text: String(rest))
+            }
+            return lines.isEmpty ? nil : lines
+        }
+    }
+
+    var body: some View {
+        let paragraphs = Self.paragraphs(text)
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            ForEach(Array(paragraphs.enumerated()), id: \.offset) { p, lines in
+                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                    ForEach(Array(lines.enumerated()), id: \.offset) { i, line in
+                        let last = p == paragraphs.count - 1 && i == lines.count - 1
+                        let inline = InlineMarkdownText(source: line.text, font: DS.Typography.uiSmall, color: theme.textSecondary,
+                                                        leading: .thinking, semiboldStrong: false,
+                                                        spans: last ? spans : [], isOpen: last && isOpen)
+                        if let marker = line.marker {
+                            HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.sm) {
+                                Text(verbatim: marker).font(DS.Typography.uiSmall).foregroundStyle(theme.textTertiary)
+                                    .frame(minWidth: DS.Spacing.md, alignment: .trailing)
+                                inline
+                            }
+                            .padding(.leading, CGFloat(line.level) * DS.Spacing.lg)
+                        } else {
+                            inline
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 }
 
 /// The growing reasoning paragraph: plain text with the same 150 ms fade on newly revealed characters.
@@ -755,22 +817,10 @@ struct ReasoningTail: View {
         Group {
             let shown = ReasoningDisplay.trimmed(model.tail)
             if !shown.isEmpty {
-                if model.freshSpans.isEmpty || reduceMotion {
-                    text(AttributedString(shown))
-                } else {
-                    TimelineView(.animation) { context in
-                        text(InlineMarkdownText.faded(AttributedString(shown), spans: model.freshSpans,
-                                                      color: theme.textSecondary, now: context.date))
-                    }
-                }
+                ReasoningMarkdownText(text: shown, spans: reduceMotion ? [] : model.freshSpans, isOpen: true)
             }
         }
         .onChange(of: model.tail.utf8.count) { _, _ in onGrow() }
-    }
-
-    private func text(_ s: AttributedString) -> some View {
-        Text(s).font(DS.Typography.uiSmall).dsLeading(.thinking).foregroundStyle(theme.textSecondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -826,7 +876,8 @@ struct ReasoningLinePreview: View {
                 .truncationMode(.tail)
                 .fixedSize(horizontal: false, vertical: true)
                 .id(translated ? "t:" + text : "s\(shown.start)")
-                .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 6)), removal: .opacity))
+                // The old sentence leaves almost at once: crossfading, the two overlapped and the line flashed.
+                .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 6)), removal: .quickExit))
             } else if let placeholder {
                 Text(placeholder)
                     .font(font)

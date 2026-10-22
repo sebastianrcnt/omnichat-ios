@@ -8,6 +8,7 @@ POST /v1/chat/completions    -> SSE stream. Behaviour depends on the conversatio
   * last user text contains "short"  -> the scripted tool loop with a one-sentence final answer
   * last user text contains "many"   -> seven tool rounds, each with reasoning and a preamble, then the answer
   * last user text contains "plain"  -> reasoning + a markdown answer, no tools
+  * last user text contains "longthink" -> long Markdown reasoning (bold headings, code, lists), then a short answer
   * last user text contains "feedsample" -> the chat-feed mockup: search, three reads (one blocked), a second
     search, two reads plus a page of its own choosing, then an answer with block quotes (use -StrataFakeTools 1)
   * otherwise, scripted tool loop: round 0 = reasoning + web_search tool call,
@@ -63,6 +64,17 @@ REASONING_0 = ("The user wants current information, so I should search the web f
 REASONING_1 = ("The first result looks authoritative. Let me read that page in full to be sure.\n\n")
 REASONING_2 = ("I have enough to answer now. I should cite the sources with their ids, keep it concise, "
                "and mention the Korean summary at the end.\n\n")
+
+LONG_THINKING = ("**Understanding the question**\n\n"
+                 "The user asks how tides work. I should explain the *Moon's gravity* first, then the Sun's part. "
+                 "A short comparison of spring and neap tides will help. Keep it friendly and concrete.\n\n"
+                 "**Planning the explanation**\n\n"
+                 "- Start with the tidal bulge on the near side.\n"
+                 "- Explain the far-side bulge with `inertia`, not a second pull.\n"
+                 "- Mention that most coasts get **two high tides** a day.\n\n"
+                 "**Checking the numbers**\n\n"
+                 "The lunar day is about 24 hours 50 minutes, so high tide comes about 50 minutes later each day. "
+                 "The Sun's tidal effect is roughly 46% of the Moon's. That is enough detail for now.\n\n")
 
 ARTIFACT_HTML = """<!doctype html>
 <html><head><meta charset="utf-8"><title>Bouncing dots</title>
@@ -491,6 +503,12 @@ class Handler(BaseHTTPRequestHandler):
             self.stream_reasoning("The notes already hold the findings.\n\n")
             self.stream_content("Continuing from the notes: use Liquid Glass on **controls** only, grouped in a container, never behind body text [1].")
             usage = {"prompt_tokens": 500, "completion_tokens": 40}
+            finished = True
+        elif "longthink" in user_text.lower():
+            # Reasoning the way OpenAI's summaries write it: bold headings, inline code and a list, over several seconds.
+            self.stream_reasoning(LONG_THINKING)
+            self.stream_content("Done thinking. **Short answer** here.")
+            usage = {"prompt_tokens": 200, "completion_tokens": 300}
             finished = True
         elif "codesample" in user_text.lower():
             # An answer that is mostly code, to look at syntax highlighting.

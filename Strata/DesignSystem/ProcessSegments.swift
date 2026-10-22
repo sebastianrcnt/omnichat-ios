@@ -18,6 +18,10 @@ extension AnyTransition {
             .animation(DS.Motion.enter.delay(Double(index) * DS.Motion.stagger))
     }
 
+    /// A line replaced in place: gone almost at once, so it never overlaps what takes its place. (An `.identity`
+    /// removal keeps the view fully drawn until the animation ends, which is the overlap this avoids.)
+    static var quickExit: AnyTransition { .opacity.animation(.linear(duration: 0.06)) }
+
     /// A live tail folding into the summary: fades and shrinks toward the top.
     static func fold(reduceMotion: Bool) -> AnyTransition {
         reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96, anchor: .topLeading))
@@ -37,11 +41,7 @@ struct ThinkingCard: View {
                 Text(seconds.map { String(localized: "Thought for \(ProcessSummary.duration($0))") } ?? String(localized: "Thinking"))
                     .font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
             }
-            Text(ReasoningSpaces.collapse(ReasoningDisplay.trimmed(text)))
-                .font(DS.Typography.uiSmall)
-                .dsLeading(.thinking)
-                .foregroundStyle(theme.textSecondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            ReasoningMarkdownText(text: ReasoningSpaces.collapse(ReasoningDisplay.trimmed(text)))
         }
         .padding(DS.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)

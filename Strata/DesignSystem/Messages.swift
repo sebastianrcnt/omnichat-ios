@@ -500,8 +500,9 @@ struct AssistantMessage: View {
         switch item {
         case .note: .asymmetric(insertion: .identity, removal: .enter(reduceMotion: reduceMotion))
         case .text: .asymmetric(insertion: .enter(reduceMotion: reduceMotion), removal: .identity)
-        case .thought, .reasoning: .identity
-        case .working: .asymmetric(insertion: .enter(reduceMotion: reduceMotion), removal: .identity)
+        case .thought, .reasoning: .asymmetric(insertion: .identity, removal: .quickExit)
+        // Its round's line takes its place at once; an `.identity` removal kept it drawn over the answer meanwhile.
+        case .working: .asymmetric(insertion: .enter(reduceMotion: reduceMotion), removal: .quickExit)
         default: .enter(reduceMotion: reduceMotion)
         }
     }
