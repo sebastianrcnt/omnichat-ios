@@ -106,6 +106,8 @@ final class AppSettings {
     var continueOnEmptyAnswer: Bool { didSet { defaults.set(continueOnEmptyAnswer, forKey: "continueOnEmptyAnswer") } }
     /// After the first answer, a short side request names the chat (`AutoRename`). On by default.
     var generateTitles: Bool { didSet { defaults.set(generateTitles, forKey: "generateTitles") } }
+    /// Titles are asked of Apple's on-device model rather than the chat's own (`OnDevice.titleEndpoint`). Off by default.
+    var nameChatsOnDevice: Bool { didSet { defaults.set(nameChatsOnDevice, forKey: "nameChatsOnDevice") } }
     /// Shows Settings > Developer > Diagnostics.
     var developerMode: Bool { didSet { defaults.set(developerMode, forKey: "developerMode") } }
     /// Follow the system's text size (default), or use `textSizeStep`.
@@ -173,6 +175,7 @@ final class AppSettings {
         smoothStreaming = defaults.object(forKey: "smoothStreaming") as? Bool ?? true
         continueOnEmptyAnswer = defaults.bool(forKey: "continueOnEmptyAnswer")
         generateTitles = defaults.object(forKey: "generateTitles") == nil ? true : defaults.bool(forKey: "generateTitles")
+        nameChatsOnDevice = defaults.bool(forKey: "nameChatsOnDevice")
         developerMode = defaults.bool(forKey: "developerMode")
         lastEffortRaw = defaults.string(forKey: "lastEffort") ?? Effort.default.rawValue
         recentModels = defaults.stringArray(forKey: "recentModels") ?? []

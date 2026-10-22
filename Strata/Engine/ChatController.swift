@@ -196,6 +196,7 @@ final class ChatController {
         case .chatGPT: .chatGPTSignInRequired(connection: endpoint.connectionName)
         case .openCode: .openCodeSignInRequired(connection: endpoint.connectionName)
         case .openAICompatible: .missingAPIKey(connection: endpoint.connectionName)
+        case .appleOnDevice: .server(OnDeviceAvailability.deviceNotEligible.message) // never: it needs no key
         }
     }
 
@@ -258,8 +259,10 @@ final class ChatController {
     /// whether or not automatic titles are on in Settings.
     func autoRename(conversation: Conversation, context: ModelContext, force: Bool) {
         guard !titlingConversationIDs.contains(conversation.id) else { return }
-        guard let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID,
-                                                  sessionID: conversation.id.uuidString),
+        // "Name chats on device" asks Apple's on-device model instead of the chat's own, when it can run.
+        let onDevice = OnDevice.titleEndpoint(enabled: settings.nameChatsOnDevice, connections: connections.connections)
+        guard let endpoint = onDevice ?? connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID,
+                                                              sessionID: conversation.id.uuidString),
               !Self.needsKey(endpoint, connections: connections),
               let prompt = AutoRename.prompt(lines: conversation.namingLines,
                                              replacing: force ? conversation.displayTitle : nil) else {
@@ -267,10 +270,11 @@ final class ChatController {
             return
         }
         // The title is asked as a follow-up to the chat's own request: the cached prefix is reused, and the model sees
-        // everything, not just the first exchange.
+        // everything, not just the first exchange. Not on device: there is no cache, and the clipped exchange fits its
+        // small window better.
         let path = conversation.activePath
         var followUp: ChatRequest?
-        if path.last?.role == .assistant {
+        if path.last?.role == .assistant, endpoint.kind != .appleOnDevice {
             var base = ChatRequest(model: endpoint.model.id,
                                    messages: apiHistory(path: path, conversation: conversation, endpoint: endpoint))
             if endpoint.model.supportsEffort { base.reasoningEffort = conversation.effort.apiValue }
@@ -622,7 +626,10 @@ final class ChatController {
         let messages = apiHistory(path: path, conversation: conversation, endpoint: endpoint)
         runner.offered = endpoint.model.supportsTools ? offeredTools(conversation, freeze: true) : []
         runner.switches = ChatToolSwitches(conversation)
-        runner.compaction = compactionSettings(conversation: conversation, endpoint: endpoint, messages: messages, path: path)
+        // The on-device model's window is a few thousand tokens: its client keeps the recent turns that fit instead of
+        // writing handoff notes every few turns ("Summarize now" still can).
+        runner.compaction = endpoint.kind == .appleOnDevice ? nil
+            : compactionSettings(conversation: conversation, endpoint: endpoint, messages: messages, path: path)
         let sourceStore = SourceStore(items: conversation.sources)
         run.sourceStore = sourceStore
 

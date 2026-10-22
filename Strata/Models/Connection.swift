@@ -93,6 +93,8 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
         /// The user's OpenCode Console account (Go subscription or pay as you go), through the device-code sign-in or a
         /// service-account key: each model's own API family at the gateway of `openCodeGateway`.
         case openCode
+        /// Apple's on-device model (Foundation Models): no key, no network (`OnDeviceClient`).
+        case appleOnDevice
     }
 
     var id: UUID
@@ -169,6 +171,7 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
 
     var isChatGPT: Bool { kind == .chatGPT }
     var isOpenCode: Bool { kind == .openCode }
+    var isAppleOnDevice: Bool { kind == .appleOnDevice }
     var effortStyle: EffortStyle { isChatGPT || isOpenCode ? .modelDecides : .tokenCaps }
 
     /// Defaults for newly discovered models on this connection: what `/models` said, else the connection's settings.
@@ -291,6 +294,7 @@ struct Endpoint: Sendable {
         case .chatGPT: baseURL.appendingPathComponent("responses")
         case .openCode: baseURL.appendingPathComponent(openCodeAPI.path(model: model.id))
         case .openAICompatible: baseURL.appendingPathComponent(chatAPI == .responses ? "responses" : "chat/completions")
+        case .appleOnDevice: baseURL
         }
     }
 
