@@ -334,6 +334,7 @@ struct ChatView: View {
                         }
                     // Which model this chat talks to, without opening the picker; tapping it opens the picker.
                     if let model = selectedModelTitle {
+                        Spacer(minLength: DS.Spacing.xxs)
                         Button { composerFocused = false; showChatSettings = true } label: {
                             HStack(spacing: 2) {
                                 Text(verbatim: model).lineLimit(1)
@@ -347,12 +348,23 @@ struct ChatView: View {
                         .accessibilityHint(Text("Choose a model"))
                     }
                 }
+                // As tall as the buttons: the title at their top, the model at their bottom.
+                .frame(height: DS.IconSize.controlDiameter, alignment: .leading)
                 Spacer(minLength: 0)
-                ContextRingButton(fraction: conversation?.lastUsage == nil ? nil : contextFraction) {
-                    composerFocused = false
-                    showContext = true
+                // The context gauge and the menu share one glass capsule, like a toolbar group.
+                HStack(spacing: 0) {
+                    Button {
+                        composerFocused = false
+                        showContext = true
+                    } label: {
+                        ContextRing(fraction: conversation?.lastUsage == nil ? nil : contextFraction)
+                            .frame(width: DS.IconSize.controlDiameter, height: DS.IconSize.controlDiameter)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    GlassIconMenuPlain(systemName: "ellipsis", label: "More") { menuContent }
                 }
-                GlassIconMenu(systemName: "ellipsis", label: "More") { menuContent }
+                .glassEffect(.regular.interactive(), in: Capsule())
             }
             .padding(.horizontal, DS.Spacing.md)
             .padding(.vertical, DS.Spacing.sm) // 8pt below the 44pt buttons, clear of the blur edge
