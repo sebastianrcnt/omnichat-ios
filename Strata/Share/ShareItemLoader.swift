@@ -79,27 +79,56 @@ struct ShareItemLoader {
 
     private mutating func loadImage(_ provider: NSItemProvider) async throws {
         guard images.count < maxImages else { throw Skip() }
-        let item = try await provider.loadItem(forTypeIdentifier: UTType.image.identifier)
-        let source: Data?
-        switch item {
-        case let url as URL:
-            let scoped = url.startAccessingSecurityScopedResource()
-            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-            source = try? Data(contentsOf: url)
-        case let image as UIImage: source = image.pngData()
-        case let data as Data: source = data
-        default: source = nil
+        let limit = maxFileBytes
+        let jpeg: Data
+        do {
+            // Provider URLs may disappear as soon as this callback returns. Downsample while the file is valid.
+            jpeg = try await withCheckedThrowingContinuation { continuation in
+                provider.loadFileRepresentation(forTypeIdentifier: UTType.image.identifier) { url, _ in
+                    guard let url else { continuation.resume(throwing: NoFileRepresentation()); return }
+                    guard let data = ImageProcessor.jpegData(fromFile: url, maxBytes: limit) else {
+                        continuation.resume(throwing: Skip()); return
+                    }
+                    continuation.resume(returning: data)
+                }
+            }
+        } catch is NoFileRepresentation {
+            // Some providers only vend UIImage. Resize before encoding; never make a full-resolution PNG copy.
+            let item = try await provider.loadItem(forTypeIdentifier: UTType.image.identifier)
+            switch item {
+            case let url as URL:
+                try await addImage(at: url)
+                return
+            case let data as Data:
+                guard Int64(data.count) <= limit,
+                      let result = await Task.detached(priority: .userInitiated, operation: { ImageProcessor.jpegData(from: data) }).value else { throw Skip() }
+                jpeg = result
+            case let image as UIImage:
+                let pixels = image.size.width * image.scale * image.size.height * image.scale
+                guard pixels.isFinite, pixels > 0, pixels <= Double(limit) / 4,
+                      let result = ImageProcessor.jpegData(from: image) else { throw Skip() }
+                jpeg = result
+            default: throw Skip()
+            }
         }
-        guard let source else { throw Skip() }
-        try await addImage(source)
+        try await storeImage(jpeg)
     }
 
-    /// Downscales an image like the composer's photo picker and stores it with a thumbnail for the sheet.
-    private mutating func addImage(_ source: Data) async throws {
+    private mutating func addImage(at url: URL) async throws {
+        guard images.count < maxImages else { throw Skip() }
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        let limit = maxFileBytes
+        guard let jpeg = await Task.detached(priority: .userInitiated, operation: {
+            ImageProcessor.jpegData(fromFile: url, maxBytes: limit)
+        }).value else { throw Skip() }
+        try await storeImage(jpeg)
+    }
+
+    private mutating func storeImage(_ jpeg: Data) async throws {
         let name = "image-\(images.count + 1).jpg"
         let target = folder.appending(path: name)
         let thumbnail = try await Task.detached(priority: .userInitiated) { () throws -> CGImage? in
-            guard let jpeg = ImageProcessor.jpegData(from: source) else { throw Skip() }
             try jpeg.write(to: target)
             return ImageProcessor.thumbnailData(from: jpeg).flatMap { CGImageSourceCreateWithData($0 as CFData, nil) }
                 .flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }
@@ -124,10 +153,10 @@ struct ShareItemLoader {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init)
-        if let size, size > maxFileBytes { throw Skip() }
+        guard let size, size <= maxFileBytes else { throw Skip() }
         let type = UTType(filenameExtension: url.pathExtension) ?? .data
-        if type.conforms(to: .image), !type.conforms(to: .pdf), images.count < maxImages, let data = try? Data(contentsOf: url) {
-            try await addImage(data)
+        if type.conforms(to: .image), !type.conforms(to: .pdf) {
+            try await addImage(at: url)
             return
         }
         let stored = "file-\(files.count + 1)" + (url.pathExtension.isEmpty ? "" : "." + url.pathExtension)
@@ -161,5 +190,6 @@ struct ShareItemLoader {
     }
 
     private struct Skip: Error {}
+    private struct NoFileRepresentation: Error {}
 }
 #endif

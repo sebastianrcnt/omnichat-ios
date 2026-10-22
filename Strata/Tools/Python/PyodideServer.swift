@@ -2,7 +2,7 @@ import Foundation
 import CryptoKit
 
 // What the Python page can load, served through the `strata-py://` scheme: the bundled runtime, Pyodide packages
-// (downloaded once from the pinned CDN release, checked against the lock file's sha256 and kept in Caches), and a proxy
+// (bundled with the app and checked against the lock file's sha256), and a proxy
 // that carries Python's web requests (any http(s) URL, any method). Nothing here touches WebKit, so it is tested directly.
 
 enum Pyodide {
@@ -193,6 +193,9 @@ struct PyodideServer: Sendable {
         guard !relative.isEmpty, !relative.split(separator: "/").contains(where: { $0 == ".." || $0 == "." }) else {
             return .error(404, "Not found")
         }
+        if relative.hasPrefix("pyodide/"), lock.sha256(of: String(relative.dropFirst("pyodide/".count))) != nil {
+            return await package(String(relative.dropFirst("pyodide/".count)))
+        }
         // Bundled files first (the page, the worker, the core).
         let local = root.appendingPathComponent(relative)
         if let data = try? Data(contentsOf: local, options: .mappedIfSafe) {
@@ -213,28 +216,16 @@ struct PyodideServer: Sendable {
         return headers
     }
 
-    /// A package the lock lists: from the cache, or downloaded from the pinned CDN, checked and cached.
+    /// Only bundled wheels are executable dependencies. Never consult a cache from a previous Debug build or the CDN.
     func package(_ fileName: String) async -> PyResponse {
-        guard !fileName.contains("/"), let expected = lock.sha256(of: fileName) else {
-            return .error(404, "Not a Pyodide \(Pyodide.version) package: \(fileName)")
+        guard !fileName.contains("/"), let expected = lock.sha256(of: fileName),
+              let data = try? Data(contentsOf: root.appendingPathComponent("pyodide/" + fileName), options: .mappedIfSafe) else {
+            return .error(404, "This package isn't available in OmniChat")
         }
-        let mime = Self.mimeType(for: fileName)
-        if let cached = cache.read(fileName) {
-            if Self.sha256(cached) == expected { return PyResponse(status: 200, mimeType: mime, body: cached) }
-            cache.remove(fileName) // damaged: fetched again
+        guard Self.sha256(data) == expected else {
+            return .error(502, "The bundled package does not match its sha256 in pyodide-lock.json.")
         }
-        let remote = Pyodide.cdnBase.appendingPathComponent(fileName)
-        do {
-            let (data, response) = try await fetch(URLRequest(url: remote))
-            guard response.statusCode == 200 else { return .error(502, "The package download failed (HTTP \(response.statusCode)).") }
-            guard Self.sha256(data) == expected else {
-                return .error(502, "The downloaded package \(fileName) does not match its sha256 in pyodide-lock.json.")
-            }
-            cache.write(data, as: fileName)
-            return PyResponse(status: 200, mimeType: mime, body: data)
-        } catch {
-            return .error(502, "The package download failed: \(error.localizedDescription)")
-        }
+        return PyResponse(status: 200, mimeType: Self.mimeType(for: fileName), body: data)
     }
 
     /// Request headers the page adds for its own origin, which mean nothing to the outside site.
@@ -250,6 +241,10 @@ struct PyodideServer: Sendable {
         guard PyodideAllowlist.allows(target) else { return .error(400, "Python can reach http and https URLs only.") }
         let method = (original.httpMethod ?? "GET").uppercased()
         if method == "GET", let name = PyodideAllowlist.cdnFileName(target), lock.sha256(of: name) != nil { return await package(name) }
+        guard !PyodideAllowlist.isPackageSource(target),
+              !["whl", "wasm"].contains(target.pathExtension.lowercased()) else {
+            return .error(403, "This package isn't available in OmniChat")
+        }
         var request = URLRequest(url: target)
         request.httpMethod = method
         for (name, value) in original.allHTTPHeaderFields ?? [:] where !Self.pageOnlyHeaders.contains(name.lowercased()) {

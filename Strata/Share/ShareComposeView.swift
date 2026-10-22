@@ -22,9 +22,9 @@ final class ShareComposeModel {
 
     enum Phase: Equatable {
         case composing
-        /// Saved; the app is being opened.
+        /// Saving to the App Group inbox.
         case sending
-        /// Saved, but the app couldn't be opened from here: it picks the share up when opened.
+        /// Saved; the user opens the app to continue.
         case saved
         case failed(String)
     }
@@ -61,6 +61,13 @@ final class ShareComposeModel {
 
     var canSend: Bool { !isLoading && phase == .composing && !payload.isEmpty }
 
+    var recipient: ShareRecipient? {
+        switch destination {
+        case .newChat: context?.recipient
+        case .conversation(let id): context?.currentChat.flatMap { $0.id == id ? $0.recipient : nil }
+        }
+    }
+
     var payload: SharePayload {
         var p = SharePayload(id: id)
         p.action = action
@@ -71,6 +78,7 @@ final class ShareComposeModel {
         p.images = images.map(\.storedName)
         p.files = files.map(\.file)
         p.destination = destination
+        p.recipient = recipient
         return p
     }
 
@@ -272,13 +280,11 @@ struct ShareComposeView: View {
     @ViewBuilder
     private var modelLine: some View {
         if let context = model.context {
-            if let title = context.modelTitle {
+            if let recipient = model.recipient {
                 HStack(spacing: DS.Spacing.xs + 2) {
                     Image(systemName: "cpu").imageScale(.small)
-                    Text(verbatim: title).foregroundStyle(theme.textSecondary)
-                    if let name = context.connectionName {
-                        Text(verbatim: "· \(name)").foregroundStyle(theme.textTertiary)
-                    }
+                    Text(verbatim: recipient.modelTitle).foregroundStyle(theme.textSecondary)
+                    Text(verbatim: "· \(recipient.connectionName)" + (recipient.serviceHost.map { " (" + $0 + ")" } ?? "")).foregroundStyle(theme.textTertiary)
                 }
                 .font(DS.Typography.uiCaption)
                 .foregroundStyle(theme.textTertiary)
@@ -304,7 +310,7 @@ struct ShareComposeView: View {
                 .font(.system(size: DS.IconSize.lg * 2))
                 .foregroundStyle(theme.accent)
             Text("Ready in OmniChat").font(DS.Typography.title).foregroundStyle(theme.textPrimary)
-            Text("Open OmniChat to continue. The chat starts as soon as it opens.")
+            Text("Open OmniChat to continue. If the destination changed, you’ll be asked before anything is sent.")
                 .foregroundStyle(theme.textSecondary)
                 .multilineTextAlignment(.center)
         }
@@ -446,9 +452,11 @@ private struct ShareFileRow: View {
 
 extension ShareComposeModel {
     static func gallerySample() -> ShareComposeModel {
-        let model = ShareComposeModel(context: ShareContext(accentHex: nil, modelTitle: "gpt-5.1", connectionName: "OpenAI",
+        let recipient = ShareRecipient(connectionID: UUID(), modelID: "gpt-5.1", routeDigest: "gallery",
+                                       modelTitle: "gpt-5.1", connectionName: "OpenAI", serviceHost: "api.openai.com")
+        let model = ShareComposeModel(context: ShareContext(recipient: recipient, accentHex: nil, modelTitle: "gpt-5.1", connectionName: "OpenAI",
                                                             hasConnection: true,
-                                                            currentChat: .init(id: UUID(), title: "Trip to Kyoto")))
+                                                            currentChat: .init(id: UUID(), title: "Trip to Kyoto", recipient: recipient)))
         model.links = [.init(url: URL(string: "https://www.youtube.com/watch?v=dQw4w9WgXcQ")!,
                              title: "How Liquid Glass works: a deep dive into the new design")]
         model.texts = ["Liquid Glass is a translucent material that reflects and refracts its surroundings, while dynamically transforming to help bring greater focus to content."]

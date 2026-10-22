@@ -137,13 +137,8 @@ enum RobotCheckGate {
                   let kind = RobotCheck.detect(url: page.currentURL, signals: signals) else { return solved }
             let host = page.currentURL?.host() ?? "the site"
             guard asks else { throw RobotCheckError.notAsked(host: host) }
-            // The user may take minutes: no deadline runs meanwhile, and the background sound (which keeps pages
-            // working) waits too; a notification brings the user back instead.
-            let sound = BackgroundLoadingSound.shared
-            let held = sound.webWork > 0
-            if held { sound.endWebWork() }
+            // The user may take minutes: pause the deadline; a notification brings them back instead.
             let outcome = await Deadline.pausing { await ask(host, kind) }
-            if held { sound.beginWebWork() }
             switch outcome {
             case .skipped: throw RobotCheckError.skipped(host: host)
             case .cancelled: throw CancellationError()

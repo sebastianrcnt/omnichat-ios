@@ -9,8 +9,9 @@ import CryptoKit
 struct PackageCacheGoldenTests {
     /// R1: a chat without packages sends the bytes it sent before packages existed, for every combination of tool
     /// groups, with and without image input. The digest was taken from the code before packages were added, and
-    /// retaken when run_python's description changed for sockets, and again when the app was renamed from OpenChat to
-    /// OmniChat (the system prompt's first line and health_query's description name the app; nothing else changed).
+    /// retaken when run_python's description changed for sockets, when the app was renamed from OpenChat to OmniChat
+    /// (the system prompt's first line and health_query's description name the app), and for run_python's v1
+    /// bundled-only package policy.
     @Test func chatsWithoutPackagesSendTheSameBytes() async throws {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
                                            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
@@ -42,7 +43,7 @@ struct PackageCacheGoldenTests {
             #expect(streamer.requests.count == 1 << all.count)
         }
         let digest = hasher.finalize().map { String(format: "%02x", $0) }.joined()
-        #expect(digest == "3fa182a28110dac940a15fd527039d5f3a62bf571508d166ee0225dcf341129e")
+        #expect(digest == "ff9ac8ccd7a1dd2a20a685d29cb569892d9c028c6f901e281f0d039051557e6f")
     }
 }
 

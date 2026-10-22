@@ -68,6 +68,30 @@ warnings.filterwarnings("ignore", message=".*non-interactive.*")
 warnings.filterwarnings("ignore", message=".*FigureCanvasAgg.*")
 from pyodide.code import eval_code_async
 
+# Preserve the normal finder chain: dependencies such as six add their own finders while importing. A catch-all
+# finder installed before them would wrongly reject six.moves. Normalize only genuinely missing import errors.
+import builtins, importlib
+original_import = builtins.__import__
+original_import_module = importlib.import_module
+
+def unavailable(e):
+    return ModuleNotFoundError("This package isn't available in OmniChat: " + (e.name or "unknown package"), name=e.name)
+
+def bundled_import(*args, **kwargs):
+    try:
+        return original_import(*args, **kwargs)
+    except ModuleNotFoundError as e:
+        raise unavailable(e) from None
+
+def bundled_import_module(*args, **kwargs):
+    try:
+        return original_import_module(*args, **kwargs)
+    except ModuleNotFoundError as e:
+        raise unavailable(e) from None
+
+builtins.__import__ = bundled_import
+importlib.import_module = bundled_import_module
+
 namespace = {"__name__": "__main__"}
 run_count = 0
 MAX_FIGURES = 8
@@ -160,6 +184,8 @@ async function init() {
     stdout: () => {},
     stderr: () => {},
   });
+  // Load the dependency-closed, bundled set before user code. Every wheel is served locally and hash-checked.
+  await py.loadPackage(["numpy", "pandas", "matplotlib"], { messageCallback: () => {} });
   py.setStdout({ write: write("out") });
   py.setStderr({ write: write("err") });
   installSockets(py, writeLine);
@@ -171,17 +197,9 @@ async function init() {
   runFn = harness.get("run");
 }
 
+// Packages are already loaded from the bundle. Never ask Pyodide to discover/download user imports.
 async function loadImports(code) {
-  const errors = [];
-  try {
-    await py.loadPackagesFromImports(code, {
-      messageCallback: () => {},
-      errorCallback: (message) => errors.push(String(message)),
-    });
-  } catch (e) {
-    errors.push(String((e && e.message) || e));
-  }
-  return errors;
+  return [];
 }
 
 async function run(code) {

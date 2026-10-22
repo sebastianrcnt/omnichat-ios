@@ -2,8 +2,7 @@ import Foundation
 import Testing
 @testable import Strata
 
-/// The bundled Pyodide core in a real web view on the simulator. The sympy run downloads packages (or uses the cache)
-/// and is skipped when the CDN can't be reached.
+/// The bundled Pyodide core and offline packages in a real web view on the simulator.
 @MainActor
 @Suite(.serialized)
 struct PythonIntegrationTests {
@@ -82,14 +81,13 @@ struct PythonIntegrationTests {
         #expect(out.text.contains("200 True\nTrue"), "\(out.text)")
     }
 
-    @Test func sympyAndAFigure() async throws {
-        guard await Self.online() else { return } // packages come from the CDN on first use
+    @Test func bundledArraysDataFramesAndAFigureWorkOffline() async throws {
         let (python, store) = runtime()
         defer { python.dispose() }
         let chat = UUID()
-        let out = await python.run(code: "import sympy as sp\nx = sp.symbols('x')\nsp.solve(x**2 - 4, x)", conversationID: chat,
+        let out = await python.run(code: "import numpy as np\nimport pandas as pd\nint(pd.Series(np.array([1, 2, 3])).sum())", conversationID: chat,
                                    limits: PythonLimits(run: .seconds(60), setup: .seconds(240)), canView: true)
-        #expect(out.text == "[-2, 2]", "\(out.text)")
+        #expect(out.text == "6", "\(out.text)")
 
         let plot = await python.run(code: "import matplotlib.pyplot as plt\nplt.plot([1, 2, 3])\nplt.show()", conversationID: chat,
                                     limits: PythonLimits(run: .seconds(60), setup: .seconds(240)), canView: true)
@@ -102,7 +100,6 @@ struct PythonIntegrationTests {
     /// A figure is closed after its run is saved, but the model often keeps working on it in a later run
     /// ("add a title"): the changed figure, or one the run ends on, is saved again; an untouched one is not.
     @Test func aFigureChangedInALaterRunIsSavedAgain() async throws {
-        guard await Self.online() else { return }
         let (python, _) = runtime()
         defer { python.dispose() }
         let chat = UUID()
@@ -122,4 +119,13 @@ struct PythonIntegrationTests {
         #expect(many.figures.count == 8, "\(many.text)")
         #expect(many.text.contains("2 more"), "\(many.text)")
     }
+    @Test func unbundledAndDynamicImportsFailClearlyWithoutDownloads() async {
+        let (python, _) = runtime()
+        defer { python.dispose() }
+        for code in ["import sympy", "import micropip", "import importlib; importlib.import_module('scipy')"] {
+            let out = await python.run(code: code, conversationID: UUID(), canView: false)
+            #expect(out.isError && out.text.contains("This package isn't available in OmniChat"), "\(out.text)")
+        }
+    }
+
 }

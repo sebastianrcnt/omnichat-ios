@@ -4,13 +4,8 @@ import UniformTypeIdentifiers
 import LinkPresentation
 @preconcurrency import UserNotifications
 
-/// The share extension: shows `ShareComposeView` for what another app shared, saves the share into the App Group
-/// (`ShareInbox`) on Send and opens OmniChat, which starts the chat.
-///
-/// Opening the app: a share extension has no supported API for it (`NSExtensionContext.open` works for widgets only),
-/// so the request goes up the responder chain to the UIApplication, which works on iOS 26 but is not promised. When it
-/// fails, the share is still saved: the sheet says to open OmniChat, a notification (if allowed) leads there, and the
-/// app picks the share up whenever it comes to the foreground.
+/// Saves to the App Group inbox. Share extensions cannot launch their containing app: the user opens it manually
+/// or taps the local notification, and the app validates the recipient before sending.
 final class ShareViewController: UIViewController {
     private let inbox = ShareInbox.shared
     private lazy var model = ShareComposeModel(context: inbox?.readContext())
@@ -99,35 +94,11 @@ final class ShareViewController: UIViewController {
             model.phase = .failed(error.localizedDescription)
             return
         }
-        openApp(ShareURL.url(for: payload.id)) { [weak self] opened in
-            guard let self else { return }
-            if opened {
-                extensionContext?.completeRequest(returningItems: nil)
-            } else {
-                model.phase = .saved
-                Self.notifyReady()
-            }
-        }
+        model.phase = .saved
+        Self.notifyReady()
     }
 
-    /// Asks the UIApplication in the responder chain to open the app (see the type's note). `open(_:options:)` is
-    /// marked unavailable to extensions, so it is called through the Objective-C runtime.
-    private func openApp(_ url: URL, completion: @escaping @MainActor (Bool) -> Void) {
-        typealias Open = @convention(c) (AnyObject, Selector, NSURL, NSDictionary, (@convention(block) (Bool) -> Void)?) -> Void
-        let selector = NSSelectorFromString("openURL:options:completionHandler:")
-        var responder: UIResponder? = self
-        while let current = responder {
-            if let application = current as? UIApplication, application.responds(to: selector) {
-                let open = unsafeBitCast(application.method(for: selector), to: Open.self)
-                open(application, selector, url as NSURL, NSDictionary()) { opened in Task { @MainActor in completion(opened) } }
-                return
-            }
-            responder = current.next
-        }
-        completion(false)
-    }
-
-    /// When the app couldn't be opened: a notification that opens it, if notifications are allowed.
+    /// A notification that opens the app, if notifications are already allowed.
     private static func notifyReady() {
         let center = UNUserNotificationCenter.current()
         center.getNotificationSettings { settings in

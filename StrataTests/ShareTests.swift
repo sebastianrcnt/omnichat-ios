@@ -6,6 +6,7 @@ import UIKit
 
 /// Sharing into OmniChat: the payload the share extension writes, the message made from it, the inbox in the App
 /// Group, the `omnichat://share` link, and the import that sends it in a chat.
+@Suite(.serialized)
 @MainActor
 struct ShareTests {
     // MARK: Payload and message
@@ -271,6 +272,7 @@ struct ShareTests {
         let inbox = tempInbox()
         defer { try? FileManager.default.removeItem(at: inbox.root) }
         var p = SharePayload()
+        p.recipient = ShareImporter.recipient(connectionID: Connection.testID, modelID: "m", connections: r.connections)
         p.action = .summarize
         p.links = [.init(url: URL(string: "https://example.com/post")!, title: "A post")]
         p.images = ["image-1.jpg"]
@@ -310,17 +312,23 @@ struct ShareTests {
         p.note = "what about this?"
         p.texts = ["shared words"]
         p.destination = .conversation(existing.id)
+        p.recipient = ShareImporter.recipient(connectionID: Connection.testID, modelID: "m", connections: r.connections)
         try inbox.commit(p)
         let first = try #require(await importPending(r, inbox))
         #expect(first === existing)
         #expect(existing.sortedMessages.first?.text == "what about this?\n\nshared words")
 
-        // Still replying: the next share can't go in, so it starts a new chat.
+        // Still replying: fallback is not automatic, even when it would use the same provider.
         var q = SharePayload()
         q.note = "and this"
         q.destination = .conversation(existing.id)
+        q.recipient = p.recipient
         try inbox.commit(q)
-        let second = try #require(await importPending(r, inbox))
+        #expect(await importPending(r, inbox) == nil)
+        let review = try #require(ShareImporter.shared.reviews.first)
+        #expect(inbox.pending().count == 1)
+        let second = try #require(await ShareImporter.shared.confirm(review, recipient: q.recipient!, controller: r.controller,
+                                                                    connections: r.connections, settings: r.settings, context: r.context))
         #expect(second !== existing)
         #expect(second.sortedMessages.first?.text == "and this")
 
@@ -334,13 +342,18 @@ struct ShareTests {
         defer { try? FileManager.default.removeItem(at: inbox.root) }
         var p = SharePayload()
         p.note = "once"
+        p.recipient = ShareImporter.recipient(connectionID: Connection.testID, modelID: "m", connections: r.connections)
         try inbox.commit(p)
+        var q = p
+        q.id = UUID()
+        q.note = "twice"
+        try inbox.commit(q)
         let a = Task { @MainActor in await importPending(r, inbox) != nil }
         let b = Task { @MainActor in await importPending(r, inbox) != nil }
         let results = [await a.value, await b.value].filter { $0 }
         #expect(results.count == 1)
         let chats = try r.context.fetch(FetchDescriptor<Conversation>())
-        #expect(chats.count == 1)
+        #expect(chats.count == 2)
 
         r.controller.stop()
         await r.controller.waitUntilIdle()
@@ -360,6 +373,97 @@ struct ShareTests {
         r.context.insert(message)
         chat.attach(message, parent: nil)
         #expect(ShareImporter.context(connections: r.connections, settings: r.settings, current: chat).currentChat
-                == ShareContext.Chat(id: chat.id, title: "Kyoto"))
+                == ShareContext.Chat(id: chat.id, title: "Kyoto", recipient: empty.recipient))
+    }
+
+    @Test func destinationControlsTheDisplayedAndPersistedRecipient() throws {
+        let r = try rig()
+        var localConnection = r.connections.connection(Connection.testID)!
+        localConnection.name = "Local model"
+        localConnection.baseURL = "http://127.0.0.1:8000/v1"
+        r.connections.upsert(localConnection)
+        let remoteConnection = Connection(name: "Remote provider", baseURL: "https://remote.example/v1", models: [ModelInfo(id: "remote")])
+        r.connections.upsert(remoteConnection)
+        r.settings.lastConnectionID = localConnection.id
+        r.settings.lastModelID = "m"
+        let chat = Conversation(title: "Older", connectionID: remoteConnection.id, modelID: "remote")
+        r.context.insert(chat)
+        let message = Message(role: .user, text: "old message", sortIndex: 0)
+        r.context.insert(message)
+        chat.attach(message, parent: nil)
+        let context = ShareImporter.context(connections: r.connections, settings: r.settings, current: chat)
+        let model = ShareComposeModel(context: context)
+        #expect(model.recipient?.connectionID == localConnection.id)
+        #expect(model.payload.recipient?.serviceHost == "127.0.0.1")
+        model.destination = .conversation(chat.id)
+        #expect(model.recipient?.connectionID == remoteConnection.id)
+        #expect(model.recipient?.connectionName == "Remote provider")
+        #expect(model.payload.recipient?.modelID == "remote")
+        #expect(model.payload.recipient?.serviceHost == "remote.example")
+    }
+
+    @Test func changedEndpointAndLegacySharesWaitForConfirmationWithoutSending() async throws {
+        let r = try rig()
+        let importer = ShareImporter()
+        let inbox = tempInbox()
+        defer { try? FileManager.default.removeItem(at: inbox.root) }
+        var p = SharePayload()
+        p.note = "private document"
+        p.recipient = ShareImporter.recipient(connectionID: Connection.testID, modelID: "m", connections: r.connections)
+        var connection = r.connections.connection(Connection.testID)!
+        connection.baseURL = "https://changed.example/v1"
+        r.connections.upsert(connection)
+        try inbox.commit(p)
+        var legacy = p
+        legacy.id = UUID()
+        legacy.recipient = nil
+        try inbox.commit(legacy)
+        #expect(await importer.importPending(from: inbox, controller: r.controller, connections: r.connections,
+                                            settings: r.settings, context: r.context) == nil)
+        #expect(importer.reviews.count == 2 && inbox.pending().count == 2)
+        #expect(try r.context.fetch(FetchDescriptor<Conversation>()).isEmpty)
+        for review in importer.reviews { importer.discard(review) }
+    }
+
+    @Test func postponedSharesStayOnDiskAndStaleConfirmationsCannotSendThem() async throws {
+        let r = try rig()
+        let importer = ShareImporter()
+        let inbox = tempInbox()
+        defer { try? FileManager.default.removeItem(at: inbox.root) }
+        var payload = SharePayload()
+        payload.note = "private draft"
+        try inbox.commit(payload)
+        _ = await importer.importPending(from: inbox, controller: r.controller, connections: r.connections,
+                                         settings: r.settings, context: r.context)
+        let review = try #require(importer.reviews.first)
+        let recipient = try #require(ShareImporter.recipient(connectionID: Connection.testID, modelID: "m", connections: r.connections))
+        importer.postpone(review)
+        #expect(importer.reviews.isEmpty && inbox.pending().count == 1)
+        #expect(await importer.confirm(review, recipient: recipient, controller: r.controller, connections: r.connections,
+                                       settings: r.settings, context: r.context) == nil)
+        #expect(try r.context.fetch(FetchDescriptor<Conversation>()).isEmpty)
+    }
+
+    @Test func imageFilesAreSizeLimitedBeforeDecodeAndDownsampledFromDisk() async throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "share-image-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appending(path: "large.jpg")
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let data = UIGraphicsImageRenderer(size: CGSize(width: 4000, height: 3000), format: format).image { ctx in
+            UIColor.red.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 4000, height: 3000))
+        }.jpegData(compressionQuality: 0.8)!
+        try data.write(to: url)
+        #expect(ImageProcessor.jpegData(fromFile: url, maxBytes: Int64(data.count - 1)) == nil)
+        let reduced = try #require(ImageProcessor.jpegData(fromFile: url, maxBytes: Int64(data.count)))
+        let image = try #require(UIImage(data: reduced))
+        #expect(max(image.size.width, image.size.height) <= ImageProcessor.maxLongSide)
+        var loader = ShareItemLoader(folder: folder, maxImages: 4, maxFileBytes: 10)
+        await loader.load(NSItemProvider(contentsOf: url)!)
+        #expect(loader.images.isEmpty && loader.skipped == 1)
+        await loader.load(NSItemProvider(object: UIImage(data: Self.jpeg())!))
+        #expect(loader.images.isEmpty && loader.skipped == 2)
     }
 }

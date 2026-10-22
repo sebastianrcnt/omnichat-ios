@@ -12,12 +12,12 @@ final class SettingsRoute {
 struct SettingsView: View {
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @Environment(\.appSettings) private var settings
     @Environment(\.connectionStore) private var connections
 
     @State private var path: [UUID] = []
     @State private var showDiagnostics = false
-    @State private var showSoundTest = false
     @State private var showLicenses = false
     @State private var showAppearance = false
     @State private var showTools = false
@@ -75,6 +75,9 @@ struct SettingsView: View {
                     }
 
                     GroupedSection(header: "About") {
+                        SettingsRow(systemImage: "hand.raised", title: "Privacy Policy", showsChevron: true) {
+                            openURL(URL(string: "https://sebastianrcnt.github.io/omnichat-ios/privacy/")!)
+                        }
                         SettingsRow(systemImage: "doc.text", title: "Licenses", showsChevron: true) { showLicenses = true }
                     }
 
@@ -82,9 +85,6 @@ struct SettingsView: View {
                         SettingsToggleRow(title: "Developer mode", isOn: $settings.developerMode)
                         if settings.developerMode {
                             SettingsRow(systemImage: "gauge.with.dots.needle.50percent", title: "Diagnostics", showsChevron: true) { showDiagnostics = true }
-                            #if os(iOS)
-                            SettingsRow(systemImage: "speaker.wave.2", title: "Background sound test", showsChevron: true) { showSoundTest = true }
-                            #endif
                         }
                     }
                 }
@@ -100,9 +100,6 @@ struct SettingsView: View {
             #endif
             .navigationDestination(for: UUID.self) { id in ConnectionDestination(connectionID: id, path: $path) }
             .navigationDestination(isPresented: $showDiagnostics) { AppDiagnosticsView() }
-            #if os(iOS)
-            .navigationDestination(isPresented: $showSoundTest) { BackgroundSoundTestView() }
-            #endif
             .navigationDestination(isPresented: $showLicenses) { LicensesView() }
             .onChange(of: SettingsRoute.shared.connection, initial: true) { _, id in
                 guard let id else { return }
@@ -122,9 +119,6 @@ struct SettingsView: View {
         #if DEBUG
         .task {
             if DebugHooks.openSheet == "diagnostics" { settings.developerMode = true; showDiagnostics = true }
-            #if os(iOS)
-            if DebugHooks.openSheet == "bgsoundtest" { settings.developerMode = true; showSoundTest = true }
-            #endif
             if DebugHooks.openSheet == "licenses" { showLicenses = true }
             if DebugHooks.openSheet == "health" { showHealth = true }
             if DebugHooks.openSheet == "icloud" { showICloud = true }
@@ -559,15 +553,14 @@ struct BrowsingDataSection: View {
     }
 }
 
-/// Settings > Python: on in new chats or not, the time limit of one run, and the packages downloaded so far.
+/// Settings > Python: the bundled package set and the time limit of one run.
 struct PythonSettingsSection: View {
     @Environment(\.theme) private var theme
     @Environment(\.appSettings) private var settings
-    @State private var packageBytes: Int64?
 
     var body: some View {
         @Bindable var settings = settings
-        GroupedSection(header: "Python", footer: "The model can run Python code on this device with run_python (Pyodide \(Pyodide.version)). Packages such as numpy, sympy and pandas are downloaded the first time they are used and kept for later. A chat can turn Python on or off from the + menu.") {
+        GroupedSection(header: "Python", footer: "The model can run Python code on this device with run_python (Pyodide \(Pyodide.version)). numpy, pandas and matplotlib are bundled and work offline. Other packages cannot be installed. A chat can turn Python on or off from the + menu.") {
             SettingsToggleRow(title: "Python in new chats", subtitle: "Let the model run code and make charts.", isOn: $settings.pythonEnabled)
             HStack {
                 Text("Python time limit").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
@@ -580,33 +573,7 @@ struct PythonSettingsSection: View {
             }
             .padding(.horizontal, DS.Spacing.lg)
             .padding(.vertical, DS.Spacing.sm)
-            HStack {
-                VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                    Text("Downloaded packages").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
-                    Text(verbatim: packageBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "…")
-                        .font(DS.Typography.uiCaption).foregroundStyle(theme.textSecondary)
-                }
-                Spacer()
-                Button("Clear") { clear() }
-                    .disabled((packageBytes ?? 0) == 0)
-                    .tint(theme.accent)
-            }
-            .padding(.horizontal, DS.Spacing.lg)
-            .padding(.vertical, DS.Spacing.sm)
         }
-        .task { await measure() }
-    }
-
-    private func measure() async {
-        packageBytes = await Task.detached(priority: .utility) {
-            PyodidePackageCache(directory: Pyodide.packagesRoot).size
-        }.value
-    }
-
-    private func clear() {
-        PythonRuntime.shared.dispose() // a running interpreter may hold loaded packages; the next one fetches again
-        PyodidePackageCache(directory: Pyodide.packagesRoot).clear()
-        Task { await measure() }
     }
 }
 
@@ -773,11 +740,6 @@ private struct ToolSettingsView: View {
                     .padding(.vertical, DS.Spacing.sm)
                 }
 
-                #if os(iOS)
-                GroupedSection(footer: "With this off, web searches and browsing can stop while OmniChat is in the background. The sound plays only while the model is using the web and OmniChat is not on screen, even in silent mode, and may pause other audio until it ends.") {
-                    SettingsToggleRow(title: "Play a sound while browsing in the background", isOn: $settings.backgroundLoadingSound)
-                }
-                #endif
 
                 GroupedSection(header: "Plugins", footer: "Site plugins the model can run with run_plugin. A plugin that is on is listed in the system prompt.") {
                     if PluginRegistry.bundled.plugins.isEmpty {

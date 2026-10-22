@@ -178,15 +178,26 @@ struct BrowserFreezeTests {
         #expect(!sessions.isFrozen, "a session's page is its session's to freeze")
     }
 
-    @Test func aRealPageLeavesTheWindowAndStopsCountingForTheSound() {
+    @Test func hiddenPageWorkWaitsForForegroundEvenWithAContinuedLease() {
+        for tool in [ToolNames.webSearch, ToolNames.webFetch, ToolNames.browserOpen, ToolNames.browserEval,
+                     ToolNames.browserClick, ToolNames.runPlugin] {
+            #expect(ToolExecutionRecovery.waitsForForeground(tool, hasContinuedLease: true))
+        }
+        #expect(!ToolExecutionRecovery.waitsForForeground(ToolNames.runPython, hasContinuedLease: true))
+        #expect(ToolExecutionRecovery.waitsForForeground(ToolNames.runPython, hasContinuedLease: false))
+        #expect(ToolNames.isSafeToRetry(ToolNames.browserOpen))
+        #expect(!ToolNames.isSafeToRetry(ToolNames.browserClick))
+        #expect(!ToolNames.isSafeToRetry(ToolNames.browserEval))
+        #expect(!ToolNames.isSafeToRetry(ToolNames.runPlugin))
+    }
+
+    @Test func aRealPageLeavesTheWindowWhenFrozen() {
         let page = HiddenWebView(guardNavigations: false)
         defer { page.dispose() }
-        #expect(BackgroundLoadingSound.shared.isRegistered(page))
         page.freeze()
         #expect(page.isFrozen && page.webView.superview == nil)
-        #expect(!BackgroundLoadingSound.shared.isRegistered(page), "a frozen page never plays the loading sound")
         page.thaw()
-        #expect(!page.isFrozen && BackgroundLoadingSound.shared.isRegistered(page))
+        #expect(!page.isFrozen)
         #if canImport(UIKit)
         #expect(page.webView.superview === HiddenWebView.keyWindow)
         #endif

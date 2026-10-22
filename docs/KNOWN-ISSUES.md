@@ -77,3 +77,34 @@ Everything else those reviews reported was fixed in that commit. Each entry: whe
 - Opening Settings from the model picker is still two sheets in a row (picker closes, Settings opens).
 - Search results say "Found in messages" but show no snippet of the match.
 - No swipe actions in the iPhone sidebar (pin, delete).
+
+## v1 App Store feature gates
+
+- **Apple Health is Debug-only.** `STRATA_HEALTH` in the iOS Debug configuration is the compile-time feature switch:
+  it enables the HealthKit adapter and makes Health visible in Settings and the tool picker. Release (iOS and Mac)
+  does not link HealthKit or carry its entitlement/usage descriptions. Debug uses `Strata-Debug.entitlements` and
+  Debug-only usage descriptions. Restore the switch and the corresponding signing/privacy metadata together when
+  shipping Health in a later update. Platform-neutral Health history/redaction code stays compiled for old chats.
+- **Privacy manifest scope.** The iOS and Mac apps share the app manifest: own-container preferences (CA92.1),
+  own-container/App Group file timestamps for cache expiry and skill sync (C617.1), and uptime for UI animation and
+  checkpoint intervals (35F9.1). The share extension only reads App Group timestamps (C617.1); it does not use
+  UserDefaults. App Group sharing is file-based, so 1C8F.1 is not declared. No disk-capacity APIs are used. The widget's
+  sources use none of the required-reason APIs, so it needs no manifest. No tracking or collected data is declared.
+- **Background browsing pauses normally.** The audio keep-alive and `audio` background mode have been removed. New
+  hidden-page calls wait for foreground. A read-only call that fails across backgrounding retries once on return;
+  scripts/plugins are never replayed automatically (they may already have clicked or posted). Existing WebKit load
+  and script deadlines return a readable error if suspension/termination interrupts them. Continued-processing
+  execution remains for eligible reply work, not as a guarantee that WebKit will keep running.
+- **Python packages are bundle-only in every configuration.** Pyodide 314.0.7 supports numpy, pandas and matplotlib
+  plus their dependency closure: 13 wheels, **17,444,678 bytes (16.64 MiB)** added, plus a tiny package-name index.
+  `python3 Tools/bundle_python_packages.py` reproduces them from the pinned jsDelivr release and verifies each SHA-256
+  against the unchanged upstream lock. The server verifies bundled wheel hashes, never reads old package caches and
+  never downloads missing wheels; PyPI/package-source requests are refused. Unknown imports (including dynamic imports
+  and micropip) report “This package isn't available in OmniChat”. Standard-library networking remains available for
+  data, not a package installation feature. The run_python description was deliberately corrected to remove claims
+  that scipy/sympy/PyPI installation are supported; its package-cache golden digest changes for that reason only.
+- **Intel/universal Release builds need an x86_64 SSH library.** The checked-in `Vendor/CLibSSH2.xcframework` has only
+  arm64 slices for Mac and iOS Simulator. Default Release builds also attempt x86_64 and fail with undefined libssh2
+  symbols; arm64 Release and the normal native Debug build work. Before offering an Intel Mac binary, rebuild the
+  vendored library with an x86_64 macOS slice. Release validation/string extraction here uses `ARCHS=arm64
+  ONLY_ACTIVE_ARCH=YES`; this does not claim universal/Intel support.

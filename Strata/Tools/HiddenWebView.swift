@@ -172,9 +172,6 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
     private var progressObservation: NSKeyValueObservation?
     /// Page-load estimate (0...1), as the web view reports it.
     var onProgress: (@MainActor (Double) -> Void)?
-    /// Plays the background loading sound while it is on (`BackgroundLoadingSound`). Off only for the developer test's
-    /// control page.
-    var playsLoadingSound = true
 
     init(guardNavigations: Bool = true, resolver: any HostResolving = SystemHostResolver(), injectsReader: Bool = false,
          store: WKWebsiteDataStore? = nil) {
@@ -202,7 +199,6 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
         DiagnosticCounters.shared.webViewCreated()
         webView.navigationDelegate = self
         webView.uiDelegate = self
-        BackgroundLoadingSound.shared.register(self)
         progressObservation = webView.observe(\.estimatedProgress, options: [.new]) { [weak self] view, _ in
             let value = view.estimatedProgress
             // KVO for a web view fires on the main thread.
@@ -247,7 +243,6 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
     func freeze() {
         guard !disposed, !isFrozen else { return }
         isFrozen = true
-        BackgroundLoadingSound.shared.unregister(self)
         if owner == nil { park() }
     }
 
@@ -255,7 +250,6 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
     func thaw() {
         guard !disposed, isFrozen else { return }
         isFrozen = false
-        BackgroundLoadingSound.shared.register(self)
         if owner == nil { park() }
     }
 
@@ -380,7 +374,6 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
         if !disposed { disposed = true; DiagnosticCounters.shared.webViewDisposed() }
         claims.removeAll()
         owner = nil
-        BackgroundLoadingSound.shared.unregister(self)
         progressObservation = nil
         onProgress = nil
         webView.stopLoading()
@@ -616,8 +609,8 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
     /// A callback for the navigation being waited for (or any, when none is tracked).
     private func isCurrent(_ navigation: WKNavigation?) -> Bool { activeNavigation == nil || navigation === activeNavigation }
 
-    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
-        BackgroundLoadingSound.shared.pageDidCommit(self)
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        finish(.failure(WebToolError.navigation("The browser page stopped, possibly while the app was suspended. Open the page again to continue.")))
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

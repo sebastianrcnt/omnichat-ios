@@ -244,7 +244,6 @@ struct KeptPagesTests {
         }
         #expect(!view.isDisposed && pool.idleCount == 0)
         #expect(KeptPages.shared.page(forCall: "pool-call") === view)
-        #expect(!BackgroundLoadingSound.shared.isRegistered(view))
         KeptPages.shared.release(view)
         view.dispose()
         // A view that never loaded a page has nothing to show.
