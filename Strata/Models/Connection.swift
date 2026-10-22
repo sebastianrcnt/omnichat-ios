@@ -262,13 +262,75 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
             }
     }
 
-    /// Base URL with whitespace and any trailing slash removed.
+    /// Base URL with whitespace and any trailing slash removed. Nil for one that carries credentials
+    /// (`BaseURLCredentials`): the editor says why.
     var normalizedBaseURL: URL? {
         var s = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         while s.hasSuffix("/") { s.removeLast() }
-        guard let url = URL(string: s), let scheme = url.scheme?.lowercased(),
+        guard !BaseURLCredentials.contains(s), let url = URL(string: s), let scheme = url.scheme?.lowercased(),
               scheme == "http" || scheme == "https", url.host != nil else { return nil }
         return url
+    }
+}
+
+/// Credentials written into a base URL: a user name and password (`https://user:pass@host/v1`) or a query parameter such
+/// as `?api_key=…`. The connection list is plain settings (synced through iCloud key-value storage, whatever the secret
+/// switch says) and request URLs show in diagnostics, so such a URL is refused (`Connection.normalizedBaseURL`, the
+/// connection editor says why: the key goes under API key or in a header, both in the Keychain), sync leaves the
+/// credentials out (`ConnectionSync.encode`), and diagnostics hide them (`RequestRing`, `DebugBundle`).
+enum BaseURLCredentials {
+    /// A query parameter that carries a credential, by name: lowercased, `-` read as `_`.
+    static func isCredentialName(_ raw: String) -> Bool {
+        let name = (raw.removingPercentEncoding ?? raw).lowercased().replacingOccurrences(of: "-", with: "_")
+        if ["sig", "pass", "pwd", "code", "auth"].contains(name) { return true }
+        return ["key", "token", "secret", "password", "passwd", "signature", "credential", "authorization", "session"]
+            .contains { name.contains($0) }
+    }
+
+    static func contains(_ raw: String) -> Bool { stripped(raw) != raw }
+
+    /// `raw` without its credentials: no user information, no credential query parameters. Everything else is kept as
+    /// written, so a URL without credentials comes back unchanged.
+    static func stripped(_ raw: String) -> String { clean(raw, redact: false) }
+
+    /// `raw` with its credentials replaced by `<redacted>`, for diagnostics.
+    static func redacted(_ raw: String) -> String { clean(raw, redact: true) }
+
+    private static func clean(_ raw: String, redact: Bool) -> String {
+        var head = raw
+        var fragment = ""
+        if let hash = head.firstIndex(of: "#") { fragment = String(head[hash...]); head = String(head[..<hash]) }
+        var query: String?
+        if let mark = head.firstIndex(of: "?") { query = String(head[head.index(after: mark)...]); head = String(head[..<mark]) }
+        if let scheme = head.range(of: "://") {
+            let start = scheme.upperBound
+            let end = head[start...].firstIndex(of: "/") ?? head.endIndex
+            var authority = String(head[start..<end])
+            if let at = authority.lastIndex(of: "@") {
+                authority = (redact ? "<redacted>@" : "") + authority[authority.index(after: at)...]
+            } else if let colon = portColon(authority), !authority[authority.index(after: colon)...].allSatisfy(\.isNumber) {
+                // "user:secr", a password being typed before its "@": not a port.
+                authority = String(authority[..<colon]) + (redact ? ":<redacted>" : "")
+            }
+            head = String(head[..<start]) + authority + String(head[end...])
+        }
+        if let query {
+            let items = query.split(separator: "&", omittingEmptySubsequences: false).compactMap { item -> String? in
+                let name = String(item.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).first ?? "")
+                guard isCredentialName(name) else { return String(item) }
+                return redact ? name + "=<redacted>" : nil
+            }
+            if !items.isEmpty { head += "?" + items.joined(separator: "&") }
+        }
+        return head + fragment
+    }
+
+    /// The colon before a port: after the closing bracket of an IPv6 literal, else the first one.
+    private static func portColon(_ authority: String) -> String.Index? {
+        if authority.hasPrefix("["), let close = authority.firstIndex(of: "]") {
+            return authority[close...].firstIndex(of: ":")
+        }
+        return authority.firstIndex(of: ":")
     }
 }
 

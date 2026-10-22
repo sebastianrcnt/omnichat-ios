@@ -25,7 +25,7 @@ enum DebugBundle {
     static func indexLine(_ r: ConversationDiagnostics.Request, calendar: Calendar = .current) -> String {
         let c = calendar.dateComponents([.hour, .minute, .second], from: r.time)
         let time = String(format: "%02d:%02d:%02d", c.hour ?? 0, c.minute ?? 0, c.second ?? 0)
-        var line = "\(r.file)  \(time)  \(r.url)  \(r.bodyBytes) bytes, \(r.messageCount ?? 0) messages"
+        var line = "\(r.file)  \(time)  \(BaseURLCredentials.redacted(r.url))  \(r.bodyBytes) bytes, \(r.messageCount ?? 0) messages"
         if let note = r.note { line += "; " + note }
         if r.toolsDiffer { line += "; tools differ" }
         return line
@@ -64,7 +64,9 @@ enum DebugBundle {
                 index.append(indexLine(summary, calendar: calendar))
             }
         }
-        try Data((index.joined(separator: "\n") + (index.isEmpty ? "" : "\n")).utf8)
+        // Redacted like the rest: a request's URL and notes can hold a credential too.
+        let indexText = DebugRedaction.redact(index.joined(separator: "\n") + (index.isEmpty ? "" : "\n"), options: .init(stripImages: false))
+        try Data(indexText.utf8)
             .write(to: folder.appendingPathComponent("index.txt"), options: .atomic)
 
         var shown = conversations

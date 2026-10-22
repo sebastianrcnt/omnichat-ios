@@ -422,4 +422,60 @@ struct ConnectionSyncTests {
         phoneSync.stop()
         macSync.stop()
     }
+
+    /// Credentials in a base URL never go to the key-value store, which syncs whatever the secret switch says.
+    @Test func credentialsInABaseURLNeverGoUp() throws {
+        var c = connection("proxy")
+        c.baseURL = "https://user:pw@proxy.example/v1?api_key=secret&api-version=2024-10-01"
+        let text = String(decoding: try #require(ConnectionSync.encode(c)), as: UTF8.self)
+        #expect(!text.contains("secret") && !text.contains("user:pw"))
+        #expect(text.contains("proxy.example") && text.contains("api-version=2024-10-01"))
+
+        // A copy an older version uploaded with its key is replaced at the next push, though nothing changed here.
+        let cloud = InMemoryKeyValueStore()
+        var legacy = connection("legacy")
+        legacy.baseURL = "https://legacy.example/v1?key=secret"
+        cloud.set(try JSONEncoder().encode(legacy), forKey: ConnectionSync.keyPrefix + legacy.id.uuidString)
+        cloud.set([legacy.id.uuidString], forKey: ConnectionSync.orderKey)
+        let store = ConnectionStore(defaults: defaults(), keys: InMemoryKeyStore())
+        let sync = ConnectionSync(store: store, cloud: cloud, defaults: defaults(), headers: InMemoryKeyStore())
+        sync.start()
+        #expect(ConnectionSync.cloudConnections(cloud)[legacy.id]?.baseURL == "https://legacy.example/v1")
+        sync.stop()
+    }
+}
+
+/// Base URLs that carry a user name, password or key are refused, and diagnostics hide what they carry.
+struct BaseURLCredentialTests {
+    @Test func credentialsAreFoundStrippedAndRedacted() {
+        for clean in ["https://api.example.com/v1", "http://192.168.1.5:8080/v1", "http://[::1]:11434/v1",
+                      "https://x.example/openai?api-version=2024-10-01", "https://", ""] {
+            #expect(!BaseURLCredentials.contains(clean), "\(clean)")
+            #expect(BaseURLCredentials.stripped(clean) == clean)
+        }
+        #expect(BaseURLCredentials.stripped("https://user:pw@x.example/v1") == "https://x.example/v1")
+        #expect(BaseURLCredentials.stripped("https://x.example/v1?key=s&api-version=1#top") == "https://x.example/v1?api-version=1#top")
+        #expect(BaseURLCredentials.stripped("https://x.example/v1?Access_Token=s") == "https://x.example/v1")
+        #expect(BaseURLCredentials.stripped("https://x.example/v1?x-api-key=s&token") == "https://x.example/v1")
+        // A password being typed, before its "@".
+        #expect(BaseURLCredentials.stripped("https://user:secr") == "https://user")
+        #expect(BaseURLCredentials.redacted("https://user:pw@x.example/v1?api_key=s&model=m")
+                == "https://<redacted>@x.example/v1?api_key=<redacted>&model=m")
+
+        #expect(Connection(name: "p", baseURL: "https://x.example/v1?api_key=s").normalizedBaseURL == nil)
+        #expect(Connection(name: "p", baseURL: "https://u:p@x.example/v1").normalizedBaseURL == nil)
+        #expect(Connection(name: "p", baseURL: "https://x.example/v1/").normalizedBaseURL?.absoluteString == "https://x.example/v1")
+    }
+
+    @MainActor
+    @Test func diagnosticsNeverShowThem() throws {
+        let ring = RequestRing()
+        let conv = UUID()
+        ring.record(conversationID: conv, url: "https://u:pw@x.example/v1/chat/completions?key=secret", body: Data("{}".utf8))
+        let url = try #require(ring.recent(for: conv).first?.url)
+        #expect(!url.contains("secret") && !url.contains("pw@"))
+        var summary = try #require(ConversationDiagnostics.requestSummaries(ring.recent(for: conv), conversation: conv).first)
+        summary.url = "https://x.example/v1?api_key=secret"
+        #expect(!DebugBundle.indexLine(summary).contains("secret"))
+    }
 }

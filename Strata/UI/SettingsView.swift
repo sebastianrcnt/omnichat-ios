@@ -212,7 +212,7 @@ struct ConnectionEditor: View {
                         .padding(.vertical, DS.Spacing.md)
                     }
 
-                    GroupedSection(header: "Connection", footer: plainHTTPWarning) {
+                    GroupedSection(header: "Connection", footer: credentialsWarning ?? plainHTTPWarning) {
                         SettingsFieldRow(title: "Name", prompt: "Name", text: binding(\.name, fallback: ""))
                         SettingsFieldRow(title: "Base URL", prompt: "https://host/v1", text: binding(\.baseURL, fallback: ""),
                                          keyboard: .url)
@@ -311,6 +311,13 @@ struct ConnectionEditor: View {
         if hasKey { return "A key is saved in the Keychain. Enter a new one to replace it." }
         return anthropic ? "Create a key at console.anthropic.com. It is stored in the Keychain, never in the app's files."
                          : "Pasted keys are stored in the Keychain, never in the app's files."
+    }
+
+    /// A base URL with a user name, password or key in it is refused (`BaseURLCredentials`): it would be saved and synced
+    /// as plain text.
+    private var credentialsWarning: LocalizedStringKey? {
+        guard let raw = connection?.baseURL, BaseURLCredentials.contains(raw.trimmingCharacters(in: .whitespacesAndNewlines)) else { return nil }
+        return "The base URL can't contain a key, token or password: it would be saved and synced as plain text. Remove it from the URL and enter the key under API key, or as a header."
     }
 
     /// Plain http to a host outside the local network sends the API key unencrypted. Local servers (a Mac on the same

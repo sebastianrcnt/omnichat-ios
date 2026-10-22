@@ -158,10 +158,12 @@ final class ConnectionSync {
         return connection.kind != .openAICompatible || !connection.models.isEmpty || !(url.isEmpty || url == "https://" || url == "http://")
     }
 
-    /// A connection as the cloud keeps it: no custom headers.
+    /// A connection as the cloud keeps it: no custom headers, and no credentials in its base URL (the app refuses such a
+    /// URL, `BaseURLCredentials`; one saved before that never leaves the device with them).
     nonisolated static func encode(_ connection: Connection) -> Data? {
         var c = connection
         c.customHeaders = ""
+        c.baseURL = BaseURLCredentials.stripped(c.baseURL)
         return try? JSONEncoder().encode(c)
     }
 
@@ -288,7 +290,9 @@ final class ConnectionSync {
         let synced = connections.filter { Self.syncs($0) && (remote[$0.id] != nil || !known.contains($0.id)) }
         for c in synced {
             let sent = Self.normalized(c)
-            if let data = Self.encode(c), lastSynced[c.id] != sent {
+            // A copy an older version uploaded with credentials in its URL is replaced even when nothing changed here.
+            let leaked = remote[c.id].map { BaseURLCredentials.contains($0.baseURL) } ?? false
+            if let data = Self.encode(c), lastSynced[c.id] != sent || leaked {
                 cloud.set(data, forKey: Self.keyPrefix + c.id.uuidString)
                 lastSynced[c.id] = sent
             }

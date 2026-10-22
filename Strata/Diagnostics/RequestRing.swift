@@ -52,7 +52,8 @@ final class RequestRing {
 
     @discardableResult
     func record(conversationID: UUID, url: String, body: Data, time: Date = .now, id: UUID = UUID()) -> UUID {
-        let record = RequestRecord(id: id, conversationID: conversationID, time: time, url: url,
+        // A credential in a request URL never reaches diagnostics (`BaseURLCredentials`), whatever sent it.
+        let record = RequestRecord(id: id, conversationID: conversationID, time: time, url: BaseURLCredentials.redacted(url),
                                    bodyBytes: body.count, storage: .raw(body))
         records[conversationID, default: []].append(record)
         if compressesInline {
