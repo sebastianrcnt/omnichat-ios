@@ -213,6 +213,7 @@
     "API keys, ChatGPT and OpenCode sign-ins, SSH credentials and custom headers. Off, this device keeps its own copy of each one; copies already in iCloud Keychain stay for your other devices.": {
       "extractionState": "stale"
     },
+    "API keys, SSH credentials and custom headers. Off, this device keeps its own copy of each one; copies already in iCloud Keychain stay for your other devices until you remove them. ChatGPT and OpenCode sign-ins always stay on the device that signed in: sign in on each device.": {},
     "About": {},
     "Accent color": {},
     "Active path": {},
@@ -268,6 +269,7 @@
     "Anything that speaks the OpenAI API: vLLM, llama.cpp, LiteLLM, a company gateway.": {},
     "Appearance": {},
     "Apple Health": {},
+    "Apple Health can't be used on this device while chat sync is on, so no health data goes to iCloud.": {},
     "Apple Health can't be used on this device while chat sync is on, so no health data goes to iCloud. Health data the assistant already read is removed from your chats first; the replies stay.": {},
     "Apple Health in new chats": {},
     "Apple Intelligence": {},
@@ -361,6 +363,7 @@
     "Chat sync changes the next time OpenChat opens. Close and reopen it to apply.": {},
     "Chat sync is off. Close and reopen OmniChat to use Apple Health.": {},
     "Chat sync is off. Close and reopen OpenChat to use Apple Health.": {},
+    "Chat sync was turned on while Apple Health was being read, so what was read wasn't used.": {},
     "ChatGPT": {},
     "ChatGPT account": {},
     "ChatGPT did not complete app registration. Please try signing in again.": {},
@@ -381,6 +384,7 @@
     "Chats sync through iCloud on this device, and health data never goes to iCloud. Turn off chat sync to use Apple Health; this device's chats stay, and stop syncing the next time OmniChat opens.": {},
     "Chats sync through iCloud on this device, and health data never goes to iCloud. Turn off chat sync to use Apple Health; this device's chats stay, and stop syncing the next time OpenChat opens.": {},
     "Chats that already list it keep the name, but it can no longer be loaded.": {},
+    "Chats whose model runs on a remote server can't read Health, and a chat that read Health can't be sent to one.": {},
     "Chats whose model runs on a remote server can't read Health.": {},
     "Checked which health data is available": {},
     "Checking Apple Health…": {},
@@ -481,7 +485,9 @@
     "Default length": {},
     "Delete": {},
     "Delete %@?": {},
+    "Delete Chats and Turn On": {},
     "Delete Skill": {},
+    "Delete chats with health data?": {},
     "Delete connection": {},
     "Delete cookies for this site": {},
     "Delete credential": {},
@@ -630,6 +636,7 @@
     "Health": {},
     "Health data is not sent to OmniChat's developer and not used for advertising. Debug bundles leave it out. The answers stay in your chats on this device until you delete them. Health data never goes to iCloud: Apple Health can't be used while chat sync is on.": {},
     "Health data is not sent to OpenChat's developer and not used for advertising. Debug bundles leave it out. The answers stay in your chats on this device until you delete them. Health data never goes to iCloud: Apple Health can't be used while chat sync is on.": {},
+    "Health data never goes to iCloud. In chats where the assistant read Apple Health, the replies, summaries, figures and artifacts can repeat what it read, so chat sync can only be turned on after those chats are deleted from this device. Apple Health can't be used here while chat sync is on.": {},
     "Hidden": {},
     "Hidden web views": {},
     "Hide": {},
@@ -1411,6 +1418,7 @@
     "The assistant can read the Apple Health data you allow, to answer questions about your own health and fitness. It never writes to Health. iOS asks the first time a chat reads each type; change it any time in the Settings app > Health > Data Access & Devices > OpenChat. A chat turns Apple Health on or off from the + menu.": {},
     "The assistant is told not to diagnose, and to suggest a healthcare professional when values look concerning.": {},
     "The assistant wants to save this skill. Its name and description will be listed in new chats, and the assistant will follow it when it loads it. Web pages can contain instructions meant to mislead the assistant: save it only if it looks right to you.": {},
+    "The base URL can't contain a key, token or password: it would be saved and synced as plain text. Remove it from the URL and enter the key under API key, or as a header.": {},
     "The base URL is not valid.": {},
     "The chat to continue. Leave empty to start a new chat.": {},
     "The dictation model couldn't be downloaded. Try again later.": {},
@@ -1460,6 +1468,7 @@
     "The selected model is not marked as supporting images. Pick a different model, or turn on image support for it in Settings > Connections.": {
       "extractionState": "stale"
     },
+    "The server address in the link contains a key, token or password. Add the connection without it, then enter the key in its settings.": {},
     "The server address in the link isn't an http or https URL.": {},
     "The server has to be running. To use it from an iPhone too, start it so it listens on the network.": {},
     "The server no longer has this reply. Try again to get a new one.": {},
@@ -1485,6 +1494,7 @@
     "This chat": {
       "extractionState": "stale"
     },
+    "This chat holds Apple Health data, which you allow only for on-device or local models, and %@ runs on a remote server. Switch the chat to a local model, or turn off \"Only send health data to on-device or local models\" in Settings > Health.": {},
     "This connection does not support resumable replies.": {},
     "This conversation is too long for the on-device model's context window. Start a new chat, or shorten the message.": {},
     "This device can't run Apple Intelligence, so the on-device model isn't available. Choose another connection.": {},
