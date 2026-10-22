@@ -116,7 +116,7 @@ struct ResumeTests {
         let persister = CheckpointPersister(minInterval: 1, now: { 0 }, center: NotificationCenter(), autoTrailing: false) { snapshots.append($0) }
         for (i, piece) in ["A", "B", "C"].enumerated() {
             _ = try live.apply(ChatDelta(content: piece, requestID: rid, sequence: i + 1))
-            persister.update(live)
+            try persister.update(live)
         }
         #expect(snapshots.count == 1) // only the first pair was written
         let staticData = try #require(snapshots[0].staticData)

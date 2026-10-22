@@ -338,7 +338,7 @@ final class ChatController {
             return
         }
         revealAll(run)
-        run.persister?.flush() // the cancel request needs the newest request id and cursor
+        try? run.persister?.flush() // the cancel request needs the newest request id and cursor
         if let message = run.message, let context = run.context, let endpoint = run.endpoint {
             message.stoppedByUser = true
             message.cancelPending = message.resumeData != nil
@@ -361,7 +361,7 @@ final class ChatController {
         compactionErrors[conversationID] = nil
         guard let run = runs[conversationID] else { return }
         if !run.isQueued, let message = run.message, let context = run.context, let endpoint = run.endpoint {
-            run.persister?.flush()
+            try? run.persister?.flush()
             message.cancelPending = message.resumeData != nil
             if message.cancelPending { cancelOnServer(message, endpoint: endpoint, context: context) }
         }
@@ -621,7 +621,7 @@ final class ChatController {
         run.persistedSourceCount = -1
         run.persister = endpoint.supportsResumable ? CheckpointPersister { [weak self, weak run] snapshot in
             guard let self, let run, !run.discarded else { return }
-            self.persist(snapshot, run: run, message: assistant, conversation: conversation, context: context)
+            try self.persist(snapshot, run: run, message: assistant, conversation: conversation, context: context)
         } : nil
         background.begin(run.conversationID)
         run.holdsLease = true
@@ -707,7 +707,7 @@ final class ChatController {
         background.advance()
         switch event {
         case .checkpoint(let checkpoint):
-            run.persister?.update(checkpoint)
+            try run.persister?.update(checkpoint)
         case .roundStarted(let n):
             run.completedToolRounds = n
             tracker.beginRound(n)
@@ -1029,7 +1029,8 @@ final class ChatController {
     }
 
     /// One throttled checkpoint write: the large half only when it changed, the small half always, together.
-    private func persist(_ snapshot: CheckpointPersister.Snapshot, run: ChatRun, message: Message, conversation: Conversation, context: ModelContext) {
+    private func persist(_ snapshot: CheckpointPersister.Snapshot, run: ChatRun, message: Message, conversation: Conversation,
+                         context: ModelContext) throws {
         // While chat sync blocks Health, a checkpoint holding a health result isn't stored: that turn can't resume. The
         // large half is written only when it changes, so one dropped earlier (by `HealthRedaction`) stays missing.
         if HealthRedaction.isActive, (snapshot.staticData == nil && !message.hasResume)
@@ -1050,7 +1051,7 @@ final class ChatController {
             run.persistedSourceCount = items.count
             conversation.sources = items
         }
-        try? context.save()
+        try context.save()
         #if DEBUG
         DebugHooks.recordResumeSmoke(message, checkpoint: snapshot.checkpoint)
         #endif
