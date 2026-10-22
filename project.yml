@@ -84,7 +84,7 @@ targets:
         INFOPLIST_KEY_NSMicrophoneUsageDescription: OpenChat uses the microphone when you dictate a message.
         INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: OpenChat turns your dictation into text on this device.
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: OpenChat uses your approximate location when you ask the assistant to find places near you.
-        INFOPLIST_KEY_NSLocalNetworkUsageDescription: OpenChat connects to servers on your local network when the assistant runs commands over SSH.
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: OpenChat connects to devices on your local network when the assistant runs commands over SSH, or Python code connects to a device you allowed.
         INFOPLIST_KEY_NSHealthShareUsageDescription: OpenChat reads only the health data you allow, when you ask the assistant about your health. It is sent to the model connection your chat uses to answer you, never used for advertising, and never written back to Health.
         # Release builds never write; App Store Connect still requires the key for an app with the HealthKit entitlement.
         INFOPLIST_KEY_NSHealthUpdateUsageDescription: OpenChat never writes to Health. It only reads the health data you allow, when you ask the assistant about your health.
@@ -268,7 +268,7 @@ targets:
         INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: OpenChat turns your dictation into text on this Mac.
         INFOPLIST_KEY_NSLocationUsageDescription: OpenChat uses your approximate location when you ask the assistant to find places near you.
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: OpenChat uses your approximate location when you ask the assistant to find places near you.
-        INFOPLIST_KEY_NSLocalNetworkUsageDescription: OpenChat connects to servers on your local network when the assistant runs commands over SSH.
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: OpenChat connects to devices on your local network when the assistant runs commands over SSH, or Python code connects to a device you allowed.
         SWIFT_EMIT_LOC_STRINGS: YES
     info:
       path: StrataMac/Info.plist

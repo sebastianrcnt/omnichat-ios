@@ -13,6 +13,7 @@
     "%@ asks for an answer": {},
     "%@ asks for an answer.": {},
     "%@ asks:": {},
+    "%@ at %@, on this device or your local network.": {},
     "%@ chars": {},
     "%@ failed": {},
     "%@ has no earlier version to go back to.": {},
@@ -24,6 +25,7 @@
       "extractionState": "stale"
     },
     "%@ of %@ tokens used": {},
+    "%@ port %lld": {},
     "%@ reviews": {},
     "%@ tokens": {},
     "%@ used": {},
@@ -38,6 +40,7 @@
     "%@ → %@ tokens · %@%@": {},
     "%@%%": {},
     "%@%@": {},
+    "%@, on this device or your local network.": {},
     "%@, replacing the file if it exists.": {},
     "%lld": {
       "shouldTranslate": false
@@ -232,6 +235,8 @@
     "Added to the system prompt of chats that use it: %lld characters, about %lld tokens.": {},
     "Added · Open": {},
     "After the first answer, ask the model for a short title.": {},
+    "Allow Python to connect to %@?": {},
+    "Allow a connection to %@": {},
     "Allow in this chat": {},
     "Always": {},
     "Always allowed": {},

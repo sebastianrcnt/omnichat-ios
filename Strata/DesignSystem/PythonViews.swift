@@ -286,14 +286,77 @@ struct PythonRunDetail: View {
                 PythonOutputView(text: displayedOutput, isError: isError)
             }
             if !figures.isEmpty { ToolImageStrip(images: figures) }
+            if !isRunning, let network = Self.networkLine(output) {
+                PythonNetworkLine(summary: network)
+            }
         }
     }
 
-    /// The output without the line that lists the figures (they are shown as images).
+    /// The output without the line that lists the figures (they are shown as images) and the network line (shown
+    /// under it).
     private var displayedOutput: String {
         output.components(separatedBy: "\n\n")
-            .filter { !$0.hasPrefix("Figure saved: ") && !$0.hasPrefix("Figures saved: ") }
+            .filter { !$0.hasPrefix("Figure saved: ") && !$0.hasPrefix("Figures saved: ") && !Self.isNetworkLine($0) }
             .joined(separator: "\n\n")
+    }
+
+    nonisolated private static func isNetworkLine(_ paragraph: String) -> Bool {
+        paragraph.hasPrefix("[Network: ") && paragraph.hasSuffix("]") && !paragraph.contains("\n")
+    }
+
+    /// "Network: TCP db.local:5432, …" from the output's last paragraph.
+    nonisolated static func networkLine(_ output: String) -> String? {
+        guard let last = output.components(separatedBy: "\n\n").last, isNetworkLine(last) else { return nil }
+        return String(last.dropFirst().dropLast())
+    }
+}
+
+/// What a run did on the network: hosts, ports and bytes (the app never shows or keeps payloads).
+struct PythonNetworkLine: View {
+    @Environment(\.theme) private var theme
+    let summary: String
+
+    var body: some View {
+        Label {
+            Text(verbatim: summary.hasPrefix("Network: ") ? String(summary.dropFirst("Network: ".count)) : summary)
+        } icon: {
+            Image(systemName: "network")
+        }
+        .font(DS.Typography.feedMeta)
+        .foregroundStyle(theme.textSecondary)
+        .lineLimit(4)
+        .accessibilityLabel(Text(summary))
+    }
+}
+
+/// Python wants to reach a private, LAN or loopback address: allowed for the rest of the chat, or refused (the code
+/// gets PermissionError). The run's clock stops while this waits.
+struct NetworkApprovalCard: View {
+    @Environment(\.theme) private var theme
+    let approval: NetworkApproval
+    let onAnswer: (Bool) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            Text("Allow Python to connect to \(approval.host)?")
+                .font(DS.Typography.feedEmphasis).foregroundStyle(theme.textPrimary)
+            Text(detail)
+                .font(DS.Typography.feedMeta).foregroundStyle(theme.textSecondary)
+            HStack(spacing: DS.Spacing.lg) {
+                Button("Allow in this chat") { onAnswer(true) }.buttonStyle(.quietLink(.accent))
+                Button("Deny") { onAnswer(false) }.buttonStyle(.quietLink(.secondary))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
+    }
+
+    private var detail: String {
+        let target = String(localized: "\(approval.proto) port \(approval.port)")
+        if let address = approval.address {
+            return String(localized: "\(target) at \(address), on this device or your local network.")
+        }
+        return String(localized: "\(target), on this device or your local network.")
     }
 }
 
@@ -303,6 +366,7 @@ struct PythonRunDetail: View {
 /// `view_image` gets a one-line card with the image's tile.
 struct PythonFeedCard: View {
     @Environment(\.theme) private var theme
+    @Environment(\.citations) private var citations
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let card: FeedCard
     let collapsed: Bool
@@ -310,8 +374,20 @@ struct PythonFeedCard: View {
     var onDetails: () -> Void
 
     var body: some View {
+        let request = card.isRunning ? ToolApprovals.shared.request(forCall: card.id, conversation: citations.conversationID) : nil
         VStack(alignment: .leading, spacing: 0) {
             header
+            if let request, case .network(let approval) = request.kind {
+                NetworkApprovalCard(approval: approval) { ToolApprovals.shared.answer(request.id, .network($0)) }
+                    .padding(.leading, DS.Feed.textInset)
+                    .padding(.vertical, DS.Spacing.xs)
+                    .transition(.opacity)
+            } else if card.isRunning, !isImage,
+                      let network = PythonNetworkActivity.shared.summary(conversation: citations.conversationID, callID: card.id) {
+                PythonNetworkLine(summary: network)
+                    .padding(.leading, DS.Feed.textInset)
+                    .padding(.vertical, DS.Spacing.xxs)
+            }
             if case .python(let code) = card.kind, !collapsed {
                 PythonRunDetail(code: code, output: card.output, figures: card.figures, isRunning: card.isRunning,
                                 isError: card.isError)
@@ -327,6 +403,7 @@ struct PythonFeedCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .animation(reduceMotion ? nil : ActivityFeedView.fold, value: collapsed)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: request?.id)
         .contextMenu {
             Button("Show Timeline", systemImage: "list.bullet.below.rectangle", action: onDetails)
         }

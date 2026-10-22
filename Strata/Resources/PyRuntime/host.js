@@ -4,6 +4,8 @@
 let worker = null;
 let pending = null;
 let seq = 0;
+// While the app waits for the user (a network card), the running call's clock stops.
+let holds = 0;
 
 function settle(value) {
   const p = pending;
@@ -11,6 +13,17 @@ function settle(value) {
   pending = null;
   clearTimeout(p.timer);
   p.resolve(value);
+}
+
+// Starts the pending call's clock with the time it has left.
+function arm(p) {
+  p.armedAt = performance.now();
+  p.timer = setTimeout(() => {
+    if (pending !== p) return;
+    pending = null;
+    kill();
+    p.resolve({ status: "timeout", elapsedMs: performance.now() - p.started - p.heldMs });
+  }, Math.max(0, p.remaining));
 }
 
 function kill() {
@@ -43,13 +56,10 @@ function start() {
 function call(message, limitMs) {
   return new Promise((resolve) => {
     const id = ++seq;
-    const started = performance.now();
-    const timer = setTimeout(() => {
-      pending = null;
-      kill();
-      resolve({ status: "timeout", elapsedMs: performance.now() - started });
-    }, limitMs);
-    pending = { id, resolve, timer };
+    const p = { id, resolve, timer: null, started: performance.now(), remaining: limitMs, heldMs: 0, heldAt: 0 };
+    pending = p;
+    if (holds === 0) arm(p);
+    else p.heldAt = performance.now();
     worker.postMessage(Object.assign({ id }, message));
   });
 }
@@ -79,6 +89,27 @@ window.strataPython = {
   reset() {
     kill();
     settle({ status: "reset" });
+    return "ok";
+  },
+
+  // Stops the running call's clock while the user is asked something (nested), and restarts it with what was left.
+  hold(on) {
+    const p = pending;
+    if (on) {
+      holds++;
+      if (holds === 1 && p && p.timer) {
+        clearTimeout(p.timer);
+        p.timer = null;
+        p.remaining -= performance.now() - p.armedAt;
+        p.heldAt = performance.now();
+      }
+    } else if (holds > 0) {
+      holds--;
+      if (holds === 0 && p && !p.timer) {
+        if (p.heldAt) p.heldMs += performance.now() - p.heldAt;
+        arm(p);
+      }
+    }
     return "ok";
   },
 

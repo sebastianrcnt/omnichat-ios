@@ -147,8 +147,12 @@ final class ReplyLiveActivities {
             case .prompt(let prompt): return .sshPrompt(hop: prompt.hop)
             }
         }
-        if let request = ToolApprovals.shared.pending(conversation: id).first, case .package(let p) = request.kind {
-            return .packageTool(package: p.packageName, tool: p.toolTitle)
+        if let request = ToolApprovals.shared.pending(conversation: id).first {
+            switch request.kind {
+            case .package(let p): return .packageTool(package: p.packageName, tool: p.toolTitle)
+            case .network(let n): return .network(host: n.host)
+            case .ssh: break
+            }
         }
         if let request = SkillApprovals.shared.pending(for: id), request.conversationID == id {
             return .skill(name: request.skill.name)

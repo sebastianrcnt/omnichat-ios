@@ -8,7 +8,8 @@ import CryptoKit
 @MainActor
 struct PackageCacheGoldenTests {
     /// R1: a chat without packages sends the bytes it sent before packages existed, for every combination of tool
-    /// groups, with and without image input. The digest was taken from the code before packages were added.
+    /// groups, with and without image input. The digest was taken from the code before packages were added, and
+    /// retaken when run_python's description changed for sockets (the only change in those bytes).
     @Test func chatsWithoutPackagesSendTheSameBytes() async throws {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
                                            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
@@ -40,7 +41,7 @@ struct PackageCacheGoldenTests {
             #expect(streamer.requests.count == 1 << all.count)
         }
         let digest = hasher.finalize().map { String(format: "%02x", $0) }.joined()
-        #expect(digest == "5fa4258899a536e50b2a7d2800b37c2f829816bfd0cddca7a6dbe723894eb010")
+        #expect(digest == "75c3fa460205edcd2c7a5d84a3ddd15786e8a9a1e0506a29c6f13ceee446133d")
     }
 }
 
