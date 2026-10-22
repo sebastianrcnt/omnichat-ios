@@ -781,6 +781,13 @@ final class BrowserShowRequests {
         guard let i = queue.firstIndex(where: { $0.request.id == id }) else { return }
         queue.remove(at: i).answer?.resume(returning: done)
     }
+
+    /// Clear browsing data: every sheet closes as if the user closed it, so no page outlives the clearing on screen.
+    func closeAll() {
+        let closed = queue
+        queue.removeAll()
+        for entry in closed { entry.answer?.resume(returning: false) }
+    }
 }
 
 /// `browser_show(reason, page)`: shows a page to the user, so they can sign in, pass a check or do a step only they

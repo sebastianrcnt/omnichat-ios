@@ -110,6 +110,15 @@ final class KeptPages {
         sweeper = nil
     }
 
+    /// Clear browsing data: every kept page goes, on screen or not (its sheet was closed first). Loaded documents keep
+    /// what they show and hold in script after the store is emptied, so they can't be left to reopen.
+    func disposeAll() {
+        for entry in entries where entry.owned { entry.page.dispose() }
+        entries.removeAll()
+        sweeper?.cancel()
+        sweeper = nil
+    }
+
     /// What a failed tool's result says about its kept page.
     static func note(pageID: String) -> String {
         "The page is kept open for a few minutes as page \"\(pageID)\": browser_show with page \"\(pageID)\" hands it to the user (to pass a check, sign in or close a pop-up) and returns its text when they tap Done."

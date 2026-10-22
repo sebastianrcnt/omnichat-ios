@@ -58,6 +58,9 @@ enum BrowserData {
 @MainActor
 enum BrowsingData {
     static func clearAll() async {
+        // Sheets first, then every page that holds a document from before: sessions, kept pages, the pool.
+        BrowserShowRequests.shared.closeAll()
+        KeptPages.shared.disposeAll()
         BrowserSessions.shared.closeAll()
         WebViewPool.shared.drain()
         PageCache.shared.removeAll()
