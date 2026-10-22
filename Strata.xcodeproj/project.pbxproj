@@ -2593,6 +2593,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = OpenChat;
 				INFOPLIST_KEY_NSCameraUsageDescription = "OpenChat uses the camera to attach photos to your messages.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "OpenChat reads only the health data you allow, when you ask the assistant about your health. It is sent to the model connection your chat uses to answer you, never used for advertising, and never written back to Health.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "OpenChat never writes to Health. It only reads the health data you allow, when you ask the assistant about your health.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "OpenChat connects to servers on your local network when the assistant runs commands over SSH.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "OpenChat uses your approximate location when you ask the assistant to find places near you.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "OpenChat uses the microphone when you dictate a message.";
