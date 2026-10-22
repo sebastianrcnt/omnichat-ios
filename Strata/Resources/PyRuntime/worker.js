@@ -6,6 +6,10 @@
 // fetch or XMLHttpRequest (what pyodide-http and open_url use), are sent through its proxy, which carries them anywhere.
 
 import { loadPyodide } from "./pyodide/pyodide.mjs";
+import { hookInstantiate, installSockets } from "./sockets.js";
+
+// Sockets go through the app (sockets.js): its syscalls replace SOCKFS's as the wasm module is instantiated.
+hookInstantiate();
 
 const realFetch = self.fetch.bind(self);
 self.fetch = (input, init) => {
@@ -33,6 +37,14 @@ let outputSize = 0;
 let truncated = false;
 const decoders = { out: new TextDecoder(), err: new TextDecoder() };
 
+// A line from the app (the socket bridge's notes), between the run's own output.
+function writeLine(text) {
+  if (outputSize >= OUTPUT_LIMIT) return;
+  const line = text.endsWith("\n") ? text : text + "\n";
+  output.push(line);
+  outputSize += line.length;
+}
+
 function write(stream) {
   return (buffer) => {
     const text = decoders[stream].decode(buffer, { stream: true });
@@ -48,6 +60,9 @@ function write(stream) {
 
 const HARNESS = `
 import sys, io, base64, linecache, traceback, warnings
+sys.path.append("/lib/strata")
+import strata_net
+strata_net.install()
 warnings.filterwarnings("ignore", message=".*non-interactive.*")
 warnings.filterwarnings("ignore", message=".*FigureCanvasAgg.*")
 from pyodide.code import eval_code_async
@@ -146,6 +161,10 @@ async function init() {
   });
   py.setStdout({ write: write("out") });
   py.setStderr({ write: write("err") });
+  installSockets(py, writeLine);
+  const net = await realFetch("strata_net.py");
+  py.FS.mkdirTree("/lib/strata");
+  py.FS.writeFile("/lib/strata/strata_net.py", new Uint8Array(await net.arrayBuffer()));
   const harness = py.globals.get("dict")();
   await py.runPythonAsync(HARNESS, { globals: harness });
   runFn = harness.get("run");
