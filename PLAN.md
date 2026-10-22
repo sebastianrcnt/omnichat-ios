@@ -1,6 +1,6 @@
 # Strata iOS app: plan (2026-10-11)
 
-UI reference: `reference/claude-ios-2026-10-11/`. The README there has per-screen notes.
+UI mockups: `reference/mockups/`.
 
 ## Decided
 
@@ -28,7 +28,7 @@ UI reference: `reference/claude-ios-2026-10-11/`. The README there has per-scree
 ## Scope changes (2026-10-11, later)
 
 ### Image attachments
-- The composer "+" opens a sheet like reference screenshot 01: a camera tile, a recent-photos strip (PhotosPicker), and "Add photo".
+- The composer "+" opens a sheet: a camera tile, a recent-photos strip (PhotosPicker), and "Add photo".
 - Images go out as OpenAI `content` parts: `{type:"image_url", image_url:{url:"data:image/jpeg;base64,..."}}`. Downscale to about 1568 px on the long side, JPEG at about 0.8 quality.
 - Thumbnails show in the composer before sending and in the user bubble afterwards. They persist in SwiftData with external storage.
 - Each model has a "supports images" flag. If the selected model doesn't support images, attaching is disabled with an explanation.
