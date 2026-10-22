@@ -49,6 +49,34 @@ enum KeychainSync {
     }
 }
 
+extension KeychainSync {
+    /// "Remove Secrets from iCloud" (offered with the switch off): every iCloud Keychain item gets a device-only copy
+    /// unless this device already has one (written since sync went off, so newer), then the iCloud copies are deleted,
+    /// which removes them from every device signed in to the account. A service where a copy couldn't be made keeps
+    /// its iCloud items, so nothing is lost. Returns how many iCloud items were deleted and how many services kept theirs.
+    @discardableResult
+    static func removeFromICloud(backend: any KeychainBackend = SystemKeychain()) -> (removed: Int, kept: Int) {
+        var removed = 0, kept = 0
+        for service in services {
+            let items = KeychainItems(service: service, backend: backend, synchronizable: { false })
+            var listing = items.match(nil, synchronizable: true)
+            listing[kSecReturnAttributes as String] = true
+            listing[kSecMatchLimit as String] = kSecMatchLimitAll
+            let accounts = ((backend.copy(listing).result as? [[String: Any]]) ?? []).compactMap { $0[kSecAttrAccount as String] as? String }
+            guard !accounts.isEmpty else { continue }
+            let copied = accounts.allSatisfy { account in
+                if items.read(account, synchronizable: false) != nil { return true }
+                guard let data = items.read(account, synchronizable: true) else { return false }
+                return backend.add(items.attributes(account, data: data, synchronizable: false)) == errSecSuccess
+            }
+            guard copied else { kept += 1; continue }
+            let status = backend.delete(items.match(nil, synchronizable: true))
+            if status == errSecSuccess { removed += accounts.count } else if status != errSecItemNotFound { kept += 1 }
+        }
+        return (removed, kept)
+    }
+}
+
 /// The calls the items make, so tests can run them against a fake (`InMemoryKeychain`).
 protocol KeychainBackend: Sendable {
     func copy(_ query: [String: Any]) -> (status: OSStatus, result: CFTypeRef?)
@@ -151,6 +179,9 @@ struct KeychainItems: Sendable {
         if sync { _ = backend.delete(match(account, synchronizable: false)) }
         if hasFileKeychain { _ = backend.delete(fileKeychainMatch(account)) }
     }
+
+    /// The account's item in one mode only.
+    func read(_ account: String, synchronizable mode: Bool) -> Data? { data(match(account, synchronizable: mode)) }
 
     func accounts() -> [String] {
         var queries = [match(nil, synchronizable: nil)]

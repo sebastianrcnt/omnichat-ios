@@ -179,6 +179,26 @@ struct KeychainSyncTests {
         #expect(store.moveAll(synchronizable: true).moved == 0) // nothing left to move
     }
 
+    @Test func removingFromICloudKeepsThisDevicesCopy() {
+        let keychain = InMemoryKeychain()
+        let api = KeychainSync.services[0], ssh = "cc.coolservices.strata.ssh"
+        keychain.seed(.init(service: api, account: "a", sync: true, fileKeychain: false,
+                            accessible: kSecAttrAccessibleAfterFirstUnlock as String, data: Data("key".utf8)))
+        keychain.seed(.init(service: ssh, account: "b", sync: true, fileKeychain: false,
+                            accessible: kSecAttrAccessibleAfterFirstUnlock as String, data: Data("old".utf8)))
+        keychain.seed(.init(service: ssh, account: "b", sync: false, fileKeychain: false,
+                            accessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String, data: Data("mine".utf8)))
+        keychain.seed(.init(service: "other.service", account: "c", sync: true, fileKeychain: false, accessible: nil, data: Data()))
+        let result = KeychainSync.removeFromICloud(backend: keychain)
+        #expect(result.removed == 2 && result.kept == 0)
+        let ours = keychain.snapshot.filter { $0.service != "other.service" }
+        #expect(ours.allSatisfy { !$0.sync })
+        #expect(ours.first { $0.service == api }?.data == Data("key".utf8))
+        #expect(ours.first { $0.service == ssh }?.data == Data("mine".utf8)) // this device's copy wins
+        #expect(keychain.snapshot.contains { $0.service == "other.service" && $0.sync }) // other apps' items untouched
+        #expect(KeychainSync.removeFromICloud(backend: keychain).removed == 0)
+    }
+
     @Test func turningSyncOffKeepsADeviceOnlyCopyOfEach() {
         let keychain = InMemoryKeychain()
         keychain.seed(.init(service: service, account: "a", sync: true, fileKeychain: false,

@@ -4,6 +4,9 @@ import SwiftUI
 struct ICloudSettingsView: View {
     @Environment(\.theme) private var theme
     @State private var confirmChatSync = false
+    @State private var confirmRemoval = false
+    @State private var removing = false
+    @State private var removalResult: String?
 
     var body: some View {
         @Bindable var sync = CloudSync.shared
@@ -26,8 +29,13 @@ struct ICloudSettingsView: View {
                                       isOn: $sync.settingsSyncSwitch)
                 }
 
-                GroupedSection(footer: "API keys, ChatGPT and OpenCode sign-ins, SSH credentials and custom headers. Off, this device keeps its own copy of each one; copies already in iCloud Keychain stay for your other devices.") {
+                GroupedSection(footer: "API keys, ChatGPT and OpenCode sign-ins, SSH credentials and custom headers. Off, this device keeps its own copy of each one; copies already in iCloud Keychain stay for your other devices until you remove them.") {
                     SettingsToggleRow(title: "Sync secrets with iCloud Keychain", isOn: $sync.secretSyncSwitch)
+                    if !sync.secretSyncSwitch {
+                        SettingsRow(systemImage: "icloud.slash", title: "Remove Secrets from iCloud", subtitle: removalResult,
+                                    isDestructive: true) { confirmRemoval = true }
+                            .disabled(removing)
+                    }
                 }
 
                 GroupedSection(header: "Stays on this device", footer: "Browser screenshots are not synced: a synced chat shows a placeholder for them. A reply that is still being written finishes on the device that started it.") {
@@ -50,6 +58,25 @@ struct ICloudSettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Apple Health can't be used on this device while chat sync is on, so no health data goes to iCloud. Health data the assistant already read is removed from your chats first; the replies stay.")
+        }
+        .confirmationDialog("Remove secrets from iCloud?", isPresented: $confirmRemoval, titleVisibility: .visible) {
+            Button("Remove from iCloud", role: .destructive) { removeSecrets() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This device keeps its own copy of each secret. Your other devices lose the ones they get from iCloud, so their API keys, sign-ins and SSH credentials need to be entered again there.")
+        }
+    }
+
+    /// Keychain calls can wait on the system, so they run off the main thread.
+    private func removeSecrets() {
+        removing = true
+        Task {
+            let result = await Task.detached(priority: .userInitiated) { KeychainSync.removeFromICloud() }.value
+            removing = false
+            removalResult = result.kept > 0
+                ? String(localized: "Some secrets couldn't be copied to this device, so they stay in iCloud. Try again later.")
+                : result.removed == 0 ? String(localized: "No secrets were in iCloud.")
+                : String(localized: "Removed \(result.removed) from iCloud. This device keeps its copies.")
         }
     }
 

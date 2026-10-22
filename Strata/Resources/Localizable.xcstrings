@@ -201,7 +201,10 @@
     "API key from platform.openai.com": {
       "extractionState": "stale"
     },
-    "API keys, ChatGPT and OpenCode sign-ins, SSH credentials and custom headers. Off, this device keeps its own copy of each one; copies already in iCloud Keychain stay for your other devices.": {},
+    "API keys, ChatGPT and OpenCode sign-ins, SSH credentials and custom headers. Off, this device keeps its own copy of each one; copies already in iCloud Keychain stay for your other devices until you remove them.": {},
+    "API keys, ChatGPT and OpenCode sign-ins, SSH credentials and custom headers. Off, this device keeps its own copy of each one; copies already in iCloud Keychain stay for your other devices.": {
+      "extractionState": "stale"
+    },
     "About": {},
     "Accent color": {},
     "Active path": {},
@@ -790,6 +793,7 @@
     "No requests yet": {},
     "No results yet": {},
     "No saved skills": {},
+    "No secrets were in iCloud.": {},
     "No text": {},
     "No thinking limit": {},
     "No web tools": {},
@@ -1029,12 +1033,16 @@
     "Remote server: Health is blocked": {},
     "Remote server: receives Health data in chats that read it": {},
     "Remove %@?": {},
+    "Remove Secrets from iCloud": {},
+    "Remove from iCloud": {},
     "Remove key": {},
     "Remove model": {},
     "Remove package": {},
     "Remove photo": {},
+    "Remove secrets from iCloud?": {},
     "Remove the API key?": {},
     "Removed": {},
+    "Removed %lld from iCloud. This device keeps its copies.": {},
     "Rename": {},
     "Rename automatically": {
       "extractionState": "stale"
@@ -1228,6 +1236,7 @@
     "Smooth streaming": {},
     "Solve it on the page and OpenChat picks up where it stopped. A solved check is kept for later searches.": {},
     "Solve the robot check on this page, then tap Done.": {},
+    "Some secrets couldn't be copied to this device, so they stay in iCloud. Try again later.": {},
     "Sort By": {},
     "Source": {},
     "Source: %@": {},
@@ -1381,6 +1390,7 @@
     "This conversation is too long for the on-device model's context window. Start a new chat, or shorten the message.": {},
     "This device can't run Apple Intelligence, so the on-device model isn't available. Choose another connection.": {},
     "This device can't translate English to Korean.": {},
+    "This device keeps its own copy of each secret. Your other devices lose the ones they get from iCloud, so their API keys, sign-ins and SSH credentials need to be entered again there.": {},
     "This is a local or private network address. It only works where that network is reachable.": {},
     "This language can't be translated to your language.": {},
     "This link isn't an OpenChat add-connection link.": {},
