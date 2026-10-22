@@ -43,12 +43,16 @@ enum SSHApprovalPolicy {
     }
 }
 
-/// The SSH cards waiting for the user: approvals, and keyboard-interactive prompts no saved answer covered. Each is
-/// tied to its chat and its tool call, so the feed shows it under that call's line, in that chat only.
+/// The SSH cards waiting for the user: approvals, and keyboard-interactive prompts no saved answer covered. A view of
+/// `ToolApprovals`, which keeps every tool's cards: each is tied to its chat and its tool call, so the feed shows it
+/// under that call's line, in that chat only.
 @MainActor
-@Observable
 final class SSHRequests {
-    static let shared = SSHRequests()
+    static let shared = SSHRequests(approvals: .shared)
+
+    let approvals: ToolApprovals
+
+    init(approvals: ToolApprovals = ToolApprovals()) { self.approvals = approvals }
 
     enum Kind: Equatable {
         case approval(SSHApproval)
@@ -62,42 +66,46 @@ final class SSHRequests {
     }
 
     struct Request: Identifiable, Equatable {
-        let id = UUID()
+        var id = UUID()
         var conversationID: UUID? = ToolContext.conversationID
         /// Call ids repeat across chats (`call_0` from servers without ids), so a call is found by chat and id.
         var callID: String? = ToolContext.callID
         var kind: Kind
+
+        init(id: UUID = UUID(), conversationID: UUID? = ToolContext.conversationID, callID: String? = ToolContext.callID, kind: Kind) {
+            self.id = id
+            self.conversationID = conversationID
+            self.callID = callID
+            self.kind = kind
+        }
+
+        init?(_ request: ToolApprovals.Request) {
+            guard case .ssh(let kind) = request.kind else { return nil }
+            self.init(id: request.id, conversationID: request.conversationID, callID: request.callID, kind: kind)
+        }
     }
 
-    private var queue: [(request: Request, answer: CheckedContinuation<Answer, Never>)] = []
+    var all: [Request] { approvals.all.compactMap(Request.init) }
 
-    var all: [Request] { queue.map(\.request) }
-
-    func pending(conversation: UUID?) -> [Request] { queue.map(\.request).filter { $0.conversationID == conversation } }
+    func pending(conversation: UUID?) -> [Request] { all.filter { $0.conversationID == conversation } }
 
     /// The request of a tool call in a chat, shown under its line in that chat's feed.
     func request(forCall callID: String, conversation: UUID?) -> Request? {
-        queue.first { $0.request.callID == callID && $0.request.conversationID == conversation }?.request
+        approvals.request(forCall: callID, conversation: conversation).flatMap(Request.init)
     }
 
     /// Waits for the answer. A cancelled turn denies (or gives up the prompt).
     func ask(_ request: Request) async -> Answer {
         let fallback: Answer = if case .approval = request.kind { .approval(.deny) } else { .prompt(nil) }
-        return await withTaskCancellationHandler {
-            await withCheckedContinuation { cont in
-                if Task.isCancelled { cont.resume(returning: fallback); return }
-                queue.append((request, cont))
-                SSHRequestNotifier.notify(request)
-            }
-        } onCancel: {
-            Task { @MainActor in self.answer(request.id, fallback) }
-        }
+        let answer = await approvals.ask(ToolApprovals.Request(id: request.id, conversationID: request.conversationID,
+                                                               callID: request.callID, kind: .ssh(request.kind)))
+        if case .ssh(let a) = answer { return a }
+        return fallback
     }
 
     /// Ignored for a request already answered.
     func answer(_ id: UUID, _ answer: Answer) {
-        guard let i = queue.firstIndex(where: { $0.request.id == id }) else { return }
-        queue.remove(at: i).answer.resume(returning: answer)
+        approvals.answer(id, .ssh(answer))
     }
 
     func askApproval(_ approval: SSHApproval, conversation: UUID?, callID: String?) async -> SSHApprovalAnswer {
@@ -108,19 +116,6 @@ final class SSHRequests {
     func askPrompt(_ prompt: SSHPromptRequest, conversation: UUID?, callID: String?) async -> [String]? {
         if case .prompt(let answers) = await ask(Request(conversationID: conversation, callID: callID, kind: .prompt(prompt))) { return answers }
         return nil
-    }
-}
-
-/// A card that waits while OpenChat is in the background: a notification says so (tapping it opens the chat).
-enum SSHRequestNotifier {
-    @MainActor
-    static func notify(_ request: SSHRequests.Request) {
-        guard !AppLifecycle.isActive, let conversation = request.conversationID else { return }
-        let body = switch request.kind {
-        case .approval(let a): String(localized: "Approve a command on \(a.server)?")
-        case .prompt(let p): String(localized: "\(p.hop) asks for an answer.")
-        }
-        ReplyBackgroundExecution.notifyCompletion(title: "OpenChat", body: body, conversationID: conversation)
     }
 }
 

@@ -1,8 +1,11 @@
 import Foundation
+#if canImport(OpenChatPackageKit)
+import OpenChatPackageKit
+#endif
 
 // Site plugins: a manifest plus one script defining `window.strataPlugin(args)`, run in a hidden web view through the
 // one fixed `run_plugin` tool. Everything here is plain Foundation (no app types), so `Tools/plugin-check` compiles this
-// file as is and runs a plugin on the Mac exactly as the app would.
+// file as is, with OpenChatPackageKit's URLTemplate.swift, and runs a plugin on the Mac exactly as the app would.
 
 /// One argument a plugin takes, as its manifest lists it.
 struct PluginArgument: Codable, Sendable, Equatable {
@@ -71,15 +74,7 @@ extension PluginManifest {
     static let maxSettle = 10.0
 
     /// The `{arg}` names in the URL template, in order.
-    static func placeholders(in template: String) -> [String] {
-        var out: [String] = []
-        var rest = template[...]
-        while let open = rest.firstIndex(of: "{"), let close = rest[open...].firstIndex(of: "}") {
-            out.append(String(rest[rest.index(after: open)..<close]))
-            rest = rest[rest.index(after: close)...]
-        }
-        return out
-    }
+    static func placeholders(in template: String) -> [String] { URLTemplate.placeholders(in: template) }
 
     private static func isIdentifier(_ s: String, lowercase: Bool) -> Bool {
         guard let first = s.unicodeScalars.first, s.count <= nameLimit else { return false }
@@ -122,42 +117,20 @@ extension PluginManifest {
         if let waitFor, waitFor.trimmingCharacters(in: .whitespaces).isEmpty { throw fail("waitFor must not be empty.") }
     }
 
-    /// Characters an argument value keeps in the URL; everything else is percent-encoded (so a value can never add a
-    /// path, a query, a port or a user to the URL).
-    static let unreserved = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+    /// Characters an argument value keeps in the URL (`URLTemplate.unreserved`).
+    static let unreserved = URLTemplate.unreserved
 
     /// The template with each `{arg}` replaced by its percent-encoded value.
     static func build(template: String, values: [String: String]) throws -> URL {
-        var out = ""
-        var rest = template[...]
-        while let open = rest.firstIndex(of: "{"), let close = rest[open...].firstIndex(of: "}") {
-            out += rest[..<open]
-            let key = String(rest[rest.index(after: open)..<close])
-            guard let value = values[key] else { throw PluginError.badArguments("missing required argument \"\(key)\".") }
-            out += value.addingPercentEncoding(withAllowedCharacters: unreserved) ?? ""
-            rest = rest[rest.index(after: close)...]
-        }
-        out += rest
-        guard let url = URL(string: out), let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
-              url.host(percentEncoded: false)?.isEmpty == false else {
-            throw PluginError.badArguments("the arguments do not make a valid URL.")
-        }
-        return url
+        do { return try URLTemplate.build(template: template, values: values) }
+        catch .missing(let key) { throw PluginError.badArguments("missing required argument \"\(key)\".") }
+        catch .invalidURL { throw PluginError.badArguments("the arguments do not make a valid URL.") }
     }
 
-    static func normalizedHost(_ host: String) -> String {
-        var h = host.lowercased().trimmingCharacters(in: .whitespaces)
-        if h.hasPrefix("*.") { h.removeFirst(2) }
-        return h.trimmingCharacters(in: CharacterSet(charactersIn: "."))
-    }
+    static func normalizedHost(_ host: String) -> String { URLTemplate.normalizedHost(host) }
 
     /// True when `host` is one of `hosts` or a subdomain of one; any host when there is no list.
-    static func hostAllowed(_ host: String, hosts: [String]?) -> Bool {
-        guard let hosts else { return true }
-        let h = normalizedHost(host)
-        guard !h.isEmpty else { return false }
-        return hosts.map(normalizedHost).contains { !$0.isEmpty && (h == $0 || h.hasSuffix("." + $0)) }
-    }
+    static func hostAllowed(_ host: String, hosts: [String]?) -> Bool { URLTemplate.hostAllowed(host, hosts: hosts) }
 
     /// The arguments the script gets: the model's, checked against the manifest, with defaults filled in.
     /// - Parameter raw: a JSON object, or a string holding one (or nil / "" for none).

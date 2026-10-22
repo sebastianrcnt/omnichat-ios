@@ -34,8 +34,22 @@ enum DebugRedaction {
         pattern: "\"" + NSRegularExpression.escapedPattern(for: HealthReport.marker) + #"(?:[^"\\]|\\.)*""#)
     static let healthPlaceholder = "<Apple Health data removed>"
 
+    /// Exact secret values to remove wherever they appear (package tokens, `PackageSecretStore`): a token has no shape
+    /// the patterns below could know.
+    private static let exactLock = NSLock()
+    nonisolated(unsafe) private static var exactValues: Set<String> = []
+
+    static func registerExact(_ values: [String]) {
+        let usable = values.filter { $0.count >= 6 }
+        guard !usable.isEmpty else { return }
+        exactLock.withLock { exactValues.formUnion(usable.flatMap(PackageSecretStore.forms(of:)).filter { $0.count >= 6 }) }
+    }
+
     static func redact(_ text: String, options: Options = Options()) -> String {
         var out = text
+        for value in exactLock.withLock({ exactValues }).sorted(by: { $0.count > $1.count }) {
+            out = out.replacingOccurrences(of: value, with: "<redacted>")
+        }
         if options.stripImages { out = stripImages(out) }
         out = replace(secretField, in: out) { _, groups in groups[1] + "<redacted>" + groups[2] }
         out = replace(formSecret, in: out) { _, groups in groups[1] + "<redacted>" }

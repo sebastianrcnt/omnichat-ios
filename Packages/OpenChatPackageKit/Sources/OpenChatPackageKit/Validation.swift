@@ -152,6 +152,11 @@ extension PackageManifest {
             throw fail("policy and hooks are only honored from company packages, which this version can't install yet. Remove them.")
         }
         try validateTools()
+        for tool in tools where tool.kind == "page" {
+            guard let path = tool.script, let data = files[path], let text = String(data: data, encoding: .utf8), text.contains("strataPlugin") else {
+                throw fail("tool \(tool.name): script must name a file of the package that defines window.strataPlugin.")
+            }
+        }
         var commandNames = Set<String>()
         for c in commands {
             guard Self.isValidToolName(c.name), commandNames.insert(c.name).inserted else {
@@ -185,7 +190,7 @@ extension PackageManifest {
             }
             guard names.insert(tool.name).inserted else { throw fail("two tools are named \(tool.name).") }
             guard PackageTool.kinds.contains(tool.kind) || tool.optional == true else {
-                throw fail("\(place): kind \"\(tool.kind)\" isn't supported by this version (only http). Mark it \"optional\": true to skip it here.")
+                throw fail("\(place): kind \"\(tool.kind)\" isn't supported by this version (only http and page). Mark it \"optional\": true to skip it here.")
             }
             guard PackageTool.kinds.contains(tool.kind) else { continue }
             let full = PackageRender.toolName(namespace: namespace, tool: tool.name)
@@ -211,8 +216,31 @@ extension PackageManifest {
                     throw fail("\(place): onDevice.parameters may list at most 3 string parameters.")
                 }
             }
-            try validateRequest(tool, place: place, params: params)
+            if tool.kind == "page" {
+                try validatePage(tool, place: place, params: params)
+            } else {
+                try validateRequest(tool, place: place, params: params)
+            }
         }
+    }
+
+    func validatePage(_ tool: PackageTool, place: String, params: [String: JSONValue]) throws {
+        func fail(_ m: String) -> PackageError { .invalid("\(place): \(m)") }
+        guard let page = tool.page else { throw fail("a page tool needs a page.") }
+        guard tool.request == nil else { throw fail("a page tool has a page, not a request.") }
+        let sample = try? URLTemplate.fill(page.url) { _ in "x" }
+        guard let sample, let url = URL(string: sample), url.scheme?.lowercased() == "https",
+              let host = url.host(percentEncoded: false), !host.isEmpty, url.user == nil else {
+            throw fail("page.url must be an absolute https URL, like https://{lang}.wikipedia.org/wiki/{title}.")
+        }
+        guard URLTemplate.packageHostAllowed(host, network: network) else {
+            throw fail("the page's host \(host) is not in permissions.network. Add it there.")
+        }
+        for name in URLTemplate.placeholders(in: page.url).map({ URLTemplate.split(placeholder: $0).name }) where params[name] == nil {
+            throw fail("page.url uses {\(name)}, which isn't a parameter.")
+        }
+        if let settle = page.settle, !(0...10).contains(settle) { throw fail("page.settle must be 0 to 10 seconds.") }
+        if tool.readOnly == false { throw fail("a page tool only reads.") }
     }
 
     func validateRequest(_ tool: PackageTool, place: String, params: [String: JSONValue]) throws {

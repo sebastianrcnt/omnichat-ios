@@ -74,6 +74,9 @@ struct TurnRunner: Sendable {
     var offered: Set<ToolGroup> = [.web]
     /// The chat's groups turned off now: calls to their tools are refused (`OfferedTools`), though they stay offered.
     var switches: ChatToolSwitches?
+    /// The chat's packages (`Conversation.packageSnapshot`) and the tools they add after the built-in ones.
+    var packages: PackageSnapshot?
+    var packageTools: [ToolDefinition] = []
     /// Offer `run_python` (and `view_image` to a model that reads images).
     var python: Bool {
         get { offered.contains(.python) }
@@ -104,7 +107,7 @@ struct TurnRunner: Sendable {
         var finalReasoning = ""
         let toolsEnabled = endpoint.model.supportsTools
         let readsImages = endpoint.model.supportsImages
-        let toolList = ToolDefinition.available(groups: offered, images: readsImages)
+        let toolList = ToolDefinition.available(groups: offered, images: readsImages) + packageTools
 
         var meter = compaction?.meter ?? ContextMeter()
         if restored != nil { meter = .estimate(messages) }
@@ -281,7 +284,7 @@ struct TurnRunner: Sendable {
 
             try Task.checkCancellation()
             try appendReady() // results restored from a checkpoint
-            let offered = OfferedTools(base: tools, names: Set(toolList.map(\.function.name)), switches: switches)
+            let offered = OfferedTools(base: tools, names: Set(toolList.map(\.function.name)), switches: switches, packages: packages)
             try await ToolRound.execute(calls, indices: toRun, tools: offered, limit: maxConcurrentTools) { index, out in
                 finished[index] = out
                 checkpoint.pendingResults = (checkpoint.pendingResults ?? []) + [RawToolResult(callID: calls[index].id, output: out)]
@@ -309,20 +312,36 @@ struct TurnRunner: Sendable {
 /// Runs only the tools the request offered and the chat has on. A model can name a tool that is not offered anyway,
 /// and a group the user turned off in the chat stays offered (for the cached prefix): the switch has to hold at
 /// execution, not only in the tool list. Skills (`load_skill`, `run_skill_script`, `save_skill`) are browser tools,
-/// plugins (`run_plugin`) are web search's.
+/// plugins (`run_plugin`) are web search's. A package's tools and skills follow its own switch.
 struct OfferedTools: ToolExecuting {
     let base: any ToolExecuting
     let names: Set<String>
     var switches: ChatToolSwitches?
+    var packages: PackageSnapshot?
     var usesWebKit: Bool { base.usesWebKit }
 
     func execute(name: String, arguments: String) async -> ToolOutput {
         guard names.contains(name) else {
             return ToolOutput(text: "Error: the tool \(name) is not available in this chat.", isError: true)
         }
+        if let packages, let entry = Self.package(of: name, arguments: arguments, in: packages) {
+            if let switches, await switches.offPackages.contains(entry.id) {
+                return ToolOutput(text: ToolSwitch.packageRefusal(name: entry.name), isError: true)
+            }
+            return await base.execute(name: name, arguments: arguments)
+        }
         if let switches, let group = ToolGroup.group(of: name), await switches.off.contains(group) {
             return ToolOutput(text: group.refusal, isError: true)
         }
         return await base.execute(name: name, arguments: arguments)
+    }
+
+    /// The package a call belongs to: one of its tools, or a skill call naming one of its skills.
+    static func package(of name: String, arguments: String, in packages: PackageSnapshot) -> PackageSnapshot.Entry? {
+        if name.contains("__") { return packages.tool(named: name)?.entry }
+        guard name == ToolNames.loadSkill || name == ToolNames.runSkillScript,
+              let skill = PackageSkillCall.skillName(tool: name, arguments: arguments)?.trimmingCharacters(in: .whitespaces).lowercased()
+        else { return nil }
+        return packages.entries.first { $0.skillNames.contains(skill) }
     }
 }

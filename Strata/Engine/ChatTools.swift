@@ -134,4 +134,11 @@ final class ChatToolSwitches {
               let on = conversation.toolSwitches else { return [] }
         return Set(ToolGroup.allCases).subtracting(on)
     }
+
+    /// The packages of the chat's snapshot turned off now.
+    var offPackages: Set<String> {
+        guard let conversation, conversation.modelContext != nil, !conversation.isDeleted,
+              let on = conversation.packageSwitches else { return [] }
+        return (conversation.packageSnapshot?.ids ?? []).subtracting(on)
+    }
 }

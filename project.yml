@@ -9,6 +9,8 @@ packages:
   MarkdownUI:
     url: https://github.com/gonzalezreal/swift-markdown-ui
     exactVersion: 2.4.1
+  OpenChatPackageKit: # the package format, MIT (docs/PACKAGES.md), shared with Tools/openchat-pkg
+    path: Packages/OpenChatPackageKit
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -39,6 +41,7 @@ targets:
         buildPhase: resources
     dependencies:
       - package: MarkdownUI
+      - package: OpenChatPackageKit
       - framework: Vendor/CLibSSH2.xcframework # libssh2 + OpenSSL libcrypto, static (Tools/build-libssh2.sh)
         embed: false
       - target: OpenChatWidgets # the Live Activity and the New Chat control, embedded in PlugIns
@@ -190,6 +193,7 @@ targets:
         buildPhase: resources
     dependencies:
       - package: MarkdownUI
+      - package: OpenChatPackageKit
       - framework: Vendor/CLibSSH2.xcframework # libssh2 + OpenSSL libcrypto, static (Tools/build-libssh2.sh)
         embed: false
     entitlements:

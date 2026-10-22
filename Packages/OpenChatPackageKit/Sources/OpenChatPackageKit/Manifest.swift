@@ -149,7 +149,8 @@ public struct PackageManifest: Codable, Sendable, Equatable {
     public func tool(named name: String) -> PackageTool? { tools.first { $0.name == name } }
 }
 
-/// One tool. Format 1 knows `http` (declarative); `js` and `page` come in later formats and are refused unless the
+/// One tool. Format 1 knows `http` (declarative) and `page` (a site plugin: a script run in a hidden web page, for
+/// built-in packages only; the app refuses it from any other); `js` comes in a later format and is refused unless the
 /// entry says `"optional": true`, in which case it is skipped.
 public struct PackageTool: Codable, Sendable, Equatable {
     public var name: String
@@ -169,8 +170,10 @@ public struct PackageTool: Codable, Sendable, Equatable {
     public var onDevice: OnDevice?
     public var schemaVersion: Int?
     public var optional: Bool?
-    /// For `js` tools (phase 2).
+    /// For `page` tools: the package file with the page script (defines `window.strataPlugin`).
     public var script: String?
+    /// For `page` tools: the page the script runs on.
+    public var page: Page?
 
     public init(name: String, kind: String = "http", title: String? = nil, description: String, parameters: JSONValue? = nil,
                 request: HTTPRequestTemplate? = nil, response: ResponseSpec? = nil, readOnly: Bool? = nil, confirm: String? = nil,
@@ -245,9 +248,20 @@ public struct PackageTool: Codable, Sendable, Equatable {
         public init(description: String, parameters: [String]? = nil) { self.description = description; self.parameters = parameters }
     }
 
+    /// The page a `page` tool opens, as in a site plugin: `{arg}` anywhere in the URL (percent-encoded), the host
+    /// within `permissions.network`.
+    public struct Page: Codable, Sendable, Equatable {
+        public var url: String
+        /// Seconds to wait after the page is ready, for client-side rendering.
+        public var settle: Double?
+        /// A CSS selector the page must show before the script runs.
+        public var waitFor: String?
+        public init(url: String, settle: Double? = nil, waitFor: String? = nil) { self.url = url; self.settle = settle; self.waitFor = waitFor }
+    }
+
     private enum CodingKeys: String, CodingKey {
         case name, kind, title, description, parameters, request, response, readOnly, confirm, timeout, display, onDevice
-        case schemaVersion, optional, script
+        case schemaVersion, optional, script, page
     }
 
     public init(from decoder: Decoder) throws {
@@ -269,9 +283,10 @@ public struct PackageTool: Codable, Sendable, Equatable {
         schemaVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion)
         optional = try c.decodeIfPresent(Bool.self, forKey: .optional)
         script = try c.decodeIfPresent(String.self, forKey: .script)
+        page = try c.decodeIfPresent(Page.self, forKey: .page)
     }
 
-    public static let kinds: Set<String> = ["http"]
+    public static let kinds: Set<String> = ["http", "page"]
     public static let confirmLevels = ["never", "first", "always"]
 
     /// GET tools only read unless they say otherwise; readOnly tools are safe to retry.
