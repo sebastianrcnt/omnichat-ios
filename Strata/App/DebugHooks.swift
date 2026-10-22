@@ -11,7 +11,10 @@ import SwiftData
 ///   -StrataDebugJump 1                             after the sends: scroll to the top, then press "Jump to bottom"
 ///   -StrataDebugBranch switch|editbar               after the first answer: edit + regenerate, or open edit mode
 ///   -StrataOpenSheet usage|model|settings|connection|attach|details|diagnostics   open a sheet right after launch
+///   -StrataAutoAnswerSheets 6                       answer a browser_show sheet (Done) and a save-skill sheet (Save) after
+///                                                  that many seconds, for screenshot and preview runs without taps
 ///   -StrataSheetDetent large                       with "model": open the model picker full height
+///   -StrataOpenSSHCards 1                          keep SSH commands open with their output in finished messages
 ///   -StrataDraft "text"                            put text in the composer after launch (expanded composer)
 ///   -StrataOpenMenu 2                              then open the n-th pull-down menu on screen (top to bottom)
 ///   -StrataOpenSidebar 1                           open the chat list drawer after launch
@@ -352,6 +355,15 @@ enum DebugHooks {
         guard let trip = byTitle[titles[0]], let laptops = byTitle[titles[1]], let swift = byTitle[titles[2]],
               let budget = byTitle[titles[3]] else { return }
         controller.debugMultiChatDemo(running: [trip, laptops], queued: swift, unread: budget, title: titles[3])
+    }
+
+    /// `-StrataAutoAnswerSheets <seconds>`: waits, then gives the sheet's answer (`answer`). Nothing without the argument.
+    @MainActor
+    static func autoAnswerSheet(_ answer: @MainActor () -> Void) async {
+        guard let seconds = value("StrataAutoAnswerSheets").flatMap(Double.init), seconds > 0 else { return }
+        try? await Task.sleep(for: .seconds(seconds))
+        guard !Task.isCancelled else { return }
+        answer()
     }
 
     static var autoSend: String? { value("StrataAutoSend") }

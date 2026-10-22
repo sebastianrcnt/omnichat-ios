@@ -256,7 +256,7 @@ struct ActivityFeedView: View {
                                        onDetails: onDetails)
                     case .card(let card):
                         let auto = FeedCollapse.autoCollapsed(index: indices[card.id] ?? 0, cards: cards, isStreaming: isStreaming,
-                                                              answerStarted: answerStarted)
+                                                              answerStarted: answerStarted) && !Self.debugKeepsOpen(card)
                         let collapsed = FeedCollapse.isCollapsed(auto: auto, override: overrides[card.id], epoch: epoch)
                         cardView(card, collapsed: collapsed,
                                  toggle: { toggle(card.id, auto: auto, current: collapsed, epoch: epoch) })
@@ -279,6 +279,14 @@ struct ActivityFeedView: View {
         withAnimation(reduceMotion ? nil : Self.fold) {
             overrides[id] = FeedCollapse.toggled(auto: auto, current: current, epoch: epoch)
         }
+    }
+
+    /// `-StrataOpenSSHCards 1` (Debug builds): SSH commands stay open with their output, for store screenshots.
+    private static func debugKeepsOpen(_ card: FeedCard) -> Bool {
+        #if DEBUG
+        if case .ssh = card.kind { return DebugHooks.value("StrataOpenSSHCards") != nil }
+        #endif
+        return false
     }
 
     @ViewBuilder
