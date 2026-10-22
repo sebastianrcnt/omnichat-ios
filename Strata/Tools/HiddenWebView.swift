@@ -570,12 +570,17 @@ final class HiddenWebView: NSObject, WKNavigationDelegate, WKUIDelegate, PluginP
 
     func acceptPopups(for duration: Duration) { popupsUntil = .now + duration }
 
-    /// A link with a target or `window.open` right after a click opens in this page (the model has one page); any
-    /// other new window is dropped.
+    /// The user has the page in the sheet and can touch it.
+    var userHasPage: Bool { owner?.kind == .sheet && owner?.interactive == true }
+
+    /// A link with a target or `window.open` right after the model's click, or while the user has the page in the
+    /// sheet (a `target="_blank"` link, a "Sign in with…" button), opens in this page: there is one page, and it goes
+    /// through the same address checks. Any other new window is dropped.
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction,
                  windowFeatures: WKWindowFeatures) -> WKWebView? {
-        if let until = popupsUntil, ContinuousClock.now < until, let url = navigationAction.request.url,
-           url.scheme?.lowercased().hasPrefix("http") == true {
+        guard let url = navigationAction.request.url, url.scheme?.lowercased().hasPrefix("http") == true else { return nil }
+        let clicked = popupsUntil.map { ContinuousClock.now < $0 } ?? false
+        if clicked || userHasPage {
             popupsUntil = nil
             webView.load(navigationAction.request)
         }
