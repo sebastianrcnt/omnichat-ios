@@ -19,6 +19,8 @@ import SwiftData
 ///   -StrataGalleryOpen 1                           with it: open the gallery's second artifact in the viewer
 ///   -StrataActivityGallery 1                       show the activity feed states instead of the app (`ActivityGallery`)
 ///   -StrataOpenUIGallery 1...6                     show sample interactive views instead of the app (`OpenUIGallery`)
+///   -StrataLiveActivityGallery 1|2                 show the Live Activity's layouts instead of the app (`ReplyActivityGallery`)
+///   -StrataLiveActivityAlways 1                    start the Live Activity even while the continued task shows its own progress
 ///   -StrataVideoSelfTest 1                         real video_transcript calls, reported to stderr (`runVideoSelfTest`)
 ///   -StrataMultiChatDemo 1                         sample chats shown replying / queued / with an unread reply, and
 ///                                                  the "Reply ready" banner (`ChatController.debugMultiChatDemo`)
