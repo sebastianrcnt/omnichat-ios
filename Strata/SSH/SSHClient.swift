@@ -275,7 +275,7 @@ private final class SSHChain {
                 fd = try Self.openSocket(host: hop.host, port: hop.port, control: control)
             } else {
                 let tunnel = try pointer(on: sessions[i - 1], "opening a tunnel to \(hop.host)") {
-                    libssh2_channel_direct_tcpip_ex(sessions[i - 1], hop.host, Int32(hop.port), "127.0.0.1", 22)
+                    libssh2_channel_direct_tcpip_ex(sessions[i - 1], hop.host, Int32(clamping: hop.port), "127.0.0.1", 22)
                 }
                 tunnels.append(tunnel)
                 context.takeUnretainedValue().tunnel = tunnel

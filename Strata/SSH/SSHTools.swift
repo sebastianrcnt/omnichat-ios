@@ -216,13 +216,14 @@ enum SSHTargetResolver {
             let host = String(rest[rest.index(after: rest.startIndex)..<close])
             let tail = rest[rest.index(after: close)...]
             if tail.hasPrefix(":") { port = Int(tail.dropFirst()) }
-            return host.isEmpty ? nil : (user, host, port)
+            guard !host.isEmpty, port.map({ (1...65535).contains($0) }) ?? true else { return nil }
+            return (user, host, port)
         }
         if rest.filter({ $0 == ":" }).count == 1, let colon = rest.firstIndex(of: ":") {
             port = Int(rest[rest.index(after: colon)...])
             rest = String(rest[..<colon])
         }
-        guard !rest.isEmpty, !rest.contains(" ") else { return nil }
+        guard !rest.isEmpty, !rest.contains(" "), port.map({ (1...65535).contains($0) }) ?? true else { return nil }
         return (user, rest, port)
     }
 

@@ -224,7 +224,8 @@ struct ConnectionSetupSheet: View {
                     .padding(.horizontal, DS.Spacing.lg)
             }
             GroupedSection(footer: "You'll enter the API key next. Links never carry keys.") {
-                if let addedFromLink {
+                // Backing out of an unfinished connection removes it (removeUnconfigured): then it can be added again.
+                if let addedFromLink, connections.connection(addedFromLink) != nil {
                     SettingsRow(systemImage: "checkmark.circle", title: "Added · Open", showsChevron: true) { path = [addedFromLink] }
                 } else {
                     SettingsRow(systemImage: "plus", title: "Add connection") {

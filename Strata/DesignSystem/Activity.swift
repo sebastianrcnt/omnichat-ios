@@ -83,7 +83,7 @@ struct FaviconView: View {
                     .background(theme.faviconBackdrop)
                     .clipShape(shape)
             } else {
-                Text(String(host.first.map { Character($0.uppercased()) } ?? "?"))
+                Text(host.first.map { $0.uppercased() } ?? "?") // a String: some letters uppercase to two (ß is SS)
                     .font(DS.Typography.monogram)
                     .foregroundStyle(theme.accentOnTint)
                     .frame(width: size, height: size)

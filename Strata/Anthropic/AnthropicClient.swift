@@ -135,7 +135,8 @@ enum AnthropicErrorMapper {
         } else if status == 403 || type == "permission_error" {
             message = String(localized: "This API key isn't allowed to do that (\(serverMessage ?? "permission denied")). Check the key's workspace in the Anthropic Console.")
         } else if status == 429 || type == "rate_limit_error" {
-            if let seconds = retryAfter.flatMap({ Double($0.trimmingCharacters(in: .whitespaces)) }).map({ Int($0.rounded(.up)) }), seconds > 0 {
+            if let value = retryAfter.flatMap({ Double($0.trimmingCharacters(in: .whitespaces)) }), value > 0, value <= 86_400 {
+                let seconds = Int(value.rounded(.up)) // bounded first: a huge or NaN header would trap the conversion
                 message = String(localized: "You've hit Anthropic's rate limit for this API key. Try again in \(seconds) seconds.")
             } else {
                 message = String(localized: "You've hit Anthropic's rate limit for this API key. Wait a moment and try again.")

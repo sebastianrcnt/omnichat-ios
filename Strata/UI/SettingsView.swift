@@ -175,11 +175,19 @@ struct ConnectionEditor: View {
     private var status: (text: String, symbol: String, ok: Bool) {
         if fetching { return (String(localized: "Checking…"), "arrow.triangle.2.circlepath", true) }
         if fetchFailed, let fetchStatus { return (fetchStatus, "exclamationmark.triangle.fill", false) }
-        guard hasKey else { return (String(localized: "Add an API key to use this server"), "key", false) }
         let n = connection?.models.count ?? 0
+        if !hasKey {
+            // Anthropic always takes a key; a compatible server may not (Ollama, LM Studio): its models say it works.
+            if keyRequired { return (String(localized: "Add an API key to use this server"), "key", false) }
+            if n == 0 { return (String(localized: "No key · Test to check if this server needs one"), "key", true) }
+            return (String(localized: "Connected · \(n) models"), "checkmark.circle.fill", true)
+        }
         return n == 0 ? (String(localized: "Key saved · no models yet"), "checkmark.circle", true)
                       : (String(localized: "Connected · \(n) models"), "checkmark.circle.fill", true)
     }
+
+    /// Only Anthropic can't work without a key; OpenAI-compatible servers on your own machine often don't take one.
+    private var keyRequired: Bool { connection?.isAnthropic == true }
 
     private func binding<T>(_ keyPath: WritableKeyPath<Connection, T>, fallback: T) -> Binding<T> {
         Binding(get: { connection?[keyPath: keyPath] ?? fallback },
@@ -200,7 +208,7 @@ struct ConnectionEditor: View {
                             Text(verbatim: status.text).font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             Button("Test") { Task { await fetch() } }
-                                .disabled(fetching || !hasKey)
+                                .disabled(fetching || (keyRequired && !hasKey))
                         }
                         .padding(.horizontal, DS.Spacing.lg)
                         .padding(.vertical, DS.Spacing.md)

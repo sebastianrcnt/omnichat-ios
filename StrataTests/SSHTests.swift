@@ -126,6 +126,9 @@ struct SSHArgumentTests {
         #expect(SSHTargetResolver.parseAddress("ssh://a@[fe80::1]:22")! == ("a", "fe80::1", 22))
         #expect(SSHTargetResolver.parseAddress("fe80::1")! == (nil, "fe80::1", nil), "a bare v6 address has no port")
         #expect(SSHTargetResolver.parseAddress("") == nil)
+        #expect(SSHTargetResolver.parseAddress("alice@inner:2147483648") == nil, "a port out of range isn't an address")
+        #expect(SSHTargetResolver.parseAddress("[::1]:70000") == nil)
+        #expect(SSHTargetResolver.parseAddress("host:0") == nil)
     }
 
     @Test func resolvesServersCredentialsAndJumps() throws {

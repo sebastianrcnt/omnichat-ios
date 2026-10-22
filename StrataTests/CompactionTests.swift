@@ -32,6 +32,15 @@ struct CompactionMathTests {
         #expect(m.tokens == 2050)
     }
 
+    @Test func nonsenseUsageCountsDoNotOverflow() {
+        var m = ContextMeter(usage: Usage(promptTokens: .max, completionTokens: 0))
+        m.append(.tool(callID: "c", content: "abcd"))
+        #expect(m.tokens > 0)
+        #expect(Compaction.needsCompaction(m, limit: 1000, extraChars: .max))
+        m.record(Usage(promptTokens: .max, completionTokens: .max))
+        #expect(m.tokens == ContextMeter.maxTokens)
+    }
+
     @Test func compactionIsDueAtTheLimitNotBefore() {
         let limit = 1000
         #expect(!Compaction.needsCompaction(ContextMeter(usageTokens: 999), limit: limit))

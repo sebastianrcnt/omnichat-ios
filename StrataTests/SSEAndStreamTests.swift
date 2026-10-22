@@ -43,6 +43,11 @@ struct SSEParserTests {
 }
 
 struct ChatStreamTests {
+    @Test func aRefusalIsTheAnswer() throws {
+        let delta = try ChatChunkDecoder.decode(#"{"choices":[{"index":0,"delta":{"refusal":"I can't help with that."},"finish_reason":null}]}"#)
+        #expect(delta.content == "I can't help with that.")
+    }
+
     private func chunk(_ delta: String, finish: String? = nil, usage: String? = nil) -> String {
         let f = finish.map { "\"\($0)\"" } ?? "null"
         let u = usage.map { ",\"usage\":\($0)" } ?? ""

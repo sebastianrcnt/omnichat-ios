@@ -239,6 +239,11 @@ struct AnthropicRequestTests {
         #expect(APIError.rejectedAPIKey(connection: "Anthropic").needsSettings)
         guard case .http(429, let limited) = error(429, "rate_limit_error", "slow down", retryAfter: "30") else { Issue.record(); return }
         #expect(limited.contains("30 seconds"))
+        // A nonsense header falls back to the plain message instead of trapping.
+        for header in ["9223372036854775807", "NaN", "inf", "-5"] {
+            guard case .http(429, let text) = error(429, "rate_limit_error", "slow down", retryAfter: header) else { Issue.record(); return }
+            #expect(text.contains("Wait a moment"))
+        }
         guard case .http(529, let overloaded) = error(529, "overloaded_error", "Overloaded") else { Issue.record(); return }
         #expect(overloaded.contains("overloaded"))
         guard case .http(403, let forbidden) = error(403, "permission_error", "no access to model") else { Issue.record(); return }

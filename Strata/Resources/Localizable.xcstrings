@@ -377,7 +377,10 @@
     "Car": {},
     "Certificate": {},
     "Changed files": {},
-    "Chart $500 a month invested for 30 years at 6%": {},
+    "Chart $500 a month at 6% for 30 years": {},
+    "Chart $500 a month invested for 30 years at 6%": {
+      "extractionState": "stale"
+    },
     "Chat": {},
     "Chat %lld": {},
     "Chat Completions": {},
@@ -443,7 +446,9 @@
     "Commands": {},
     "Commands on these run without asking (\"Always for this server\").": {},
     "Compaction": {},
-    "Compare the weather in Lisbon and Athens next week": {},
+    "Compare the weather in Lisbon and Athens next week": {
+      "extractionState": "stale"
+    },
     "Completion tokens": {},
     "Confirm recipient": {},
     "Connect a model to start": {},
@@ -651,6 +656,7 @@
     "Files": {},
     "Final answer": {},
     "Find Chats": {},
+    "Find flights to Tokyo next month": {},
     "Finding places on the map…": {},
     "Finding your location": {},
     "Finding “%@”…": {},
@@ -884,6 +890,7 @@
     "No data for %@": {},
     "No effort": {},
     "No images": {},
+    "No key · Test to check if this server needs one": {},
     "No matches": {},
     "No messages yet": {},
     "No microphone is available.": {},
@@ -989,7 +996,9 @@
       "extractionState": "stale"
     },
     "Open Settings": {},
-    "Open a flight search site and find fares to Tokyo next month": {},
+    "Open a flight search site and find fares to Tokyo next month": {
+      "extractionState": "stale"
+    },
     "Open full screen": {},
     "Open in Browser": {},
     "Open in Naver Map": {},
@@ -1153,6 +1162,7 @@
     "Python": {},
     "Python in new chats": {},
     "Python time limit": {},
+    "Quiet cafés near me, on a map": {},
     "Ran ": {},
     "Ran %@": {},
     "Ran Python": {},
@@ -1376,7 +1386,9 @@
     "Show key": {},
     "Show less": {},
     "Show original": {},
-    "Show quiet cafés near me on a map": {},
+    "Show quiet cafés near me on a map": {
+      "extractionState": "stale"
+    },
     "Show the model's English thinking in Korean, translated on this device.": {},
     "Show translation": {},
     "Showed %@": {},
@@ -1703,7 +1715,10 @@
     "Translating…": {},
     "Translation isn't available on this device.": {},
     "Trust this publisher's key": {},
-    "Try Apple Intelligence (free, on device)": {},
+    "Try Apple Intelligence (free)": {},
+    "Try Apple Intelligence (free, on device)": {
+      "extractionState": "stale"
+    },
     "Try again": {},
     "Try asking": {},
     "Turn Off Chat Sync": {},
@@ -1783,6 +1798,7 @@
     "Waiting for your answer": {},
     "Walk": {},
     "Watch": {},
+    "Weather in Lisbon vs Athens next week": {},
     "Web results & pages": {},
     "Web search": {},
     "Web search and page reading send your search terms and the pages' addresses to the web; the model itself still runs on this device. Older turns of a long chat are left out to fit the model's context.": {},

@@ -38,11 +38,13 @@ enum ChatChunkDecoder {
                     var function: Fn?
                 }
                 var content: String?
+                /// OpenAI's safety refusal, sent instead of `content`: shown as the answer.
+                var refusal: String?
                 var reasoningContent: String?
                 var reasoning: String?
                 var toolCalls: [TC]?
                 enum CodingKeys: String, CodingKey {
-                    case content, reasoning
+                    case content, reasoning, refusal
                     case reasoningContent = "reasoning_content"
                     case toolCalls = "tool_calls"
                 }
@@ -72,7 +74,7 @@ enum ChatChunkDecoder {
         if let choice = chunk.choices?.first {
             delta.finishReason = choice.finishReason
             if let d = choice.delta {
-                delta.content = d.content
+                delta.content = d.content ?? d.refusal
                 // `reasoning_content` (vLLM/DeepSeek style) or `reasoning` (OpenRouter style).
                 delta.reasoning = d.reasoningContent ?? d.reasoning
                 delta.toolCalls = (d.toolCalls ?? []).enumerated().map { offset, tc in

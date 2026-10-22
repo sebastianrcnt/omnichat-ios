@@ -107,7 +107,7 @@ enum Compaction {
 
     /// True when `meter` (plus `extraChars` about to be appended) has reached `limit`.
     static func needsCompaction(_ meter: ContextMeter, limit: Int, extraChars: Int = 0, hasMessages: Bool = true) -> Bool {
-        limit > 0 && hasMessages && meter.tokens + extraChars / 4 >= limit
+        limit > 0 && hasMessages && meter.tokens + min(extraChars, ContextMeter.maxTokens) / 4 >= limit
     }
 
     // MARK: Request
@@ -264,7 +264,7 @@ struct ContextMeter: Equatable, Sendable {
     private(set) var sinceChars = 0
 
     init(usageTokens: Int = 0, sinceChars: Int = 0) {
-        self.usageTokens = usageTokens
+        self.usageTokens = min(max(usageTokens, 0), Self.maxTokens)
         self.sinceChars = sinceChars
     }
 
@@ -275,11 +275,15 @@ struct ContextMeter: Equatable, Sendable {
         ContextMeter(sinceChars: Compaction.chars(messages))
     }
 
-    var tokens: Int { usageTokens + sinceChars / 4 }
+    /// The most a server's usage counts for: far past any context window, and small enough that the sums here can't
+    /// overflow when a server reports nonsense like Int.max.
+    static let maxTokens = 1 << 40
+
+    var tokens: Int { min(usageTokens, Self.maxTokens) + min(sinceChars, Self.maxTokens) / 4 }
 
     mutating func record(_ usage: Usage) {
         guard usage.promptTokens > 0 || usage.completionTokens > 0 else { return }
-        usageTokens = usage.totalTokens
+        usageTokens = min(usage.totalTokens, Self.maxTokens)
         sinceChars = 0
     }
 
