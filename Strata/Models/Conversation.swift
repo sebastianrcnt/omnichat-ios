@@ -1,13 +1,17 @@
 import Foundation
 import SwiftData
 
+// CloudKit rules for every stored property of these models (they sync through iCloud, `StrataStore`): optional or
+// with a default value, never `@Attribute(.unique)` (`SyncDedupe` keeps one of two records with the same id instead),
+// relationships optional with an inverse, and large data in `.externalStorage` (it syncs as an asset).
+
 @Model
 final class Conversation {
-    @Attribute(.unique) var id: UUID
-    var title: String
-    var createdAt: Date
-    var updatedAt: Date
-    var isPinned: Bool
+    var id: UUID = UUID()
+    var title: String = ""
+    var createdAt: Date = Date.now
+    var updatedAt: Date = Date.now
+    var isPinned: Bool = false
     /// The user typed this title: automatic naming never overwrites it.
     var titleIsUserSet: Bool = false
     /// Automatic naming already ran once for this conversation.
@@ -21,7 +25,7 @@ final class Conversation {
     var treeLinked: Bool = false
     var connectionID: UUID?
     var modelID: String?
-    var effortRaw: String
+    var effortRaw: String = Effort.default.rawValue
     /// Usage of the last request in the most recent turn (drives the context ring).
     var lastPromptTokens: Int?
     var lastCompletionTokens: Int?
@@ -31,10 +35,15 @@ final class Conversation {
     var lastUsageMessageID: UUID?
     /// JSON-encoded `[SourceInfo]`: web sources numbered across the whole conversation.
     @Attribute(.externalStorage) var sourcesData: Data?
-    @Relationship(deleteRule: .cascade, inverse: \Message.conversation)
-    var messages: [Message] = []
-    @Relationship(deleteRule: .cascade, inverse: \CompactionRecord.conversation)
-    var compactions: [CompactionRecord] = []
+    // CloudKit needs to-many relationships optional; the app reads them as plain arrays (`messages`, `compactions`).
+    @Relationship(deleteRule: .cascade, originalName: "messages", inverse: \Message.conversation)
+    var storedMessages: [Message]? = []
+    @Relationship(deleteRule: .cascade, originalName: "compactions", inverse: \CompactionRecord.conversation)
+    var storedCompactions: [CompactionRecord]? = []
+    /// The device that created the conversation (`DeviceIdentity`), stamped on older ones before they first synced.
+    /// Two copies of one conversation (the same store restored onto two devices, both uploading it) are told apart by it,
+    /// the same way on every device (`SyncDedupe`).
+    var syncOrigin: String?
 
     init(title: String = "", connectionID: UUID? = nil, modelID: String? = nil, effort: Effort = .default) {
         self.id = UUID()
@@ -47,6 +56,7 @@ final class Conversation {
         self.connectionID = connectionID
         self.modelID = modelID
         self.effortRaw = effort.rawValue
+        self.syncOrigin = DeviceIdentity.current
     }
 
     /// The frozen day for this conversation's system message. Conversations from before the field existed take the
@@ -130,6 +140,16 @@ final class Conversation {
             return DecodeCache.sources.value(for: id, source: data) { try? JSONDecoder().decode([SourceInfo].self, from: data) } ?? []
         }
         set { sourcesData = newValue.isEmpty ? nil : try? JSONEncoder().encode(newValue) }
+    }
+
+    var messages: [Message] {
+        get { storedMessages ?? [] }
+        set { storedMessages = newValue }
+    }
+
+    var compactions: [CompactionRecord] {
+        get { storedCompactions ?? [] }
+        set { storedCompactions = newValue }
     }
 
     var sortedMessages: [Message] {
@@ -240,13 +260,13 @@ enum MessageRole: String, Codable, Sendable { case user, assistant }
 
 @Model
 final class Message {
-    @Attribute(.unique) var id: UUID
-    var roleRaw: String
-    var text: String
-    var reasoning: String
+    var id: UUID = UUID()
+    var roleRaw: String = MessageRole.assistant.rawValue
+    var text: String = ""
+    var reasoning: String = ""
     var thinkingSeconds: Double?
-    var createdAt: Date
-    var sortIndex: Int
+    var createdAt: Date = Date.now
+    var sortIndex: Int = 0
     var errorText: String?
     var errorNeedsSettings: Bool = false
     /// Atomic turn checkpoint, including request id, cursor and tool accumulator.
@@ -256,12 +276,16 @@ final class Message {
     var resumeDynamicData: Data?
     /// True while an unfinished turn has a checkpoint: lets launch and foreground find it with a predicate.
     var hasResume: Bool = false
+    /// The device whose run wrote the checkpoint (`DeviceIdentity`). Only that device resumes or cancels the turn: the
+    /// checkpoint syncs with the message, and another device must not run the same reply a second time. Nil on
+    /// checkpoints from before sync, which are this device's own.
+    var resumeDeviceID: String?
     var cancelPending: Bool = false
     /// The message this one follows (nil for a first message). A user message edited later gets a sibling here.
     var parentID: UUID?
     /// Which child was showing last, so returning to this message lands where the reader left.
     var lastActiveChildID: UUID?
-    var stoppedByUser: Bool
+    var stoppedByUser: Bool = false
     /// The answer translated on this device (Markdown, same structure as `text`). The API history never sees it.
     var translatedText: String?
     /// The language `translatedText` is in (an identifier such as "en-US").
@@ -287,8 +311,13 @@ final class Message {
     /// What the person did in the answer's interactive views, by block (`openUIStates`). Nil until they act.
     var openUIStateData: Data?
     var conversation: Conversation?
-    @Relationship(deleteRule: .cascade, inverse: \Attachment.message)
-    var attachments: [Attachment] = []
+    @Relationship(deleteRule: .cascade, originalName: "attachments", inverse: \Attachment.message)
+    var storedAttachments: [Attachment]? = []
+
+    var attachments: [Attachment] {
+        get { storedAttachments ?? [] }
+        set { storedAttachments = newValue }
+    }
 
     init(role: MessageRole, text: String = "", sortIndex: Int) {
         self.id = UUID()
@@ -317,6 +346,7 @@ final class Message {
         resumeData = nil
         resumeDynamicData = nil
         hasResume = false
+        resumeDeviceID = nil
     }
 
     /// Decoded once per stored value (the transcript reads this on every redraw).
@@ -357,12 +387,12 @@ final class Message {
 
 @Model
 final class Attachment {
-    @Attribute(.unique) var id: UUID
-    @Attribute(.externalStorage) var jpegData: Data
+    var id: UUID = UUID()
+    @Attribute(.externalStorage) var jpegData: Data = Data()
     /// Small preview (about 10-30 KB) that transcript bubbles read, so scrolling never faults the full JPEG.
     /// Nil on attachments saved before it existed; `ThumbnailBackfill` fills it lazily.
     var thumbnailData: Data?
-    var sortIndex: Int
+    var sortIndex: Int = 0
     var message: Message?
 
     /// For code already off the main thread, or with a thumbnail in hand. A nil thumbnail is made later by `ThumbnailBackfill`.

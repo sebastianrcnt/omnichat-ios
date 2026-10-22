@@ -49,6 +49,16 @@ targets:
         com.apple.security.application-groups:
           - group.cc.coolservices.strata
         com.apple.developer.healthkit: true # health_query reads Apple Health (read-only)
+        # iCloud sync (`Strata/Sync`): chats and skills in CloudKit, settings and connections in key-value storage,
+        # secrets in iCloud Keychain. The Mac app names the same container, store and access group.
+        com.apple.developer.icloud-container-identifiers:
+          - iCloud.cc.coolservices.strata
+        com.apple.developer.icloud-services:
+          - CloudKit
+        com.apple.developer.ubiquity-kvstore-identifier: $(TeamIdentifierPrefix)cc.coolservices.strata
+        aps-environment: development # CloudKit's change pushes; exporting for distribution makes it production
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)cc.coolservices.strata
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cc.coolservices.strata
@@ -88,6 +98,7 @@ targets:
         UIBackgroundModes:
           - processing
           - audio
+          - remote-notification # CloudKit pushes when another device changes a synced chat
         UIAppFonts:
           - PretendardVariable.ttf
           - Pretendard-Regular.otf
@@ -203,6 +214,15 @@ targets:
         com.apple.security.files.user-selected.read-only: true
         com.apple.security.device.audio-input: true
         com.apple.security.personal-information.location: true
+        # iCloud sync, shared with the iPhone app: the same CloudKit container, key-value store and Keychain access group.
+        com.apple.developer.icloud-container-identifiers:
+          - iCloud.cc.coolservices.strata
+        com.apple.developer.icloud-services:
+          - CloudKit
+        com.apple.developer.ubiquity-kvstore-identifier: $(TeamIdentifierPrefix)cc.coolservices.strata
+        com.apple.developer.aps-environment: development
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)cc.coolservices.strata
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cc.coolservices.strata.mac

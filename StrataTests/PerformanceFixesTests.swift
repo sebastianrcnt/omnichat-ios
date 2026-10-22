@@ -67,7 +67,7 @@ struct DecodeCacheTests {
 struct PendingTurnQueryTests {
     @Test func onlyUnfinishedTurnsAreFetched() throws {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         let context = container.mainContext
         let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
         let conversation = Conversation()
@@ -92,7 +92,7 @@ struct PendingTurnQueryTests {
 
     @Test func turnsSavedBeforeTheFlagAreFlaggedOnce() throws {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         let context = container.mainContext
         let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
         let old = Message(role: .assistant, sortIndex: 1)

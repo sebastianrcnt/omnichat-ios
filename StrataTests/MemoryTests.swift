@@ -37,7 +37,7 @@ struct ImageCacheTests {
 
     @Test func historyMessagesReuseTheCache() throws {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         let context = container.mainContext
         let m = Message(role: .user, text: "look", sortIndex: 0)
         context.insert(m)
@@ -95,7 +95,7 @@ struct ThumbnailTests {
 
     @Test func oldAttachmentsGetABackfilledThumbnail() async throws {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         let context = container.mainContext
         let m = Message(role: .user, text: "x", sortIndex: 0)
         context.insert(m)
@@ -115,7 +115,7 @@ struct ThumbnailTests {
 struct SidebarSearchTests {
     @Test func searchFindsMessageTextInTheStoreAndTitlesInMemory() throws {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         let context = container.mainContext
         let a = Conversation(title: "Trip plans"), b = Conversation(title: "Recipes"), c = Conversation(title: "Other")
         for conv in [a, b, c] { context.insert(conv) }
@@ -139,7 +139,7 @@ struct SidebarSearchTests {
 struct LongSessionTests {
     @Test func fortyTurnsKeepCheckpointWritesAndFootprintBounded() async throws {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         let context = container.mainContext
         let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
         let keys = InMemoryKeyStore()

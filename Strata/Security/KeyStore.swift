@@ -14,48 +14,28 @@ struct KeychainError: Error, LocalizedError {
     }
 }
 
+/// API keys and other per-connection secrets, one item per connection id (`KeychainItems`: synced with iCloud Keychain
+/// while the switch is on).
 struct KeychainKeyStore: KeyStoring {
-    let service: String
+    let items: KeychainItems
+
+    var service: String { items.service }
 
     init(service: String = "cc.coolservices.strata.apikey") {
-        self.service = service
+        items = KeychainItems(service: service)
     }
 
-    private func baseQuery(_ id: UUID) -> [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword,
-         kSecAttrService as String: service,
-         kSecAttrAccount as String: id.uuidString]
+    init(items: KeychainItems) {
+        self.items = items
     }
 
     func key(for connectionID: UUID) -> String? {
-        var query = baseQuery(connectionID)
-        query[kSecReturnData as String] = true
-        query[kSecMatchLimit as String] = kSecMatchLimitOne
-        var out: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess,
-              let data = out as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+        items.read(connectionID.uuidString).flatMap { String(data: $0, encoding: .utf8) }
     }
 
     func setKey(_ key: String?, for connectionID: UUID) throws {
         let trimmed = key?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let trimmed, !trimmed.isEmpty else {
-            let status = SecItemDelete(baseQuery(connectionID) as CFDictionary)
-            if status != errSecSuccess && status != errSecItemNotFound { throw KeychainError(status: status) }
-            return
-        }
-        let data = Data(trimmed.utf8)
-        let status = SecItemUpdate(baseQuery(connectionID) as CFDictionary,
-                                   [kSecValueData as String: data] as CFDictionary)
-        if status == errSecItemNotFound {
-            var add = baseQuery(connectionID)
-            add[kSecValueData as String] = data
-            add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-            let addStatus = SecItemAdd(add as CFDictionary, nil)
-            if addStatus != errSecSuccess { throw KeychainError(status: addStatus) }
-        } else if status != errSecSuccess {
-            throw KeychainError(status: status)
-        }
+        try items.write(trimmed.flatMap { $0.isEmpty ? nil : Data($0.utf8) }, account: connectionID.uuidString)
     }
 }
 

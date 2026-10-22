@@ -61,8 +61,11 @@ final class ArtifactStore: @unchecked Sendable {
 
     let root: URL
     private let lock = NSLock()
+    /// The app's own store (not a test's): its pages sync with their chats (`FileMirror`).
+    private let mirrored: Bool
 
     init(root: URL? = nil) {
+        mirrored = root == nil
         if let root {
             self.root = root
         } else {
@@ -110,8 +113,10 @@ final class ArtifactStore: @unchecked Sendable {
         }
         let dir = folder(conversationID)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        guard (try? Data(html.utf8).write(to: dir.appendingPathComponent(artifact.id + ".html"), options: .atomic)) != nil,
+        let page = Data(html.utf8)
+        guard (try? page.write(to: dir.appendingPathComponent(artifact.id + ".html"), options: .atomic)) != nil,
               writeIndex(index, conversationID: conversationID) else { throw .notStored }
+        if mirrored { FileMirror.handler?.wrote(page, area: FileSync.artifacts, conversationID: conversationID, name: artifact.id + ".html") }
         return artifact
     }
 
@@ -144,6 +149,7 @@ final class ArtifactStore: @unchecked Sendable {
 
     func removeAll(conversationID: UUID) {
         lock.withLock { try? FileManager.default.removeItem(at: folder(conversationID)) }
+        if mirrored { FileMirror.handler?.removedAll(area: FileSync.artifacts, conversationID: conversationID) }
     }
 
     // MARK: Index
@@ -154,8 +160,11 @@ final class ArtifactStore: @unchecked Sendable {
     }
 
     private func writeIndex(_ index: [Artifact], conversationID: UUID) -> Bool {
-        guard let data = try? Self.encoder.encode(index) else { return false }
-        return (try? data.write(to: indexURL(conversationID), options: .atomic)) != nil
+        guard let data = try? Self.encoder.encode(index), (try? data.write(to: indexURL(conversationID), options: .atomic)) != nil else {
+            return false
+        }
+        if mirrored { FileMirror.handler?.wrote(data, area: FileSync.artifacts, conversationID: conversationID, name: "index.json") }
+        return true
     }
 
     private static let encoder: JSONEncoder = {

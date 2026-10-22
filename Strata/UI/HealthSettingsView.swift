@@ -17,7 +17,7 @@ struct HealthSettingsView: View {
                                       subtitle: "Chats whose model runs on a remote server can't read Health.", isOn: $localOnly)
                 }
 
-                GroupedSection(header: "What's shared", footer: "Health data is not sent to OpenChat's developer, not used for advertising, and not stored in iCloud by OpenChat. Debug bundles leave it out. The answers stay in your chats on this device until you delete them.") {
+                GroupedSection(header: "What's shared", footer: "Health data is not sent to OpenChat's developer and not used for advertising. Debug bundles leave it out. The answers stay in your chats until you delete them; with chat sync on (Settings > iCloud), chats sync through your private iCloud.") {
                     SettingsRow(title: "Only what a question needs",
                                 subtitle: String(localized: "When the assistant reads Health, the summary it reads (daily totals, nights of sleep, workouts) goes to the chat's model connection with your message, and stays in that chat."))
                     SettingsRow(title: "Not medical advice",

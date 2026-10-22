@@ -489,9 +489,11 @@ final class ChatController {
         }
     }
 
-    /// Unfinished turns only, found by a predicate (not by loading every message on each foreground).
+    /// Unfinished turns only, found by a predicate (not by loading every message on each foreground). Only this device's
+    /// own: a turn another device is running syncs here with its checkpoint, and must not run twice.
     /// Turns saved before the `hasResume` flag existed are flagged once.
-    static func pendingMessages(context: ModelContext, defaults: UserDefaults = .standard) -> [Message] {
+    static func pendingMessages(context: ModelContext, defaults: UserDefaults = .standard,
+                                device: String = DeviceIdentity.current) -> [Message] {
         let key = "strata.resumeFlagMigrated.v1"
         if !defaults.bool(forKey: key) {
             for message in (try? context.fetch(FetchDescriptor<Message>())) ?? [] where message.resumeData != nil && !message.hasResume {
@@ -500,7 +502,10 @@ final class ChatController {
             try? context.save()
             defaults.set(true, forKey: key)
         }
-        var descriptor = FetchDescriptor<Message>(predicate: #Predicate<Message> { $0.cancelPending || $0.hasResume })
+        let device: String? = device
+        var descriptor = FetchDescriptor<Message>(predicate: #Predicate<Message> {
+            ($0.cancelPending || $0.hasResume) && ($0.resumeDeviceID == nil || $0.resumeDeviceID == device)
+        })
         descriptor.fetchLimit = 20
         return (try? context.fetch(descriptor)) ?? []
     }
@@ -924,6 +929,7 @@ final class ChatController {
     private func persist(_ snapshot: CheckpointPersister.Snapshot, run: ChatRun, message: Message, conversation: Conversation, context: ModelContext) {
         if let data = snapshot.staticData { message.resumeData = data }
         if !message.hasResume { message.hasResume = true }
+        if message.resumeDeviceID != DeviceIdentity.current { message.resumeDeviceID = DeviceIdentity.current }
         message.resumeDynamicData = snapshot.dynamicData
         onCheckpointWrite?((snapshot.staticData?.count ?? 0) + snapshot.dynamicData.count)
         DiagnosticCounters.shared.recordCheckpointWrite(conversation: conversation.id, staticBytes: snapshot.staticData?.count,

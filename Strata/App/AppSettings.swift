@@ -218,6 +218,23 @@ final class AppSettings {
             ? TextSizeSetting.defaultStep : TextSizeSetting.clamped(defaults.integer(forKey: "textSizeStep"))
     }
 
+    /// Reads the values again after another device changed them in `defaults` (`SettingsSync`). Only what differs is
+    /// set, so views that read the rest don't redraw.
+    func reload(from defaults: UserDefaults) {
+        let fresh = AppSettings(defaults: defaults)
+        func take<T: Equatable>(_ key: ReferenceWritableKeyPath<AppSettings, T>) {
+            if self[keyPath: key] != fresh[keyPath: key] { self[keyPath: key] = fresh[keyPath: key] }
+        }
+        take(\.accentHex); take(\.defaultContextLength); take(\.lastConnectionID); take(\.lastModelID); take(\.fetchLength)
+        take(\.fetchPatience); take(\.searchEngine); take(\.smoothStreaming); take(\.continueOnEmptyAnswer); take(\.generateTitles)
+        take(\.nameChatsOnDevice); take(\.developerMode); take(\.useSystemTextSize); take(\.textSizeStep); take(\.lastEffortRaw)
+        take(\.recentModels); take(\.notifyReplies); take(\.liveActivities); take(\.thinkingLines); take(\.translateThinking)
+        take(\.dictationLanguage); take(\.dictationEngine); take(\.dictationConnectionID); take(\.dictationModel)
+        take(\.userPreferences); take(\.enabledPlugins); take(\.webSearchEnabled); take(\.pythonEnabled); take(\.pythonTimeLimit)
+        take(\.browserEnabled); take(\.locationEnabled); take(\.sshEnabled); take(\.videoTranscriptsEnabled)
+        take(\.interactiveViewsEnabled); take(\.healthEnabled); take(\.backgroundLoadingSound); take(\.askRobotChecks)
+    }
+
     /// Applied at the root; nil leaves Dynamic Type to the system (accessibility sizes included).
     var dynamicTypeOverride: DynamicTypeSize? { TextSizeSetting.override(useSystem: useSystemTextSize, step: textSizeStep) }
 

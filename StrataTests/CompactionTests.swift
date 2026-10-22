@@ -372,7 +372,7 @@ struct CompactionRecordTests {
 
     private func rig() throws -> (ModelContainer, ModelContext, Conversation) {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self, CompactionRecord.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         Self.containers.append(container)
         let context = container.mainContext
         let c = Conversation(connectionID: nil, modelID: "m")
@@ -521,7 +521,7 @@ struct CompactionTurnTests {
 
     private func rig(_ plans: [([ChatDelta], ProgrammableStreamer.End)], window: Int = 1000) throws -> Rig {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self, CompactionRecord.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         let context = container.mainContext
         let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
         let keys = InMemoryKeyStore()

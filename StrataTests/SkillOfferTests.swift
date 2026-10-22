@@ -93,7 +93,7 @@ struct SkillOfferTurnTests {
 
     private func rig(_ plans: [([ChatDelta], ProgrammableStreamer.End)]) throws -> Rig {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self, CompactionRecord.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         Self.containers.append(container)
         let context = container.mainContext
         let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!

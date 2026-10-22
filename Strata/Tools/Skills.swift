@@ -4,7 +4,7 @@ import Observation
 // Skills: Markdown documents that teach the model a task (which pages to open, which scripts to run). The system prompt
 // lists only each skill's name and one-line description; `load_skill` returns the body. Built-in skills ship in the app
 // bundle (`Resources/Skills`); the model can write new ones with `save_skill`, which the user must approve, and those
-// live in Application Support.
+// live in Application Support, mirrored from the synced store (`SkillSync`).
 
 /// One skill: `---` front matter with `name` and `description`, then the Markdown body.
 struct Skill: Sendable, Equatable, Identifiable, Codable {
@@ -145,6 +145,22 @@ final class SkillStore: @unchecked Sendable {
     private let directory: URL?
     private var saved: [String: Skill] = [:]
     private var loaded = false
+    /// Saves and deletes made here that the synced store has not taken yet: `replaceSaved` leaves them alone.
+    private var unsynced: Set<String> = []
+    private var changeHandler: (@Sendable (Change) -> Void)?
+
+    /// A save or delete made on this device (by the user or `save_skill`), for `SkillSync`.
+    enum Change: Equatable, Sendable {
+        case saved(Skill)
+        case deleted(String)
+
+        var name: String {
+            switch self {
+            case .saved(let skill): skill.name
+            case .deleted(let name): name
+            }
+        }
+    }
 
     init(builtIn: [Skill] = SkillStore.bundled(), directory: URL? = SkillStore.defaultDirectory) {
         self.builtIn = builtIn.map { var s = $0; s.isBuiltIn = true; return s }.sorted { $0.name < $1.name }
@@ -202,16 +218,75 @@ final class SkillStore: @unchecked Sendable {
             }
             saved[skill.name] = skill
         }
+        report(.saved(skill))
         SkillsVersion.bump()
     }
 
     func delete(named name: String) {
+        let removed = lock.withLock {
+            loadIfNeeded()
+            guard saved.removeValue(forKey: name) != nil else { return false }
+            if let directory { try? FileManager.default.removeItem(at: directory.appendingPathComponent(name + ".md")) }
+            return true
+        }
+        guard removed else { return }
+        report(.deleted(name))
+        SkillsVersion.bump()
+    }
+
+    // MARK: Sync
+
+    /// The user's saved skills, by name.
+    var savedSkills: [Skill] {
         lock.withLock {
             loadIfNeeded()
-            guard saved.removeValue(forKey: name) != nil else { return }
-            if let directory { try? FileManager.default.removeItem(at: directory.appendingPathComponent(name + ".md")) }
+            return saved.values.sorted { $0.name < $1.name }
         }
-        SkillsVersion.bump()
+    }
+
+    /// Where saves and deletes made on this device go (`SkillSync`); each one counts as unsynced until `acknowledge`.
+    func onChange(_ handler: (@Sendable (Change) -> Void)?) {
+        lock.withLock { changeHandler = handler }
+    }
+
+    private func report(_ change: Change) {
+        let handler = lock.withLock {
+            if changeHandler != nil { unsynced.insert(change.name) }
+            return changeHandler
+        }
+        handler?(change)
+    }
+
+    /// The synced store has the change to this skill.
+    func acknowledge(_ name: String) {
+        _ = lock.withLock { unsynced.remove(name) }
+    }
+
+    /// Makes the saved skills the synced store's (`skills`), files included. A skill changed here that the store has not
+    /// taken yet stays as it is. Built-in names are never replaced.
+    func replaceSaved(_ skills: [Skill]) {
+        let changed = lock.withLock { () -> Bool in
+            loadIfNeeded()
+            var next: [String: Skill] = [:]
+            for var skill in skills where !builtIn.contains(where: { $0.name == skill.name }) && Skill.isValidName(skill.name) {
+                skill.isBuiltIn = false
+                next[skill.name] = skill
+            }
+            for name in unsynced { next[name] = saved[name] }
+            guard next != saved else { return false }
+            if let directory {
+                try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                for (name, skill) in next where saved[name] != skill {
+                    try? Data(skill.document.utf8).write(to: directory.appendingPathComponent(name + ".md"), options: .atomic)
+                }
+                for name in saved.keys where next[name] == nil {
+                    try? FileManager.default.removeItem(at: directory.appendingPathComponent(name + ".md"))
+                }
+            }
+            saved = next
+            return true
+        }
+        if changed { SkillsVersion.bump() }
     }
 
     /// The system prompt's skill list (see `SkillIndex`).

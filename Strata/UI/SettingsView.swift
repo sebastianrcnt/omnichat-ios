@@ -24,6 +24,7 @@ struct SettingsView: View {
     @State private var showSSH = false
     @State private var showHealth = false
     @State private var showChats = false
+    @State private var showICloud = false
     @State private var showAddConnection = false
 
     var body: some View {
@@ -66,6 +67,8 @@ struct SettingsView: View {
                         }
                         SettingsRow(systemImage: "bubble.left.and.text.bubble.right", title: "Chats",
                                     subtitle: "Answers, notifications, dictation and context", showsChevron: true) { showChats = true }
+                        SettingsRow(systemImage: "icloud", title: "iCloud", subtitle: "Chats, skills, settings and secrets",
+                                    showsChevron: true) { showICloud = true }
                     }
 
                     GroupedSection(header: "About") {
@@ -108,6 +111,7 @@ struct SettingsView: View {
             .navigationDestination(isPresented: $showSSH) { SSHSettingsView() }
             .navigationDestination(isPresented: $showHealth) { HealthSettingsView() }
             .navigationDestination(isPresented: $showChats) { ChatSettingsView() }
+            .navigationDestination(isPresented: $showICloud) { ICloudSettingsView() }
         }
         .presentationBackground(theme.background)
         .sheet(isPresented: $showAddConnection) { ConnectionSetupSheet(start: .presets).inAppLinks() }
@@ -119,6 +123,7 @@ struct SettingsView: View {
             #endif
             if DebugHooks.openSheet == "licenses" { showLicenses = true }
             if DebugHooks.openSheet == "health" { showHealth = true }
+            if DebugHooks.openSheet == "icloud" { showICloud = true }
             if DebugHooks.openSheet == "addconnection" { showAddConnection = true }
             if DebugHooks.openSheet == "connection" { // what "Add connection" > "Other server" does
                 let new = Connection(name: String(localized: "New connection"), baseURL: "https://")

@@ -79,6 +79,17 @@ final class ConnectionStore {
 
     private func save() {
         if let data = try? JSONEncoder().encode(connections) { defaults.set(data, forKey: storageKey) }
+        onSave?(connections)
+    }
+
+    /// Told of every saved change (`ConnectionSync` sends it to the user's other devices).
+    @ObservationIgnored var onSave: (([Connection]) -> Void)?
+
+    /// The list as another device left it (`ConnectionSync`). Connections it drops were deleted there, along with their
+    /// Keychain items, so nothing more is removed here.
+    func replaceAll(_ list: [Connection]) {
+        connections = list
+        save()
     }
 
     func connection(_ id: UUID?) -> Connection? { connections.first { $0.id == id } }

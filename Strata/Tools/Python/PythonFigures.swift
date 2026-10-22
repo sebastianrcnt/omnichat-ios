@@ -25,8 +25,11 @@ final class ToolImageStore: @unchecked Sendable {
     let root: URL
     private let lock = NSLock()
     private let dataURLs = NSCache<NSString, NSString>()
+    /// The app's own store (not a test's): its figures sync with their chats (`FileMirror`).
+    private let mirrored: Bool
 
     init(root: URL? = nil) {
+        mirrored = root == nil
         if let root {
             self.root = root
         } else {
@@ -53,6 +56,7 @@ final class ToolImageStore: @unchecked Sendable {
             let id = prefix + String(n)
             let file = conversationID.uuidString + "/" + id + ".png"
             guard (try? png.write(to: root.appendingPathComponent(file), options: .atomic)) != nil else { return nil }
+            if mirrored { FileMirror.handler?.wrote(png, area: FileSync.toolImages, conversationID: conversationID, name: id + ".png") }
             return ToolImage(id: id, width: size.0, height: size.1, file: file)
         }
     }
@@ -89,6 +93,7 @@ final class ToolImageStore: @unchecked Sendable {
 
     func removeAll(conversationID: UUID) {
         lock.withLock { try? FileManager.default.removeItem(at: folder(conversationID)) }
+        if mirrored { FileMirror.handler?.removedAll(area: FileSync.toolImages, conversationID: conversationID) }
     }
 
     func purgeCache() { dataURLs.removeAllObjects() }

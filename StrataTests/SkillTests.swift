@@ -87,7 +87,7 @@ struct SkillIndexFreezingTests {
 
     @Test func aChatKeepsTheSkillListItStartedWith() async throws {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
         let connections = ConnectionStore(defaults: defaults, keys: InMemoryKeyStore())
         try connections.setAPIKey("k", for: Connection.testID)
