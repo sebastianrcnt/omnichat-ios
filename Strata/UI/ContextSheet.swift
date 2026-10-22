@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The context gauge's sheet: one card with the window's use as a bar split by category, the total and where it
-/// summarizes, and a row per category; then "Summarize now". Display only: the split is an estimate scaled to the last request's real size,
+/// summarizes, and a row per category; "Summarize now" at the bottom. Display only: the split is an estimate scaled to the last request's real size,
 /// and nothing here changes what is sent. Usage and balance moved behind the chart button.
 struct ContextSheet: View {
     @Environment(\.theme) private var theme
@@ -54,20 +54,13 @@ struct ContextSheet: View {
                 }
                 .padding(DS.Spacing.lg)
                 .background(theme.surface, in: RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
-
-                summarizeButton
-                    .padding(.top, DS.Spacing.md)
-
-                if let usage = conversation?.lastUsage {
-                    GroupedSection(header: "Last request") {
-                        SettingsRow(title: "Input tokens", value: usage.promptTokens.formatted())
-                        SettingsRow(title: "Output tokens", value: usage.completionTokens.formatted())
-                        if let r = usage.reasoningTokens { SettingsRow(title: "Reasoning tokens", value: r.formatted()) }
-                        SettingsRow(title: "Cache hit", value: Self.cacheText(usage))
-                    }
-                    .padding(.top, DS.Spacing.xl)
-                }
             }
+        }
+        // At the bottom of the sheet, where the thumb is; the card above is only to read.
+        .safeAreaInset(edge: .bottom) {
+            summarizeButton
+                .padding(.horizontal, DS.Spacing.lg)
+                .padding(.bottom, DS.Spacing.md)
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
@@ -101,13 +94,6 @@ struct ContextSheet: View {
                              isDimmed: focus != nil)
         }
         .animation(.easeOut(duration: 0.2), value: focus)
-    }
-
-    static func cacheText(_ u: Usage) -> String {
-        guard let cached = u.cachedTokens else { return String(localized: "Not reported") }
-        guard u.promptTokens > 0 else { return String(localized: "None") }
-        let pct = Int((Double(cached) / Double(u.promptTokens) * 100).rounded())
-        return String(localized: "\(cached.formatted()) of \(u.promptTokens.formatted()) (\(pct)%)")
     }
 
     @ViewBuilder
