@@ -284,6 +284,22 @@ struct PySocketUnitTests {
     }
 }
 
+extension PySocketUnitTests {
+    @Test func theCardShowsTheNetworkLineApart() {
+        let output = "hi\n\n[Network: TCP example.com:80, 10 B sent, 20 B received]"
+        #expect(PythonRunDetail.networkLine(output) == "Network: TCP example.com:80, 10 B sent, 20 B received")
+        #expect(PythonRunDetail.networkLine("hi") == nil)
+        #expect(PythonRunDetail.networkLine("[Network: printed by the code\nacross lines]") == nil)
+    }
+
+    @Test func theToolDescriptionTellsTheModelAboutSockets() {
+        let text = ToolDefinition.runPython.function.description
+        for phrase in ["TCP and UDP sockets", "TLS", "PermissionError", "ICMP", "multicast", "from the internet", "subprocess", "background"] {
+            #expect(text.contains(phrase), "\(phrase)")
+        }
+    }
+}
+
 // MARK: - The bridge, frame by frame
 
 @Suite(.serialized)
