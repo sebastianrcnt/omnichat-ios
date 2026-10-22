@@ -529,8 +529,16 @@ struct BrowserOpenTool {
         do {
             let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let parsed = URL(string: trimmed) else { throw URLGuardError.invalidURL }
-            try await URLGuard.validate(parsed, resolver: resolver)
+            // Under the overall limit and cancellable: a DNS server that stops answering must not hold the reply (the
+            // system resolver can't be interrupted, so it is left behind).
+            try await Deadline.run(timeouts.overall) { [resolver] in try await URLGuard.validate(parsed, resolver: resolver) }
+            try Task.checkCancellation()
             url = parsed
+        } catch is CancellationError {
+            return ToolOutput(text: "Error: cancelled.", isError: true)
+        } catch WebToolError.timeout {
+            let text = WebToolError.timeoutMessage(after: ContinuousClock.now - started, limit: timeouts.overall, what: "looking up the address")
+            return ToolOutput(text: "Error: \(text)", isError: true)
         } catch {
             return ToolOutput(text: "Error: \(error.localizedDescription)", isError: true)
         }
