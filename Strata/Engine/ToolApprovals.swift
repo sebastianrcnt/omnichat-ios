@@ -39,8 +39,18 @@ enum PackageApprovalAnswer: Sendable, Equatable {
     var allows: Bool { self != .deny }
 }
 
-/// The cards tool calls wait on: SSH approvals and prompts (`SSHRequests` is a view of these), and package tool
-/// approvals. Each is tied to its chat and its call, so the feed shows it under that call's line, in that chat only;
+/// A connection Python wants to make to a private or local address (`PySocketBridge`): asked once per chat and host.
+struct NetworkApproval: Sendable, Equatable {
+    /// The host as the code named it, and the address it resolved to when that's different.
+    var host: String
+    var address: String?
+    var port: Int
+    /// "TCP" or "UDP".
+    var proto: String
+}
+
+/// The cards tool calls wait on: SSH approvals and prompts (`SSHRequests` is a view of these), package tool
+/// approvals, and Python's connections to local addresses. Each is tied to its chat and its call, so the feed shows it under that call's line, in that chat only;
 /// call ids repeat across chats (`call_0`). A cancelled turn denies. While OpenChat is in the background a notification
 /// says a card waits, and the Live Activity reads "Needs you".
 @MainActor
@@ -51,11 +61,13 @@ final class ToolApprovals {
     enum Kind: Equatable {
         case ssh(SSHRequests.Kind)
         case package(PackageApproval)
+        case network(NetworkApproval)
     }
 
     enum Answer: Equatable {
         case ssh(SSHRequests.Answer)
         case package(PackageApprovalAnswer)
+        case network(Bool)
     }
 
     struct Request: Identifiable, Equatable {
@@ -70,6 +82,7 @@ final class ToolApprovals {
             case .ssh(.approval): .ssh(.approval(.deny))
             case .ssh(.prompt): .ssh(.prompt(nil))
             case .package: .package(.deny)
+            case .network: .network(false)
             }
         }
     }
@@ -122,6 +135,21 @@ final class ToolApprovals {
         if case .package(let a) = await ask(Request(conversationID: conversation, callID: callID, kind: .package(approval))) { return a }
         return .deny
     }
+
+    // MARK: Python's connections
+
+    /// Whether Python may connect to a private or local host: asked once per chat and host, and remembered for this
+    /// session. Without a chat there is no one to ask.
+    func approveNetwork(_ approval: NetworkApproval, conversation: UUID?, callID: String?) async -> Bool {
+        let key = "network/" + approval.host.lowercased()
+        if isAllowedInChat(key, conversation: conversation) { return true }
+        guard conversation != nil else { return false }
+        guard case .network(let allowed) = await ask(Request(conversationID: conversation, callID: callID, kind: .network(approval))) else {
+            return false
+        }
+        if allowed { allowInChat(key, conversation: conversation) }
+        return allowed
+    }
 }
 
 /// A card that waits while OpenChat is in the background: a notification says so (tapping it opens the chat).
@@ -133,6 +161,7 @@ enum ToolApprovalNotifier {
         case .ssh(.approval(let a)): String(localized: "Approve a command on \(a.server)?")
         case .ssh(.prompt(let p)): String(localized: "\(p.hop) asks for an answer.")
         case .package(let p): String(localized: "Approve \(p.packageName) › \(p.toolTitle)?")
+        case .network(let n): String(localized: "Allow Python to connect to \(n.host)?")
         }
         ReplyBackgroundExecution.notifyCompletion(title: "OpenChat", body: body, conversationID: conversation)
     }
