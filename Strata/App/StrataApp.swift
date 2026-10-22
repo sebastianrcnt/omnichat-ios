@@ -32,6 +32,8 @@ struct StrataApp: App {
                     OpenUIGallery()
                 } else if ReplyActivityGallery.isRequested {
                     ReplyActivityGallery()
+                } else if HeaderGallery.isRequested {
+                    HeaderGallery()
                 } else {
                     RootView()
                 }
