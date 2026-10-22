@@ -268,7 +268,7 @@ struct NoConnectionState: View {
             Text("Add a connection to start")
                 .font(DS.Typography.title)
                 .foregroundStyle(theme.textPrimary)
-            Text("OmniChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.")
+            Text("OmniChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT account.")
                 .font(DS.Typography.ui)
                 .foregroundStyle(theme.textSecondary)
                 .multilineTextAlignment(.center)

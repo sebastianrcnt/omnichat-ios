@@ -33,7 +33,7 @@ struct SettingsView: View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                    GroupedSection(header: "Connections", footer: "A server with an OpenAI-compatible API, your ChatGPT plan, or your OpenCode account. API keys and sign-ins are stored in the Keychain.") {
+                    GroupedSection(header: "Connections", footer: "A server with an OpenAI-compatible API, Anthropic, or your ChatGPT plan. API keys and sign-ins are stored in the Keychain.") {
                         ForEach(connections.connections) { c in
                             SettingsRow(title: LocalizedStringKey(c.name), subtitle: subtitle(for: c),
                                         value: c.models.isEmpty ? nil : String(localized: "\(c.models.count) models"),
