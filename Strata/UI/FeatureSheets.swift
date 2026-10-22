@@ -36,6 +36,9 @@ struct ModelPickerSheet: View {
     @State private var currentEffort: Effort
     @State private var renaming: ModelRenameTarget?
     @State private var query = ""
+    #if os(iOS)
+    @State private var detent: PresentationDetent = Self.initialDetent
+    #endif
 
     enum Page: Equatable { case root, provider(UUID), search }
 
@@ -64,12 +67,22 @@ struct ModelPickerSheet: View {
             }
         }
         #if os(iOS)
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.medium, .large], selection: $detent)
         .presentationDragIndicator(.visible)
         #endif
         .modelRenameAlert($renaming)
         .task { await connections.fetchMissingAccountModels() }
     }
+
+    #if os(iOS)
+    /// Medium; `-StrataSheetDetent large` (Debug) opens it full height, for screenshots.
+    private static var initialDetent: PresentationDetent {
+        #if DEBUG
+        if DebugHooks.value("StrataSheetDetent") == "large" { return .large }
+        #endif
+        return .medium
+    }
+    #endif
 
     private var groups: [ModelPickerCatalog.Group] {
         ModelPickerCatalog.groups(connections: connections.connections,
