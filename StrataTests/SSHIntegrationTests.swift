@@ -118,6 +118,21 @@ struct SSHIntegrationTests {
         #expect(ContinuousClock.now - start < .seconds(3))
     }
 
+    /// Output that never pauses still ends at the timeout, and Stop still works.
+    @Test(.enabled(if: enabled)) func endlessOutputTimesOutAndCancels() async throws {
+        let (client, _) = client()
+        let h = [hop("pw", [.password("pw-secret")])]
+        let start = ContinuousClock.now
+        let r = try await client.exec(h, command: "yes", timeout: .seconds(2))
+        #expect(r.timedOut && ContinuousClock.now - start < .seconds(10))
+        let task = Task { try await client.exec(h, command: "yes", timeout: .seconds(60)) }
+        try await Task.sleep(for: .seconds(2))
+        let stop = ContinuousClock.now
+        task.cancel()
+        await #expect(throws: SSHError.cancelled) { _ = try await task.value }
+        #expect(ContinuousClock.now - stop < .seconds(3))
+    }
+
     @Test(.enabled(if: enabled)) func changedHostKeyIsRefused() async throws {
         let (client, store) = client()
         try store.check(SSHHostKey(hostPort: "127.0.0.1:\(Self.port!)", type: "ssh-ed25519", fingerprint: "SHA256:old"))

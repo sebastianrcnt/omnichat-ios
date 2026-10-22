@@ -549,6 +549,9 @@ private final class SSHChain {
         var buffer = [CChar](repeating: 0, count: 32 * 1024)
         do {
             while true {
+                // Output that never pauses must not keep the loop from the deadline and Stop (`waitSocket` checks them
+                // only when nothing moved).
+                _ = try control.check()
                 var moved = false
                 if written < input.count {
                     let n = input.withUnsafeBytes { raw in
@@ -569,6 +572,7 @@ private final class SSHChain {
                             let data = buffer.withUnsafeBytes { Data($0.prefix(n)) }
                             if stream == 0 { result.stdout.append(data) } else { result.stderr.append(data) }
                             moved = true
+                            _ = try control.check()
                         } else if n == 0 || n == Int(LIBSSH2_ERROR_EAGAIN) {
                             break
                         } else {
