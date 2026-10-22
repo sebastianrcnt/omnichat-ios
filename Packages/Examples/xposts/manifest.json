@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "id": "app.openchat.example.xposts",
+  "name": "X posts",
+  "namespace": "xposts",
+  "version": "1.0.0",
+  "description": "Read a public post on X (Twitter) from its link: text, author, date and counts.",
+  "publisher": { "name": "OpenChat examples" },
+  "license": "MIT",
+  "permissions": { "network": ["cdn.syndication.twimg.com"] },
+  "contents": {
+    "prompt": "prompt.md",
+    "tools": [
+      {
+        "name": "read",
+        "kind": "http",
+        "title": "Read a post",
+        "description": "Read a public post on X (Twitter): its text, author, date, likes and replies. Pass the post's link (x.com or twitter.com /status/ URL) or its numeric id.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "post": { "type": "string", "description": "The post's link, like https://x.com/user/status/1234567890, or its id.",
+                      "capture": "(?:status(?:es)?/|^)(\\d{1,25})" }
+          },
+          "required": ["post"]
+        },
+        "request": {
+          "method": "GET",
+          "url": "https://cdn.syndication.twimg.com/tweet-result",
+          "query": { "id": "{post}", "token": "x", "lang": "en" }
+        },
+        "response": {
+          "fields": { "text": "/text", "author": "/user/name", "handle": "/user/screen_name", "date": "/created_at",
+                      "likes": "/favorite_count", "replies": "/conversation_count", "id": "/id_str" },
+          "sources": { "title": "{author} on X", "url": "https://x.com/{handle}/status/{id}", "content": "{text}" },
+          "maxCharacters": 6000
+        },
+        "display": { "argument": "post" }
+      }
+    ]
+  }
+}

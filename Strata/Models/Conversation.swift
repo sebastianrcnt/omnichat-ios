@@ -106,10 +106,23 @@ final class Conversation {
     /// The switches as the model last heard of them: at the first request, or in a note on a user message.
     var announcedToolsRaw: String?
 
+    /// The groups among the switches. Setting them keeps the package switches (`packageSwitches`).
     var toolSwitches: Set<ToolGroup>? {
         get { toolSwitchesRaw.map(ToolGroup.decode) }
-        set { toolSwitchesRaw = newValue.map(ToolGroup.encode) }
+        set { toolSwitchesRaw = newValue.map { ToolSwitch.encode(groups: $0, packages: packageSwitches) } }
     }
+
+    /// The packages switched on in the chat (`pkg:<id>` entries of the same field): nil while it follows the defaults.
+    var packageSwitches: Set<String>? { toolSwitchesRaw.flatMap(ToolSwitch.packages) }
+
+    /// Sets both kinds of switches at once (a chat taking its defaults, or a flip in the "+" menu). Nil packages: the
+    /// defaults, taken at the first send.
+    func setSwitches(groups: Set<ToolGroup>, packages: Set<String>?) {
+        toolSwitchesRaw = ToolSwitch.encode(groups: groups, packages: packages)
+    }
+
+    /// The packages the model last heard of as on (`pkg:` entries of `announcedToolsRaw`).
+    var announcedPackages: Set<String>? { announcedToolsRaw.flatMap(ToolSwitch.packages) }
 
     var offeredTools: Set<ToolGroup>? {
         get { offeredToolsRaw.map(ToolGroup.decode) }
@@ -118,7 +131,20 @@ final class Conversation {
 
     var announcedTools: Set<ToolGroup>? {
         get { announcedToolsRaw.map(ToolGroup.decode) }
-        set { announcedToolsRaw = newValue.map(ToolGroup.encode) }
+        set { announcedToolsRaw = newValue.map { ToolSwitch.encode(groups: $0, packages: announcedPackages ?? []) } }
+    }
+
+    func setAnnounced(groups: Set<ToolGroup>, packages: Set<String>) {
+        announcedToolsRaw = ToolSwitch.encode(groups: groups, packages: packages)
+    }
+
+    /// The packages the chat offers, with the bytes of their tools and prompt sections (`PackageSnapshot`), frozen at
+    /// the first request that had one on. Nil: no packages, as in every chat from before packages existed.
+    @Attribute(.externalStorage) var packageSnapshotData: Data?
+
+    var packageSnapshot: PackageSnapshot? {
+        get { PackageSnapshot.decode(packageSnapshotData) }
+        set { packageSnapshotData = newValue.flatMap { $0.entries.isEmpty ? nil : $0.encoded } }
     }
 
     /// The offered groups, frozen to `current` at the first call, like `frozenPreferences`.
@@ -127,6 +153,18 @@ final class Conversation {
         offeredTools = current
         announcedTools = current
         return current
+    }
+
+    /// The offered packages, frozen with the groups: before the chat's first request `current` makes the snapshot (only
+    /// when it has packages: a chat without any stores nothing); after it, the stored snapshot holds, whatever is
+    /// installed now. A chat from before the tool switches existed (it froze its preferences but not its groups) gets
+    /// none, so its prefix stays as it was.
+    func frozenPackages(current: () -> PackageSnapshot) -> PackageSnapshot? {
+        guard offeredTools == nil else { return packageSnapshot }
+        let snapshot = preferencesSnapshot == nil ? current() : PackageSnapshot(entries: [])
+        packageSnapshot = snapshot
+        setAnnounced(groups: announcedTools ?? [], packages: snapshot.ids)
+        return packageSnapshot
     }
 
     var effort: Effort {

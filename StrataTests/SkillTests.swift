@@ -38,7 +38,10 @@ struct SkillFormatTests {
     }
 
     @Test func theBuiltInNaverSkillShipsWithItsScripts() throws {
-        let naver = try #require(SkillStore.bundled().first { $0.name == "naver-places" })
+        // It ships in the built-in Korea pack (`kr:naver-places`).
+        let korea = try #require(PackageStore.bundled().first { $0.manifest.id == BuiltInPackages.korea })
+        let local = try #require(korea.skills.first { $0.name == "naver-places" })
+        let naver = Skill(name: local.name, description: local.description, body: local.body, isBuiltIn: true)
         try naver.validate()
         #expect(naver.isBuiltIn)
         for marker in ["naver-places:list", "naver-places:more", "naver-places:details", "naver-places:reviews"] {

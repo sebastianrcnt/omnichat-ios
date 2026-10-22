@@ -90,7 +90,12 @@ struct IntentChat {
         if let model { resolved = model } else { resolved = await defaultModel() }
         guard let choice = resolved else { throw Failure.noModel }
         let conversation = Conversation(connectionID: choice.connectionID, modelID: choice.modelID, effort: settings.lastEffort)
-        conversation.toolSwitches = settings.defaultToolGroups.subtracting([.views]).union(requiredTools)
+        let groups = settings.defaultToolGroups.subtracting([.views]).union(requiredTools)
+        // A Siri or background run can't show approval cards: only default packages whose tools never ask come along.
+        let packages = controller.defaultPackages(groups: groups).filter { id in
+            controller.packages.package(id: id).map { p in p.tools.allSatisfy { $0.confirmLevel == "never" && ($0.isReadOnly || p.trust.mayWriteWithoutAsking) } } ?? false
+        }
+        conversation.setSwitches(groups: groups, packages: packages)
         context.insert(conversation)
         return conversation
     }

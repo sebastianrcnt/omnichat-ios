@@ -158,6 +158,26 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
             var type = "object"
             var properties: [String: Property]
             var required: [String]
+            /// A package tool's schema as the package wrote it (`ToolDefinition.package`): encoded in place of the typed
+            /// fields. Built-in tools never set it, so their bytes are what they always were.
+            var raw: PackageJSON?
+
+            init(type: String = "object", properties: [String: Property], required: [String], raw: PackageJSON? = nil) {
+                self.type = type
+                self.properties = properties
+                self.required = required
+                self.raw = raw
+            }
+
+            enum CodingKeys: String, CodingKey { case type, properties, required }
+
+            func encode(to encoder: Encoder) throws {
+                if let raw { try raw.encode(to: encoder); return }
+                var c = encoder.container(keyedBy: CodingKeys.self)
+                try c.encode(type, forKey: .type)
+                try c.encode(properties, forKey: .properties)
+                try c.encode(required, forKey: .required)
+            }
         }
         var name: String
         var description: String
@@ -165,6 +185,15 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
     }
     var type = "function"
     var function: Function
+
+    /// A package tool from its frozen definition (`PackageRender.toolDefinition`, kept in the chat's snapshot): the same
+    /// snapshot gives the same bytes on every request.
+    static func package(_ definition: PackageJSON) -> ToolDefinition? {
+        guard let function = definition["function"], let name = function["name"]?.stringValue,
+              let description = function["description"]?.stringValue, let parameters = function["parameters"] else { return nil }
+        return ToolDefinition(function: .init(name: name, description: description,
+                                              parameters: .init(properties: [:], required: [], raw: parameters)))
+    }
 
     /// The fixed tools. Never change these casually: they are part of the cached prefix.
     static let webSearch = ToolDefinition(function: .init(

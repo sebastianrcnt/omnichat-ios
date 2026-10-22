@@ -158,6 +158,7 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
         case "current_location": return ""
         case ToolNames.healthQuery: return HealthArguments.summary(of: arguments)
         case _ where SSHToolNames.covers(name): return SSHMask.sanitized(arguments)
+        case _ where PackageToolNames.covers(name): return PackageToolNames.displayArgument(name: name, arguments: arguments)
         default: return arguments
         }
     }
@@ -192,6 +193,7 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
     var displayOnly: ToolCallRecord {
         let keepsResult = name == ToolNames.runPython || name == ToolNames.browserEval || SSHToolNames.covers(name)
             || name == ToolNames.healthQuery // its line opens to the table it read (capped)
+            || PackageToolNames.keepsResult(name) // a package tool that asks for it (`display.keepResult`)
         // An index tool keeps its first line ("Clicked [12] Search"), its card's title, and the page's "URL:" line,
         // which names the site of its run (`BrowserRun.host`). The rest of the page state is dropped.
         let kept = keepsResult ? result : ToolNames.isBrowserAction(name) ? Self.actionDisplay(result) : ""
@@ -287,7 +289,7 @@ enum ToolNames {
     /// read. Python, page scripts, plugins and skill scripts may have done something already (a click, a POST).
     static func isSafeToRetry(_ name: String) -> Bool {
         [webSearch, webFetch, browserOpen, browserState, browserFind, browserScreenshot, loadSkill, currentLocation,
-         videoTranscript, healthQuery].contains(name)
+         videoTranscript, healthQuery].contains(name) || PackageToolNames.isReadOnly(name)
     }
 
     /// The index tools (`BrowserAction`): one card each, with the page live while the reply works.
@@ -302,7 +304,7 @@ enum ToolNames {
     /// Tools shown in the feed as a card of their own (not a search card or a row of "Read pages").
     static func hasOwnCard(_ name: String) -> Bool {
         [runPython, viewImage, browserOpen, browserEval, browserShow, loadSkill, runSkillScript, saveSkill, showPlaces, currentLocation,
-         showHTML, healthQuery].contains(name) || isBrowserAction(name) || SSHToolNames.covers(name)
+         showHTML, healthQuery].contains(name) || isBrowserAction(name) || SSHToolNames.covers(name) || PackageToolNames.covers(name)
     }
 
     /// Tools that read a page (and count as one in the summaries).

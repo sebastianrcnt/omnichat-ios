@@ -36,6 +36,7 @@ struct MacRootView: View {
         .chatLifecycle(selected: $selected)
         .intentRoutes(newChat: newChat)
         .connectionLinks(closing: .constant(false))
+        .packageLinks(closing: .constant(false))
         .onAppear {
             WindowActions.shared.install(newChat: newChat, findChats: findChats)
             WindowActions.shared.selectChat = selectChat

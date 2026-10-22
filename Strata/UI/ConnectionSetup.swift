@@ -138,11 +138,18 @@ struct ConnectionSetupSheet: View {
                 .foregroundStyle(theme.textSecondary)
                 .padding(.horizontal, DS.Spacing.lg)
             OnDeviceOfferSection { id in path = [id] }
+            let builtIn = PackageStore.shared.package(id: BuiltInPackages.connections)?.manifest.connections ?? []
             GroupedSection(header: "With an API key") {
-                ForEach([ConnectionPreset.openAI, .openRouter, .groq]) { row($0) }
+                ForEach(builtIn.filter { !$0.isLocal }) { row($0) }
             }
             GroupedSection(header: "On your computer", footer: localFooter) {
-                ForEach([ConnectionPreset.ollama, .lmStudio]) { row($0) }
+                ForEach(builtIn.filter(\.isLocal)) { row($0) }
+            }
+            // Installed packages' presets, under each package's name. Picking one goes through the same editor.
+            ForEach(PackageStore.shared.all.filter { !$0.isBuiltIn && !$0.manifest.connections.isEmpty }) { package in
+                GroupedSection(header: LocalizedStringKey(package.name)) {
+                    ForEach(package.manifest.connections) { row($0) }
+                }
             }
             GroupedSection(header: "With an account") {
                 ForEach([ConnectionPreset.chatGPT, .openCode]) { row($0) }
@@ -159,6 +166,15 @@ struct ConnectionSetupSheet: View {
         #else
         "localhost is this iPhone. For a server on your Mac, put the Mac's address on your Wi-Fi in the URL (like http://192.168.1.20:11434/v1) and start the server so it listens on the network."
         #endif
+    }
+
+    private func row(_ preset: PackageConnectionPreset) -> some View {
+        SettingsRow(systemImage: preset.systemImage, title: "", subtitle: preset.subtitleText, showsChevron: true,
+                    verbatimTitle: preset.name) {
+            let new = preset.makeConnection()
+            connections.upsert(new)
+            path = [new.id]
+        }
     }
 
     private func row(_ preset: ConnectionPreset) -> some View {

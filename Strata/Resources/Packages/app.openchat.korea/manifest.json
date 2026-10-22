@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "id": "app.openchat.korea",
+  "name": "Korea",
+  "namespace": "kr",
+  "version": "1.0.0",
+  "description": "Korean services: places, reviews and directions on Naver.",
+  "publisher": { "name": "OpenChat" },
+  "license": "MIT",
+  "requires": { "groups": ["browser"] },
+  "permissions": { "network": [] },
+  "contents": {
+    "skills": ["skills/naver-places.md"]
+  }
+}

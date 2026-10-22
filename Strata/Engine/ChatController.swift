@@ -131,6 +131,8 @@ final class ChatController {
     @ObservationIgnored var requestRing: RequestRing = .shared
     /// The skills listed in a new chat's system prompt.
     @ObservationIgnored var skills: SkillStore = .shared
+    /// The packages a new chat can offer (`PackageSnapshot` freezes them per chat).
+    @ObservationIgnored var packages: PackageStore = .shared
     @ObservationIgnored private var cancelTasks: [UUID: Task<Void, Never>] = [:]
     private let background = ReplyBackgroundExecution()
 
@@ -637,6 +639,10 @@ final class ChatController {
         let messages = apiHistory(path: path, conversation: conversation, endpoint: endpoint)
         runner.offered = endpoint.model.supportsTools ? offeredTools(conversation, freeze: true) : []
         runner.switches = ChatToolSwitches(conversation)
+        let snapshot = endpoint.model.supportsTools ? conversation.packageSnapshot : nil
+        runner.packageTools = snapshot?.requestTools(browserOffered: runner.offered.contains(.browser)) ?? []
+        runner.packages = snapshot
+        runner.tools = PackageToolRouter(base: tools, snapshot: snapshot, store: packages)
         // The on-device model's window is a few thousand tokens: its client keeps the recent turns that fit instead of
         // writing handoff notes every few turns ("Summarize now" still can).
         runner.compaction = endpoint.kind == .appleOnDevice ? nil
@@ -748,18 +754,90 @@ final class ChatController {
     }
 
     /// The composer's "+" menu: applies from the next message. A call to a group turned off is refused at once.
+    /// Packages that need the group turn off with it; those that can't share a chat with it turn off when it turns on.
     func setTool(_ group: ToolGroup, on: Bool, conversation: Conversation) {
         var switches = toolSwitches(conversation)
         if on { switches.insert(group) } else { switches.remove(group) }
-        conversation.toolSwitches = switches
+        let kept = conversation.packageSwitches.map { ids in
+            ids.filter { id in
+                guard let p = packages.package(id: id) else { return true }
+                return on ? !p.exclusiveGroups.contains(group) : !p.requiredGroups.contains(group)
+            }
+        }
+        conversation.setSwitches(groups: switches, packages: kept)
+    }
+
+    // MARK: Package switches
+
+    /// The chat's package switches: its own, or the defaults until it has any.
+    func packageSwitches(_ conversation: Conversation?) -> Set<String> {
+        conversation?.packageSwitches ?? defaultPackages(groups: toolSwitches(conversation))
+    }
+
+    /// The packages a new chat starts with: those on in new chats (Settings › Packages), except one that needs a tool
+    /// group the chat has off or can't share it with one it has on. Read at the chat's first send.
+    func defaultPackages(groups: Set<ToolGroup>) -> Set<String> {
+        Set(packages.all.filter { p in
+            p.record.onInNewChats && p.addsToChats && p.requiredGroups.isSubset(of: groups) && p.exclusiveGroups.isDisjoint(with: groups)
+        }.map(\.id))
+    }
+
+    /// The "+" menu's package switch: applies from the next message. Turning a package on turns on the groups it needs
+    /// and off those it can't share a chat with (and the packages that need those).
+    func setPackage(_ id: String, on: Bool, conversation: Conversation) {
+        var groups = toolSwitches(conversation)
+        var ids = packageSwitches(conversation)
+        applyPackage(id, on: on, groups: &groups, packages: &ids)
+        conversation.setSwitches(groups: groups, packages: ids)
+    }
+
+    /// `setPackage` on plain switches (a new chat's, before it exists).
+    func applyPackage(_ id: String, on: Bool, groups: inout Set<ToolGroup>, packages ids: inout Set<String>) {
+        guard on, let package = packages.package(id: id) else { ids.remove(id); return }
+        ids.insert(id)
+        groups.formUnion(package.requiredGroups)
+        groups.subtract(package.exclusiveGroups)
+        let now = groups
+        ids = ids.filter { other in
+            guard other != id, let p = packages.package(id: other) else { return true }
+            return p.requiredGroups.isSubset(of: now) && p.exclusiveGroups.isDisjoint(with: now)
+        }
+    }
+
+    /// The snapshot of `ids` as installed now, in id order, leaving out a package whose tools would pass the chat's
+    /// budget (`PackageLimits.toolsPerChat`) after those before it.
+    func packageSnapshot(for ids: Set<String>, adding base: PackageSnapshot = PackageSnapshot(entries: [])) -> PackageSnapshot {
+        var snapshot = base
+        var count = base.entries.reduce(0) { $0 + $1.tools.count }
+        for package in packages.all.filter({ ids.contains($0.id) && !base.ids.contains($0.id) && $0.addsToChats }).sorted(by: { PackageJSON.byteOrder($0.id, $1.id) }) {
+            guard count + package.tools.count <= PackageLimits.toolsPerChat else { continue }
+            count += package.tools.count
+            snapshot = snapshot.adding(PackageSnapshot.entry(package))
+        }
+        return snapshot
+    }
+
+    /// The packages the chat's requests offer: its frozen snapshot after the first request, its switches before.
+    private func chatPackages(_ conversation: Conversation) -> PackageSnapshot? {
+        if conversation.offeredTools != nil { return conversation.packageSnapshot }
+        let current = packageSnapshot(for: packageSwitches(conversation))
+        return current.entries.isEmpty ? nil : current
+    }
+
+    /// A chat that hasn't set its switches takes the defaults (groups and packages) at its first send.
+    private func takeDefaultSwitches(_ conversation: Conversation) {
+        guard conversation.toolSwitches == nil || conversation.packageSwitches == nil else { return }
+        conversation.setSwitches(groups: toolSwitches(conversation), packages: packageSwitches(conversation))
     }
 
     /// The tool groups the chat's requests offer: frozen at its first request (`freeze`), its switches before that.
+    /// Its packages freeze with them (`Conversation.frozenPackages`).
     private func offeredTools(_ conversation: Conversation, freeze: Bool) -> Set<ToolGroup> {
         if let offered = conversation.offeredTools { return offered }
         let current = toolSwitches(conversation)
         guard freeze else { return current }
-        if conversation.toolSwitches == nil { conversation.toolSwitches = current }
+        takeDefaultSwitches(conversation)
+        _ = conversation.frozenPackages { packageSnapshot(for: packageSwitches(conversation)) }
         return conversation.frozenTools(current: current)
     }
 
@@ -768,19 +846,29 @@ final class ChatController {
     /// list and the system message stay as they were, so the cached prefix holds.
     private func applyToolSwitches(_ conversation: Conversation, path: [Message]) {
         let current = toolSwitches(conversation)
-        if conversation.toolSwitches == nil { conversation.toolSwitches = current }
+        takeDefaultSwitches(conversation)
+        let currentPackages = packageSwitches(conversation)
         guard let offered = conversation.offeredTools else { return } // the first request freezes them as they are
         let announced = conversation.announcedTools ?? offered
         let changed = Set(ToolGroup.allCases.filter { offered.contains($0) && current.contains($0) != announced.contains($0) })
-        if !changed.isEmpty, let user = path.last, user.role == .user {
-            // Sent again (Regenerate): the groups it named before keep their place, with their state now.
-            user.apiNote = ToolGroup.note(changed.union(ToolGroup.groups(inNote: user.apiNote)), enabled: current)
+        let snapshot = conversation.packageSnapshot ?? PackageSnapshot(entries: [])
+        let announcedPackages = conversation.announcedPackages ?? snapshot.ids
+        let changedPackages = snapshot.ids.filter { currentPackages.contains($0) != announcedPackages.contains($0) }
+        if !changed.isEmpty || !changedPackages.isEmpty, let user = path.last, user.role == .user {
+            // Sent again (Regenerate): the groups and packages it named before keep their place, with their state now.
+            let named = changedPackages.union(ToolSwitch.packageIDs(inNote: user.apiNote, snapshot: snapshot))
+            user.apiNote = ToolSwitch.note(groups: changed.union(ToolGroup.groups(inNote: user.apiNote)), enabled: current,
+                                           packages: snapshot.entries.filter { named.contains($0.id) }.map { ($0.id, $0.name) },
+                                           enabledPackages: currentPackages)
         }
         // A group turned on that the chat wasn't offered at its start joins the offered set: its tools and its system
         // prompt section are added, which changes the request's prefix, so the provider's prompt cache is lost once.
-        // (Off at the start costs nothing: not offered, nothing cached yet.)
+        // (Off at the start costs nothing: not offered, nothing cached yet.) A package turned on joins the snapshot
+        // the same way.
         conversation.offeredTools = offered.union(current)
-        conversation.announcedTools = current
+        let grown = packageSnapshot(for: currentPackages, adding: snapshot)
+        if grown != snapshot { conversation.packageSnapshot = grown }
+        conversation.setAnnounced(groups: current, packages: currentPackages.intersection(grown.ids))
     }
 
     // MARK: Compaction
@@ -792,7 +880,11 @@ final class ChatController {
         // A model without tools is offered no tool group, only the views (a prompt section, no tools).
         let offered = tools ? offeredTools(conversation, freeze: freeze) : offeredTools(conversation, freeze: freeze).intersection([.views])
         // Like the skill list: a chat keeps the plugin section it first had with web tools on.
-        let currentPlugins = { PluginRegistry.bundled.promptSection(enabled: AppSettings.currentEnabledPlugins) }
+        // A plugin a built-in package replaced (Wikipedia) is left out when the chat has that package: it offers it.
+        let currentPlugins = {
+            let replaced = self.packages.replacedPlugins(by: self.chatPackages(conversation)?.ids ?? [])
+            return PluginRegistry.bundled.promptSection(enabled: AppSettings.currentEnabledPlugins.subtracting(replaced))
+        }
         let plugins = !offered.contains(.web) ? ""
             : freeze ? conversation.frozenPluginSection(current: currentPlugins()) : conversation.pluginSectionSnapshot ?? currentPlugins()
         // A chat keeps the skill list it first had with the browser on, like its preferences.
@@ -802,6 +894,7 @@ final class ChatController {
                                    skills: offered.contains(.browser), video: offered.contains(.video), ssh: offered.contains(.ssh),
                                    health: offered.contains(.health), views: offered.contains(.views)),
                     skillIndex,
+                    tools ? chatPackages(conversation)?.promptSections ?? "" : "",
                     AppPrompt.preferences(freeze ? conversation.frozenPreferences(current: settings.userPreferences)
                                                   : conversation.preferencesSnapshot ?? settings.userPreferences)]
             .filter { !$0.isEmpty }.joined(separator: "\n\n")
@@ -816,7 +909,9 @@ final class ChatController {
 
     /// The tools the chat's requests send (see `ToolDefinition.available`).
     private func requestTools(_ endpoint: Endpoint, conversation: Conversation) -> [ToolDefinition] {
-        ToolDefinition.available(groups: offeredTools(conversation, freeze: false), images: endpoint.model.supportsImages)
+        let offered = offeredTools(conversation, freeze: false)
+        return ToolDefinition.available(groups: offered, images: endpoint.model.supportsImages)
+            + (chatPackages(conversation)?.requestTools(browserOffered: offered.contains(.browser)) ?? [])
     }
 
     /// The window, the room for an answer and the context size before this turn's own message.

@@ -402,6 +402,7 @@ private struct ShareFileRow: View {
         case .pdf: "doc.richtext"
         case .text: "doc.text"
         case .other: "doc"
+        case .package: "shippingbox"
         }
     }
 
@@ -434,6 +435,7 @@ private struct ShareFileRow: View {
         case .pdf: String(localized: "PDF · its text is sent")
         case .text: String(localized: "Text file")
         case .other: String(localized: "Only the name is sent")
+        case .package: String(localized: "Package · OpenChat opens it for review")
         }
         guard let bytes = file.byteCount else { return kind }
         return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file) + " · " + kind

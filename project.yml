@@ -9,6 +9,8 @@ packages:
   MarkdownUI:
     url: https://github.com/gonzalezreal/swift-markdown-ui
     exactVersion: 2.4.1
+  OpenChatPackageKit: # the package format, MIT (docs/PACKAGES.md), shared with Tools/openchat-pkg
+    path: Packages/OpenChatPackageKit
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -31,14 +33,20 @@ targets:
           - Resources/PyRuntime/**
           - Resources/Skills
           - Resources/Skills/**
+          - Resources/Packages
+          - Resources/Packages/**
       - path: Strata/Resources/PyRuntime
         type: folder
         buildPhase: resources
       - path: Strata/Resources/Skills
         type: folder
         buildPhase: resources
+      - path: Strata/Resources/Packages
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: MarkdownUI
+      - package: OpenChatPackageKit
       - framework: Vendor/CLibSSH2.xcframework # libssh2 + OpenSSL libcrypto, static (Tools/build-libssh2.sh)
         embed: false
       - target: OpenChatWidgets # the Live Activity and the New Chat control, embedded in PlugIns
@@ -110,9 +118,24 @@ targets:
           - nmap
         LSSupportsOpeningDocumentsInPlace: true
         CFBundleURLTypes:
-          - CFBundleURLName: OpenChat add-connection links
+          - CFBundleURLName: OpenChat links
             CFBundleURLSchemes:
               - openchat
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: cc.coolservices.openchat.package
+            UTTypeDescription: OpenChat package
+            UTTypeConformsTo:
+              - public.zip-archive
+              - public.data
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - ocpkg
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: OpenChat package
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - cc.coolservices.openchat.package
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
   # Widget extension: the Live Activity of running replies (`Strata/LiveActivity`) and the New Chat control. Named
@@ -195,14 +218,20 @@ targets:
           - Resources/PyRuntime/**
           - Resources/Skills
           - Resources/Skills/**
+          - Resources/Packages
+          - Resources/Packages/**
       - path: Strata/Resources/PyRuntime
         type: folder
         buildPhase: resources
       - path: Strata/Resources/Skills
         type: folder
         buildPhase: resources
+      - path: Strata/Resources/Packages
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: MarkdownUI
+      - package: OpenChatPackageKit
       - framework: Vendor/CLibSSH2.xcframework # libssh2 + OpenSSL libcrypto, static (Tools/build-libssh2.sh)
         embed: false
     entitlements:
@@ -245,9 +274,24 @@ targets:
       path: StrataMac/Info.plist
       properties:
         CFBundleURLTypes:
-          - CFBundleURLName: OpenChat add-connection links
+          - CFBundleURLName: OpenChat links
             CFBundleURLSchemes:
               - openchat
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: cc.coolservices.openchat.package
+            UTTypeDescription: OpenChat package
+            UTTypeConformsTo:
+              - public.zip-archive
+              - public.data
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - ocpkg
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: OpenChat package
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - cc.coolservices.openchat.package
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
   StrataTests:

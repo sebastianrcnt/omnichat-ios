@@ -25,10 +25,28 @@ enum OnDevicePromptBuilder {
 
     /// The tools to offer for `request`: those it lists that the on-device model can use, none when it may not call
     /// tools (`tool_choice: none`, as capped rounds, compactions and title follow-ups send).
-    static func tools(for request: ChatRequest) -> [OnDeviceToolSpec] {
+    static func tools(for request: ChatRequest, packages: PackageStore = .shared) -> [OnDeviceToolSpec] {
         guard request.toolChoice != "none", let listed = request.tools, !listed.isEmpty else { return [] }
         let names = Set(listed.map(\.function.name))
-        return toolSpecs.filter { names.contains($0.name) }
+        return toolSpecs.filter { names.contains($0.name) } + packageTools(listed.map(\.function.name), packages: packages)
+    }
+
+    /// The most package tools offered on device.
+    static let maxPackageTools = 2
+
+    /// Package tools that opted in (`"onDevice"`: a short description and at most 3 string parameters), in the
+    /// request's order (the chat's snapshot order), at most `maxPackageTools`. Package prompt sections never come along.
+    static func packageTools(_ names: [String], packages: PackageStore) -> [OnDeviceToolSpec] {
+        Array(names.lazy.filter(PackageToolNames.covers).compactMap { name -> OnDeviceToolSpec? in
+            guard let (_, tool) = PackageToolNames.lookup(name, store: packages), let onDevice = tool.onDevice else { return nil }
+            let properties = tool.parameters?["properties"]?.objectValue ?? [:]
+            let required = Set(tool.parameters?["required"]?.arrayValue?.compactMap(\.stringValue) ?? [])
+            let parameters = (onDevice.parameters ?? []).map { key in
+                OnDeviceToolSpec.Parameter(name: key, description: properties[key]?["description"]?.stringValue ?? key,
+                                           optional: !required.contains(key))
+            }
+            return OnDeviceToolSpec(name: name, description: onDevice.description, parameters: parameters)
+        }.prefix(maxPackageTools))
     }
 
     static let imageNote = "[The user attached an image here.]"

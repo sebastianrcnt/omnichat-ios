@@ -7,7 +7,7 @@ description: Find places in Korea (restaurants, cafes, bars, shops) on Naver Pla
 
 Use this for any request to find, compare or recommend places in Korea, to read what visitors say about a place, or to get directions there. Naver Place has the most complete Korean listings and visitor reviews.
 
-Work with `browser_open` (opens a page and returns its text) and `run_skill_script` (runs one of the scripts below in that page by name, like `run_skill_script(skill: "naver-places", script: "LIST")`). The scripts return JSON.
+Work with `browser_open` (opens a page and returns its text) and `run_skill_script` (runs one of the scripts below in that page by name, like `run_skill_script(skill: "kr:naver-places", script: "LIST")`). The scripts return JSON.
 
 ## 1. Search for places
 

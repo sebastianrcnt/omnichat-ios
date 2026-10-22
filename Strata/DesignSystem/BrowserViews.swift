@@ -514,7 +514,7 @@ struct BrowserScriptDetail: View {
 enum ToolNote {
     static func covers(_ tool: String) -> Bool {
         [ToolNames.browserShow, ToolNames.loadSkill, ToolNames.runSkillScript, ToolNames.saveSkill, ToolNames.showPlaces, ToolNames.currentLocation,
-         ToolNames.showHTML, ToolNames.healthQuery].contains(tool) || ToolNames.isBrowserAction(tool)
+         ToolNames.showHTML, ToolNames.healthQuery].contains(tool) || ToolNames.isBrowserAction(tool) || PackageToolNames.covers(tool)
     }
 
     static func icon(_ tool: String) -> String {
@@ -534,6 +534,7 @@ enum ToolNote {
         case ToolNames.currentLocation: "location"
         case ToolNames.showHTML: ArtifactFeedCard.icon
         case ToolNames.healthQuery: HealthFeedCard.icon
+        case _ where PackageToolNames.covers(tool): PackageToolNames.icon
         default: "wrench.and.screwdriver"
         }
     }
@@ -543,6 +544,7 @@ enum ToolNote {
         if ToolNames.isBrowserAction(tool) {
             return BrowserActionLabel.title(tool: tool, argument: argument, running: running, failed: failed, summary: summary)
         }
+        if PackageToolNames.covers(tool) { return PackageToolNames.title(tool, argument: argument, running: running, failed: failed) }
         return switch tool {
         case ToolNames.browserShow:
             running ? String(localized: "Waiting for you in the browser…")
@@ -635,19 +637,37 @@ extension BrowserActionLabel {
 /// "Loaded skill naver-places" in the feed, on its own (among browser calls it is a step of the run).
 struct ToolNoteFeedCard: View {
     @Environment(\.theme) private var theme
+    @Environment(\.citations) private var citations
     let card: FeedCard
     var onDetails: () -> Void
 
     var body: some View {
         if case .note(let tool, let argument) = card.kind {
-            FeedLine(title: ToolNote.title(tool: tool, argument: argument, running: card.isRunning, failed: card.isError),
-                     meta: card.isError && !card.isRunning && tool != ToolNames.saveSkill ? String(localized: "Failed") : nil) {
-                if card.isRunning { FeedSpinner() } else { FeedSymbol(name: ToolNote.icon(tool)) }
+            let request = PackageToolNames.covers(tool) ? ToolApprovals.shared.request(forCall: card.id, conversation: citations.conversationID) : nil
+            VStack(alignment: .leading, spacing: 0) {
+                FeedLine(title: ToolNote.title(tool: tool, argument: argument, running: card.isRunning && request == nil, failed: card.isError),
+                         meta: card.isError && !card.isRunning && tool != ToolNames.saveSkill ? String(localized: "Failed") : nil) {
+                    if card.isRunning && request == nil { FeedSpinner() } else { FeedSymbol(name: ToolNote.icon(tool)) }
+                }
+                .accessibilityElement(children: .combine)
+                .contextMenu {
+                    Button("Show Timeline", systemImage: "list.bullet.below.rectangle", action: onDetails)
+                }
+                if let request, case .package(let approval) = request.kind {
+                    PackageApprovalCard(approval: approval) { ToolApprovals.shared.answer(request.id, .package($0)) }
+                        .padding(.leading, DS.Feed.textInset)
+                        .padding(.vertical, DS.Spacing.xs)
+                        .transition(.opacity)
+                } else if PackageToolNames.covers(tool), !card.isRunning, !card.output.isEmpty, PackageToolNames.keepsResult(tool) {
+                    Text(verbatim: String(card.output.prefix(2000)))
+                        .font(DS.Typography.feedMeta)
+                        .foregroundStyle(theme.textSecondary)
+                        .textSelection(.enabled)
+                        .padding(.leading, DS.Feed.textInset)
+                        .padding(.vertical, DS.Spacing.xs)
+                }
             }
-            .accessibilityElement(children: .combine)
-            .contextMenu {
-                Button("Show Timeline", systemImage: "list.bullet.below.rectangle", action: onDetails)
-            }
+            .animation(.easeOut(duration: 0.2), value: request?.id)
         }
     }
 }

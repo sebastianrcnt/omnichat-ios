@@ -12,6 +12,8 @@ struct ReplyActivityInput: Equatable {
         case robotCheck(host: String)
         /// `browser_show`: the model handed the page over.
         case browser
+        /// A package tool waits for approval.
+        case packageTool(package: String, tool: String)
     }
 
     var id: UUID
@@ -142,6 +144,7 @@ enum ReplyActivityPhase {
         case .skill(let name): name.isEmpty ? String(localized: "Save a skill?") : String(localized: "Save the skill \u{201C}\(name)\u{201D}?")
         case .robotCheck(let host): String(localized: "\(host) wants a robot check")
         case .browser: String(localized: "Finish a step in the browser")
+        case .packageTool(let package, let tool): String(localized: "Approve \(package) › \(tool)")
         }
     }
 
@@ -177,6 +180,7 @@ enum ReplyActivityPhase {
         case ToolNames.currentLocation: return (String(localized: "Finding your location"), "location")
         case ToolNames.videoTranscript: return (String(localized: "Reading the transcript"), "captions.bubble")
         case _ where SSHToolNames.covers(name): return (String(localized: "Working on a server"), "server.rack")
+        case _ where PackageToolNames.covers(name): return (String(localized: "Using \(PackageToolNames.packageName(of: name))"), "shippingbox")
         default: return (String(localized: "Working"), "gearshape")
         }
     }

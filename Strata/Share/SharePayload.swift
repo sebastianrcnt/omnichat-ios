@@ -35,7 +35,8 @@ struct SharePayload: Codable, Identifiable, Equatable, Sendable {
 
     /// A file stored next to the payload, by its file name in the share's folder.
     struct File: Codable, Equatable, Sendable {
-        enum Kind: String, Codable, Sendable { case pdf, text, other }
+        /// `package`: an OpenChat package (`.ocpkg`), opened in the app's review sheet instead of a chat.
+        enum Kind: String, Codable, Sendable { case pdf, text, other, package }
         /// Shown and named in the message ("report.pdf").
         var name: String
         /// The copy in the share's folder.
@@ -97,7 +98,7 @@ extension SharePayload {
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty { blocks.append(Self.capped(trimmed)) }
         }
-        for file in files {
+        for file in files where file.kind != .package {
             let body = fileTexts[file.storedName]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             blocks.append(body.isEmpty ? "[\(file.name): no readable text]" : "[\(file.name)]\n\(Self.capped(body))")
         }

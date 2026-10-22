@@ -22,6 +22,7 @@ struct SettingsView: View {
     @State private var showAppearance = false
     @State private var showTools = false
     @State private var showSSH = false
+    @State private var showPackages = false
     @State private var showHealth = false
     @State private var showChats = false
     @State private var showICloud = false
@@ -61,6 +62,8 @@ struct SettingsView: View {
                                     showsChevron: true) { showTools = true }
                         SettingsRow(systemImage: "terminal", title: "SSH", subtitle: "Servers, credentials and approvals",
                                     showsChevron: true) { showSSH = true }
+                        SettingsRow(systemImage: "shippingbox", title: "Packages", subtitle: "Tools, skills and instructions from packages",
+                                    showsChevron: true) { showPackages = true }
                         if HealthSettings.isSupported {
                             SettingsRow(systemImage: "heart", title: "Health", subtitle: "Apple Health for the assistant, read-only",
                                         showsChevron: true) { showHealth = true }
@@ -109,6 +112,7 @@ struct SettingsView: View {
             .navigationDestination(isPresented: $showAppearance) { AppearanceSettingsView() }
             .navigationDestination(isPresented: $showTools) { ToolSettingsView() }
             .navigationDestination(isPresented: $showSSH) { SSHSettingsView() }
+            .navigationDestination(isPresented: $showPackages) { PackagesSettingsView() }
             .navigationDestination(isPresented: $showHealth) { HealthSettingsView() }
             .navigationDestination(isPresented: $showChats) { ChatSettingsView() }
             .navigationDestination(isPresented: $showICloud) { ICloudSettingsView() }
