@@ -166,10 +166,17 @@ actor ChatGPTAuth: ChatGPTTokenProviding {
 
     // MARK: Sign-in
 
+    /// Taken when a sign-in starts: a sign-out (or the deletion that comes with one) after it ends the attempt.
+    func signInGeneration(_ id: UUID) -> Int { signOuts[id, default: 0] }
+
     /// Exchanges the code, validates the ID token and the granted scopes, and saves the registration and tokens.
     /// The issued client id must already be saved (`saveIssuedClientID`), so a failed exchange can retry with it.
+    /// Nothing is saved when the connection was signed out or deleted since `generation`: the tokens issued meanwhile
+    /// are revoked instead.
     func completeSignIn(connectionID id: UUID, attempt: ChatGPTOAuth.Attempt, code: String,
-                        clientID: String) async throws -> ChatGPTRegistration {
+                        clientID: String, generation: Int? = nil) async throws -> ChatGPTRegistration {
+        let generation = generation ?? signOuts[id, default: 0]
+        guard signOuts[id, default: 0] == generation else { throw ChatGPTAuthError.cancelled }
         let (data, status) = try await postForm(ChatGPTOAuth.tokenEndpoint,
                                                 attempt.tokenRequestBody(code: code, clientID: clientID))
         guard (200..<300).contains(status) else {
@@ -185,6 +192,10 @@ actor ChatGPTAuth: ChatGPTTokenProviding {
         guard let idToken = response.idToken else { throw ChatGPTAuthError.invalidIDToken("missing") }
         let tokens = try response.tokens(receivedAt: now())
         let claims = try await verify(idToken: idToken, clientID: clientID, nonce: attempt.nonce)
+        guard signOuts[id, default: 0] == generation else {
+            if let refreshToken = tokens.refreshToken { await revoke(refreshToken, clientID: clientID) }
+            throw ChatGPTAuthError.cancelled
+        }
         let previous = store.registration(id)
         if let subject = previous?.subject, subject != claims.sub { throw ChatGPTAuthError.accountMismatch }
         let registration = ChatGPTRegistration(clientID: clientID, subject: claims.sub,
@@ -195,7 +206,8 @@ actor ChatGPTAuth: ChatGPTTokenProviding {
     }
 
     /// Saved before the code exchange: a retry after an expired code reuses the client instead of registering another.
-    func saveIssuedClientID(_ clientID: String, connectionID id: UUID) throws {
+    func saveIssuedClientID(_ clientID: String, connectionID id: UUID, generation: Int? = nil) throws {
+        if let generation, signOuts[id, default: 0] != generation { throw ChatGPTAuthError.cancelled }
         var registration = store.registration(id) ?? ChatGPTRegistration(clientID: clientID)
         registration.clientID = clientID
         try store.setRegistration(registration, id)
@@ -210,10 +222,15 @@ actor ChatGPTAuth: ChatGPTTokenProviding {
         defer { try? store.setTokens(nil, id) }
         guard let tokens = store.tokens(id), let refreshToken = tokens.refreshToken,
               let registration = store.registration(id) else { return true }
+        return await revoke(refreshToken, clientID: registration.clientID)
+    }
+
+    /// Revokes a refresh token: one retry on a network error or 5xx. True when the server confirmed it.
+    private func revoke(_ refreshToken: String, clientID: String) async -> Bool {
         for attempt in 0..<2 {
             do {
                 let (_, status) = try await postForm(ChatGPTOAuth.revocationEndpoint,
-                                                     ChatGPTOAuth.revocationRequestBody(clientID: registration.clientID,
+                                                     ChatGPTOAuth.revocationRequestBody(clientID: clientID,
                                                                                         refreshToken: refreshToken))
                 if status == 200 { return true }
                 if status < 500 { return false }
