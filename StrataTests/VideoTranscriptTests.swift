@@ -342,9 +342,10 @@ struct VideoTranscriptWiringTests {
         #expect(ToolGroup.decode(ToolGroup.encode([.video, .web])) == [.web, .video])
         #expect(ToolGroup.video.refusal == "The user turned off video transcripts for this chat. Answer without it, or ask them to turn it on.")
         #expect(ToolGroup.note([.video], enabled: []) == "[Video transcripts: off]")
-        let all = ToolDefinition.available(groups: Set(ToolGroup.allCases), images: true)
+        let groups = Set(ToolGroup.allCases).subtracting([.health]) // Apple Health comes after it (`HealthTests`)
+        let all = ToolDefinition.available(groups: groups, images: true)
         #expect(all.last == ToolDefinition.videoTranscript)
-        #expect(Array(all.dropLast()) == ToolDefinition.available(groups: Set(ToolGroup.allCases).subtracting([.video]), images: true),
+        #expect(Array(all.dropLast()) == ToolDefinition.available(groups: groups.subtracting([.video]), images: true),
                 "adding it leaves the other tools' bytes as they were")
         #expect(ToolDefinition.available(groups: [.video], images: false).map(\.function.name) == ["show_html", "video_transcript"])
         #expect(ToolDefinition.videoTranscript.function.parameters.required == ["url"])
