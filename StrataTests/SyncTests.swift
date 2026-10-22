@@ -423,6 +423,33 @@ struct ConnectionSyncTests {
         macSync.stop()
     }
 
+    /// A header rotated on another device reaches this one's requests, though no key-value change announced it, and
+    /// is not overwritten by the stale copy in memory.
+    @Test func aHeaderChangedElsewhereReachesRequests() throws {
+        let cloud = InMemoryKeyValueStore()
+        let headers = InMemoryKeyStore() // iCloud Keychain, shared by both
+        let phone = ConnectionStore(defaults: defaults(), keys: InMemoryKeyStore())
+        let mac = ConnectionStore(defaults: defaults(), keys: InMemoryKeyStore())
+        let c = connection("org", headers: "Authorization: Bearer old")
+        phone.upsert(c)
+        let phoneSync = ConnectionSync(store: phone, cloud: cloud, defaults: defaults(), headers: headers)
+        let macSync = ConnectionSync(store: mac, cloud: cloud, defaults: defaults(), headers: headers)
+        phoneSync.start()
+        macSync.start()
+        #expect(mac.endpoint(connectionID: c.id, modelID: "m")?.headers["Authorization"] == "Bearer old")
+
+        var rotated = try #require(phone.connection(c.id))
+        rotated.customHeaders = "Authorization: Bearer new"
+        phone.upsert(rotated)
+        #expect(mac.connection(c.id)?.customHeaders == "Authorization: Bearer old") // no key-value change came
+        #expect(mac.endpoint(connectionID: c.id, modelID: "m")?.headers["Authorization"] == "Bearer new")
+        mac.upsert(connection("other"))
+        #expect(headers.key(for: c.id) == "Authorization: Bearer new")
+        macSync.stop()
+        #expect(mac.endpoint(connectionID: c.id, modelID: "m")?.headers["Authorization"] == "Bearer old") // sync off: its own copy
+        phoneSync.stop()
+    }
+
     /// Credentials in a base URL never go to the key-value store, which syncs whatever the secret switch says.
     @Test func credentialsInABaseURLNeverGoUp() throws {
         var c = connection("proxy")

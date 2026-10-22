@@ -84,6 +84,9 @@ final class ConnectionStore {
 
     /// Told of every saved change (`ConnectionSync` sends it to the user's other devices).
     @ObservationIgnored var onSave: (([Connection]) -> Void)?
+    /// A connection's custom headers when another device changed them (`ConnectionSync.changedHeaders`): they arrive
+    /// through iCloud Keychain alone, so the copy in memory can be stale. Nil: the copy in memory is current.
+    @ObservationIgnored var changedHeaders: (@MainActor (UUID) -> String?)?
 
     /// The list as another device left it (`ConnectionSync`). Connections it drops were deleted there, along with their
     /// Keychain items, so nothing more is removed here.
@@ -167,7 +170,9 @@ final class ConnectionStore {
         }
         guard let base = conn.normalizedBaseURL else { return nil }
         var headers: [String: String] = [:]
-        for h in conn.parsedHeaders { headers[h.name] = h.value }
+        var current = conn
+        if let changed = changedHeaders?(conn.id) { current.customHeaders = changed }
+        for h in current.parsedHeaders { headers[h.name] = h.value }
         if conn.isAnthropic {
             // The Messages API can't replay a stream: never resumable, whatever the connection says.
             return Endpoint(connectionID: conn.id, connectionName: conn.name, baseURL: base, apiKey: keys.key(for: conn.id),

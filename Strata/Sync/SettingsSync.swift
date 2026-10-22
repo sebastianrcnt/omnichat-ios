@@ -247,6 +247,7 @@ final class ConnectionSync {
         pull()
         push(store.connections)
         store.onSave = { [weak self] connections in self?.push(connections) }
+        store.changedHeaders = { [weak self] id in self?.changedHeaders(id) }
         if let ubiquitous = cloud as? NSUbiquitousKeyValueStore {
             observer = NotificationCenter.default.addObserver(forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
                                                               object: ubiquitous, queue: .main) { [weak self] note in
@@ -263,6 +264,17 @@ final class ConnectionSync {
         if let observer { NotificationCenter.default.removeObserver(observer) }
         observer = nil
         store.onSave = nil
+        store.changedHeaders = nil
+    }
+
+    /// Headers another device changed: iCloud Keychain brings them with no key-value change, so this device's copy in
+    /// memory stays as it was until the next pull. Requests read them here (`ConnectionStore.changedHeaders`), and
+    /// nothing is written back: the stale copy matches what this device last saw, so `push` leaves the Keychain alone.
+    /// Nil when nothing changed elsewhere since this device last read or wrote them.
+    func changedHeaders(_ id: UUID) -> String? {
+        guard let seen = lastHeaders[id] else { return nil }
+        let now = headers.key(for: id) ?? ""
+        return Self.trimmed(now) == seen ? nil : now
     }
 
     /// Takes the cloud's list.
