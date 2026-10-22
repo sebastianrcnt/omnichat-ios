@@ -17,6 +17,7 @@ private struct ChatLifecycle: ViewModifier {
             .task {
                 controller.restorePending(context: context)
                 selectRecoveredConversation()
+                connections.refreshOnDeviceModels()
                 // Refresh models (and capability flags such as image input) for every connection with a key.
                 for c in connections.connections where connections.apiKey(for: c.id) != nil {
                     _ = try? await connections.refreshModels(for: c.id)

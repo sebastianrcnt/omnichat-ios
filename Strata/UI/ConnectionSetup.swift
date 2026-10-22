@@ -11,6 +11,8 @@ struct ConnectionDestination: View {
             ChatGPTConnectionEditor(connectionID: connectionID, path: $path)
         } else if connections.connection(connectionID)?.isOpenCode == true {
             OpenCodeConnectionEditor(connectionID: connectionID, path: $path)
+        } else if connections.connection(connectionID)?.isAppleOnDevice == true {
+            OnDeviceConnectionEditor(connectionID: connectionID, path: $path)
         } else {
             ConnectionEditor(connectionID: connectionID, path: $path)
         }
@@ -135,6 +137,7 @@ struct ConnectionSetupSheet: View {
                 .font(DS.Typography.ui)
                 .foregroundStyle(theme.textSecondary)
                 .padding(.horizontal, DS.Spacing.lg)
+            OnDeviceOfferSection { id in path = [id] }
             GroupedSection(header: "With an API key") {
                 ForEach([ConnectionPreset.openAI, .openRouter, .groq]) { row($0) }
             }
@@ -229,6 +232,8 @@ struct ConnectionSetupSheet: View {
 /// Shown in an empty chat while there is no connection: what to do first.
 struct NoConnectionState: View {
     @Environment(\.theme) private var theme
+    /// Adds the on-device connection; nil hides the offer (the device can't run it).
+    var onUseOnDevice: (() -> Void)?
     let onAdd: () -> Void
 
     var body: some View {
@@ -243,10 +248,21 @@ struct NoConnectionState: View {
                 .font(DS.Typography.ui)
                 .foregroundStyle(theme.textSecondary)
                 .multilineTextAlignment(.center)
-            Button("Add a connection", action: onAdd)
+            if let onUseOnDevice {
+                Button(action: onUseOnDevice) {
+                    Label("Use Apple Intelligence (free, on device)", systemImage: "apple.intelligence")
+                }
                 .buttonStyle(.glassProminent)
                 .tint(theme.accent)
                 .padding(.top, DS.Spacing.sm)
+                Button("Add another service", action: onAdd)
+                    .buttonStyle(.glass)
+            } else {
+                Button("Add a connection", action: onAdd)
+                    .buttonStyle(.glassProminent)
+                    .tint(theme.accent)
+                    .padding(.top, DS.Spacing.sm)
+            }
         }
         .frame(maxWidth: 420)
         .padding(.horizontal, DS.Spacing.xl)

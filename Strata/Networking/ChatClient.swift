@@ -47,6 +47,7 @@ struct ChatClient: ChatStreaming {
         if endpoint.kind == .openCode {
             return OpenCodeClient(session: session, tokens: openCodeTokens).stream(request, endpoint: endpoint)
         }
+        if endpoint.kind == .appleOnDevice { return OnDeviceClient().stream(request, endpoint: endpoint) }
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {

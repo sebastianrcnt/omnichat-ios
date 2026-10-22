@@ -255,6 +255,7 @@ enum DebugHooks {
     /// last off, for smoke runs of paths a resumable gateway skips, like the Responses API fallback). New chats use it.
     @MainActor
     static func applyLaunchConfiguration(connections: ConnectionStore, settings: AppSettings) {
+        OnDeviceDebug.applyLaunchConfiguration(connections: connections, settings: settings)
         guard let base = value("StrataMockBaseURL") else { return }
         var mock = connections.connection(mockConnectionID)
             ?? Connection(id: mockConnectionID, name: "Mock", baseURL: base, supportsResumable: true)
