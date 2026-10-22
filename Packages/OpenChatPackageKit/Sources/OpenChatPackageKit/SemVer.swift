@@ -12,14 +12,20 @@ public struct SemVer: Sendable, Hashable, Comparable, CustomStringConvertible {
     }
 
     /// Strict: `1.4.0`, `2.0.0-beta.1`, `1.0.0+build.5`. Loose (for ranges): `1`, `1.4` fill in zeros.
+    /// Pre-release and build identifiers must be `[0-9A-Za-z-]+` (SemVer 2.0 rules 9 and 10): an installed package's
+    /// version names its folder, so `1.0.0+x/../..` must not parse.
     public init?(_ text: String, loose: Bool = false) {
         var core = text.trimmingCharacters(in: .whitespaces)
-        if let plus = core.firstIndex(of: "+") { core = String(core[..<plus]) }
+        if let plus = core.firstIndex(of: "+") {
+            let build = core[core.index(after: plus)...].split(separator: ".", omittingEmptySubsequences: false)
+            guard build.allSatisfy(Self.isIdentifier) else { return nil }
+            core = String(core[..<plus])
+        }
         var pre: [String] = []
         if let dash = core.firstIndex(of: "-") {
             pre = core[core.index(after: dash)...].split(separator: ".", omittingEmptySubsequences: false).map(String.init)
             core = String(core[..<dash])
-            guard pre.allSatisfy({ !$0.isEmpty && $0.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" } }) else { return nil }
+            guard pre.allSatisfy({ Self.isIdentifier($0[...]) }) else { return nil }
         }
         let parts = core.split(separator: ".", omittingEmptySubsequences: false)
         guard parts.count == 3 || (loose && (1...3).contains(parts.count)) else { return nil }
@@ -30,6 +36,11 @@ public struct SemVer: Sendable, Hashable, Comparable, CustomStringConvertible {
         }
         while nums.count < 3 { nums.append(0) }
         self.init(nums[0], nums[1], nums[2], prerelease: pre)
+    }
+
+    /// A non-empty run of ASCII letters, digits and `-`.
+    private static func isIdentifier(_ id: Substring) -> Bool {
+        !id.isEmpty && id.unicodeScalars.allSatisfy { ("0"..."9").contains($0) || ("a"..."z").contains($0) || ("A"..."Z").contains($0) || $0 == "-" }
     }
 
     public var description: String {

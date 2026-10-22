@@ -163,7 +163,9 @@ final class PackageStore: @unchecked Sendable {
               let saved = try? Self.decoder.decode(Registry.self, from: data) else { return }
         registry = saved
         for record in saved.packages {
-            if let bundle = try? PackageBundle.load(folder: folder(record.id, record.version)) { bundles[record.id] = bundle }
+            if let folder = try? folder(record.id, record.version), let bundle = try? PackageBundle.load(folder: folder) {
+                bundles[record.id] = bundle
+            }
         }
         // A package whose files went missing or no longer verify is dropped from the registry.
         registry.packages.removeAll { bundles[$0.id] == nil }
@@ -175,9 +177,29 @@ final class PackageStore: @unchecked Sendable {
         return d
     }()
 
-    private func folder(_ id: String, _ version: String) -> URL {
-        (directory ?? FileManager.default.temporaryDirectory).appendingPathComponent(id, isDirectory: true)
-            .appendingPathComponent(version, isDirectory: true)
+    /// `<directory>/<id>/<version>/`, or `Failure.unsafePath` when that isn't strictly inside `<directory>/<id>/`.
+    /// Validation already limits ids and versions to safe characters; checked again here because `install` deletes
+    /// the folder before writing it, and the registry on disk may predate that validation.
+    private func folder(_ id: String, _ version: String) throws -> URL {
+        let root = directory ?? FileManager.default.temporaryDirectory
+        let package = try Self.contained(id, in: root)
+        return try Self.contained(version, in: package)
+    }
+
+    /// `parent/name/` when `name` is one plain path segment that stays strictly inside `parent` once standardized.
+    /// (Symlinks aren't resolved: `/private` stripping makes that inconsistent for folders that don't exist yet, and
+    /// nothing under the packages folder is a link, since archives with links are refused.)
+    static func contained(_ name: String, in parent: URL) throws -> URL {
+        guard !name.isEmpty, name != ".", name != "..", !name.contains("/"), !name.contains("\\"), !name.contains("\0") else {
+            throw Failure.unsafePath(name)
+        }
+        let child = parent.appendingPathComponent(name, isDirectory: true)
+        let base = parent.standardizedFileURL.path
+        let resolved = child.standardizedFileURL.path
+        guard resolved.hasPrefix(base.hasSuffix("/") ? base : base + "/"), resolved.count > base.count + 1 else {
+            throw Failure.unsafePath(name)
+        }
+        return child
     }
 
     private func save() {
@@ -243,12 +265,14 @@ final class PackageStore: @unchecked Sendable {
         case builtIn(String)
         case notInstalled(String)
         case nothingToRevert(String)
+        case unsafePath(String)
 
         var errorDescription: String? {
             switch self {
             case .builtIn(let id): String(localized: "\(id) is built into OpenChat and can't be replaced or removed.")
             case .notInstalled(let id): String(localized: "\(id) isn't installed.")
             case .nothingToRevert(let id): String(localized: "\(id) has no earlier version to go back to.")
+            case .unsafePath(let name): String(localized: "\"\(name)\" can't be used as a folder name.")
             }
         }
     }
@@ -261,13 +285,13 @@ final class PackageStore: @unchecked Sendable {
         try lock.withLock {
             loadIfNeeded()
             if directory != nil {
-                let target = folder(m.id, m.version)
+                let target = try folder(m.id, m.version)
                 try? FileManager.default.removeItem(at: target)
                 try bundle.write(to: target)
             }
             let old = registry.packages.first { $0.id == m.id }
             if let old, old.version != m.version, let older = old.previousVersion, older != m.version, directory != nil {
-                try? FileManager.default.removeItem(at: folder(m.id, older))
+                if let older = try? folder(m.id, older) { try? FileManager.default.removeItem(at: older) }
             }
             let consent = PackageRecord.Consent(version: m.version, date: .now, network: m.network, secrets: m.secrets.map(\.name),
                                                 privateNetwork: m.privateNetwork)
@@ -294,7 +318,7 @@ final class PackageStore: @unchecked Sendable {
             loadIfNeeded()
             guard let i = registry.packages.firstIndex(where: { $0.id == id }) else { throw Failure.notInstalled(id) }
             guard let previous = registry.packages[i].previousVersion,
-                  let bundle = try? PackageBundle.load(folder: folder(id, previous)) else { throw Failure.nothingToRevert(id) }
+                  let folder = try? folder(id, previous), let bundle = try? PackageBundle.load(folder: folder) else { throw Failure.nothingToRevert(id) }
             let current = registry.packages[i].version
             registry.packages[i].version = previous
             registry.packages[i].previousVersion = current
@@ -312,7 +336,7 @@ final class PackageStore: @unchecked Sendable {
             loadIfNeeded()
             registry.packages.removeAll { $0.id == id }
             bundles[id] = nil
-            if let directory { try? FileManager.default.removeItem(at: directory.appendingPathComponent(id, isDirectory: true)) }
+            if let directory, let folder = try? Self.contained(id, in: directory) { try? FileManager.default.removeItem(at: folder) }
             save()
         }
         PackagesVersion.bump()

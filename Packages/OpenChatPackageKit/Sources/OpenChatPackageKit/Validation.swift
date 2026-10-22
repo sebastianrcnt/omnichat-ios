@@ -95,7 +95,8 @@ extension PackageManifest {
         guard !PackageLimits.reservedNamespaces.contains(namespace) else {
             throw fail("namespace \"\(namespace)\" is reserved for the app's own tools. Pick another, like \(namespace)x or the service's name.")
         }
-        guard SemVer(version) != nil else { throw fail("version \"\(version)\" must be a SemVer version, like 1.4.0.") }
+        // No trimming here: the exact string names the installed folder.
+        guard SemVer(version) != nil, !version.contains(where: \.isWhitespace) else { throw fail("version \"\(version)\" must be a SemVer version, like 1.4.0.") }
         let desc = description.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !desc.isEmpty, !desc.contains("\n"), desc.count <= PackageLimits.descriptionLength else {
             throw fail("description must be one line of at most \(PackageLimits.descriptionLength) characters.")
