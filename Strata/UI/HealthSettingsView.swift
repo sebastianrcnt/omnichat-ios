@@ -16,7 +16,7 @@ struct HealthSettingsView: View {
                 GroupedSection(header: "Apple Health", footer: "The assistant can read the Apple Health data you allow, to answer questions about your own health and fitness. It never writes to Health. iOS asks the first time a chat reads each type; change it any time in the Settings app > Health > Data Access & Devices > OpenChat. A chat turns Apple Health on or off from the + menu.") {
                     SettingsToggleRow(title: "Apple Health in new chats", isOn: $settings.healthEnabled)
                     SettingsToggleRow(title: "Only send health data to on-device or local models",
-                                      subtitle: "Chats whose model runs on a remote server can't read Health.", isOn: $localOnly)
+                                      subtitle: "Chats whose model runs on a remote server can't read Health, and a chat that read Health can't be sent to one.", isOn: $localOnly)
                 }
                 .disabled(blocked)
 
