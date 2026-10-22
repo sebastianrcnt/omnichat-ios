@@ -23,6 +23,7 @@ struct StrataMacApp: App {
         } catch {
             fatalError("Could not create the SwiftData container: \(error)")
         }
+        IntentDependencies.register(container: container)
     }
 
     var body: some Scene {
