@@ -37,6 +37,24 @@ struct PDFFetchTests {
         await #expect(throws: CancellationError.self) { try await cancelled.value }
     }
 
+    @Test func aDownloadSendsTheBrowsersMatchingCookies() throws {
+        // From the audit: a PDF behind a sign-in done in the browser sheet failed with 401, its cookies left behind.
+        func cookie(_ name: String, domain: String, path: String = "/", secure: Bool = false) throws -> HTTPCookie {
+            var props: [HTTPCookiePropertyKey: Any] = [.name: name, .value: "v", .domain: domain, .path: path]
+            if secure { props[.secure] = "TRUE" }
+            return try #require(HTTPCookie(properties: props))
+        }
+        let cookies = [try cookie("session", domain: ".example.com", secure: true), try cookie("other", domain: "other.org"),
+                       try cookie("admin", domain: "example.com", path: "/admin")]
+        let config = PDFFetch.configuration(cookies: cookies)
+        let sent = { (url: String) in Set((config.httpCookieStorage?.cookies(for: URL(string: url)!) ?? []).map(\.name)) }
+        #expect(sent("https://files.example.com/invoice.pdf") == ["session"])
+        #expect(sent("http://files.example.com/invoice.pdf").isEmpty, "Secure cookies only over HTTPS")
+        #expect(sent("https://other.org/a.pdf") == ["other"])
+        #expect(sent("https://evil.com/a.pdf").isEmpty)
+        #expect(PDFFetch.configuration(cookies: []).httpCookieStorage?.cookies?.isEmpty ?? true)
+    }
+
     @Test func notAPDFIsRefused() {
         #expect(!PDFFetch.isPDF(Data("<html></html>".utf8)))
     }

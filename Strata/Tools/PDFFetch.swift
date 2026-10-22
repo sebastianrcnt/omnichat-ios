@@ -33,16 +33,19 @@ enum PDFFetch {
 
     static func isPDF(_ data: Data) -> Bool { data.prefix(1024).range(of: Data("%PDF-".utf8)) != nil }
 
-    /// Downloads `url` and returns its text. The URL and every redirect are checked like a fetch (public http(s) hosts only).
-    static func load(_ url: URL, timeout: Duration, resolver: any HostResolving = SystemHostResolver()) async throws -> FetchedPage {
+    /// Downloads `url` and returns its text. The URL and every redirect are checked like a fetch (public http(s) hosts
+    /// only). `cookies` are the hidden browser's, so a PDF behind a sign-in done in `browser_show` downloads too.
+    static func load(_ url: URL, timeout: Duration, resolver: any HostResolving = SystemHostResolver(),
+                     cookies: [HTTPCookie] = []) async throws -> FetchedPage {
         try await URLGuard.validate(url, resolver: resolver)
         var request = URLRequest(url: url, timeoutInterval: timeout.seconds)
-        request.httpShouldHandleCookies = false
+        request.httpShouldHandleCookies = !cookies.isEmpty
         request.setValue("application/pdf,*/*;q=0.5", forHTTPHeaderField: "Accept")
         request.setValue(HiddenWebView.userAgent, forHTTPHeaderField: "User-Agent")
         let data: Data, response: URLResponse
         do {
-            (data, response) = try await LimitedDownload.data(for: request, limit: maxBytes) { next in
+            (data, response) = try await LimitedDownload.data(for: request, configuration: configuration(cookies: cookies),
+                                                              limit: maxBytes) { next in
                 (try? await URLGuard.validate(next, resolver: resolver)) != nil
             }
         } catch LimitedDownload.Failure.tooLarge {
@@ -54,6 +57,18 @@ enum PDFFetch {
         // Detached so the main actor stays free; the fetch deadline's cancellation is passed on, and checked per page.
         let extraction = Task.detached(priority: .userInitiated) { try text(of: data, url: finalURL) }
         return try await withTaskCancellationHandler { try await extraction.value } onCancel: { extraction.cancel() }
+    }
+
+    /// An ephemeral session whose cookie store is a copy of `cookies` for this download alone: it sends each one only
+    /// where its domain, path and Secure flag match (redirects included), and what the server sets is dropped after.
+    static func configuration(cookies: [HTTPCookie]) -> URLSessionConfiguration {
+        let config = URLSessionConfiguration.ephemeral
+        guard !cookies.isEmpty else { return config }
+        let storage = config.httpCookieStorage
+        storage?.cookieAcceptPolicy = .always
+        for cookie in cookies { storage?.setCookie(cookie) }
+        config.httpShouldSetCookies = true
+        return config
     }
 
     /// The PDF's text, page by page, up to `maxPages` pages and about `maxCharacters` characters. The title is the

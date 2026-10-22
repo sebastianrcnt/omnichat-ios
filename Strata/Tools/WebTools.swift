@@ -380,7 +380,10 @@ struct WebFetchTool {
     static func loadWithWebView(resolver: any HostResolving, timeouts: FetchTimeouts = .standard) -> PageLoader {
         { url in
             // A PDF opens in the web view's own viewer, where the reader finds no text: download and read it instead.
-            if PDFFetch.looksLikePDF(url) { return try await PDFFetch.load(url, timeout: timeouts.load, resolver: resolver) }
+            if PDFFetch.looksLikePDF(url) {
+                let cookies = await BrowserData.store.httpCookieStore.allCookies()
+                return try await PDFFetch.load(url, timeout: timeouts.load, resolver: resolver, cookies: cookies)
+            }
             guard ReadabilitySource.script != nil else { throw WebToolError.script("the page reader is missing from the app bundle.") }
             let pool = WebViewPool.shared
             let view = pool.acquire(reader: true, resolver: resolver)
@@ -395,7 +398,8 @@ struct WebFetchTool {
                 return page
             } catch WebToolError.script(let message) {
                 // No text in the page: it may be a PDF served from a URL that doesn't say so.
-                if let pdf = try? await PDFFetch.load(view.currentURL ?? url, timeout: timeouts.load, resolver: resolver) { return pdf }
+                let cookies = await BrowserData.store.httpCookieStore.allCookies()
+                if let pdf = try? await PDFFetch.load(view.currentURL ?? url, timeout: timeouts.load, resolver: resolver, cookies: cookies) { return pdf }
                 keep = true
                 throw WebToolError.script(message)
             } catch {
