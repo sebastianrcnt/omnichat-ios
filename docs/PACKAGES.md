@@ -1,6 +1,7 @@
 # OpenChat packages: design
 
-Status: proposal, not implemented. 2026-10-22. Branch `packages-design`.
+Status: MVP implemented on branch `packages` (2026-10-22); see "MVP as built" at the end of section 11 for what
+differs from this proposal and what is left. Phases 2 and 3 are still proposals.
 
 Packages extend OpenChat without new app releases. A package is a signed or unsigned bundle of data and sandboxed JavaScript
 that adds tools, prompt text, skills, views, commands, connection presets, policies and declarative hooks. The idea comes
@@ -279,6 +280,12 @@ Rules:
   integer, number, boolean, array), `description`, `enum`, `properties`, `required`, `items`, `minimum`, `maximum`,
   `maxLength`, `default`. There is no `$ref`, `oneOf`, `anyOf` or `patternProperties`. The maximum depth is 4, and the
   schema is at most 4 KB per tool.
+- **`capture`** (optional, HTTP tools only): a top-level `string` parameter may declare `"capture": "<regex>"`, a regular
+  expression with at least one capture group. After validation the host matches it against the value and replaces the
+  value with the first group that matched, so a tool can accept a full link and use the id inside it
+  (`"capture": "status/(\\d+)"` turns `https://x.com/a/status/123` into `123`). A value that doesn't match fails with
+  `"<name>" doesn't have the expected form.` `capture` is removed from the schema the model sees, is rejected on nested
+  or non-string parameters, and a pattern that doesn't compile or has no group fails validation.
 - **Redirects**: up to 3, each target rechecked against `network`. https never downgrades to http. A redirect to an undeclared host
   fails with `Blocked: <host> is not a host the Acme Jira package may reach.`
 - **Response**: the body is capped at 2 MB before parsing. JSON responses go through `each`/`fields`. Without
@@ -1237,6 +1244,50 @@ Tests (Swift Testing, as in `StrataTests/`):
   (extends `MultiChatTests`), Always persisted and revoked.
 - `SkillTests` additions: namespaced names, per-chat index with package skills, unchanged personal skills.
 - `OnDevicePromptBuilder` tests: package tools excluded, opt-in capped at 2.
+
+### MVP as built (branch `packages`, 2026-10-22)
+
+Built: the kit and `openchat-pkg` CLI (`validate`, `pack`, `sign`, `keygen`, `run`), `PackageStore`, `PackageInstaller`
+(file, link, same-key rule, revert, remove), `PackageSnapshot` freezing, `HTTPToolRunner`, `PackageToolRouter`,
+`PackageAudit`, `ToolApprovals` with `SSHRequests` as a facade, Settings › Packages (detail, secrets, activity viewer),
+the review sheet, the feed line and approval card, Live Activity "Needs you", composer switches, the `/` list,
+`openchat://add-package`, `.ocpkg` document type, the share route and on-device opt-in. Three built-in packages:
+`app.openchat.wikipedia` (`wiki`, the `wikipedia_summary` plugin as a page tool), `app.openchat.korea` (`kr`, the
+`naver-places` skill as `kr:naver-places`, the seed of a Korea pack) and `app.openchat.connections` (the OpenAI,
+OpenRouter, Groq, Ollama and LM Studio presets as data; ChatGPT, OpenCode and Apple stay in code).
+
+Where the build differs from the text above:
+
+- **The snapshot is the source of truth.** A chat's frozen package tool definitions and prompt sections live in
+  `Conversation.packageSnapshotData` (`@Attribute(.externalStorage)`, CloudKit-safe). `pkg:<id>` entries live only in
+  `toolSwitchesRaw`/`announcedToolsRaw`, not in `offeredToolsRaw`. A new chat stores the marker `pkg:*`, meaning "take
+  the default packages at the first send", so a chat created before the first send doesn't pin stale defaults. Chats
+  that already had a frozen system prompt before packages existed get an empty snapshot (byte-identical requests, R1).
+- **Skills.** Package skills are listed in their package's prompt section, not merged into the skill index;
+  `load_skill`/`run_skill_script` are added to the chat's tools when a package with skills is on. Names are `ns:name`; a
+  bare legacy name (`naver-places`) still resolves to a built-in package's skill when no personal skill has it.
+- **Network entries** are an exact host or `*.suffix`.
+- **Prompt section header** names the tools as a pattern: `Package "Acme Jira" (tools jira__*):`.
+- **Presets** gained `subtitle` and `keyHelp` fields for the connection sheet.
+- **`"onDevice": false`** is accepted explicitly; true opts in (at most two tools reach the on-device model).
+- **Page tools** (`kind: "page"`, `page: {url, settle, waitFor}` plus `script`) exist in the MVP but only in built-in
+  packages; installed packages with page tools are refused. Their hosts come from `permissions.network`. They run
+  through `RunPluginTool`, so `run_plugin` and old chats are unchanged.
+- **Defaults.** A package's `requires` groups gate whether it is on by default in a new chat, and turning a package on
+  turns its groups on (turning a group off drops packages that need it). Built-in defaults: Wikipedia follows whether
+  the user had the `wikipedia_summary` plugin enabled; the Korea pack is on when the locale region is KR, decided at
+  the first send. Installed packages follow "On in new chats" (company trust on by default, others off).
+- **Plugins replaced by a package** are left out of a chat's plugin section only when that chat has the package.
+- **"Allow in this chat"** is kept in memory for the app session; "Always" is persisted and revocable in the detail page.
+- **App Intents** chats get only default packages whose tools never ask for approval.
+- **Audit** is at the `calls` level only (JSONL in Application Support/Audit, 30 days); `full` is not exposed.
+- **`LSSupportsOpeningDocumentsInPlace`** stays true (the app copies `.ocpkg` files before review).
+
+Left from the MVP list: silent update checks (`update.url`) and re-consent on them (manual reinstall with the same-key
+rule and re-consent works), the revocation list, a developer folder with live reload, the "Try a tool" button (agent
+drafts are phase 2), and a diff view in the review sheet (changed files are listed). The exact-value
+redaction registry is wired (`PackageSecretStore` values and their encodings); `DebugBundle` doesn't list package ids
+and versions yet.
 
 ### Phase 2: code and the agent (≈ 3–4 weeks, ≈ 4k lines)
 
