@@ -6,3 +6,7 @@ build/
 *.xcresult
 build-*/
 Tools/.build-libssh2/
+.build/
+Packages/*/.build/
+Tools/openchat-pkg/.build/
+.swiftpm/
