@@ -133,6 +133,29 @@ struct ConversationPreferencesTests {
         #expect(system(r.streamer.requests[2]).contains("Be verbose."))
     }
 
+    @Test func aChatKeepsThePluginsItStartedWith() async throws {
+        let r = try rig()
+        let key = AppSettings.enabledPluginsKey
+        let saved = UserDefaults.standard.object(forKey: key)
+        defer { UserDefaults.standard.set(saved, forKey: key) }
+        UserDefaults.standard.set([String](), forKey: key)
+        let chat = newChat(r)
+        r.controller.send(text: "hi", images: [], conversation: chat, context: r.context)
+        await r.controller.waitUntilIdle()
+        UserDefaults.standard.set(["wikipedia_summary"], forKey: key)
+        r.controller.send(text: "again", images: [], conversation: chat, context: r.context)
+        await r.controller.waitUntilIdle()
+
+        let first = system(r.streamer.requests[0])
+        #expect(!first.contains("wikipedia_summary"))
+        #expect(system(r.streamer.requests[1]) == first, "byte-identical, so the cached prefix holds")
+
+        let next = newChat(r)
+        r.controller.send(text: "hi", images: [], conversation: next, context: r.context)
+        await r.controller.waitUntilIdle()
+        #expect(system(r.streamer.requests[2]).contains("- wikipedia_summary:"))
+    }
+
     @Test func theContextEstimateDoesNotFreeze() throws {
         let r = try rig()
         let chat = newChat(r)

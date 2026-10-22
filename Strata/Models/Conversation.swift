@@ -76,6 +76,16 @@ final class Conversation {
         return current
     }
 
+    /// The site plugins' prompt section as it was at this conversation's first request with web tools on: switching a
+    /// plugin in Settings applies from the next chat on, so the system message never changes under this one.
+    var pluginSectionSnapshot: String?
+
+    func frozenPluginSection(current: String) -> String {
+        if let pluginSectionSnapshot { return pluginSectionSnapshot }
+        pluginSectionSnapshot = current
+        return current
+    }
+
     /// The chat's tool switches (`ToolGroup` raw values): nil while it follows the defaults in Settings, that is until
     /// the user flips one in the composer's "+" menu or the chat first sends.
     var toolSwitchesRaw: String?

@@ -783,7 +783,10 @@ final class ChatController {
     private func apiHistory(path: [Message], conversation: Conversation, endpoint: Endpoint, freeze: Bool = true) -> [APIMessage] {
         let tools = endpoint.model.supportsTools
         let offered = tools ? offeredTools(conversation, freeze: freeze) : []
-        let plugins = offered.contains(.web) ? PluginRegistry.bundled.promptSection(enabled: AppSettings.currentEnabledPlugins) : ""
+        // Like the skill list: a chat keeps the plugin section it first had with web tools on.
+        let currentPlugins = { PluginRegistry.bundled.promptSection(enabled: AppSettings.currentEnabledPlugins) }
+        let plugins = !offered.contains(.web) ? ""
+            : freeze ? conversation.frozenPluginSection(current: currentPlugins()) : conversation.pluginSectionSnapshot ?? currentPlugins()
         // A chat keeps the skill list it first had with the browser on, like its preferences.
         let skillIndex = !offered.contains(.browser) ? ""
             : freeze ? conversation.frozenSkillIndex(current: skills.index) : conversation.skillIndexSnapshot ?? skills.index
