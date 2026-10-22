@@ -163,6 +163,12 @@ final class ConnectionSync {
         return try? JSONEncoder().encode(c)
     }
 
+    /// A connection as another device decodes it (decoding fills in some flags), for comparing what was sent. Values,
+    /// not bytes: JSON of the same connection can come out in a different key order.
+    nonisolated static func normalized(_ connection: Connection) -> Connection? {
+        encode(connection).flatMap { try? JSONDecoder().decode(Connection.self, from: $0) }
+    }
+
     /// The cloud's connections, by id.
     nonisolated static func cloudConnections(_ cloud: any CloudKeyValueStoring) -> [UUID: Connection] {
         var out: [UUID: Connection] = [:]
@@ -207,7 +213,7 @@ final class ConnectionSync {
     private var observer: NSObjectProtocol?
     /// Each connection as this device last sent or received it: only one changed here since goes up, so a save here
     /// never sends back an older copy of one another device just changed.
-    private var lastSynced: [UUID: Data] = [:]
+    private var lastSynced: [UUID: Connection] = [:]
 
     init(store: ConnectionStore, cloud: any CloudKeyValueStoring = NSUbiquitousKeyValueStore.default,
          defaults: UserDefaults = .standard, headers: any KeyStoring = KeychainKeyStore(service: KeychainSync.headersService)) {
@@ -256,7 +262,7 @@ final class ConnectionSync {
         let order = (cloud.object(forKey: Self.orderKey) as? [String] ?? []).compactMap(UUID.init(uuidString:))
         let merged = Self.merge(local: store.connections, cloud: remote, order: order, seen: seen, headers: { headers.key(for: $0) })
         seen.formUnion(remote.keys)
-        for (id, connection) in remote { lastSynced[id] = Self.encode(connection) }
+        for (id, connection) in remote { lastSynced[id] = Self.normalized(connection) }
         guard merged != store.connections else { return }
         applying = true
         store.replaceAll(merged)
@@ -273,9 +279,10 @@ final class ConnectionSync {
         // here, and it must not go back up before that.
         let synced = connections.filter { Self.syncs($0) && (remote[$0.id] != nil || !known.contains($0.id)) }
         for c in synced {
-            if let data = Self.encode(c), lastSynced[c.id] != data {
+            let sent = Self.normalized(c)
+            if let data = Self.encode(c), lastSynced[c.id] != sent {
                 cloud.set(data, forKey: Self.keyPrefix + c.id.uuidString)
-                lastSynced[c.id] = data
+                lastSynced[c.id] = sent
             }
             let stored = headers.key(for: c.id) ?? ""
             if stored != c.customHeaders.trimmingCharacters(in: .whitespacesAndNewlines) { try? headers.setKey(c.customHeaders, for: c.id) }
