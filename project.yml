@@ -41,6 +41,12 @@ targets:
       - package: MarkdownUI
       - framework: Vendor/CLibSSH2.xcframework # libssh2 + OpenSSL libcrypto, static (Tools/build-libssh2.sh)
         embed: false
+      - target: StrataShare
+    entitlements:
+      path: Strata/Strata.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.cc.coolservices.strata
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cc.coolservices.strata
@@ -88,6 +94,46 @@ targets:
               - openchat
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+  StrataShare:
+    # The share extension: "Share to OpenChat" from Safari, YouTube, Photos, Files and the rest (Strata/Share).
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: StrataShare
+      - path: Strata/Share/SharePayload.swift
+      - path: Strata/Share/ShareComposeView.swift
+      - path: Strata/Share/ShareItemLoader.swift
+      - path: Strata/DesignSystem/Tokens.swift
+      - path: Strata/DesignSystem/Platform.swift
+      - path: Strata/Models/ImageProcessor.swift
+    entitlements:
+      path: StrataShare/StrataShare.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.cc.coolservices.strata
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cc.coolservices.strata.share
+        PRODUCT_NAME: OpenChatShare
+        INFOPLIST_KEY_CFBundleDisplayName: OpenChat
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        # Leaves out the parts of the shared design system files that need UIApplication.shared.
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) STRATA_EXTENSION
+    info:
+      path: StrataShare/Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsImageWithMaxCount: 4
+              NSExtensionActivationSupportsFileWithMaxCount: 3
   StrataMac:
     type: application
     platform: macOS
