@@ -14,6 +14,9 @@ struct StrataApp: App {
         MemoryPurge.install()
         HighlightService.registerForPurge()
         DS.applyBarAppearance()
+        #if DEBUG
+        StrataStore.initializeCloudKitSchemaIfRequested()
+        #endif
         do {
             container = try StrataStore.makeContainer()
         } catch {

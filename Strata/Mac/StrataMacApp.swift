@@ -18,6 +18,9 @@ struct StrataMacApp: App {
         #endif
         MemoryPurge.install()
         HighlightService.registerForPurge()
+        #if DEBUG
+        StrataStore.initializeCloudKitSchemaIfRequested()
+        #endif
         do {
             container = try StrataStore.makeContainer()
         } catch {

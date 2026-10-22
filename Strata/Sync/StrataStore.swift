@@ -58,3 +58,35 @@ enum StrataStore {
         if context.hasChanges { try context.save() }
     }
 }
+
+#if DEBUG
+import CoreData
+
+extension StrataStore {
+    /// `-StrataInitCloudKitSchema 1` (a Debug build signed in to iCloud): creates every record type and field of the
+    /// models in the container's Development environment, including fields no record has filled yet, so the schema can
+    /// be deployed to Production complete. Uses a throwaway store; the app's chats are not touched. Prints the outcome.
+    static func initializeCloudKitSchemaIfRequested() {
+        guard UserDefaults.standard.bool(forKey: "StrataInitCloudKitSchema") else { return }
+        func say(_ text: String) { FileHandle.standardError.write(Data("[cloudkit-schema] \(text)\n".utf8)) }
+        guard let model = NSManagedObjectModel.makeManagedObjectModel(for: models) else { return say("FAILED: no model") }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("schema-\(UUID().uuidString).store")
+        let description = NSPersistentStoreDescription(url: url)
+        description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(containerIdentifier: cloudKitContainer)
+        description.shouldAddStoreAsynchronously = false
+        let container = NSPersistentCloudKitContainer(name: "StrataSchema", managedObjectModel: model)
+        container.persistentStoreDescriptions = [description]
+        var loadError: Error?
+        container.loadPersistentStores { _, error in loadError = error }
+        if let loadError { return say("FAILED to load: \(loadError.localizedDescription)") }
+        do {
+            try container.initializeCloudKitSchema()
+            say("done: deploy the Development schema to Production in the CloudKit Console")
+        } catch {
+            say("FAILED: \(error.localizedDescription)")
+        }
+        for store in container.persistentStoreCoordinator.persistentStores { try? container.persistentStoreCoordinator.remove(store) }
+        try? FileManager.default.removeItem(at: url)
+    }
+}
+#endif
