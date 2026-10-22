@@ -452,9 +452,11 @@ private struct ShareFileRow: View {
 
 extension ShareComposeModel {
     static func gallerySample() -> ShareComposeModel {
-        let model = ShareComposeModel(context: ShareContext(accentHex: nil, modelTitle: "gpt-5.1", connectionName: "OpenAI",
+        let recipient = ShareRecipient(connectionID: UUID(), modelID: "gpt-5.1", routeDigest: "gallery",
+                                       modelTitle: "gpt-5.1", connectionName: "OpenAI", serviceHost: "api.openai.com")
+        let model = ShareComposeModel(context: ShareContext(recipient: recipient, accentHex: nil, modelTitle: "gpt-5.1", connectionName: "OpenAI",
                                                             hasConnection: true,
-                                                            currentChat: .init(id: UUID(), title: "Trip to Kyoto")))
+                                                            currentChat: .init(id: UUID(), title: "Trip to Kyoto", recipient: recipient)))
         model.links = [.init(url: URL(string: "https://www.youtube.com/watch?v=dQw4w9WgXcQ")!,
                              title: "How Liquid Glass works: a deep dive into the new design")]
         model.texts = ["Liquid Glass is a translucent material that reflects and refracts its surroundings, while dynamically transforming to help bring greater focus to content."]

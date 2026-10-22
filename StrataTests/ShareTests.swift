@@ -375,15 +375,31 @@ struct ShareTests {
         #expect(ShareImporter.context(connections: r.connections, settings: r.settings, current: chat).currentChat
                 == ShareContext.Chat(id: chat.id, title: "Kyoto", recipient: empty.recipient))
     }
+
     @Test func destinationControlsTheDisplayedAndPersistedRecipient() throws {
         let r = try rig()
-        let local = ShareImporter.recipient(connectionID: Connection.testID, modelID: "local", connections: r.connections)!
-        let remote = ShareImporter.recipient(connectionID: Connection.testID, modelID: "remote", connections: r.connections)!
-        let id = UUID()
-        let model = ShareComposeModel(context: ShareContext(recipient: local, currentChat: .init(id: id, title: "Older", recipient: remote)))
-        #expect(model.recipient == local && model.payload.recipient == local)
-        model.destination = .conversation(id)
-        #expect(model.recipient == remote && model.payload.recipient == remote)
+        var localConnection = r.connections.connection(Connection.testID)!
+        localConnection.name = "Local model"
+        localConnection.baseURL = "http://127.0.0.1:8000/v1"
+        r.connections.upsert(localConnection)
+        let remoteConnection = Connection(name: "Remote provider", baseURL: "https://remote.example/v1", models: [ModelInfo(id: "remote")])
+        r.connections.upsert(remoteConnection)
+        r.settings.lastConnectionID = localConnection.id
+        r.settings.lastModelID = "m"
+        let chat = Conversation(title: "Older", connectionID: remoteConnection.id, modelID: "remote")
+        r.context.insert(chat)
+        let message = Message(role: .user, text: "old message", sortIndex: 0)
+        r.context.insert(message)
+        chat.attach(message, parent: nil)
+        let context = ShareImporter.context(connections: r.connections, settings: r.settings, current: chat)
+        let model = ShareComposeModel(context: context)
+        #expect(model.recipient?.connectionID == localConnection.id)
+        #expect(model.payload.recipient?.serviceHost == "127.0.0.1")
+        model.destination = .conversation(chat.id)
+        #expect(model.recipient?.connectionID == remoteConnection.id)
+        #expect(model.recipient?.connectionName == "Remote provider")
+        #expect(model.payload.recipient?.modelID == "remote")
+        #expect(model.payload.recipient?.serviceHost == "remote.example")
     }
 
     @Test func changedEndpointAndLegacySharesWaitForConfirmationWithoutSending() async throws {
@@ -431,5 +447,4 @@ struct ShareTests {
         await loader.load(NSItemProvider(object: UIImage(data: Self.jpeg())!))
         #expect(loader.images.isEmpty && loader.skipped == 2)
     }
-
 }
