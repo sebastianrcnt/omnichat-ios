@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+@testable import Strata
 
 struct ToolDraftTests {
     @Test func theTitleShowsOnceItsQuoteCloses() {

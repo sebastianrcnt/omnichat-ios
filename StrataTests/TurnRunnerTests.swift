@@ -54,7 +54,7 @@ struct TurnRunnerTests {
             case .toolFinished: events.append("toolDone")
             case .usage: events.append("usage")
             case .roundStarted(let n): events.append("round\(n)")
-            case .compactionStarted, .compacted, .stepThinking: break
+            case .compactionStarted, .compacted, .stepThinking, .drafting: break
             }
         }
         #expect(outcome.finalContent == "Answer")
