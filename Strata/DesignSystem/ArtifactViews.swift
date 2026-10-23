@@ -55,7 +55,7 @@ struct ArtifactAnswerCard: View {
     @State private var showing = false
 
     /// Each artifact of these calls once, at its newest version, in the order they were first made.
-    static func latest(_ calls: [ToolCallRecord]) -> [ArtifactRef] {
+    nonisolated static func latest(_ calls: [ToolCallRecord]) -> [ArtifactRef] {
         var order: [String] = []
         var newest: [String: ArtifactRef] = [:]
         for ref in calls.compactMap(\.artifact) {
