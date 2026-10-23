@@ -158,6 +158,7 @@ enum ReplyActivityPhase {
         case .writing: return (String(localized: "Writing"), "text.alignleft")
         case .compacting: return (String(localized: "Summarizing the chat"), "arrow.down.right.and.arrow.up.left")
         case .tool(let name, let argument): return toolWords(name, argument: argument, browserHost: browserHost)
+        case .drafting(let name, _, _): return toolWords(name, argument: "", browserHost: browserHost)
         }
     }
 

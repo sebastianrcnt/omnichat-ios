@@ -423,6 +423,7 @@ struct AssistantMessage: View {
     /// for its turn.
     private var toolRunning: Bool {
         if case .tool = content.phase { return true }
+        if case .drafting = content.phase { return true }
         if content.phase == .queued { return true }
         return !content.pending.isEmpty
     }
@@ -431,8 +432,26 @@ struct AssistantMessage: View {
         if let waiting = content.waiting { return waiting.label }
         switch content.phase {
         case .queued: return String(localized: "Waiting for another chat to finish")
+        case .drafting(let name, let title, let bytes): return Self.draftingLabel(name: name, title: title, bytes: bytes)
         default: return toolPhaseLabel
         }
+    }
+
+    /// "Making “Mortgage calculator” · 12 KB" while the model writes a long tool call; the size once there is a KB.
+    static func draftingLabel(name: String, title: String, bytes: Int) -> String {
+        let what = switch name {
+        case ToolNames.showHTML where !title.isEmpty: String(localized: "Making “\(title)”")
+        case ToolNames.showHTML: String(localized: "Making an artifact")
+        case ToolNames.runPython: String(localized: "Writing code")
+        default: String(localized: "Writing a skill")
+        }
+        guard bytes >= 1024 else { return what }
+        return what + " · " + bytes.formatted(.byteCount(style: .file))
+    }
+
+    private var isDrafting: Bool {
+        if case .drafting = content.phase { return true }
+        return false
     }
 
     private var toolPhaseLabel: String {
@@ -532,6 +551,13 @@ struct AssistantMessage: View {
                 let unplaced = FigureReference.unplaced(content.calls.flatMap { $0.figures ?? [] }, text: render.markdown.text)
                 if !unplaced.isEmpty { UnplacedFigures(figures: unplaced) }
             }
+            // The turn's artifacts, as cards in the answer: the result the user asked for, not only a line in the work.
+            let artifacts = ArtifactAnswerCard.latest(content.calls)
+            if !artifacts.isEmpty {
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                    ForEach(artifacts, id: \.id) { ArtifactAnswerCard(ref: $0) }
+                }
+            }
         }
         .animation(reduceMotion ? nil : DS.Motion.ease, value: showingTranslation)
         .animation(reduceMotion ? nil : DS.Motion.ease, value: tr.isTranslating)
@@ -555,6 +581,10 @@ struct AssistantMessage: View {
                 }
             }
             .animation(reduceMotion ? nil : DS.Motion.enter, value: items)
+            // Text came before the call being written, so the work's live line has gone: say what is being made below it.
+            if isDrafting && answerStarted {
+                ThoughtLine(isWorking: true, reasoning: nil, placeholder: phaseLabel, action: onOpenReasoning, onDetails: onOpenTimeline)
+            }
             if content.stopped && !content.cutForEarlyAnswer {
                 Text("Stopped").font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)
             }

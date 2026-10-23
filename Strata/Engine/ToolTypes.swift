@@ -425,3 +425,47 @@ enum MessageAssembler {
     static func viewedImageLabel(_ image: ToolImage) -> String { "[view_image: \(image.id), \(image.width)x\(image.height)]" }
     static let missingImageNote = "[Image unavailable: it is no longer stored on this device.]"
 }
+
+/// A tool call while the model still writes it. An artifact or a script can take the model a minute to write: the chat
+/// says so as it goes ("Making “Mortgage calculator” · 12 KB") instead of looking stuck on "Thinking".
+struct ToolDraft {
+    /// The tools worth showing while written: their arguments are long.
+    static let shown: Set<String> = [ToolNames.showHTML, ToolNames.runPython, ToolNames.saveSkill]
+    /// How much the arguments grow between two updates: about one a second at a model's usual pace.
+    static let step = 256
+
+    private(set) var name = ""
+    private(set) var title = ""
+    private(set) var bytes = 0
+
+    /// The call so far; returns the draft when the chat should hear of it (a new call, a title, every `step` bytes).
+    mutating func update(_ call: ToolCall) -> (name: String, title: String, bytes: Int)? {
+        guard Self.shown.contains(call.name) else { return nil }
+        let size = call.arguments.utf8.count
+        let newTitle = call.name == ToolNames.showHTML && title.isEmpty ? Self.title(in: call.arguments) : title
+        guard call.name != name || newTitle != title || size >= bytes + Self.step else { return nil }
+        (name, title, bytes) = (call.name, newTitle, size)
+        return (name, title, bytes)
+    }
+
+    /// The `title` string of arguments still being written, once its closing quote has come ("" before).
+    static func title(in arguments: String) -> String {
+        guard let key = arguments.range(of: "\"title\"") else { return "" }
+        var rest = arguments[key.upperBound...].drop { $0 == " " || $0 == "\n" || $0 == "\t" }
+        guard rest.first == ":" else { return "" }
+        rest = rest.dropFirst().drop { $0 == " " || $0 == "\n" || $0 == "\t" }
+        guard rest.first == "\"" else { return "" }
+        var escaped = false
+        for i in rest.indices.dropFirst() {
+            let c = rest[i]
+            if escaped { escaped = false; continue }
+            if c == "\\" { escaped = true; continue }
+            if c == "\"" {
+                let literal = String(rest[rest.startIndex...i])
+                let value = (try? JSONDecoder().decode(String.self, from: Data(literal.utf8))) ?? ""
+                return String(value.trimmingCharacters(in: .whitespacesAndNewlines).prefix(80))
+            }
+        }
+        return ""
+    }
+}

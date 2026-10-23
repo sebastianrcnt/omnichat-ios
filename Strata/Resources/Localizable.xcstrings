@@ -596,9 +596,7 @@
     "Enable only for gateways supporting Strata stream replay.": {
       "extractionState": "stale"
     },
-    "End date": {
-      "extractionState": "stale"
-    },
+    "End date": {},
     "Engine": {},
     "Enter a number": {},
     "Enter a valid URL": {},
@@ -743,6 +741,8 @@
     "Installed": {},
     "Instructions": {},
     "Intended recipient": {},
+    "Interactive page": {},
+    "Interactive page · v%lld": {},
     "Interactive views": {},
     "Interactive views in new chats": {},
     "Invalid HTTP response": {},
@@ -815,7 +815,9 @@
     "Low": {},
     "Made an artifact": {},
     "Making an artifact": {},
+    "Making an artifact · %@": {},
     "Making an artifact…": {},
+    "Making “%@” · %@": {},
     "Manage connections": {},
     "Manage usage": {},
     "Managed": {},
@@ -1482,9 +1484,7 @@
     "Standard (25 s)": {},
     "Start": {},
     "Start again": {},
-    "Start date": {
-      "extractionState": "stale"
-    },
+    "Start date": {},
     "Static / dynamic": {
       "extractionState": "stale"
     },
@@ -1842,6 +1842,8 @@
     "Wrap lines": {},
     "Write %@ on %@?": {},
     "Writing": {},
+    "Writing a skill · %@": {},
+    "Writing code · %@": {},
     "Written this turn": {},
     "Written to cache": {},
     "X": {},

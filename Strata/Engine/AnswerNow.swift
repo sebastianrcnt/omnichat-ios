@@ -16,7 +16,7 @@ enum AnswerNow {
         switch phase {
         case .tool: researching = true
         case .waiting, .thinking: researching = completedToolRounds > 0
-        case .idle, .queued, .writing, .compacting: researching = false
+        case .idle, .queued, .writing, .drafting, .compacting: researching = false
         }
         return researching && (elapsed > minimumSeconds || searches >= minimumSearches)
     }

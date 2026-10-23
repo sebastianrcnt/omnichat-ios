@@ -29,6 +29,8 @@ final class ChatController {
         case waiting
         case thinking
         case tool(name: String, argument: String)
+        /// The model is writing a long tool call (`ToolDraft`): an artifact, a script.
+        case drafting(name: String, title: String, bytes: Int)
         case writing
         /// The model is writing handoff notes to summarize the conversation.
         case compacting
@@ -728,6 +730,8 @@ final class ChatController {
             if run.phase != .writing { run.phase = .writing }
         case .stepThinking(let thinking):
             tracker.stepThinking = thinking
+        case .drafting(let name, let title, let bytes):
+            run.phase = .drafting(name: name, title: title, bytes: bytes)
         case .toolsRequested(let calls):
             tracker.finishThinking()
             tracker.beginTools(calls)

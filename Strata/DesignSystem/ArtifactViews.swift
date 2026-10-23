@@ -48,6 +48,58 @@ struct ArtifactFeedCard: View {
     }
 }
 
+/// An artifact in the answer: a card with the page's title that opens it full screen. The feed keeps its one line too.
+struct ArtifactAnswerCard: View {
+    @Environment(\.theme) private var theme
+    let ref: ArtifactRef
+    @State private var showing = false
+
+    /// Each artifact of these calls once, at its newest version, in the order they were first made.
+    static func latest(_ calls: [ToolCallRecord]) -> [ArtifactRef] {
+        var order: [String] = []
+        var newest: [String: ArtifactRef] = [:]
+        for ref in calls.compactMap(\.artifact) {
+            if newest[ref.id] == nil { order.append(ref.id) }
+            if ref.version >= newest[ref.id]?.version ?? 0 { newest[ref.id] = ref }
+        }
+        return order.compactMap { newest[$0] }
+    }
+
+    var body: some View {
+        Button { showing = true } label: {
+            HStack(spacing: DS.Spacing.md) {
+                Image(systemName: ArtifactFeedCard.icon)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(theme.accent)
+                    .frame(width: 44, height: 44)
+                    .background(theme.accentMuted, in: RoundedRectangle(cornerRadius: DS.Radius.sm, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(verbatim: ref.title.isEmpty ? String(localized: "Artifact") : ref.title)
+                        .font(DS.Typography.uiEmphasis)
+                        .foregroundStyle(theme.textPrimary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    Text(ref.version > 1 ? "Interactive page · v\(ref.version)" : "Interactive page")
+                        .font(DS.Typography.uiSmall)
+                        .foregroundStyle(theme.textSecondary)
+                }
+                Spacer(minLength: DS.Spacing.sm)
+                Text("Open")
+                    .font(DS.Typography.uiSmall.weight(.semibold))
+                    .foregroundStyle(theme.accent)
+            }
+            .padding(DS.Spacing.md)
+            .frame(maxWidth: 480, alignment: .leading)
+            .background(theme.surface, in: RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous).strokeBorder(theme.separator))
+            .contentShape(RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(Text("Opens the artifact"))
+        .fullScreenCoverOrSheet(isPresented: $showing) { ArtifactViewer(ref: ref) }
+    }
+}
+
 /// The small outlined "HTML" label (the look of the search card's engine badge).
 struct ArtifactBadge: View {
     @Environment(\.theme) private var theme
