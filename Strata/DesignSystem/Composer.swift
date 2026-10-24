@@ -204,7 +204,7 @@ struct ComposerBar<Accessory: View>: View {
         .padding(.bottom, DS.Spacing.xs)
         .animation(DS.Motion.snappy, value: dictation.phase)
         .onChange(of: scenePhase) { _, phase in
-            // Going to the background stops the microphone; what was heard so far is kept.
+            // Going to the background stops the microphone; what was heard so far is kept (a recording waits for Done).
             if phase == .background, dictation.isActive { insert(dictation.stopKeepingText()) }
         }
         .onDisappear { dictation.cancel() }

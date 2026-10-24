@@ -4,8 +4,8 @@ import AVFoundation
 /// mono) while the waveform shows the level, and at `finish()` the file goes to `POST /audio/transcriptions`; its
 /// text comes back as one `.finalized` event. Nothing is sent before confirm, and a cancel sends nothing.
 ///
-/// A recording that reaches `maxDuration` stops and is transcribed on its own; the controller then shows it as
-/// stopped, waiting for confirm.
+/// A recording that reaches `maxDuration` stops the microphone and waits, shown as stopped: confirm sends it, cancel
+/// deletes it unsent. `stopCapture()` (the app going to the background) does the same.
 @MainActor
 final class APIDictationEngine: DictationEngine {
     let endpoint: TranscriptionEndpoint
@@ -63,8 +63,9 @@ final class APIDictationEngine: DictationEngine {
         let limit = maxDuration
         recording.limit = Task { [weak self] in
             try? await Task.sleep(for: limit)
-            guard !Task.isCancelled else { return }
-            await self?.transcribe(recording)
+            guard !Task.isCancelled, let self, self.recording === recording else { return }
+            self.hold(recording)
+            recording.continuation.yield(.captureEnded)
         }
         return events
     }
@@ -82,6 +83,18 @@ final class APIDictationEngine: DictationEngine {
         recording.stopAudio()
         recording.continuation.finish()
         try? FileManager.default.removeItem(at: recording.url)
+    }
+
+    func stopCapture() {
+        guard let recording else { return }
+        hold(recording)
+    }
+
+    /// Stops the microphone; the file stays for `finish()` or `cancel()`.
+    private func hold(_ recording: Recording) {
+        guard recording.upload == nil else { return }
+        recording.limit?.cancel()
+        recording.stopAudio()
     }
 
     /// Stops the microphone, uploads the file once, and ends the stream with its text or the error.

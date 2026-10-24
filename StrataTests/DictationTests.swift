@@ -72,6 +72,9 @@ final class FakeDictationEngine: DictationEngine {
         continuation?.finish()
         continuation = nil
     }
+
+    private(set) var captureStopped = 0
+    func stopCapture() { captureStopped += 1 }
 }
 
 @MainActor

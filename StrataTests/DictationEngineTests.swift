@@ -292,6 +292,54 @@ struct TranscribingControllerTests {
         #expect(c.phase == .idle)
     }
 
+    @Test func aRecordingStoppedByItsLengthLimitWaitsForConfirm() async {
+        let c = controller()
+        c.start(expanded: false)
+        await until { c.isListening }
+        engine.send(.captureEnded)
+        await until { c.phase == .stopped }
+        #expect(engine.finished == 0 && engine.cancelled == 0, "nothing sent, nothing dropped before Done")
+        #expect(c.canConfirm && c.endedAt != nil)
+        engine.onFinish = [.finalized("Ten minutes of words.")]
+        #expect(await c.confirm() == "Ten minutes of words.")
+        #expect(engine.finished == 1 && c.phase == .idle)
+    }
+
+    @Test func cancelAfterTheLengthLimitSendsNothing() async {
+        let c = controller()
+        c.start(expanded: false)
+        await until { c.isListening }
+        engine.send(.captureEnded)
+        await until { c.phase == .stopped }
+        c.cancel()
+        #expect(engine.finished == 0 && engine.cancelled == 1 && c.phase == .idle)
+    }
+
+    @Test func backgroundingKeepsTheRecordingForDone() async {
+        let c = controller()
+        c.start(expanded: false)
+        await until { c.isListening }
+        #expect(c.stopKeepingText() == "")
+        #expect(engine.captureStopped == 1 && engine.cancelled == 0)
+        #expect(c.phase == .stopped && c.canConfirm)
+        engine.onFinish = [.finalized("Kept.")]
+        #expect(await c.confirm() == "Kept.")
+    }
+
+    @Test func backgroundingLetsARequestedTranscriptionFinish() async {
+        let c = controller()
+        engine.hangsOnFinish = true
+        engine.onFinish = [.finalized("Arrives later.")]
+        c.start(expanded: false)
+        await until { c.isListening }
+        let confirm = Task { await c.confirm() }
+        await until { c.phase == .finishing }
+        #expect(c.stopKeepingText() == "")
+        #expect(c.phase == .finishing && engine.cancelled == 0)
+        engine.endStream()
+        #expect(await confirm.value == "Arrives later.")
+    }
+
     @Test func failureMapping() {
         #expect(DictationController.failure(for: DictationError.notConfigured) == .notConfigured)
         #expect(DictationController.failure(for: DictationError.network) == .network)

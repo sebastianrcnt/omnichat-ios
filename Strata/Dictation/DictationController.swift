@@ -9,6 +9,9 @@ enum DictationEvent: Sendable, Equatable {
     case finalized(String)
     /// The input level, 0...1.
     case level(Float)
+    /// A recording engine stopped the microphone on its own (its length limit). The recording waits for confirm,
+    /// which sends it, or cancel, which drops it; the stream stays open until then.
+    case captureEnded
 }
 
 enum DictationAuthorization: Sendable, Equatable {
@@ -62,10 +65,14 @@ protocol DictationEngine: AnyObject {
     func finish() async
     /// Stops at once; no more events.
     func cancel()
+    /// Stops the microphone but keeps what was recorded for `finish()` (the app is going to the background). Only a
+    /// recording engine has something to keep.
+    func stopCapture()
 }
 
 extension DictationEngine {
     var transcribesOnFinish: Bool { false }
+    func stopCapture() {}
 }
 
 /// The dictation state machine behind the composer's microphone: permission, model download, listening with a live
@@ -181,21 +188,10 @@ final class DictationController {
     func confirm() async -> String {
         switch phase {
         case .listening:
-            phase = .finishing
-            let session = self.session
-            let current = generation
-            // The timeout covers the engine's own finishing too: a recognizer that never settles can't hold the
-            // composer in "finishing" for good.
-            let transcribes = engine.transcribesOnFinish
-            let settled = await finish(within: transcribes ? transcriptionTimeout : finishTimeout, session: session)
-            // Cancelled meanwhile, failed, or a new dictation started: its words and session are not this confirm's.
-            guard current == generation else { return "" }
-            // A transcription that never came has no words to fall back on: say so rather than insert nothing.
-            if !settled && transcribes {
-                engine.cancel()
-                fail(.timedOut)
-                return ""
-            }
+            if let abandoned = await settle() { return abandoned }
+        case .stopped where engine.transcribesOnFinish:
+            // A recording kept when the microphone stopped (the length limit, the app in the background) is sent now.
+            if let abandoned = await settle() { return abandoned }
         case .stopped:
             break
         case .finishing: // a second tap; the first one inserts the words
@@ -209,15 +205,49 @@ final class DictationController {
         return text
     }
 
+    /// Has the engine settle (or transcribe) what it heard. Nil when the transcript is ready; else what confirm returns.
+    private func settle() async -> String? {
+        phase = .finishing
+        let session = self.session
+        let current = generation
+        // The timeout covers the engine's own finishing too: a recognizer that never settles can't hold the
+        // composer in "finishing" for good.
+        let transcribes = engine.transcribesOnFinish
+        let settled = await finish(within: transcribes ? transcriptionTimeout : finishTimeout, session: session)
+        // Cancelled meanwhile, failed, or a new dictation started: its words and session are not this confirm's.
+        guard current == generation else { return "" }
+        // A transcription that never came has no words to fall back on: say so rather than insert nothing.
+        if !settled && transcribes {
+            engine.cancel()
+            fail(.timedOut)
+            return ""
+        }
+        return nil
+    }
+
     /// Drops what was heard. Back to idle.
     func cancel() {
         guard phase != .idle else { return }
         stopSession()
     }
 
-    /// Stops at once (the app is going to the background) and returns what was heard so far.
+    /// Stops at once (the app is going to the background) and returns what was heard so far. A recording engine has no
+    /// words yet: its microphone stops and the recording waits for confirm or cancel; a transcription already asked for
+    /// goes on.
     func stopKeepingText() -> String {
         guard phase != .idle else { return "" }
+        if engine.transcribesOnFinish {
+            switch phase {
+            case .listening:
+                engine.stopCapture()
+                markStopped()
+                return ""
+            case .stopped, .finishing:
+                return ""
+            default:
+                break
+            }
+        }
         let text = transcript
         stopSession()
         return text
@@ -282,9 +312,7 @@ final class DictationController {
             }
             guard current == generation else { return }
             if phase == .listening { // the audio ended without a confirm
-                phase = .stopped
-                endedAt = now()
-                levels = Array(repeating: 0, count: Self.barCount)
+                markStopped()
                 engine.cancel() // the recognizer is done: stop the microphone too (the transcript stays here)
             }
         } catch {
@@ -306,7 +334,15 @@ final class DictationController {
         case .level(let level):
             levels.removeFirst()
             levels.append(min(1, max(0, level)))
+        case .captureEnded:
+            if phase == .listening { markStopped() }
         }
+    }
+
+    private func markStopped() {
+        phase = .stopped
+        endedAt = now()
+        levels = Array(repeating: 0, count: Self.barCount)
     }
 
     private func fail(_ failure: Failure) {
