@@ -99,6 +99,21 @@ struct TurnRunner: Sendable {
         set { if newValue { offered.insert(.browser) } else { offered.remove(.browser) } }
     }
 
+    /// The round's calls with ids no earlier round of the turn used. A server that sends no ids gets `call_0` in every
+    /// round (`StreamAccumulator.toolCalls`), and some reuse their own; the rounds share one feed, approvals and
+    /// progress keyed by id, so a repeat would hide the new call. Deterministic, so a restored round renames alike.
+    static func uniqueIDs(_ calls: [ToolCall], after steps: [ToolStep], round: Int) -> [ToolCall] {
+        var seen = Set(steps.flatMap { $0.calls.map(\.id) })
+        guard !seen.isEmpty else { return calls }
+        return calls.map { call in
+            var call = call
+            if seen.contains(call.id) { call.id += "_r\(round)" }
+            while seen.contains(call.id) { call.id += "_" }
+            seen.insert(call.id)
+            return call
+        }
+    }
+
     /// - Parameter messages: the API history up to and including the new user message.
     @MainActor
     func run(endpoint: Endpoint,
@@ -233,7 +248,7 @@ struct TurnRunner: Sendable {
             let usageCounted = acc.usage.map { $0.promptTokens > 0 || $0.completionTokens > 0 } ?? false
             finalReasoning = acc.reasoning
 
-            let calls = capped || !toolsEnabled ? [] : acc.toolCalls
+            let calls = capped || !toolsEnabled ? [] : Self.uniqueIDs(acc.toolCalls, after: steps, round: round)
             if calls.isEmpty {
                 if EmptyAnswerRetry.shouldRetry(enabled: continueOnEmptyAnswer, round: round,
                                                 alreadyRetried: retrying || toolsDisabled, content: acc.content) {

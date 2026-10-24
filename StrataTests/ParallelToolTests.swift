@@ -160,6 +160,21 @@ struct ParallelToolTests {
         #expect(finished.first?.result == TurnRunner.stoppedCallNote && finished.first?.isError == true)
     }
 
+    /// From the audit: a server without call ids sends `call_0` in every round, and the shared feed hid the second
+    /// round's call (an SSH approval with it). Later rounds get ids of their own, the same ones in the history.
+    @Test func idsReusedAcrossRoundsAreMadeUnique() async throws {
+        let round = { (url: String) in [ChatDelta(toolCalls: [ToolCallDelta(index: 0, id: nil, name: "web_fetch", arguments: "{\"url\":\"\(url)\"}")])] }
+        let streamer = ScriptedStreamer([round("https://a.test/1"), round("https://a.test/2"), [ChatDelta(content: "Answer")]])
+        let outcome = try await TurnRunner(streamer: streamer, tools: TimedTools()).run(
+            endpoint: endpoint(), messages: [.user("hi")], effort: nil) { _ in }
+        let ids = outcome.steps.flatMap { $0.calls.map(\.id) }
+        #expect(ids == ["call_0", "call_0_r1"])
+        let last = try #require(streamer.requests.last).messages
+        #expect(last.filter { $0.role == "tool" }.map(\.toolCallID) == ["call_0", "call_0_r1"])
+        #expect(last.filter { $0.role == "assistant" }.flatMap { $0.toolCalls.map(\.id) } == ["call_0", "call_0_r1"])
+        #expect(TurnRunner.uniqueIDs([ToolCall(id: "a", name: "x", arguments: "")], after: [], round: 3).map(\.id) == ["a"])
+    }
+
     @Test func eachFinishingResultIsCheckpointedBeforeItsTurnToBeAppended() async throws {
         var sawPending: [[String]] = []
         _ = try await run([("https://a.test/1", 400), ("https://a.test/2", 10), ("https://a.test/3", 60)]) {
