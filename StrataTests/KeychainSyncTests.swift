@@ -95,6 +95,29 @@ final class InMemoryKeychain: KeychainBackend, @unchecked Sendable {
     }
 }
 
+/// Holds the first delete of synchronizable items until released.
+final class GatedKeychain: KeychainBackend, @unchecked Sendable {
+    let inner: InMemoryKeychain
+    let reachedDelete = DispatchSemaphore(value: 0)
+    let release = DispatchSemaphore(value: 0)
+    private let lock = NSLock()
+    private var gated = false
+    init(_ inner: InMemoryKeychain) { self.inner = inner }
+    func waitForDelete() { reachedDelete.wait() }
+
+    func copy(_ query: [String: Any]) -> (status: OSStatus, result: CFTypeRef?) { inner.copy(query) }
+    func add(_ attributes: [String: Any]) -> OSStatus { inner.add(attributes) }
+    func update(_ query: [String: Any], _ attributes: [String: Any]) -> OSStatus { inner.update(query, attributes) }
+    func delete(_ query: [String: Any]) -> OSStatus {
+        let first = (query[kSecAttrSynchronizable as String] as? Bool) == true && lock.withLock { () -> Bool in
+            defer { gated = true }
+            return !gated
+        }
+        if first { reachedDelete.signal(); release.wait() }
+        return inner.delete(query)
+    }
+}
+
 /// A switch the tests can flip.
 final class SyncSwitch: @unchecked Sendable {
     var on: Bool
@@ -189,14 +212,15 @@ struct KeychainSyncTests {
         keychain.seed(.init(service: ssh, account: "b", sync: false, fileKeychain: false,
                             accessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String, data: Data("mine".utf8)))
         keychain.seed(.init(service: "other.service", account: "c", sync: true, fileKeychain: false, accessible: nil, data: Data()))
-        let result = KeychainSync.removeFromICloud(backend: keychain)
+        let off = secretsOff()
+        let result = KeychainSync.removeFromICloud(backend: keychain, defaults: off)
         #expect(result.removed == 2 && result.kept == 0)
         let ours = keychain.snapshot.filter { $0.service != "other.service" }
         #expect(ours.allSatisfy { !$0.sync })
         #expect(ours.first { $0.service == api }?.data == Data("key".utf8))
         #expect(ours.first { $0.service == ssh }?.data == Data("mine".utf8)) // this device's copy wins
         #expect(keychain.snapshot.contains { $0.service == "other.service" && $0.sync }) // other apps' items untouched
-        #expect(KeychainSync.removeFromICloud(backend: keychain).removed == 0)
+        #expect(KeychainSync.removeFromICloud(backend: keychain, defaults: off).removed == 0)
     }
 
     @Test func turningSyncOffKeepsADeviceOnlyCopyOfEach() {
@@ -287,13 +311,13 @@ struct KeychainSyncTests {
     @Test func rotatingSignInsStayOnTheDevice() throws {
         let keychain = InMemoryKeychain()
         let service = "cc.coolservices.strata.tests.\(UUID().uuidString)"
-        defer { UserDefaults.standard.removeObject(forKey: KeychainSync.adoptedKeyPrefix + service) }
         // A session saved before sign-ins stopped syncing, which another device may use too.
         keychain.seed(.init(service: service, account: "a", sync: true, fileKeychain: false,
                             accessible: kSecAttrAccessibleAfterFirstUnlock as String, data: Data("old".utf8)))
         let store = KeychainItems(service: service, backend: keychain, synchronizable: { true }, hasFileKeychain: false, deviceOnly: true)
-        #expect(store.read("a") == Data("old".utf8)) // this device takes its own copy
-        #expect(keychain.snapshot.filter { !$0.sync }.map(\.data) == [Data("old".utf8)])
+        // From the audit: taking that copy put one single-use refresh token on every device. This device signs in again.
+        #expect(store.read("a") == nil)
+        #expect(!keychain.snapshot.contains { !$0.sync })
         try store.write(Data("rotated".utf8), account: "a")
         #expect(keychain.snapshot.first { $0.sync }?.data == Data("old".utf8))
         #expect(keychain.snapshot.first { !$0.sync }?.accessible == kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String)
@@ -307,16 +331,57 @@ struct KeychainSyncTests {
         #expect(keychain.snapshot.first { $0.account == "b" }?.sync == false)
     }
 
-    @Test func removingFromICloudTakesTheOldSignInsFirst() {
+    @Test func removingFromICloudDeletesTheOldSyncedSignIns() {
         let keychain = InMemoryKeychain()
         let session = KeychainSync.deviceOnlyServices[1]
         keychain.seed(.init(service: session, account: "s", sync: true, fileKeychain: false,
                             accessible: kSecAttrAccessibleAfterFirstUnlock as String, data: Data("session".utf8)))
-        let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
-        let result = KeychainSync.removeFromICloud(backend: keychain, defaults: defaults)
+        keychain.seed(.init(service: session, account: "s", sync: false, fileKeychain: false,
+                            accessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String, data: Data("mine".utf8)))
+        let result = KeychainSync.removeFromICloud(backend: keychain, defaults: secretsOff())
         #expect(result.removed == 1 && result.kept == 0)
         #expect(keychain.snapshot.map(\.sync) == [false])
-        #expect(keychain.snapshot.first?.data == Data("session".utf8))
+        #expect(keychain.snapshot.first?.data == Data("mine".utf8)) // this device's own sign-in stays
+    }
+
+    @Test func removalDoesNothingOnceTheSwitchIsOnAgain() {
+        let keychain = InMemoryKeychain()
+        keychain.seed(.init(service: KeychainSync.services[0], account: "a", sync: true, fileKeychain: false,
+                            accessible: kSecAttrAccessibleAfterFirstUnlock as String, data: Data("key".utf8)))
+        let on = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
+        on.set(true, forKey: KeychainSync.enabledKey)
+        let result = KeychainSync.removeFromICloud(backend: keychain, defaults: on)
+        #expect(result.removed == 0 && result.kept == 0)
+        #expect(keychain.snapshot.map(\.sync) == [true])
+    }
+
+    /// From the audit: removal checked this device's copy, then turning sync back on moved that copy to iCloud and
+    /// deleted it, and removal deleted the iCloud copy: the secret was gone from both. The two now take turns.
+    @Test func turningSyncOnDuringRemovalLosesNothing() async throws {
+        let inner = InMemoryKeychain()
+        let api = KeychainSync.services[0]
+        inner.seed(.init(service: api, account: "a", sync: true, fileKeychain: false,
+                         accessible: kSecAttrAccessibleAfterFirstUnlock as String, data: Data("key".utf8)))
+        let keychain = GatedKeychain(inner)
+        nonisolated(unsafe) let defaults = secretsOff()
+        defaults.set(false, forKey: KeychainSync.appliedKey)
+        let removal = Task.detached { KeychainSync.removeFromICloud(backend: keychain, defaults: defaults) }
+        await Task.detached { keychain.waitForDelete() }.value // removal has its local copy, and is about to delete the iCloud one
+        defaults.set(true, forKey: KeychainSync.enabledKey)
+        let apply = Task.detached { KeychainSync.applyIfNeeded(defaults: defaults, backend: keychain) }
+        try await Task.sleep(for: .milliseconds(100))
+        keychain.release.signal()
+        _ = await removal.value
+        _ = await apply.value
+        let left = inner.snapshot.filter { $0.service == api }
+        #expect(left.map(\.data) == [Data("key".utf8)])
+        #expect(left.first?.sync == true) // moved back to iCloud after the removal
+    }
+
+    private func secretsOff() -> UserDefaults {
+        let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
+        defaults.set(false, forKey: KeychainSync.enabledKey)
+        return defaults
     }
 
     @Test func apiKeysAreTrimmedAndBlankDeletes() throws {
