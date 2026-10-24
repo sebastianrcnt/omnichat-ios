@@ -58,10 +58,13 @@
       "shouldTranslate": false
     },
     "%lld / %lld": {},
+    "%lld Python runs": {},
     "%lld answers": {},
+    "%lld browser steps": {},
     "%lld chats": {},
     "%lld chats replying": {},
     "%lld earlier steps": {},
+    "%lld earlier thoughts": {},
     "%lld failed": {},
     "%lld figures": {},
     "%lld items couldn't be read.": {},
@@ -96,6 +99,7 @@
       "extractionState": "stale"
     },
     "%lld of %lld": {},
+    "%lld other steps": {},
     "%lld pages": {
       "localizations": {
         "en": {
@@ -173,6 +177,7 @@
     },
     "%lld sources": {},
     "%lld steps": {},
+    "%lld videos": {},
     "%lld%% used": {
       "extractionState": "stale"
     },
@@ -184,16 +189,20 @@
     "/ %@ tokens": {
       "extractionState": "stale"
     },
+    "1 Python run": {},
+    "1 browser step": {},
     "1 cell ≈ %@ tokens": {
       "extractionState": "stale"
     },
     "1 earlier step": {},
+    "1 earlier thought": {},
     "1 figure": {},
     "1 item couldn't be read.": {},
     "1 line": {},
     "1 model": {},
     "1 more chat": {},
     "1 more chat replying": {},
+    "1 other step": {},
     "1 page": {},
     "1 photo": {},
     "1 place": {},
@@ -201,6 +210,7 @@
     "1 search": {},
     "1 source": {},
     "1 step": {},
+    "1 video": {},
     "192.168.0.10": {},
     "22": {},
     "262144": {
