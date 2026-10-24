@@ -13,7 +13,9 @@
     },
     "%@ / %@": {},
     "%@ and %@": {},
-    "%@ asks for an answer": {},
+    "%@ asks for an answer": {
+      "extractionState": "stale"
+    },
     "%@ asks for an answer.": {},
     "%@ asks:": {},
     "%@ at %@, on this device or your local network.": {},
@@ -60,7 +62,9 @@
     "%lld / %lld": {},
     "%lld answers": {},
     "%lld chats": {},
-    "%lld chats replying": {},
+    "%lld chats replying": {
+      "extractionState": "stale"
+    },
     "%lld earlier steps": {},
     "%lld failed": {},
     "%lld figures": {},
@@ -89,8 +93,12 @@
         }
       }
     },
-    "%lld more chats": {},
-    "%lld more chats replying": {},
+    "%lld more chats": {
+      "extractionState": "stale"
+    },
+    "%lld more chats replying": {
+      "extractionState": "stale"
+    },
     "%lld more use an API OmniChat doesn't support yet.": {},
     "%lld more use an API OpenChat doesn't support yet.": {
       "extractionState": "stale"
@@ -192,8 +200,12 @@
     "1 item couldn't be read.": {},
     "1 line": {},
     "1 model": {},
-    "1 more chat": {},
-    "1 more chat replying": {},
+    "1 more chat": {
+      "extractionState": "stale"
+    },
+    "1 more chat replying": {
+      "extractionState": "stale"
+    },
     "1 page": {},
     "1 photo": {},
     "1 place": {},
@@ -210,9 +222,13 @@
     "A key is saved in the Keychain. Enter a new one to replace it.": {},
     "A language code such as en or ko. Leave empty for the video's own captions.": {},
     "A link asks to add this server. Add it only if you trust where the link came from: what you send in chats goes to this server.": {},
-    "A running reply on the Lock Screen and in the Dynamic Island when iOS isn't showing its own progress for it.": {},
+    "A running reply on the Lock Screen and in the Dynamic Island when iOS isn't showing its own progress for it.": {
+      "extractionState": "stale"
+    },
     "A server with an OpenAI-compatible API, Anthropic, or your ChatGPT plan. API keys and sign-ins are stored in the Keychain.": {},
-    "A server with an OpenAI-compatible API, your ChatGPT plan, or your OpenCode account. API keys and sign-ins are stored in the Keychain.": {},
+    "A server with an OpenAI-compatible API, your ChatGPT plan, or your OpenCode account. API keys and sign-ins are stored in the Keychain.": {
+      "extractionState": "stale"
+    },
     "API": {},
     "API key": {},
     "API key from console.groq.com": {
@@ -235,15 +251,21 @@
     "Activity": {},
     "Add": {},
     "Add a connection": {},
-    "Add a connection in Settings, then fetch its models or add one by hand.": {},
-    "Add a connection to start": {},
+    "Add a connection in Settings, then fetch its models or add one by hand.": {
+      "extractionState": "stale"
+    },
+    "Add a connection to start": {
+      "extractionState": "stale"
+    },
     "Add a connection with a model in OmniChat first.": {},
     "Add a connection with a model in OpenChat first.": {
       "extractionState": "stale"
     },
     "Add an API key for %@ in Settings.": {},
     "Add an API key to use this server": {},
-    "Add another service": {},
+    "Add another service": {
+      "extractionState": "stale"
+    },
     "Add connection": {},
     "Add credential": {},
     "Add credential…": {},
@@ -259,7 +281,9 @@
     "Added · Open": {},
     "After the first answer, ask the model for a short title.": {},
     "Allow Python to connect to %@?": {},
-    "Allow a connection to %@": {},
+    "Allow a connection to %@": {
+      "extractionState": "stale"
+    },
     "Allow in this chat": {},
     "Always": {},
     "Always allowed": {},
@@ -292,7 +316,9 @@
     "Apple Health in new chats": {},
     "Apple Intelligence": {},
     "Apple Intelligence is off": {},
-    "Apple Intelligence is off. Turn it on in Settings > Apple Intelligence & Siri to use the on-device model.": {},
+    "Apple Intelligence is off. Turn it on in Settings > Apple Intelligence & Siri to use the on-device model.": {
+      "extractionState": "stale"
+    },
     "Apple Intelligence is off. Turn it on in System Settings > Apple Intelligence & Siri to use the on-device model.": {},
     "Apple on-device": {},
     "Apple's on-device model answers without an API key or an account. Your messages never leave this device, and it works offline. It's a small model with a short memory: good for quick questions, rewriting and summaries. For long chats or hard questions, use a larger model.": {},
@@ -301,9 +327,13 @@
     "Applies when OpenChat reopens": {
       "extractionState": "stale"
     },
-    "Approve %@ › %@": {},
+    "Approve %@ › %@": {
+      "extractionState": "stale"
+    },
     "Approve %@ › %@?": {},
-    "Approve a command on %@": {},
+    "Approve a command on %@": {
+      "extractionState": "stale"
+    },
     "Approve a command on %@?": {},
     "Approve each command and upload, or always allow a server.": {},
     "Artifact": {},
@@ -330,12 +360,18 @@
     "Auto searches Naver for Korean queries and Bing otherwise. If the engine fails or finds nothing, the next one is tried. web_fetch returns up to the fetch length per call; longer pages continue in further calls. A chat can turn web search on or off from the + menu.": {},
     "Automatic": {},
     "Available": {},
-    "Away for %lld s.": {},
+    "Away for %lld s.": {
+      "extractionState": "stale"
+    },
     "Back": {},
     "Background identifiers": {},
     "Background lease": {},
-    "Background sound test": {},
-    "Background sound test finished": {},
+    "Background sound test": {
+      "extractionState": "stale"
+    },
+    "Background sound test finished": {
+      "extractionState": "stale"
+    },
     "Bad certificate": {},
     "Balance": {
       "extractionState": "stale"
@@ -365,7 +401,9 @@
     },
     "Cached": {},
     "Caches": {},
-    "Camera": {},
+    "Camera": {
+      "extractionState": "stale"
+    },
     "Can reach": {},
     "Can't open the package": {},
     "Cancel": {},
@@ -562,7 +600,9 @@
     "Discard share": {},
     "Dismiss": {},
     "Display name": {},
-    "Doesn't match the expected format": {},
+    "Doesn't match the expected format": {
+      "extractionState": "stale"
+    },
     "Don't Save": {},
     "Don't save as skill": {},
     "Done": {},
@@ -661,7 +701,9 @@
     "Finding places on the map…": {},
     "Finding your location": {},
     "Finding “%@”…": {},
-    "Finish a step in the browser": {},
+    "Finish a step in the browser": {
+      "extractionState": "stale"
+    },
     "Finish setting up a connection, then pick one of its models.": {},
     "Finished sentences are translated as the model thinks. Thinking in other languages shows as written.": {},
     "Flushes": {},
@@ -797,7 +839,9 @@
     "Listening…": {},
     "Little content": {},
     "Live": {},
-    "Live Activities": {},
+    "Live Activities": {
+      "extractionState": "stale"
+    },
     "Live view of the page": {},
     "Loaded skill %@": {},
     "Loading models…": {},
@@ -810,14 +854,21 @@
     "Local: can read Health": {},
     "Location": {},
     "Location in new chats": {},
-    "Looking at an image": {},
+    "Looking at an image": {
+      "extractionState": "stale"
+    },
     "Looking at the image": {},
     "Low": {},
     "Made an artifact": {},
     "Making an artifact": {},
-    "Making an artifact · %@": {},
+    "Making an artifact · %@": {
+      "extractionState": "stale"
+    },
     "Making an artifact…": {},
-    "Making “%@” · %@": {},
+    "Making “%@”": {},
+    "Making “%@” · %@": {
+      "extractionState": "stale"
+    },
     "Manage connections": {},
     "Manage usage": {},
     "Managed": {},
@@ -832,7 +883,9 @@
     "Message": {},
     "Messages": {},
     "Messages, images, figures, artifacts and the skills you saved.": {},
-    "Microphone access is off. Turn it on in Settings.": {},
+    "Microphone access is off. Turn it on in Settings.": {
+      "extractionState": "stale"
+    },
     "Microphone access is off. Turn it on in System Settings.": {},
     "Missing resumable event sequence.": {},
     "Missing stream event; replay is not contiguous.": {},
@@ -863,7 +916,9 @@
     },
     "Naming chat": {},
     "Needs %@ on in the chat.": {},
-    "Needs you": {},
+    "Needs you": {
+      "extractionState": "stale"
+    },
     "New": {},
     "New Chat": {},
     "New chat": {},
@@ -913,7 +968,9 @@
     "No plugins": {},
     "No reasoning was shared for this reply.": {},
     "No requests yet": {},
-    "No results yet": {},
+    "No results yet": {
+      "extractionState": "stale"
+    },
     "No saved skills": {},
     "No secrets were in iCloud.": {},
     "No text": {},
@@ -958,20 +1015,32 @@
     "OmniChat": {},
     "OmniChat can't talk to %@ yet. Choose another model.": {},
     "OmniChat includes these components under their licenses.": {},
-    "OmniChat is replying": {},
-    "OmniChat is replying in %lld chats": {},
+    "OmniChat is replying": {
+      "extractionState": "stale"
+    },
+    "OmniChat is replying in %lld chats": {
+      "extractionState": "stale"
+    },
     "OmniChat is still answering. The reply will be in the chat when it's done.": {},
     "OmniChat is using this page · view only": {},
-    "OmniChat isn't allowed to add photos. You can allow it in Settings.": {},
+    "OmniChat isn't allowed to add photos. You can allow it in Settings.": {
+      "extractionState": "stale"
+    },
     "OmniChat stops at a robot check (CAPTCHA) and asks you to solve it on the page; it never solves one itself. With this off, a page that shows one isn't read.": {},
-    "OmniChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT account.": {},
-    "OmniChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.": {},
+    "OmniChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT account.": {
+      "extractionState": "stale"
+    },
+    "OmniChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.": {
+      "extractionState": "stale"
+    },
     "OmniChat waits while you use the page. Tap Done to hand it back.": {},
     "On": {},
     "On in new chats": {},
     "On this device": {},
     "On this device · %@": {},
-    "On your Mac: replace localhost with the Mac's network address (port %@)": {},
+    "On your Mac: replace localhost with the Mac's network address (port %@)": {
+      "extractionState": "stale"
+    },
     "On your Mac: replace localhost with the Mac's network address (port %lld)": {
       "extractionState": "stale"
     },
@@ -989,7 +1058,9 @@
     "Only what a question needs": {},
     "Open": {},
     "Open Chat": {},
-    "Open OmniChat to continue": {},
+    "Open OmniChat to continue": {
+      "extractionState": "stale"
+    },
     "Open OmniChat to continue. If the destination changed, you’ll be asked before anything is sent.": {},
     "Open OmniChat to continue. The chat starts as soon as it opens.": {
       "extractionState": "stale"
@@ -1007,7 +1078,9 @@
     "Open full screen": {},
     "Open in Browser": {},
     "Open in Naver Map": {},
-    "Open in Safari": {},
+    "Open in Safari": {
+      "extractionState": "stale"
+    },
     "Open page": {},
     "Open sign-in page": {},
     "Open source": {},
@@ -1070,7 +1143,9 @@
     "Opened %@": {},
     "Opening %@…": {},
     "Opens OmniChat to a new chat, optionally with text ready to send.": {},
-    "Opens OmniChat to a new chat.": {},
+    "Opens OmniChat to a new chat.": {
+      "extractionState": "stale"
+    },
     "Opens OpenChat to a new chat, optionally with text ready to send.": {
       "extractionState": "stale"
     },
@@ -1129,8 +1204,12 @@
     "Pay as you go": {},
     "Peak": {},
     "Personalization": {},
-    "Photo": {},
-    "Photo access is off. Use Add photo below.": {},
+    "Photo": {
+      "extractionState": "stale"
+    },
+    "Photo access is off. Use Add photo below.": {
+      "extractionState": "stale"
+    },
     "Pick the service OmniChat talks to. You'll enter its API key or sign in next. Keys stay in the Keychain on this device.": {},
     "Pick the service OpenChat talks to. You'll enter its API key or sign in next. Keys stay in the Keychain on this device.": {
       "extractionState": "stale"
@@ -1148,8 +1227,12 @@
     "Port": {},
     "Preferences, tool defaults, plugins and your connection list.": {},
     "Preparing dictation…": {},
-    "Preparing replies": {},
-    "Preparing reply": {},
+    "Preparing replies": {
+      "extractionState": "stale"
+    },
+    "Preparing reply": {
+      "extractionState": "stale"
+    },
     "Preparing view…": {},
     "Previous 30 Days": {},
     "Previous 7 Days": {},
@@ -1197,12 +1280,16 @@
     "Read-only. What it reads is sent to %@ to answer you, and kept in this chat. iOS asks next; you choose what to share.": {},
     "Read-only. What it reads is sent to this chat's model to answer you, and kept in this chat. iOS asks next; you choose what to share.": {},
     "Reading": {},
-    "Reading %@": {},
+    "Reading %@": {
+      "extractionState": "stale"
+    },
     "Reading %@…": {},
     "Reading %lld pages…": {},
     "Reading %lld transcripts…": {},
     "Reading 1 page…": {},
-    "Reading a page": {},
+    "Reading a page": {
+      "extractionState": "stale"
+    },
     "Reading a skill": {},
     "Reading health data": {},
     "Reading more output…": {},
@@ -1261,7 +1348,9 @@
     "Reopen": {},
     "Replaces inline image data with its size.": {},
     "Replies ready": {},
-    "Reply failed": {},
+    "Reply failed": {
+      "extractionState": "stale"
+    },
     "Reply ready": {},
     "Reply stopped": {},
     "Replying": {},
@@ -1280,7 +1369,9 @@
     },
     "Responses API": {},
     "Restricted": {},
-    "Results": {},
+    "Results": {
+      "extractionState": "stale"
+    },
     "Resumable replies": {},
     "Resume data": {
       "extractionState": "stale"
@@ -1311,12 +1402,16 @@
     "SSH in new chats": {},
     "SSH: couldn't %@": {},
     "Save": {},
-    "Save a skill?": {},
+    "Save a skill?": {
+      "extractionState": "stale"
+    },
     "Save as skill": {},
     "Save debug bundle": {},
     "Save key": {},
     "Save skill?": {},
-    "Save the skill “%@”?": {},
+    "Save the skill “%@”?": {
+      "extractionState": "stale"
+    },
     "Saved": {},
     "Saved credential %@": {},
     "Saved in the Keychain": {},
@@ -1340,7 +1435,9 @@
     "Searched the page for “%@”": {},
     "Searched the web": {},
     "Searching": {},
-    "Searching the web": {},
+    "Searching the web": {
+      "extractionState": "stale"
+    },
     "Secrets": {},
     "Segments": {},
     "Select Text": {},
@@ -1369,7 +1466,9 @@
     "Share": {},
     "Share as file": {},
     "Share as text": {},
-    "Shared file": {},
+    "Shared file": {
+      "extractionState": "stale"
+    },
     "Share…": {},
     "Show": {},
     "Show Timeline": {},
@@ -1479,10 +1578,14 @@
     "Source": {},
     "Source: %@": {},
     "Sources": {},
-    "Speech recognition is off. Turn it on in Settings.": {},
+    "Speech recognition is off. Turn it on in Settings.": {
+      "extractionState": "stale"
+    },
     "Speech recognition is off. Turn it on in System Settings.": {},
     "Standard (25 s)": {},
-    "Start": {},
+    "Start": {
+      "extractionState": "stale"
+    },
     "Start again": {},
     "Start date": {},
     "Static / dynamic": {
@@ -1521,7 +1624,9 @@
     "Summarizes a web page, a YouTube video or text, and returns the summary.": {},
     "Summarizing conversation…": {},
     "Summarizing conversation… · %llds": {},
-    "Summarizing the chat": {},
+    "Summarizing the chat": {
+      "extractionState": "stale"
+    },
     "Summarizing…": {},
     "Summary": {},
     "Supports images": {},
@@ -1534,7 +1639,9 @@
     "System prompt": {},
     "Take over": {},
     "Taking a screenshot…": {},
-    "Tap Start, go to the Home screen or another app for about a minute, then come back. A page that kept running has a longest gap near 1 s; one that was suspended shows a gap about as long as you were away. The sound plays only while you are away, and only when Settings > Tools > Play a sound while browsing in the background is on.": {},
+    "Tap Start, go to the Home screen or another app for about a minute, then come back. A page that kept running has a longest gap near 1 s; one that was suspended shows a gap about as long as you were away. The sound plays only while you are away, and only when Settings > Tools > Play a sound while browsing in the background is on.": {
+      "extractionState": "stale"
+    },
     "Teal": {},
     "Temporarily unavailable": {},
     "Test": {},
@@ -1661,7 +1768,9 @@
     "This chat holds Apple Health data, which you allow only for on-device or local models, and %@ runs on a remote server. Switch the chat to a local model, or turn off \"Only send health data to on-device or local models\" in Settings > Health.": {},
     "This connection does not support resumable replies.": {},
     "This conversation is too long for the on-device model's context window. Start a new chat, or shorten the message.": {},
-    "This device can't run Apple Intelligence, so the on-device model isn't available. Choose another connection.": {},
+    "This device can't run Apple Intelligence, so the on-device model isn't available. Choose another connection.": {
+      "extractionState": "stale"
+    },
     "This device can't translate English to Korean.": {},
     "This device keeps its own copy of each secret. Your other devices lose the ones they get from iCloud, so their API keys, sign-ins and SSH credentials need to be entered again there.": {},
     "This is a local or private network address. It only works where that network is reachable.": {},
@@ -1672,7 +1781,9 @@
     },
     "This model %@.": {},
     "This model can't read images": {},
-    "This model can't read images. If it can, turn image support on.": {},
+    "This model can't read images. If it can, turn image support on.": {
+      "extractionState": "stale"
+    },
     "This model can't read images. Turn on \"Supports images\" for it in Settings > Connections.": {
       "extractionState": "stale"
     },
@@ -1793,7 +1904,9 @@
     "Visited": {},
     "Visited %@": {},
     "Waiting for Python": {},
-    "Waiting for another chat": {},
+    "Waiting for another chat": {
+      "extractionState": "stale"
+    },
     "Waiting for another chat to finish": {},
     "Waiting for approval…": {},
     "Waiting for iCloud": {},
@@ -1836,14 +1949,24 @@
     },
     "Worked on a server": {},
     "Worked on it": {},
-    "Working": {},
+    "Working": {
+      "extractionState": "stale"
+    },
     "Working on a server": {},
     "Working…": {},
     "Wrap lines": {},
     "Write %@ on %@?": {},
-    "Writing": {},
-    "Writing a skill · %@": {},
-    "Writing code · %@": {},
+    "Writing": {
+      "extractionState": "stale"
+    },
+    "Writing a skill": {},
+    "Writing a skill · %@": {
+      "extractionState": "stale"
+    },
+    "Writing code": {},
+    "Writing code · %@": {
+      "extractionState": "stale"
+    },
     "Written this turn": {},
     "Written to cache": {},
     "X": {},
@@ -1889,7 +2012,9 @@
     "iCloud": {},
     "iCloud account": {},
     "let mono = 1": {},
-    "localhost is this iPhone. For a server on your Mac, put the Mac's address on your Wi-Fi in the URL (like http://192.168.1.20:11434/v1) and start the server so it listens on the network.": {},
+    "localhost is this iPhone. For a server on your Mac, put the Mac's address on your Wi-Fi in the URL (like http://192.168.1.20:11434/v1) and start the server so it listens on the network.": {
+      "extractionState": "stale"
+    },
     "model-id": {
       "shouldTranslate": false
     },
@@ -1915,7 +2040,9 @@
     "“%@”": {
       "extractionState": "stale"
     },
-    "네이버 항공에서 인천-코타키나발루 찾아보고 있어요. 팝업 닫고 검색 이어갈게요. 출발지는 서울/인천, 도착지는 코타키나발루로 잡았어요. 날짜 선택해볼게요. 출발일은 다음 달 셋째 주로 잡고 가격을 비교해 볼게요.": {}
+    "네이버 항공에서 인천-코타키나발루 찾아보고 있어요. 팝업 닫고 검색 이어갈게요. 출발지는 서울/인천, 도착지는 코타키나발루로 잡았어요. 날짜 선택해볼게요. 출발일은 다음 달 셋째 주로 잡고 가격을 비교해 볼게요.": {
+      "extractionState": "stale"
+    }
   },
   "version": "1.0"
 }
