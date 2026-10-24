@@ -372,6 +372,56 @@ struct CompactorTests {
     }
 }
 
+/// A gateway that admitted the summary request but sends no headers: the id is known only by its key.
+private final class SilentGateway: ResumableChatStreaming, @unchecked Sendable {
+    private let lock = NSLock()
+    private var lookups = 0
+    private var cancelled: [String] = []
+    var cancels: [String] { lock.withLock { cancelled } }
+    var lookupCount: Int { lock.withLock { lookups } }
+    func stream(_ request: ChatRequest, endpoint: Endpoint) -> AsyncThrowingStream<ChatDelta, Error> {
+        AsyncThrowingStream { $0.finish(throwing: APIError.server("wrong path")) }
+    }
+    func stream(_ request: ChatRequest, endpoint: Endpoint, checkpoint: TurnCheckpoint) -> AsyncThrowingStream<ChatDelta, Error> {
+        AsyncThrowingStream { _ in } // hangs before any delta
+    }
+    func requestID(forIdempotencyKey key: String, endpoint: Endpoint) async throws -> String? {
+        // Registered on the second lookup, as a slow gateway would.
+        lock.withLock { lookups += 1; return lookups >= 2 ? "req_\(key.prefix(8))" : nil }
+    }
+    func cancel(requestID: String, endpoint: Endpoint) async throws { lock.withLock { cancelled.append(requestID) } }
+}
+
+struct CompactionCancelTests {
+    /// From the audit: Stop before the response headers left the summary generating on the server.
+    @Test func stoppingBeforeHeadersCancelsOnTheServerByKey() async throws {
+        let gateway = SilentGateway()
+        let ep = Endpoint(connectionID: UUID(), connectionName: "t", baseURL: URL(string: "http://localhost/v1")!, apiKey: nil,
+                          headers: [:], model: ModelInfo(id: "m", supportsTools: true), supportsResumable: true)
+        let base = ChatRequest(model: "m", messages: [.system("sys"), .user("q"), .assistant("a")])
+        let task = Task { try await Compactor(streamer: gateway).compact(endpoint: ep, base: base, meter: ContextMeter(usageTokens: 900), window: 100_000) }
+        try await Task.sleep(for: .milliseconds(100))
+        task.cancel()
+        await #expect(throws: CancellationError.self) { _ = try await task.value }
+        for _ in 0..<300 where gateway.cancels.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(gateway.cancels.count == 1 && gateway.cancels[0].hasPrefix("req_"))
+        #expect(gateway.lookupCount == 2)
+    }
+
+    @Test func aKeyNeverRegisteredStopsLookingAfterTheDeadline() async throws {
+        final class Never: ResumableChatStreaming, @unchecked Sendable {
+            func stream(_ request: ChatRequest, endpoint: Endpoint) -> AsyncThrowingStream<ChatDelta, Error> { AsyncThrowingStream { $0.finish() } }
+            func stream(_ request: ChatRequest, endpoint: Endpoint, checkpoint: TurnCheckpoint) -> AsyncThrowingStream<ChatDelta, Error> { AsyncThrowingStream { $0.finish() } }
+            func requestID(forIdempotencyKey key: String, endpoint: Endpoint) async throws -> String? { nil }
+            func cancel(requestID: String, endpoint: Endpoint) async throws { Issue.record("nothing to cancel") }
+        }
+        let ep = Endpoint(connectionID: UUID(), connectionName: "t", baseURL: URL(string: "http://localhost/v1")!, apiKey: nil,
+                          headers: [:], model: ModelInfo(id: "m"), supportsResumable: true)
+        let task = Compactor.cancelOnServer(requestID: nil, key: "k", client: Never(), endpoint: ep, lookupFor: 0.1, pause: 0.02)
+        await task.value
+    }
+}
+
 // MARK: - Records and history
 
 @MainActor

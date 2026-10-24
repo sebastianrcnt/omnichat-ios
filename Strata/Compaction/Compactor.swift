@@ -108,12 +108,41 @@ struct Compactor: Sendable {
             }
             try Task.checkCancellation()
         } catch {
-            if let resumable, let id = checkpoint.requestID, error is CancellationError || Task.isCancelled {
-                // Detached: this task is cancelled, and a cancelled task cannot make the request.
-                Task.detached { try? await resumable.cancel(requestID: id, endpoint: endpoint) }
+            if let resumable, error is CancellationError || Task.isCancelled {
+                Self.cancelOnServer(requestID: checkpoint.requestID, key: checkpoint.idempotencyKey, client: resumable, endpoint: endpoint)
             }
             throw error
         }
         return (checkpoint.accumulator.content, checkpoint.accumulator.finishReason)
+    }
+
+    /// Tells the server to stop a summary request that was stopped here. Detached: the stopped task cannot make the
+    /// request. Stopped before the response headers, the request id is unknown: it is looked up by the idempotency key
+    /// while the POST may still be in the gateway's authentication or routing (`lookupFor`). A failed call is retried
+    /// for a while, as a turn's cancel is (`ChatController.cancelRetryWindow`); a summary has no message to keep a
+    /// pending cancel in across launches.
+    @discardableResult
+    static func cancelOnServer(requestID: String?, key: String?, client: any ResumableChatStreaming, endpoint: Endpoint,
+                               lookupFor: TimeInterval = 30, retryFor: TimeInterval = 600,
+                               pause: Double = 0.5) -> Task<Void, Never> {
+        Task.detached {
+            let lookupDeadline = Date().addingTimeInterval(lookupFor)
+            let giveUp = Date().addingTimeInterval(retryFor)
+            var id = requestID
+            while Date() < giveUp {
+                do {
+                    if id == nil, let key { id = try await client.requestID(forIdempotencyKey: key, endpoint: endpoint) }
+                    if let id {
+                        try await client.cancel(requestID: id, endpoint: endpoint)
+                        return
+                    }
+                    // Not found by now: the request never reached the gateway.
+                    guard Date() < lookupDeadline else { return }
+                    try await RecoverySignals.shared.wait(seconds: pause)
+                } catch {
+                    try? await RecoverySignals.shared.wait(seconds: pause * 10)
+                }
+            }
+        }
     }
 }
