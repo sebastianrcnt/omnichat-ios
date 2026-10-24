@@ -3,15 +3,22 @@ import SwiftUI
 
 struct StrataCommands: Commands {
     private let controller = SharedModels.controller
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
         SidebarCommands()
         CommandGroup(replacing: .newItem) {
-            Button("New Chat") { WindowActions.shared.newChat() }
+            Button("New Chat") {
+                showMainWindow()
+                WindowActions.shared.newChat()
+            }
                 .keyboardShortcut("n", modifiers: .command)
         }
         CommandGroup(after: .textEditing) {
-            Button("Find Chats") { WindowActions.shared.findChats() }
+            Button("Find Chats") {
+                showMainWindow()
+                WindowActions.shared.findChats()
+            }
                 .keyboardShortcut("f", modifiers: .command)
         }
         CommandMenu("Chat") {
@@ -33,6 +40,14 @@ struct StrataCommands: Commands {
                 Button("Chat \(n)") { WindowActions.shared.selectChat(.index(n - 1)) }
                     .keyboardShortcut(KeyEquivalent(Character("\(n)")), modifiers: .command)
             }
+        }
+    }
+
+    /// The chat window in front, even when it was minimized, closed or behind Settings: these commands act on it.
+    private func showMainWindow() {
+        openWindow(id: "main")
+        for window in NSApp.windows where window.isMiniaturized && window.identifier?.rawValue.hasPrefix("main") == true {
+            window.deminiaturize(nil)
         }
     }
 }
