@@ -683,9 +683,10 @@ final class ChatController {
                 self.finish(run, message: assistant, conversation: conversation, context: context, error: nil, tracker: tracker)
             } catch where error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
                 guard !run.discarded else { return }
-                // Stop in any state (first byte, thinking, writing, tool): keep what is there, mark it Stopped.
+                // Stop in any state (first byte, thinking, writing, tool): keep what is there, mark it Stopped. A round
+                // cut short keeps the calls that finished (their effects happened), for the transcript and later turns.
                 let early = run.earlyAnswerRequested
-                if early { tracker.keepFinishedCallsOfOpenRound() }
+                tracker.keepFinishedCallsOfOpenRound()
                 tracker.finishThinking()
                 tracker.complete(finalText: nil)
                 conversation.sources = sourceStore.items
@@ -1283,7 +1284,7 @@ final class TurnTracker {
         }
     }
 
-    /// For an early answer: a round cut short keeps the calls that did finish, each with its result, and drops the rest
+    /// For Stop and an early answer: a round cut short keeps the calls that did finish, each with its result, and drops the rest
     /// (a call without a result cannot be sent back). A round with nothing finished is dropped whole.
     func keepFinishedCallsOfOpenRound() {
         guard !requested.isEmpty, !finishedRecords.isEmpty, finishedRecords.count < requested.count else { return }

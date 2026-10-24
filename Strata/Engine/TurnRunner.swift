@@ -62,6 +62,9 @@ struct TurnRunner: Sendable {
     /// The result of a call that can act outside the app and was cut off when the app ended (`TurnCheckpoint.startedCalls`).
     static let interruptedCallNote = "Error: this call was interrupted when the app closed, so it may or may not have taken effect. "
         + "Don't repeat it blindly: check whether it went through first (or ask the user)."
+    /// The result of such a call that was still running when the user stopped the reply.
+    static let stoppedCallNote = "Error: this call was stopped before it finished, so it may or may not have taken effect. "
+        + "Don't repeat it blindly: check whether it went through first (or ask the user)."
 
     var streamer: any ChatStreaming
     var tools: any ToolExecuting
@@ -312,18 +315,38 @@ struct TurnRunner: Sendable {
                 }
             }
 
+            /// Stopped mid-round: every result that came in is reported, also one still waiting behind an earlier call,
+            /// and a call that can act outside the app and had started gets `stoppedCallNote` (its effect may have
+            /// happened). A read-only call cut off is dropped: a call without a result cannot be sent back.
+            var startedIndices: Set<Int> = []
+            func flushStopped() throws {
+                for i in nextToAppend..<calls.count where finished[i] == nil && startedIndices.contains(i)
+                    && ToolNames.mayActOutside(calls[i].name) {
+                    finished[i] = ToolOutput(text: Self.stoppedCallNote, isError: true)
+                }
+                while nextToAppend < calls.count {
+                    if finished[nextToAppend] == nil { nextToAppend += 1 } else { try appendReady() }
+                }
+            }
+
             try Task.checkCancellation()
             try appendReady() // results restored from a checkpoint
             let offered = OfferedTools(base: tools, names: Set(toolList.map(\.function.name)), switches: switches, packages: packages)
-            try await ToolRound.execute(calls, indices: toRun, tools: offered, limit: maxConcurrentTools, onStart: { index in
-                guard ToolNames.mayActOutside(calls[index].name) else { return }
-                checkpoint.startedCalls = (checkpoint.startedCalls ?? []) + [calls[index].id]
-                try onEvent(.checkpoint(checkpoint)) // on disk before the call runs, or the round stops here
-            }) { index, out in
-                finished[index] = out
-                checkpoint.pendingResults = (checkpoint.pendingResults ?? []) + [RawToolResult(callID: calls[index].id, output: out)]
-                try appendReady()
-                try onEvent(.checkpoint(checkpoint))
+            do {
+                try await ToolRound.execute(calls, indices: toRun, tools: offered, limit: maxConcurrentTools, onStart: { index in
+                    startedIndices.insert(index)
+                    guard ToolNames.mayActOutside(calls[index].name) else { return }
+                    checkpoint.startedCalls = (checkpoint.startedCalls ?? []) + [calls[index].id]
+                    try onEvent(.checkpoint(checkpoint)) // on disk before the call runs, or the round stops here
+                }) { index, out in
+                    finished[index] = out
+                    checkpoint.pendingResults = (checkpoint.pendingResults ?? []) + [RawToolResult(callID: calls[index].id, output: out)]
+                    try appendReady()
+                    try onEvent(.checkpoint(checkpoint))
+                }
+            } catch {
+                if error is CancellationError || Task.isCancelled { try? flushStopped() }
+                throw error
             }
             try Task.checkCancellation()
             let before = messages.count

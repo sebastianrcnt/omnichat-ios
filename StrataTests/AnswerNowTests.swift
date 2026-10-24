@@ -204,6 +204,28 @@ struct AnswerNowTurnTests {
         #expect(sent.last == .user(AnswerNow.instruction))
     }
 
+    /// From the audit: Stop (not only Answer now) keeps the calls of a round that finished, also one that finished
+    /// while an earlier call still ran; later turns send them back.
+    @Test func stopKeepsTheCallsThatFinishedInAnOpenRound() async throws {
+        let r = try rig([
+            ([ChatDelta(toolCalls: [call(0, "c1", "slow one"), call(1, "c2", "fast two")])], .finish),
+            ([ChatDelta(content: "next")], .finish),
+        ])
+        r.controller.send(text: "question", images: [], conversation: r.conversation, context: r.context)
+        await waitFor { if case .tool(let name, _) = (r.controller.soleRun?.phase ?? .idle) { name == "web_search" } else { false } }
+        try await Task.sleep(for: .milliseconds(100)) // c2 has finished and waits behind c1
+        r.controller.stop(r.conversation)
+        await r.controller.waitUntilIdle()
+        let stopped = r.conversation.activePath[1]
+        #expect(stopped.stoppedByUser && !stopped.cutForEarlyAnswer)
+        #expect(stopped.steps.count == 1 && stopped.steps[0].calls.map(\.id) == ["c2"])
+        r.controller.send(text: "go on", images: [], conversation: r.conversation, context: r.context)
+        await r.controller.waitUntilIdle()
+        let sent = try #require(r.streamer.requests.last).messages
+        #expect(sent.contains { $0.role == "assistant" && $0.toolCalls.map(\.id) == ["c2"] })
+        #expect(sent.filter { $0.role == "tool" }.map(\.toolCallID) == ["c2"])
+    }
+
     @Test func aRunCutBeforeItProducedAnythingIsHiddenAndLeavesNoGap() async throws {
         let r = try rig([([], .hang), ([ChatDelta(content: "Quick answer.")], .finish)])
         r.controller.send(text: "question", images: [], conversation: r.conversation, context: r.context)

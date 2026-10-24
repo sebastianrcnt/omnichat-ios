@@ -123,6 +123,43 @@ struct ParallelToolTests {
         #expect(tools.executed.isEmpty)
     }
 
+    /// From the audit: Stop dropped a result that had finished while an earlier call of its round still ran.
+    @Test func stopReportsAResultWaitingBehindAnEarlierCall() async throws {
+        var finished: [ToolCallRecord] = []
+        let task = Task { @MainActor in
+            try await self.run([("https://a.test/1", 30_000), ("https://a.test/2", 10)]) {
+                if case .toolFinished(let r) = $0 { finished.append(r) }
+            }
+        }
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(finished.isEmpty) // c2 is held until c1 is done
+        task.cancel()
+        await #expect(throws: CancellationError.self) { _ = try await task.value }
+        #expect(finished.map(\.id) == ["c2"], "the read-only c1 that was cut off has no result and is dropped")
+        #expect(finished.first?.result == "page https://a.test/2")
+    }
+
+    /// A started call that can act outside the app is kept on Stop, marked as maybe having taken effect.
+    @Test func stopKeepsAStartedOutsideCallWithAWarning() async throws {
+        let streamer = ScriptedStreamer([[
+            ChatDelta(toolCalls: [ToolCallDelta(index: 0, id: "c1", name: "run_python", arguments: "{\"code\":\"post()\",\"delay\":30000}")]),
+            ChatDelta(toolCalls: [ToolCallDelta(index: 1, id: "c2", name: "web_fetch", arguments: "{\"url\":\"https://a.test/2\",\"delay\":10}")]),
+        ]])
+        var runner = TurnRunner(streamer: streamer, tools: TimedTools())
+        runner.python = true
+        var finished: [ToolCallRecord] = []
+        let task = Task { @MainActor in
+            try await runner.run(endpoint: endpoint(), messages: [.user("hi")], effort: nil) {
+                if case .toolFinished(let r) = $0 { finished.append(r) }
+            }
+        }
+        try await Task.sleep(for: .milliseconds(200))
+        task.cancel()
+        await #expect(throws: CancellationError.self) { _ = try await task.value }
+        #expect(finished.map(\.id) == ["c1", "c2"])
+        #expect(finished.first?.result == TurnRunner.stoppedCallNote && finished.first?.isError == true)
+    }
+
     @Test func eachFinishingResultIsCheckpointedBeforeItsTurnToBeAppended() async throws {
         var sawPending: [[String]] = []
         _ = try await run([("https://a.test/1", 400), ("https://a.test/2", 10), ("https://a.test/3", 60)]) {
