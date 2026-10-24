@@ -245,6 +245,11 @@ final class ChatController {
         guard !isStreaming(conversation) else { return }
         conversation.ensureTree()
         guard let leaf = conversation.leafMessage else { return }
+        // A reply an outage cut off is still on the server: Try again picks it up rather than starting another beside it.
+        if leaf.role == .assistant, let checkpoint = Self.recoverableCheckpoint(leaf) {
+            generate(conversation: conversation, context: context, restoring: leaf, checkpoint: checkpoint)
+            return
+        }
         guard leaf.role == .assistant else {
             generate(conversation: conversation, context: context, under: leaf)
             return
@@ -498,6 +503,34 @@ final class ChatController {
         }
     }
 
+    /// The checkpoint of a reply this device can still pick up (`restorePending` would), or nil.
+    static func recoverableCheckpoint(_ message: Message, device: String = DeviceIdentity.current) -> TurnCheckpoint? {
+        guard message.hasResume, !message.stoppedByUser, !message.cancelPending,
+              message.resumeDeviceID == nil || message.resumeDeviceID == device else { return nil }
+        return message.resumeCheckpoint
+    }
+
+    /// A new reply supersedes the chat's unfinished ones kept for a later reconnect (an outage keeps its checkpoint):
+    /// left alone, the next foreground would resume one and run its tools on a branch no longer on screen. Each is
+    /// cancelled on the server as for Stop, and its checkpoint goes.
+    private func retireRecoverableTurns(in conversation: Conversation, except kept: Message, context: ModelContext) {
+        let device = DeviceIdentity.current
+        let stale = conversation.messages.filter {
+            $0.id != kept.id && $0.hasResume && !$0.cancelPending && ($0.resumeDeviceID == nil || $0.resumeDeviceID == device)
+        }
+        guard !stale.isEmpty else { return }
+        let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID,
+                                            sessionID: conversation.id.uuidString)
+        for message in stale {
+            if let endpoint, message.resumeData != nil {
+                message.cancelPending = true
+                cancelOnServer(message, endpoint: endpoint, context: context)
+            } else {
+                message.clearResume()
+            }
+        }
+    }
+
     /// Unfinished turns only, found by a predicate (not by loading every message on each foreground). Only this device's
     /// own: a turn another device is running syncs here with its checkpoint, and must not run twice.
     /// Turns saved before the `hasResume` flag existed are flagged once.
@@ -574,6 +607,7 @@ final class ChatController {
             assistant.answeredEarly = above?.hiddenInstruction == true && above?.skillRequest != true
             context.insert(assistant)
             conversation.attach(assistant, parent: parent ?? conversation.leafMessage)
+            retireRecoverableTurns(in: conversation, except: assistant, context: context)
         } else {
             assistant.conversation = conversation
             assistant.errorText = nil // a reconnect after an outage clears the outage's message

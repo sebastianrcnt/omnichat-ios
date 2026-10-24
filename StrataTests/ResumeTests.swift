@@ -372,4 +372,70 @@ struct ResumeTests {
         #expect(streamer.cancels == [rid])
         #expect(message.text == prefix)
     }
+
+    /// A chat whose reply an outage cut off after "partial": the checkpoint stays for a later reconnect.
+    private func outageChat(streamer: RecoveryStreamer) throws -> (ChatController, ModelContext, Conversation, Message, ModelContainer) {
+        let defaults = UserDefaults(suiteName: "resume-tests-\(UUID())")!
+        let keys = InMemoryKeyStore()
+        try keys.setKey("test-only-key", for: Connection.testID)
+        let connections = ConnectionStore(defaults: defaults, keys: keys)
+        var strata = Connection.testGateway()
+        strata.models = [ModelInfo(id: "m", supportsTools: false)]
+        connections.upsert(strata)
+        let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
+                                          configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
+        let context = container.mainContext
+        let conversation = Conversation(connectionID: Connection.testID, modelID: "m")
+        conversation.titleIsUserSet = true
+        conversation.autoRenameDone = true
+        context.insert(conversation)
+        let user = Message(role: .user, text: "hi", sortIndex: 0)
+        context.insert(user)
+        conversation.attach(user, parent: nil)
+        let reply = Message(role: .assistant, text: "partial", sortIndex: 1)
+        context.insert(reply)
+        conversation.attach(reply, parent: user)
+        var snapshot = try TurnCheckpoint(messages: [.user("hi")])
+        snapshot.requestData = try ChatRequest(model: "m", messages: [.user("hi")]).encoded()
+        snapshot.submissionStarted = true
+        _ = try snapshot.apply(ChatDelta(content: "partial", requestID: rid, sequence: 1))
+        snapshot.endpointFingerprint = nil
+        reply.resumeData = try JSONEncoder().encode(snapshot)
+        reply.hasResume = true
+        reply.errorText = StreamOutage(minutes: 10).localizedDescription
+        try context.save()
+        let controller = ChatController(connections: connections, settings: AppSettings(defaults: defaults), streamer: streamer, tools: FakeTools())
+        return (controller, context, conversation, reply, container)
+    }
+
+    /// From the audit: Try again after an outage started a second reply and left the first to resume on its own later.
+    @Test func tryAgainAfterAnOutageResumesTheSameReply() async throws {
+        let streamer = RecoveryStreamer(deltas: [ChatDelta(content: " rest", sequence: 2), ChatDelta(isDone: true, sequence: 3)])
+        let (controller, context, conversation, reply, container) = try outageChat(streamer: streamer)
+        _ = container
+        controller.regenerate(conversation: conversation, context: context)
+        await controller.waitUntilIdle()
+        #expect(streamer.checkpoints.count == 1 && streamer.checkpoints.first?.requestID == rid)
+        #expect(conversation.messages.filter { $0.role == .assistant }.count == 1, "no sibling reply")
+        #expect(reply.text == "partial rest" && reply.errorText == nil && reply.resumeData == nil)
+    }
+
+    /// A fresh reply (here an edit of the question) cancels the reply the outage kept, so a later foreground doesn't
+    /// resume it on the abandoned branch.
+    @Test func aFreshReplyRetiresTheReplyKeptForReconnect() async throws {
+        let streamer = RecoveryStreamer(deltas: [ChatDelta(content: "new", sequence: 1), ChatDelta(isDone: true, sequence: 2)])
+        let (controller, context, conversation, reply, container) = try outageChat(streamer: streamer)
+        _ = container
+        let question = try #require(conversation.message(id: reply.parentID))
+        controller.send(text: "hi again", images: [], conversation: conversation, context: context, editing: question)
+        await controller.waitUntilIdle()
+        for _ in 0..<100 where reply.cancelPending { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(streamer.cancels == [rid])
+        #expect(reply.resumeData == nil && !reply.hasResume && !reply.cancelPending)
+        let before = streamer.checkpoints.count
+        controller.restorePending(context: context)
+        await controller.waitUntilIdle()
+        #expect(streamer.checkpoints.count == before, "nothing is resumed")
+        #expect(reply.text == "partial")
+    }
 }
