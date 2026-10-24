@@ -40,4 +40,21 @@ struct FigureReferenceTests {
         #expect(AppPrompt.text(tools: true, python: true).contains("![short caption](figure-N)"))
         #expect(!AppPrompt.text(tools: true, python: false).contains("figure-N"))
     }
+
+    @Test func savingOverAFileKeepsItWhenTheCopyFails() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "figure-save-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let existing = folder.appending(path: "chart.png")
+        try Data("old".utf8).write(to: existing)
+        #expect(throws: (any Error).self) { try ToolImageViewer.export(folder.appending(path: "missing.png"), to: existing) }
+        #expect(FileManager.default.contents(atPath: existing.path(percentEncoded: false)) == Data("old".utf8))
+        let figure = folder.appending(path: "figure-1.png")
+        try Data("new".utf8).write(to: figure)
+        try ToolImageViewer.export(figure, to: existing)
+        #expect(FileManager.default.contents(atPath: existing.path(percentEncoded: false)) == Data("new".utf8))
+        let fresh = folder.appending(path: "fresh.png")
+        try ToolImageViewer.export(figure, to: fresh)
+        #expect(FileManager.default.contents(atPath: fresh.path(percentEncoded: false)) == Data("new".utf8))
+    }
 }

@@ -204,13 +204,27 @@ struct ToolImageViewer: View {
             let panel = NSSavePanel()
             panel.nameFieldStringValue = image.id + "." + (fileURL.pathExtension.isEmpty ? "png" : fileURL.pathExtension)
             guard panel.runModal() == .OK, let url = panel.url else { return }
-            if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
-            try FileManager.default.copyItem(at: fileURL, to: url)
+            try Self.export(fileURL, to: url)
             #endif
             saved = true
         } catch {
             saveError = error.localizedDescription
         }
+    }
+
+    /// Copies the figure to `destination`. An existing file there is replaced only once the copy is complete: a copy
+    /// that fails (a full disk) leaves it as it was.
+    nonisolated static func export(_ source: URL, to destination: URL) throws {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: destination.path(percentEncoded: false)) else {
+            try fm.copyItem(at: source, to: destination)
+            return
+        }
+        let staged = fm.temporaryDirectory.appending(path: "figure-export-\(UUID().uuidString)")
+            .appendingPathExtension(destination.pathExtension)
+        defer { try? fm.removeItem(at: staged) }
+        try fm.copyItem(at: source, to: staged)
+        _ = try fm.replaceItemAt(destination, withItemAt: staged)
     }
 
     /// The recorded size, else the decoded image's: a figure placed in an answer is opened by id, before its size is known.
