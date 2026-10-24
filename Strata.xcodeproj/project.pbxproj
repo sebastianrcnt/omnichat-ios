@@ -25,6 +25,7 @@
 		0486AA001D7AEA8FF9B9E258 /* ReplyActivityModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C58CF5FF77E9FEC6B90A57E9 /* ReplyActivityModel.swift */; };
 		0494E510701597DC79E71611 /* ToolProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5D32B8964A505B794CA379 /* ToolProgress.swift */; };
 		0499F27BFD7B6D1267F4499F /* MacComposerField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4844AE0B1B003F0118BD56B6 /* MacComposerField.swift */; };
+		04C91C4F574F2F52308E7E5E /* ProcessFold.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB1BB78833A29F7205DC1402 /* ProcessFold.swift */; };
 		04CE403AD3A4BC3A3C26FCDD /* SkillSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = B52E1B6F805640C7BCBE67C3 /* SkillSync.swift */; };
 		04E956459C099A3B8F11EE46 /* TitlingText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 036EC236AF2525AF94B49388 /* TitlingText.swift */; };
 		0521A9E3342A1AD173D8D9B1 /* ReplyActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6B5296FB0E143757D557C45 /* ReplyActivityAttributes.swift */; };
@@ -36,6 +37,7 @@
 		06B8BA88CAF892B9856C2E63 /* PlacesViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7B0DD5784E2565E32B786C5 /* PlacesViews.swift */; };
 		06C3F18826B96E1CE607BA9A /* PluginTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEA1AB82E5C9F803670E2297 /* PluginTests.swift */; };
 		07CAF0163C6020AE6C869747 /* AppleFoundationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2778A6278BA46DF0B98B40C7 /* AppleFoundationModel.swift */; };
+		07D818A40EEA23A092ADB2A8 /* ProcessFold.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB1BB78833A29F7205DC1402 /* ProcessFold.swift */; };
 		07F2A329AC644D05FFA2FF06 /* PackageToolNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1292E65B91BCD39A1B367ED5 /* PackageToolNames.swift */; };
 		08CC82D76737405E0EAE634A /* ChatClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC9B4C0F5B7D9EA0C318B662 /* ChatClient.swift */; };
 		08EE15BAC62EA01E77EB3616 /* HealthModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A569BAF3210B79C213A4E5DD /* HealthModel.swift */; };
@@ -617,6 +619,7 @@
 		ED2F74136A11BC4F29D35DC6 /* OpenUIViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A821F5782C4AB3B6C213F6DB /* OpenUIViews.swift */; };
 		ED662EF4432D9E00FF780EEB /* wikipedia_summary.plugin.json in Resources */ = {isa = PBXBuildFile; fileRef = 6BAFA2451AF0DF556526593D /* wikipedia_summary.plugin.json */; };
 		EE1BBAC4731C5199000CCF8F /* SSHTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4818A8A93C53CD3075EE65D /* SSHTests.swift */; };
+		EE77D156FA274FA4018690CB /* ProcessFoldTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 788313D1B57DFE2162691321 /* ProcessFoldTests.swift */; };
 		EE9A345173FDF13F9957F95D /* RenameCompatibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71861C24599F7ABACA8F7CAC /* RenameCompatibilityTests.swift */; };
 		EEAC21183FD5AE3DB4D8CB8F /* StreamingMarkdownModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C929987DC91950E8AAA365D /* StreamingMarkdownModel.swift */; };
 		EF2906E72DB11DCE6A2C5CB2 /* OpenUIControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2F3C73BDC1D5F971A7C72A4 /* OpenUIControls.swift */; };
@@ -908,6 +911,7 @@
 		76761264A6C5D8DC725D7622 /* ProcessSegments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessSegments.swift; sourceTree = "<group>"; };
 		76F833CD45E5B92CAEB723F3 /* Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tokens.swift; sourceTree = "<group>"; };
 		770837757E21D529E0872376 /* ActivityGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityGallery.swift; sourceTree = "<group>"; };
+		788313D1B57DFE2162691321 /* ProcessFoldTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessFoldTests.swift; sourceTree = "<group>"; };
 		78839B98DAD55E4352AEA1E3 /* StrataApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrataApp.swift; sourceTree = "<group>"; };
 		790BA0FB2721DF8FDF6F6946 /* ReplyBackgroundExecution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplyBackgroundExecution.swift; sourceTree = "<group>"; };
 		79860A965007316869D4DF59 /* ArtifactThumbnails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactThumbnails.swift; sourceTree = "<group>"; };
@@ -1015,6 +1019,7 @@
 		BA664C3216587A234466E7CA /* CheckpointPersister.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckpointPersister.swift; sourceTree = "<group>"; };
 		BA6B666B3B48DDF418FE5284 /* HealthTaintTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthTaintTests.swift; sourceTree = "<group>"; };
 		BAAF1AA8F6545AAD623C9514 /* InFlightLoads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InFlightLoads.swift; sourceTree = "<group>"; };
+		BB1BB78833A29F7205DC1402 /* ProcessFold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessFold.swift; sourceTree = "<group>"; };
 		BB947F8AC9122712C0BF2C33 /* ResponsesAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResponsesAPITests.swift; sourceTree = "<group>"; };
 		BBF73B4F94D85C972052389E /* ddg-challenge.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "ddg-challenge.html"; sourceTree = "<group>"; };
 		BC11727CDAAF3FC02952FA2D /* ConversationSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationSearch.swift; sourceTree = "<group>"; };
@@ -1255,6 +1260,7 @@
 				DF07350688C023ED3EB19EF9 /* PlacesTests.swift */,
 				ABD3288E5294100A9505CCFE /* PlanUsageTests.swift */,
 				CEA1AB82E5C9F803670E2297 /* PluginTests.swift */,
+				788313D1B57DFE2162691321 /* ProcessFoldTests.swift */,
 				8D35FCBD9685D8FFD316494C /* ProcessSegmentTests.swift */,
 				9A8F2001AC39567BD8A1D60D /* PythonIntegrationTests.swift */,
 				4E560938142EF6AF0F16B0EC /* PythonSocketTests.swift */,
@@ -1516,6 +1522,7 @@
 				CEBD4BA8EA9CBAB919310F52 /* ContextGrid.swift */,
 				7FCC4C024AED5AC7DD77A998 /* MemoryCaches.swift */,
 				2787E35474BAA48D4652C8AE /* MessageLayout.swift */,
+				BB1BB78833A29F7205DC1402 /* ProcessFold.swift */,
 				499198DB9A1DED3ACF91314E /* ProcessSegmentModel.swift */,
 				AC5FEFAD7E7BF8EC9CB97FDD /* RateLimiter.swift */,
 				790BA0FB2721DF8FDF6F6946 /* ReplyBackgroundExecution.swift */,
@@ -2216,6 +2223,7 @@
 				093F99CAF43214296CA96A6F /* PlacesTests.swift in Sources */,
 				3282332219A17518804DE793 /* PlanUsageTests.swift in Sources */,
 				06C3F18826B96E1CE607BA9A /* PluginTests.swift in Sources */,
+				EE77D156FA274FA4018690CB /* ProcessFoldTests.swift in Sources */,
 				34E022A9049E6A1924ECD5C0 /* ProcessSegmentTests.swift in Sources */,
 				AC5B9BB1ECC121E76601798C /* PythonIntegrationTests.swift in Sources */,
 				30B387F8744E749AE97064AA /* PythonSocketTests.swift in Sources */,
@@ -2419,6 +2427,7 @@
 				822D6D2E73A828816726A0E3 /* Platform.swift in Sources */,
 				12F380CF43487119C2F5ADBA /* PluginCore.swift in Sources */,
 				CF4419B7FDB59826E9B3E860 /* PluginRunner.swift in Sources */,
+				04C91C4F574F2F52308E7E5E /* ProcessFold.swift in Sources */,
 				29825640B2033A6C4B739BE7 /* ProcessSegmentModel.swift in Sources */,
 				1B2572A99F43D2C2B5132BEB /* ProcessSegments.swift in Sources */,
 				BED11A044D14CBB11EF66AAC /* PySocketBridge.swift in Sources */,
@@ -2683,6 +2692,7 @@
 				45D19EC2918C1A7614C375DE /* Platform.swift in Sources */,
 				2CC9D935A7027D3F0DD6246F /* PluginCore.swift in Sources */,
 				5778FF916B3D00C297FE1B1E /* PluginRunner.swift in Sources */,
+				07D818A40EEA23A092ADB2A8 /* ProcessFold.swift in Sources */,
 				16AF34E2559E0EA1E6AC89C5 /* ProcessSegmentModel.swift in Sources */,
 				22D853C6287BACD18129747C /* ProcessSegments.swift in Sources */,
 				7B5FA03B7924BF85DCFEF606 /* PySocketBridge.swift in Sources */,

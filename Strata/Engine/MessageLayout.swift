@@ -20,6 +20,8 @@ enum MessageLayout {
         case note(Int)
         /// The text being written, then (same identity, so it stays in place) the finished answer.
         case text
+        /// The line the folded work sits behind (`ProcessFold`): "8 earlier steps", or the summary of it all.
+        case fold
 
         var id: String {
             switch self {
@@ -29,6 +31,7 @@ enum MessageLayout {
             case .feed(let n): n == 0 ? "feed" : "feed\(n)"
             case .note(let n): "note\(n)"
             case .text: "text"
+            case .fold: "fold"
             }
         }
     }
@@ -46,7 +49,7 @@ enum MessageLayout {
 
     private static func isLine(_ item: Item) -> Bool {
         switch item {
-        case .thought, .reasoning, .working, .feed: true
+        case .thought, .reasoning, .working, .feed, .fold: true
         case .note, .text: false
         }
     }
