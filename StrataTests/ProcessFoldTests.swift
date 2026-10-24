@@ -156,4 +156,10 @@ struct ProcessFoldTests {
         #expect(ProcessFold.thinkingSeconds(segments: [], whole: nil) == nil)
     }
 
+    @Test func compactCodeFoldsOnlyWhenItHidesSeveralLines() {
+        #expect(CodeBlockView.folding(lineCount: 6, compactLines: 4).folds == false)
+        #expect(CodeBlockView.folding(lineCount: 7, compactLines: 4) == (true, 4))
+        #expect(CodeBlockView.folding(lineCount: 18, compactLines: nil).folds == false)
+        #expect(CodeBlockView.folding(lineCount: 19, compactLines: nil) == (true, CodeBlockContent.previewLines))
+    }
 }

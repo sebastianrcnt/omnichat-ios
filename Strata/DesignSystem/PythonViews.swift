@@ -292,10 +292,15 @@ struct PythonRunDetail: View {
     let figures: [ToolImage]
     var isRunning = false
     var isError = false
+    /// In the feed: the code folds to its first lines, so the output under it is in view (the Timeline shows it all).
+    var compactCode = false
+
+    /// The lines of code a feed card shows folded.
+    static let compactLines = 4
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-            CodeBlockView(content: CodeBlockContent(language: "python", code: code))
+            CodeBlockView(content: CodeBlockContent(language: "python", code: code), compactLines: compactCode ? Self.compactLines : nil)
             if !isRunning && !displayedOutput.isEmpty {
                 PythonOutputView(text: displayedOutput, isError: isError)
             }
@@ -404,7 +409,7 @@ struct PythonFeedCard: View {
             }
             if case .python(let code) = card.kind, !collapsed {
                 PythonRunDetail(code: code, output: card.output, figures: card.figures, isRunning: card.isRunning,
-                                isError: card.isError)
+                                isError: card.isError, compactCode: true)
                     .padding(.leading, DS.Feed.textInset)
                     .padding(.vertical, DS.Spacing.xs)
                     .transition(.opacity)

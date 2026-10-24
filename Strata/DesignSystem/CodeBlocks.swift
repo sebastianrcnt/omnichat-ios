@@ -137,8 +137,17 @@ struct CodeBlockView: View, Equatable {
     var isStreaming = false
     /// While streaming `content` holds only the tail: the whole fenced block so far, which Copy reads.
     var blockText: String?
+    /// Folds to this many lines when the block is a few longer (a Python run in the feed), instead of the usual rule.
+    var compactLines: Int?
 
-    var body: some View { CodeBlockBody(content: content, isStreaming: isStreaming, blockText: blockText) }
+    var body: some View { CodeBlockBody(content: content, isStreaming: isStreaming, blockText: blockText, compactLines: compactLines) }
+
+    /// Whether a block of `lineCount` lines folds, and to how many lines. A compact block folds only when that hides
+    /// more than a couple of lines.
+    nonisolated static func folding(lineCount: Int, compactLines: Int?) -> (folds: Bool, lines: Int) {
+        guard let compactLines else { return (lineCount > CodeBlockContent.collapseThreshold, CodeBlockContent.previewLines) }
+        return (lineCount > compactLines + 2, compactLines)
+    }
 
     /// What Copy puts on the pasteboard: all the code so far, not the streaming tail. Parsed only when copied.
     nonisolated static func copyText(_ content: CodeBlockContent, blockText: String?) -> String {
@@ -151,6 +160,7 @@ private struct CodeBlockBody: View {
     let content: CodeBlockContent
     let isStreaming: Bool
     let blockText: String?
+    let compactLines: Int?
 
     @State private var expanded = false
     @State private var copied = false
@@ -162,14 +172,15 @@ private struct CodeBlockBody: View {
 
     private struct HighlightTrigger: Equatable { var content: CodeBlockContent; var streaming: Bool }
 
-    private var collapsed: Bool { !isStreaming && content.isCollapsible && !expanded }
+    private var folding: (folds: Bool, lines: Int) { CodeBlockView.folding(lineCount: content.lineCount, compactLines: compactLines) }
+    private var collapsed: Bool { !isStreaming && folding.folds && !expanded }
     private var lineHeight: CGFloat { 18 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
             codeArea
-            if !isStreaming && content.isCollapsible { footer }
+            if !isStreaming && folding.folds { footer }
         }
         .background(theme.surface, in: RoundedRectangle(cornerRadius: DS.Radius.md))
         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
@@ -234,7 +245,7 @@ private struct CodeBlockBody: View {
         if isStreaming {
             StreamingCodeText(code: content.code, lines: CodeBlockContent.streamingLines, lineHeight: lineHeight)
         } else {
-            let shown = collapsed ? content.preview : content.code
+            let shown = collapsed ? content.lines.prefix(folding.lines).joined(separator: "\n") : content.code
             ScrollView(.horizontal) {
                 ZStack(alignment: .topLeading) {
                     if fade < 1 || highlighted == nil {
@@ -245,7 +256,7 @@ private struct CodeBlockBody: View {
                             .opacity(1 - fade)
                     }
                     if let highlighted {
-                        Text(collapsed ? highlighted.preview : highlighted.full)
+                        Text(collapsed ? preview(highlighted) : highlighted.full)
                             .font(DS.Typography.monoSmall)
                             .foregroundStyle(theme.textPrimary)
                             .fixedSize(horizontal: true, vertical: true)
@@ -263,6 +274,17 @@ private struct CodeBlockBody: View {
                 }
             }
         }
+    }
+
+    /// The highlighted lines the folded block shows.
+    private func preview(_ highlighted: HighlightedCode) -> AttributedString {
+        guard compactLines != nil else { return highlighted.preview }
+        var out = AttributedString()
+        for (i, line) in highlighted.lines.prefix(folding.lines).enumerated() {
+            if i > 0 { out.append(AttributedString("\n")) }
+            out.append(line)
+        }
+        return out
     }
 
     private var footer: some View {
