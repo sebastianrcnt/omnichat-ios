@@ -15,6 +15,7 @@ import SwiftData
 ///                                                  that many seconds, for screenshot and preview runs without taps
 ///   -StrataSheetDetent large                       with "model": open the model picker full height
 ///   -StrataOpenSSHCards 1                          keep SSH commands open with their output in finished messages
+///   -StrataOpenFold 1                              finished messages start with their folded work open
 ///   -StrataDraft "text"                            put text in the composer after launch (expanded composer)
 ///   -StrataOpenMenu 2                              then open the n-th pull-down menu on screen (top to bottom)
 ///   -StrataOpenSidebar 1                           open the chat list drawer after launch

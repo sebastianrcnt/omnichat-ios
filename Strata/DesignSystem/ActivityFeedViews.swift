@@ -211,6 +211,33 @@ struct FeedSpinner: View {
     }
 }
 
+// MARK: - Fold line
+
+/// The line the message's folded work sits behind (`ProcessFold`): "Thought for 31s · 6 searches · 3 pages ›" once the
+/// answer is there, "8 earlier steps ›" while the reply works. A tap opens the rows in place; another folds them.
+struct ProcessFoldLine: View {
+    let title: String
+    let mode: ProcessFold.Mode
+    let expanded: Bool
+    let onToggle: () -> Void
+    var onDetails: () -> Void = {}
+
+    var body: some View {
+        Button(action: onToggle) {
+            FeedLine(title: title, expanded: expanded) {
+                FeedSymbol(name: mode == .summary ? "checklist" : "ellipsis")
+            }
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button("Show Timeline", systemImage: "list.bullet.below.rectangle", action: onDetails)
+        }
+        .accessibilityLabel(Text(title))
+        .accessibilityValue(Text(expanded ? "Expanded" : "Collapsed"))
+        .accessibilityHint(Text(expanded ? "Hides the steps" : "Shows the steps"))
+    }
+}
+
 // MARK: - Feed
 
 /// The cards of one message, as quiet lines; a run of browser calls is one block (`BrowserRun`). Folding follows
@@ -224,6 +251,8 @@ struct ActivityFeedView: View {
     let answerStarted: Bool
     /// The site the reply's earlier feeds left the browser on (`BrowserRun.earlierHost`).
     var earlierHost: String?
+    /// Items (`BrowserRun.Item.id`) folded away by the message (`ProcessFold`): they keep their state, unseen.
+    var hidden: Set<String> = []
     var onDetails: () -> Void = {}
     @State private var overrides: [String: FeedCollapse.Override] = [:]
     @State private var showingAll: Set<String> = []
@@ -236,7 +265,7 @@ struct ActivityFeedView: View {
         let indices = Dictionary(cards.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { a, _ in a })
         let working = isStreaming && !answerStarted
         VStack(alignment: .leading, spacing: MessageLayout.lineGap) {
-            ForEach(Array(items.enumerated()), id: \.element.id) { position, item in
+            ForEach(Array(items.enumerated()).filter { !hidden.contains($0.element.id) }, id: \.element.id) { position, item in
                 Group {
                     switch item {
                     case .run(let run):

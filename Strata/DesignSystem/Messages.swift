@@ -376,6 +376,16 @@ struct AssistantMessage: View {
     var onDismissSkillOffer: () -> Void = {}
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The mode the fold line was tapped open in (`ProcessFold`); nil while folded.
+    @State private var expandedFold: ProcessFold.Mode? = Self.debugOpenFold
+
+    /// `-StrataOpenFold 1` (Debug builds): finished messages start with their work open, for screenshots.
+    private static var debugOpenFold: ProcessFold.Mode? {
+        #if DEBUG
+        if DebugHooks.value("StrataOpenFold") != nil { return .summary }
+        #endif
+        return nil
+    }
 
     private var answerStarted: Bool {
         MessageLayout.answerStarted(isStreaming: content.isStreaming, pendingCount: content.pending.count,
@@ -418,6 +428,52 @@ struct AssistantMessage: View {
         for case .thought(let segment, let seconds, let line) in parts { out[segment] = (line, seconds) }
         return out
     }
+
+    /// The work's rows and how much of them shows (`ProcessFold`), with each feed's cards and the fold line's title.
+    struct FoldState {
+        var cards: [[FeedCard]]
+        var rows: [ProcessFold.Row]
+        var plan: ProcessFold.Plan
+        var title: String
+    }
+
+    private func foldState(items: [MessageLayout.Item], feeds: [[FeedCall]], notes: [Int: String],
+                           parts: [MessageLayout.Part]) -> FoldState {
+        let cards = feeds.map { ActivityFeed.cards(calls: $0, sources: citations.sources) }
+        var feedItems: [Int: [BrowserRun.Item]] = [:]
+        var attention: Set<String> = []
+        for (n, feed) in cards.enumerated() {
+            let entries = BrowserRun.items(feed)
+            feedItems[n] = entries
+            for entry in entries where waitsForPerson(entry) { attention.insert(entry.id) }
+        }
+        let rows = ProcessFold.rows(items: items, feedItems: feedItems, notes: notes, attention: attention)
+        let working = ProcessFold.isWorking(isStreaming: content.isStreaming, answerStarted: answerStarted,
+                                            answerText: render.markdown.text)
+        let plan = ProcessFold.plan(rows: rows, working: working, hasAnswer: render.markdown.hasContent)
+        let title = switch plan.mode {
+        case .earlier: ProcessFold.earlierTitle(plan)
+        case .summary, .open:
+            ProcessFold.Summary(cards: cards.flatMap { $0 },
+                                thinkingSeconds: ProcessFold.thinkingSeconds(segments: content.segments, whole: content.thinkingSeconds)).title
+        }
+        return FoldState(cards: cards, rows: rows, plan: plan, title: title)
+    }
+
+    /// A running call of this entry has a card asking the person (an approval): it never folds away.
+    private func waitsForPerson(_ entry: BrowserRun.Item) -> Bool {
+        let steps = switch entry {
+        case .card(let card): [card]
+        case .run(let run): run.steps
+        }
+        return steps.contains { card in
+            card.isRunning && (ToolApprovals.shared.request(forCall: card.id, conversation: citations.conversationID) != nil
+                               || HealthRequests.shared.request(forCall: card.id, conversation: citations.conversationID) != nil)
+        }
+    }
+
+    /// The fold line was tapped open in its current mode (opening "earlier steps" doesn't open the summary later).
+    private func foldExpanded(_ plan: ProcessFold.Plan) -> Bool { plan.mode != .open && expandedFold == plan.mode }
 
     /// A tool is running: the live line says what it does, not the thought from before the call. So does a reply waiting
     /// for its turn.
@@ -490,8 +546,17 @@ struct AssistantMessage: View {
 
     @ViewBuilder
     private func itemView(_ item: MessageLayout.Item, feeds: [[FeedCall]], notes: [Int: String],
-                          thoughts: [Int: (line: String, seconds: Double?)]) -> some View {
+                          thoughts: [Int: (line: String, seconds: Double?)], fold: FoldState) -> some View {
         switch item {
+        case .fold:
+            let expanded = foldExpanded(fold.plan)
+            ProcessFoldLine(title: fold.title, mode: fold.plan.mode, expanded: expanded,
+                            onToggle: {
+                                withAnimation(reduceMotion ? nil : ActivityFeedView.fold) {
+                                    expandedFold = expanded ? nil : fold.plan.mode
+                                }
+                            },
+                            onDetails: onOpenTimeline)
         case .thought:
             ThoughtLine(isWorking: false, line: MessageLayout.lastLine(of: render.reasoning.text), seconds: content.thinkingSeconds,
                         placeholder: phaseLabel, takesOverLive: content.isStreaming, action: onOpenReasoning, onDetails: onOpenTimeline)
@@ -504,9 +569,10 @@ struct AssistantMessage: View {
         case .feed(let n):
             // A feed with a note after it is done: it folds like a feed does once the answer starts.
             let isLast = n == feeds.count - 1
-            ActivityFeedView(cards: ActivityFeed.cards(calls: feeds.indices.contains(n) ? feeds[n] : [], sources: citations.sources),
+            ActivityFeedView(cards: fold.cards.indices.contains(n) ? fold.cards[n] : [],
                              isStreaming: content.isStreaming, answerStarted: isLast ? answerStarted : true,
                              earlierHost: n == 0 ? nil : BrowserRun.lastHost(ActivityFeed.cards(calls: feeds.prefix(n).flatMap { $0 }, sources: citations.sources)),
+                             hidden: ProcessFold.hiddenFeedItems(feed: n, rows: fold.rows, plan: fold.plan, expanded: foldExpanded(fold.plan)),
                              onDetails: onOpenTimeline)
         case .note(let segment):
             if let text = notes[segment] { NoteText(text: text) }
@@ -571,11 +637,13 @@ struct AssistantMessage: View {
         let feeds = feeds(parts)
         let notes = notes(parts)
         let thoughts = thoughtLines(parts)
-        let items = items(parts)
+        let all = items(parts)
+        let fold = foldState(items: all, feeds: feeds, notes: notes, parts: parts)
+        let items = ProcessFold.displayed(items: all, rows: fold.rows, plan: fold.plan, expanded: foldExpanded(fold.plan))
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    itemView(item, feeds: feeds, notes: notes, thoughts: thoughts)
+                    itemView(item, feeds: feeds, notes: notes, thoughts: thoughts, fold: fold)
                         .padding(.top, MessageLayout.gap(above: item, after: index > 0 ? items[index - 1] : nil))
                         .transition(transition(item))
                 }
