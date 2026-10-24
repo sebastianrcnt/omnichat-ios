@@ -125,8 +125,9 @@ final class FileSync: FileMirroring, @unchecked Sendable {
             let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
             if let modified {
                 // Figures never change once written. An artifact page or index changed after this copy was written
-                // replaces it when the bytes differ (this device's own upload is a little newer than its file).
-                guard !record.path.hasPrefix(Self.toolImages + "/"), record.updatedAt > modified.addingTimeInterval(1),
+                // replaces it when the bytes differ: this device's own upload is a little newer than its file but holds
+                // the same bytes. Any newer version counts, however close: one a moment newer is still the winner.
+                guard !record.path.hasPrefix(Self.toolImages + "/"), record.updatedAt > modified,
                       let data = record.data, data != (try? Data(contentsOf: url)) else { continue }
             }
             guard let data = record.data else { continue }

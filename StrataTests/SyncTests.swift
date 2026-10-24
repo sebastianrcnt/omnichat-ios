@@ -278,6 +278,29 @@ struct FileSyncTests {
         #expect(sync.materializeNow() == 1)
         #expect(try Data(contentsOf: root.appendingPathComponent(path)) == Data("v2".utf8))
         #expect(sync.materializeNow() == 0)
+
+        // From the audit: a version less than a second newer than the copy here was never written.
+        record.data = Data("v3".utf8)
+        record.updatedAt = record.updatedAt.addingTimeInterval(0.5)
+        try context.save()
+        #expect(sync.materializeNow() == 1)
+        #expect(try Data(contentsOf: root.appendingPathComponent(path)) == Data("v3".utf8))
+        #expect(sync.materializeNow() == 0)
+    }
+
+    /// This device's own write is a little newer in the store than its file, with the same bytes: nothing is rewritten.
+    @MainActor
+    @Test func thisDevicesOwnWriteIsNotWrittenAgain() throws {
+        let container = try syncedStore()
+        let root = try tempDirectory()
+        let chat = UUID()
+        let sync = FileSync(container: container, root: root)
+        let url = root.appendingPathComponent("Artifacts/\(chat.uuidString)/a1.html")
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("<p>mine</p>".utf8).write(to: url)
+        sync.wrote(Data("<p>mine</p>".utf8), area: FileSync.artifacts, conversationID: chat, name: "a1.html")
+        sync.waitForPendingWork()
+        #expect(sync.materializeNow() == 0)
     }
 }
 
