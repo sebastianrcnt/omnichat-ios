@@ -136,17 +136,40 @@ struct ShareItemLoader {
         images.append(.init(storedName: name, thumbnail: thumbnail))
     }
 
+    /// Through a file representation, so the size is checked on disk: a provider that vends the bytes as `Data` would
+    /// put the whole attachment in the extension's memory before the limit could reject it.
     private mutating func loadFile(_ provider: NSItemProvider, type: UTType) async throws {
-        let item = try await provider.loadItem(forTypeIdentifier: type.identifier)
-        if let url = item as? URL, url.isFileURL {
-            try await addFile(at: url, name: provider.suggestedName)
-        } else if let data = item as? Data {
-            let ext = type.preferredFilenameExtension.map { "." + $0 } ?? ""
-            let name = (provider.suggestedName ?? String(localized: "Shared file")) + (provider.suggestedName?.contains(".") == true ? "" : ext)
-            try store(data: data, name: name, type: type)
-        } else {
-            throw Skip()
+        let ext = type.preferredFilenameExtension.map { "." + $0 } ?? ""
+        let suggested = provider.suggestedName
+        let name = suggested.map { $0.contains(".") ? $0 : $0 + ext }
+        let base = "file-\(files.count + 1)"
+        let folder = folder
+        let limit = maxFileBytes
+        let copied: (size: Int64, stored: String, original: String)
+        do {
+            // Provider URLs may disappear as soon as this callback returns. Check and copy while the file is valid.
+            copied = try await withCheckedThrowingContinuation { continuation in
+                provider.loadFileRepresentation(forTypeIdentifier: type.identifier) { url, _ in
+                    guard let url else { continuation.resume(throwing: NoFileRepresentation()); return }
+                    let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init)
+                    guard let size, size <= limit else { continuation.resume(throwing: Skip()); return }
+                    let stored = base + (ext.isEmpty && !url.pathExtension.isEmpty ? "." + url.pathExtension : ext)
+                    do {
+                        try FileManager.default.copyItem(at: url, to: folder.appending(path: stored))
+                        continuation.resume(returning: (size, stored, url.lastPathComponent))
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
+            }
+        } catch is NoFileRepresentation {
+            // A provider that only hands over a file link; never an in-memory copy of unknown size.
+            guard let url = try await provider.loadItem(forTypeIdentifier: type.identifier) as? URL, url.isFileURL else { throw Skip() }
+            try await addFile(at: url, name: suggested)
+            return
         }
+        let shown = name ?? (copied.original.isEmpty ? String(localized: "Shared file") + ext : copied.original)
+        files.append(.init(file: .init(name: shown, storedName: copied.stored, kind: Self.kind(type)), byteCount: copied.size))
     }
 
     private mutating func addFile(at url: URL, name: String? = nil) async throws {
@@ -162,14 +185,6 @@ struct ShareItemLoader {
         let stored = "file-\(files.count + 1)" + (url.pathExtension.isEmpty ? "" : "." + url.pathExtension)
         try FileManager.default.copyItem(at: url, to: folder.appending(path: stored))
         files.append(.init(file: .init(name: name ?? url.lastPathComponent, storedName: stored, kind: Self.kind(type)), byteCount: size))
-    }
-
-    private mutating func store(data: Data, name: String, type: UTType) throws {
-        guard Int64(data.count) <= maxFileBytes else { throw Skip() }
-        let ext = type.preferredFilenameExtension.map { "." + $0 } ?? ""
-        let stored = "file-\(files.count + 1)\(ext)"
-        try data.write(to: folder.appending(path: stored))
-        files.append(.init(file: .init(name: name, storedName: stored, kind: Self.kind(type)), byteCount: Int64(data.count)))
     }
 
     static func kind(_ type: UTType) -> SharePayload.File.Kind {

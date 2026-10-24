@@ -2,6 +2,7 @@ import Foundation
 import SwiftData
 import Testing
 import UIKit
+import UniformTypeIdentifiers
 @testable import Strata
 
 /// Sharing into OmniChat: the payload the share extension writes, the message made from it, the inbox in the App
@@ -211,6 +212,22 @@ struct ShareTests {
         for file in loader.files {
             #expect(FileManager.default.fileExists(atPath: folder.appending(path: file.file.storedName).path(percentEncoded: false)))
         }
+    }
+
+    @Test func aFileVendedAsDataIsSizeCheckedOnDiskAndCopied() async throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "share-loader-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let pdf = Self.pdf("hello")
+        var loader = ShareItemLoader(folder: folder, maxImages: 4, maxFileBytes: Int64(pdf.count))
+        let small = NSItemProvider(item: pdf as NSData, typeIdentifier: UTType.pdf.identifier)
+        small.suggestedName = "report"
+        await loader.load(small)
+        #expect(loader.files.map(\.file.name) == ["report.pdf"] && loader.files.first?.byteCount == Int64(pdf.count))
+        let stored = try #require(loader.files.first?.file.storedName)
+        #expect(FileManager.default.contents(atPath: folder.appending(path: stored).path(percentEncoded: false)) == pdf)
+        await loader.load(NSItemProvider(item: (pdf + Data("more".utf8)) as NSData, typeIdentifier: UTType.pdf.identifier))
+        #expect(loader.files.count == 1 && loader.skipped == 1, "over the limit")
     }
 
     @Test func aShortLineNextToOneLinkIsItsTitle() async {
