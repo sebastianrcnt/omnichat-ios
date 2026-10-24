@@ -482,6 +482,72 @@ struct ConnectionSyncTests {
         phoneSync.stop()
     }
 
+    /// From the audit: after a change of Apple Account the new account's empty list read as deletions, and every
+    /// connection synced under the old one was removed here.
+    @Test func anotherAppleAccountDoesNotDeleteConnectionsHere() throws {
+        let installation = defaults()
+        let store = ConnectionStore(defaults: defaults(), keys: InMemoryKeyStore())
+        let a = connection("a")
+        store.upsert(a)
+        let first = ConnectionSync(store: store, cloud: InMemoryKeyValueStore(), defaults: installation, headers: InMemoryKeyStore(),
+                                   account: { Data("A".utf8) })
+        first.start()
+        #expect(first.seen == [a.id])
+        first.stop()
+
+        let other = InMemoryKeyValueStore()
+        let second = ConnectionSync(store: store, cloud: other, defaults: installation, headers: InMemoryKeyStore(),
+                                    account: { Data("B".utf8) })
+        second.start()
+        #expect(store.connections.map(\.id) == [a.id])
+        #expect(ConnectionSync.cloudConnections(other)[a.id] != nil) // it goes up to the new account
+        second.stop()
+
+        // Within one account a connection missing from the cloud still means it was deleted elsewhere.
+        other.removeObject(forKey: ConnectionSync.keyPrefix + a.id.uuidString)
+        let third = ConnectionSync(store: store, cloud: other, defaults: installation, headers: InMemoryKeyStore(),
+                                   account: { Data("B".utf8) })
+        third.start()
+        #expect(store.connections.isEmpty)
+        third.stop()
+    }
+
+    /// From the audit: turning sync back on took the cloud's older copy of a connection edited here while it was off,
+    /// and brought back one deleted here. Edits elsewhere to connections untouched here still come down.
+    @Test func turningSyncBackOnKeepsWhatChangedHere() throws {
+        let cloud = InMemoryKeyValueStore(), headers = InMemoryKeyStore()
+        let phoneDefaults = defaults()
+        let phone = ConnectionStore(defaults: defaults(), keys: InMemoryKeyStore())
+        let mac = ConnectionStore(defaults: defaults(), keys: InMemoryKeyStore())
+        let a = connection("a"), b = connection("b"), c = connection("c")
+        for x in [a, b, c] { phone.upsert(x) }
+        let phoneSync = ConnectionSync(store: phone, cloud: cloud, defaults: phoneDefaults, headers: headers)
+        let macSync = ConnectionSync(store: mac, cloud: cloud, defaults: defaults(), headers: headers)
+        phoneSync.start()
+        macSync.start()
+        phoneSync.stop() // the switch goes off on the phone
+
+        var edited = try #require(phone.connection(a.id))
+        edited.baseURL = "https://edited.example/v1"
+        phone.upsert(edited)
+        phone.delete(c.id)
+        var renamed = try #require(mac.connection(b.id))
+        renamed.name = "renamed on mac"
+        mac.upsert(renamed)
+
+        let again = ConnectionSync(store: phone, cloud: cloud, defaults: phoneDefaults, headers: headers)
+        again.start(localWins: true)
+        #expect(phone.connection(a.id)?.baseURL == "https://edited.example/v1")
+        #expect(phone.connection(b.id)?.name == "renamed on mac")
+        #expect(phone.connection(c.id) == nil)
+        #expect(ConnectionSync.cloudConnections(cloud)[a.id]?.baseURL == "https://edited.example/v1")
+        #expect(ConnectionSync.cloudConnections(cloud)[c.id] == nil)
+        macSync.pull()
+        #expect(Set(mac.connections.map(\.id)) == [a.id, b.id])
+        again.stop()
+        macSync.stop()
+    }
+
     /// Credentials in a base URL never go to the key-value store, which syncs whatever the secret switch says.
     @Test func credentialsInABaseURLNeverGoUp() throws {
         var c = connection("proxy")

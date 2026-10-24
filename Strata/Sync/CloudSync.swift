@@ -219,7 +219,7 @@ final class CloudSync {
         settingsSync.start(localWins: localWins)
         self.settingsSync = settingsSync
         let connectionSync = ConnectionSync(store: connections, defaults: defaults)
-        connectionSync.start()
+        connectionSync.start(localWins: localWins)
         self.connectionSync = connectionSync
     }
 

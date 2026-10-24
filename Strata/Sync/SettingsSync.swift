@@ -148,6 +148,31 @@ final class ConnectionSync {
     static let orderKey = "connections.order"
     /// The ids this device has seen in the cloud (this device only): one of them missing there was deleted elsewhere.
     static let seenKey = "sync.connectionsSeen"
+    /// The iCloud account `seenKey` was recorded under (`account`). Under another one, a connection missing from the
+    /// cloud was never deleted there.
+    static let seenAccountKey = "sync.connectionsSeenAccount"
+    /// Each synced connection as this device last sent or received it, kept when sync is turned off (`stop`): turning it
+    /// on again sends up what changed here meanwhile instead of taking the cloud's older copy.
+    static let snapshotKey = "sync.connectionsAtStop"
+
+    /// The iCloud account, as an opaque archive of `FileManager.ubiquityIdentityToken`: empty when signed out, nil when
+    /// it can't be told.
+    nonisolated static func currentAccount() -> Data? {
+        guard let token = FileManager.default.ubiquityIdentityToken else { return Data() }
+        return try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: false)
+    }
+
+    /// Two archives of `currentAccount` name the same account (tokens compare as objects, not bytes).
+    nonisolated static func sameAccount(_ a: Data, _ b: Data) -> Bool {
+        if a == b { return true }
+        func token(_ data: Data) -> NSObject? {
+            guard !data.isEmpty, let unarchiver = try? NSKeyedUnarchiver(forReadingFrom: data) else { return nil }
+            unarchiver.requiresSecureCoding = false
+            return unarchiver.decodeObject(forKey: NSKeyedArchiveRootObjectKey) as? NSObject
+        }
+        guard let x = token(a), let y = token(b) else { return false }
+        return x.isEqual(y)
+    }
 
     /// The on-device connection stays, and so does one still being set up (no address yet, or an Anthropic connection
     /// without models: Settings removes those, and another device must not remove one being set up here).
@@ -215,6 +240,7 @@ final class ConnectionSync {
     let cloud: any CloudKeyValueStoring
     let defaults: UserDefaults
     let headers: any KeyStoring
+    let account: () -> Data?
     private var applying = false
     private var observer: NSObjectProtocol?
     /// Each connection as this device last sent or received it: only one changed here since goes up, so a save here
@@ -225,11 +251,13 @@ final class ConnectionSync {
     private var lastHeaders: [UUID: String] = [:]
 
     init(store: ConnectionStore, cloud: any CloudKeyValueStoring = NSUbiquitousKeyValueStore.default,
-         defaults: UserDefaults = .standard, headers: any KeyStoring = KeychainKeyStore(service: KeychainSync.headersService)) {
+         defaults: UserDefaults = .standard, headers: any KeyStoring = KeychainKeyStore(service: KeychainSync.headersService),
+         account: @escaping () -> Data? = ConnectionSync.currentAccount) {
         self.store = store
         self.cloud = cloud
         self.defaults = defaults
         self.headers = headers
+        self.account = account
     }
 
     var seen: Set<UUID> {
@@ -237,13 +265,42 @@ final class ConnectionSync {
         set { defaults.set(newValue.map(\.uuidString).sorted(), forKey: Self.seenKey) }
     }
 
-    func start() {
+    /// The deletions `seen` stands for belong to the account it was recorded under. After a change of Apple Account (or
+    /// a sign-out) the cloud's list is another one: what is missing there wasn't deleted, so the record starts over and
+    /// this device's connections stay (and go up to the new account). Called before each use of `seen`.
+    private func checkAccount() {
+        guard let current = account() else { return }
+        guard let recorded = defaults.data(forKey: Self.seenAccountKey) else {
+            defaults.set(current, forKey: Self.seenAccountKey) // recorded from now on
+            return
+        }
+        guard !Self.sameAccount(recorded, current) else { return }
+        seen = []
+        lastSynced = [:]
+        lastHeaders = [:]
+        defaults.removeObject(forKey: Self.snapshotKey)
+        defaults.set(current, forKey: Self.seenAccountKey)
+    }
+
+    /// `localWins`: the switch was just turned on. Connections changed or deleted here while it was off go up before the
+    /// cloud's list comes down (the cloud's copy of the others, and connections new there, still come down). At launch
+    /// the cloud's list comes down first.
+    func start(localWins: Bool = false) {
         guard observer == nil else { return }
         cloud.synchronize()
         // Headers from before sync go to the Keychain first, so the merge finds them there.
         for c in store.connections where Self.syncs(c) && !c.customHeaders.isEmpty && headers.key(for: c.id) == nil {
             try? headers.setKey(c.customHeaders, for: c.id)
         }
+        checkAccount()
+        if localWins {
+            // What this device last synced, so only what changed since goes up (without it, all of this device's list).
+            for (id, data) in defaults.dictionary(forKey: Self.snapshotKey) as? [String: Data] ?? [:] {
+                if let id = UUID(uuidString: id), let c = try? JSONDecoder().decode(Connection.self, from: data) { lastSynced[id] = c }
+            }
+            push(store.connections)
+        }
+        defaults.removeObject(forKey: Self.snapshotKey)
         pull()
         push(store.connections)
         store.onSave = { [weak self] connections in self?.push(connections) }
@@ -252,8 +309,16 @@ final class ConnectionSync {
             observer = NotificationCenter.default.addObserver(forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
                                                               object: ubiquitous, queue: .main) { [weak self] note in
                 let keys = note.userInfo?[NSUbiquitousKeyValueStoreChangedKeysKey] as? [String] ?? []
+                let reason = note.userInfo?[NSUbiquitousKeyValueStoreChangeReasonKey] as? Int
                 MainActor.assumeIsolated {
-                    guard let self, keys.isEmpty || keys.contains(where: { $0.hasPrefix(Self.keyPrefix) || $0 == Self.orderKey }) else { return }
+                    guard let self else { return }
+                    if reason == NSUbiquitousKeyValueStoreAccountChange {
+                        // Another account's list: `pull` starts the deletion record over, and this device's list goes up.
+                        self.pull()
+                        self.push(self.store.connections)
+                        return
+                    }
+                    guard keys.isEmpty || keys.contains(where: { $0.hasPrefix(Self.keyPrefix) || $0 == Self.orderKey }) else { return }
                     self.pull()
                 }
             }
@@ -265,6 +330,9 @@ final class ConnectionSync {
         observer = nil
         store.onSave = nil
         store.changedHeaders = nil
+        // Encoded as they go up: no headers, no credentials in a URL (`encode`).
+        let snapshot = lastSynced.reduce(into: [String: Data]()) { out, pair in out[pair.key.uuidString] = Self.encode(pair.value) }
+        defaults.set(snapshot, forKey: Self.snapshotKey)
     }
 
     /// Headers another device changed: iCloud Keychain brings them with no key-value change, so this device's copy in
@@ -279,6 +347,7 @@ final class ConnectionSync {
 
     /// Takes the cloud's list.
     func pull() {
+        checkAccount()
         let remote = Self.cloudConnections(cloud)
         let order = (cloud.object(forKey: Self.orderKey) as? [String] ?? []).compactMap(UUID.init(uuidString:))
         let merged = Self.merge(local: store.connections, cloud: remote, order: order, seen: seen, headers: { headers.key(for: $0) })
@@ -295,6 +364,7 @@ final class ConnectionSync {
     /// removal of those deleted here.
     func push(_ connections: [Connection]) {
         guard !applying else { return }
+        checkAccount()
         let remote = Self.cloudConnections(cloud)
         var known = seen
         // One this device has seen in the cloud and that is gone from it was deleted elsewhere: the next pull drops it
