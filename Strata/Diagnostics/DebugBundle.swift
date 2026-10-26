@@ -93,7 +93,8 @@ enum DebugBundle {
                 + " · image data URLs ≤\(mb(Int64(app.caches.dataURLBytesAdded))) of \(mb(Int64(app.caches.dataURLLimit)))"
                 + " · favicon images \(app.caches.faviconImages) · request ring \(mb(Int64(app.caches.requestRingBytes)))",
             "live: \(app.live.hiddenWebViews) web views · turn \(app.live.activeTurn ?? "none") · \(app.live.recoveryLoops) recovery loops"
-                + " · lease \(app.live.backgroundLease) · \(app.live.registeredBackgroundIdentifiers) background identifiers registered",
+                + " · lease \(app.live.backgroundLease) · \(app.live.registeredBackgroundIdentifiers) background identifiers registered"
+                + " · \(app.live.backgroundExpirations) ended by iOS",
             "counters: \(app.counters.checkpointBytesWritten) checkpoint bytes in \(app.counters.checkpointSaves) saves"
                 + " · \(app.counters.recoveryAttempts) recovery attempts",
         ].joined(separator: "\n") + "\n"

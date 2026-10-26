@@ -220,6 +220,7 @@ struct AppDiagnostics: Codable, Equatable, Sendable {
         var recoveryLoops = 0
         var backgroundLease = ""
         var registeredBackgroundIdentifiers = 0
+        var backgroundExpirations = 0
     }
 
     struct Counters: Codable, Equatable, Sendable {
@@ -251,7 +252,8 @@ struct AppDiagnostics: Codable, Equatable, Sendable {
                           faviconImages: FaviconImages.count, requestRingBytes: ring.totalBytes,
                           requestRingConversations: ring.conversationIDs.count)
         d.live = Live(hiddenWebViews: counters.hiddenWebViews, activeTurn: activeTurn, recoveryLoops: counters.recoveryLoopsActive,
-                      backgroundLease: backgroundLease, registeredBackgroundIdentifiers: counters.registeredBackgroundIdentifiers)
+                      backgroundLease: backgroundLease, registeredBackgroundIdentifiers: counters.registeredBackgroundIdentifiers,
+                      backgroundExpirations: counters.backgroundExpirations)
         d.counters = Counters(checkpointBytesWritten: counters.checkpointBytesWritten, checkpointSaves: counters.checkpointSaves,
                               recoveryAttempts: counters.recoveryAttempts)
         let favicons = faviconDirectory ?? FaviconStore.shared.cacheDirectory

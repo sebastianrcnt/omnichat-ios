@@ -245,6 +245,7 @@ struct AppDiagnosticsView: View {
             SettingsRow(title: "Recovery loops", value: "\(a.live.recoveryLoops)")
             SettingsRow(title: "Background lease", value: a.live.backgroundLease)
             SettingsRow(title: "Background identifiers", value: "\(a.live.registeredBackgroundIdentifiers) registered")
+            SettingsRow(title: "Background tasks ended by iOS", value: "\(a.live.backgroundExpirations)")
         }
         GroupedSection(header: "Counters") {
             SettingsRow(title: "Checkpoint bytes written", value: DiagnosticsFormat.bytes(a.counters.checkpointBytesWritten))

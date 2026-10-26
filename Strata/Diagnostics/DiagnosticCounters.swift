@@ -20,6 +20,7 @@ final class DiagnosticCounters: @unchecked Sendable {
     private var _recoveryActive = 0
     private var _hiddenWebViews = 0
     private var _registeredIdentifiers = 0
+    private var _backgroundExpirations = 0
     private var _memoryPeak: UInt64 = 0
     private var _turnStats: [UUID: CheckpointStats] = [:]
 
@@ -29,6 +30,8 @@ final class DiagnosticCounters: @unchecked Sendable {
     var recoveryLoopsActive: Int { lock.withLock { _recoveryActive } }
     var hiddenWebViews: Int { lock.withLock { _hiddenWebViews } }
     var registeredBackgroundIdentifiers: Int { lock.withLock { _registeredIdentifiers } }
+    /// Continued tasks the system ended before the reply did (the task list shows them as failed).
+    var backgroundExpirations: Int { lock.withLock { _backgroundExpirations } }
 
     func beginTurn(conversation: UUID) { lock.withLock { _turnStats[conversation] = CheckpointStats() } }
 
@@ -57,6 +60,7 @@ final class DiagnosticCounters: @unchecked Sendable {
     func webViewCreated() { lock.withLock { _hiddenWebViews += 1 } }
     func webViewDisposed() { lock.withLock { _hiddenWebViews = max(0, _hiddenWebViews - 1) } }
     func backgroundIdentifierRegistered() { lock.withLock { _registeredIdentifiers += 1 } }
+    func backgroundTaskExpired() { lock.withLock { _backgroundExpirations += 1 } }
 
     /// The highest footprint seen, for devices that do not report a peak.
     func notePeak(_ footprint: UInt64) -> UInt64 {

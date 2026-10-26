@@ -70,6 +70,10 @@ final class ReplyBackgroundExecution {
     private var units: Int64 = 0
     /// Every delta advances the count, but the system's progress object is written about once a second.
     private var progressLimiter = RateLimiter(interval: .seconds(1))
+    /// Moves the progress on while nothing streams (a page loading, a tool running): the system may end a continued
+    /// task whose progress stands still, and the list then reads "failed" for a reply that was fine.
+    private var heartbeat: Task<Void, Never>?
+    static let heartbeatInterval: Duration = .seconds(5)
     private var active: Bool { ledger.isHeld }
     /// The running replies in words (`ReplyLiveActivities`: "Searching the web", the chat's title): while the continued
     /// task holds the app, the system's task list says this instead of "Preparing reply".
@@ -104,14 +108,20 @@ final class ReplyBackgroundExecution {
                     task.expirationHandler = { [weak self] in
                         Task { @MainActor in
                             // Expiration also covers system resource limits, not just user cancellation.
-                            // Keep the server stream/checkpoint alive; app Stop is the explicit cancel.
+                            // Keep the server stream/checkpoint alive; app Stop is the explicit cancel. The list can't
+                            // read anything but "failed" now, so the title says the reply only paused.
+                            DiagnosticCounters.shared.backgroundTaskExpired()
+                            self?.continued?.updateTitle(String(localized: "Reply paused"),
+                                                         subtitle: String(localized: "Open OmniChat to continue"))
                             self?.continued?.setTaskCompleted(success: false)
                             self?.continued = nil
+                            self?.stopHeartbeat()
                             Self.hasContinuedLease = false
                         }
                     }
                     // More chats started, or a phase was reported, before the task did.
                     if self.holderCount > 1 || self.liveStatus != nil { self.updateRunningTitle() }
+                    self.startHeartbeat()
                     self.endFallback()
                 }
             }
@@ -154,6 +164,22 @@ final class ReplyBackgroundExecution {
         }
     }
 
+    private func startHeartbeat() {
+        heartbeat?.cancel()
+        heartbeat = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: Self.heartbeatInterval)
+                guard let self, self.continued != nil, !Task.isCancelled else { return }
+                self.advance()
+            }
+        }
+    }
+
+    private func stopHeartbeat() {
+        heartbeat?.cancel()
+        heartbeat = nil
+    }
+
     /// - Parameters:
     ///   - title, subtitle: what the system's task list shows for the finished task ("Reply ready" / "Reply stopped" and
     ///     the chat's title), instead of the "Preparing reply" it started with.
@@ -163,8 +189,11 @@ final class ReplyBackgroundExecution {
             if ledger.isHeld { updateRunningTitle() }
             return
         }
+        stopHeartbeat()
         if let continued {
-            if let title = summary.title { continued.updateTitle(title, subtitle: summary.subtitle ?? "") }
+            // A failed reply's title says so, instead of the last phase ("Reading sec.gov") it stopped on.
+            let title = summary.title ?? (summary.success ? nil : String(localized: "Reply failed"))
+            if let title { continued.updateTitle(title, subtitle: summary.subtitle ?? "") }
             if summary.success { continued.progress.completedUnitCount = continued.progress.totalUnitCount }
             continued.setTaskCompleted(success: summary.success)
         }
