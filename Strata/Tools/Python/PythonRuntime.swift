@@ -229,6 +229,11 @@ final class PythonWebHost: NSObject, WKNavigationDelegate {
     let sockets: PySocketBridge?
     private var loadContinuation: CheckedContinuation<Void, Error>?
     private(set) var isLoaded = false
+    /// The page finished loading (`didFinish`), and `host.js` said it is ready. The load is done when both are: the
+    /// load event doesn't wait for a module that is still being evaluated, nor says that its script ran at all.
+    private var pageFinished = false
+    private var scriptReady = false
+    private let ready = PythonReadyHandler()
     /// The web content process died (most often: memory).
     private(set) var terminated = false
     var onTerminate: (@MainActor () -> Void)?
@@ -240,12 +245,14 @@ final class PythonWebHost: NSObject, WKNavigationDelegate {
         config.websiteDataStore = .nonPersistent()
         config.setURLSchemeHandler(handler, forURLScheme: Pyodide.scheme)
         config.defaultWebpagePreferences.allowsContentJavaScript = true
+        config.userContentController.add(ready, contentWorld: .page, name: PythonReadyHandler.name)
         webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 32, height: 32), configuration: config)
         #if canImport(UIKit)
         webView.alpha = 0.01
         webView.isUserInteractionEnabled = false
         #endif
         super.init()
+        ready.onReady = { [weak self] in self?.markReady(script: true) }
         webView.navigationDelegate = self
         #if canImport(UIKit)
         HiddenWebView.keyWindow?.insertSubview(webView, at: 0)
@@ -261,6 +268,8 @@ final class PythonWebHost: NSObject, WKNavigationDelegate {
         handler.stopAll()
         webView.stopLoading()
         webView.navigationDelegate = nil
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: PythonReadyHandler.name, contentWorld: .page)
+        ready.onReady = nil
         webView.removeFromSuperview()
         let cont = loadContinuation
         loadContinuation = nil
@@ -284,6 +293,15 @@ final class PythonWebHost: NSObject, WKNavigationDelegate {
             }
         }
         isLoaded = true
+    }
+
+    /// The page finished loading (`script` false) or `host.js` said it is ready (true); the load ends once both have.
+    private func markReady(script: Bool) {
+        if script { scriptReady = true } else { pageFinished = true }
+        guard pageFinished, scriptReady else { return }
+        let cont = loadContinuation
+        loadContinuation = nil
+        cont?.resume()
     }
 
     /// Runs one cell and returns the page's JSON reply.
@@ -324,9 +342,7 @@ final class PythonWebHost: NSObject, WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        let cont = loadContinuation
-        loadContinuation = nil
-        cont?.resume()
+        markReady(script: false)
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
@@ -347,6 +363,18 @@ final class PythonWebHost: NSObject, WKNavigationDelegate {
         loadContinuation = nil
         cont?.resume(throwing: PythonHostError.terminated)
         onTerminate?()
+    }
+}
+
+/// Hears `host.js` say it has defined `window.strataPython`. Separate from the host, which the user content controller
+/// would otherwise keep alive.
+@MainActor
+final class PythonReadyHandler: NSObject, WKScriptMessageHandler {
+    static let name = "strataPythonReady"
+    var onReady: (@MainActor () -> Void)?
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        onReady?()
     }
 }
 
