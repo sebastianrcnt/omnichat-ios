@@ -194,7 +194,10 @@ enum BrowserAgentSettle {
                 if elapsed >= navigationLimit { return }
             } else {
                 let probe = (try? await page.evaluate(BrowserSettle.probe, timeout: .seconds(2))).flatMap(BrowserSettle.Probe.decode)
-                if let probe, probe.ready != "loading", probe.domQuiet >= quiet, probe.netQuiet >= BrowserSettle.networkQuiet { return }
+                if let probe, probe.ready != "loading", probe.domQuiet >= quiet {
+                    // A network that never rests (ads, analytics, polling): a DOM quiet twice as long will do.
+                    if probe.netQuiet >= BrowserSettle.networkQuiet || probe.domQuiet >= quiet * 2 { return }
+                }
                 let loading = probe?.ready == "loading"
                 if elapsed >= (loading ? navigationLimit : limit) { return }
             }

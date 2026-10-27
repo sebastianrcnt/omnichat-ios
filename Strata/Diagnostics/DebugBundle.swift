@@ -95,8 +95,18 @@ enum DebugBundle {
             "live: \(app.live.hiddenWebViews) web views · turn \(app.live.activeTurn ?? "none") · \(app.live.recoveryLoops) recovery loops"
                 + " · lease \(app.live.backgroundLease) · \(app.live.registeredBackgroundIdentifiers) background identifiers registered"
                 + " · \(app.live.backgroundExpirations) ended by iOS",
+            "browser opens: " + browserOpens(app.live.browserOpens),
             "counters: \(app.counters.checkpointBytesWritten) checkpoint bytes in \(app.counters.checkpointSaves) saves"
                 + " · \(app.counters.recoveryAttempts) recovery attempts",
         ].joined(separator: "\n") + "\n"
+    }
+
+    /// Phases only: the hosts stay out of a bundle that may be shared.
+    private static func browserOpens(_ timings: [BrowserOpenTiming]) -> String {
+        guard !timings.isEmpty else { return "none" }
+        return timings.map { t -> String in
+            let how = t.settle?.rawValue ?? "?"
+            return "\(t.total)ms (load \(t.load) \(how), dns \(t.resolve), queue \(t.queue), state \(t.state))"
+        }.joined(separator: "; ")
     }
 }

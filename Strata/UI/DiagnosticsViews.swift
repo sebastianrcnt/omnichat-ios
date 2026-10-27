@@ -247,6 +247,13 @@ struct AppDiagnosticsView: View {
             SettingsRow(title: "Background identifiers", value: "\(a.live.registeredBackgroundIdentifiers) registered")
             SettingsRow(title: "Background tasks ended by iOS", value: "\(a.live.backgroundExpirations)")
         }
+        if !a.live.browserOpens.isEmpty {
+            GroupedSection(header: "Browser opens") {
+                ForEach(Array(a.live.browserOpens.enumerated()), id: \.offset) { _, timing in
+                    SettingsRow(title: "browser_open", subtitle: timing.summary, value: timing.date.formatted(date: .omitted, time: .shortened))
+                }
+            }
+        }
         GroupedSection(header: "Counters") {
             SettingsRow(title: "Checkpoint bytes written", value: DiagnosticsFormat.bytes(a.counters.checkpointBytesWritten))
             SettingsRow(title: "Checkpoint saves", value: "\(a.counters.checkpointSaves)")

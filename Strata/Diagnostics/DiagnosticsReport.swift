@@ -221,6 +221,8 @@ struct AppDiagnostics: Codable, Equatable, Sendable {
         var backgroundLease = ""
         var registeredBackgroundIdentifiers = 0
         var backgroundExpirations = 0
+        /// The latest `browser_open` calls, newest first.
+        var browserOpens: [BrowserOpenTiming] = []
     }
 
     struct Counters: Codable, Equatable, Sendable {
@@ -253,7 +255,7 @@ struct AppDiagnostics: Codable, Equatable, Sendable {
                           requestRingConversations: ring.conversationIDs.count)
         d.live = Live(hiddenWebViews: counters.hiddenWebViews, activeTurn: activeTurn, recoveryLoops: counters.recoveryLoopsActive,
                       backgroundLease: backgroundLease, registeredBackgroundIdentifiers: counters.registeredBackgroundIdentifiers,
-                      backgroundExpirations: counters.backgroundExpirations)
+                      backgroundExpirations: counters.backgroundExpirations, browserOpens: counters.browserOpens)
         d.counters = Counters(checkpointBytesWritten: counters.checkpointBytesWritten, checkpointSaves: counters.checkpointSaves,
                               recoveryAttempts: counters.recoveryAttempts)
         let favicons = faviconDirectory ?? FaviconStore.shared.cacheDirectory

@@ -95,6 +95,31 @@ struct BrowserTextTests {
         let blank = try #require(BrowserSettle.Probe.decode(#"{"href":"about:blank","ready":"complete","domQuiet":900,"netQuiet":900,"text":10}"#))
         #expect(!blank.isSettled && !blank.committed)
         #expect(BrowserSettle.Probe.decode(FakeBrowserPage.settled)?.isSettled == true)
+        #expect(BrowserSettle.Probe.decode(FakeBrowserPage.settled)?.settledBy == .quiet)
+    }
+
+    @Test func aPageWhoseNetworkNeverRestsIsReadAMomentAfterLoad() throws {
+        func probe(ready: String = "complete", net: Double = 50, load: Double?) throws -> BrowserSettle.Probe {
+            let loadField = load.map { #","loadQuiet":\#($0)"# } ?? ""
+            return try #require(BrowserSettle.Probe.decode(
+                #"{"href":"https://e.com/","ready":"\#(ready)","domQuiet":100,"netQuiet":\#(net)\#(loadField),"text":10}"#))
+        }
+        #expect(try probe(load: 3000).settledBy == .afterLoad, "busy network and DOM, but the load event is 3 s behind")
+        #expect(try !probe(load: 1000).isSettled, "too soon after load")
+        #expect(try !probe(load: -1).isSettled, "no load event yet")
+        #expect(try !probe(load: nil).isSettled, "an older probe without the field")
+        #expect(try !probe(ready: "interactive", load: 3000).isSettled, "still loading subresources")
+    }
+
+    @MainActor
+    @Test func timingSummaryNamesTheSlowPhases() {
+        var t = BrowserOpenTiming(host: "sec.gov")
+        t.total = 3100
+        t.load = 2600
+        t.state = 200
+        t.resolve = 40
+        t.settle = .afterLoad
+        #expect(t.summary == "sec.gov 3.1 s · load 2.6 s (after load) · state 0.2 s")
     }
 }
 

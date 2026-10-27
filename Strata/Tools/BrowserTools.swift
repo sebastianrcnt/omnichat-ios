@@ -72,10 +72,13 @@ enum BrowserText {
 }
 
 /// When a page counts as rendered: the document is parsed, the DOM has been quiet for a moment and no resource has
-/// finished loading just now. Pages that never settle are read when the time limit runs out.
+/// finished loading just now; or, on a page whose ads, analytics or live updates never let the network rest, a moment
+/// after its load event. Pages that never settle are read when the time limit runs out.
 enum BrowserSettle {
     static let domQuiet = 700.0
     static let networkQuiet = 500.0
+    /// How long after the load event a page with a busy network is read anyway.
+    static let afterLoad = 2_500.0
     static let pollInterval: Duration = .milliseconds(150)
     /// The longest a page is waited for before it is read as it is.
     static let limit: Duration = .seconds(12)
@@ -91,10 +94,12 @@ enum BrowserSettle {
             .observe(document.documentElement, { subtree: true, childList: true, characterData: true, attributes: false });
         } catch (e) {}
       }
-      var lastResource = 0;
+      var lastResource = 0, loaded = 0;
       try { performance.getEntriesByType("resource").forEach(function(r) { lastResource = Math.max(lastResource, r.responseEnd); }); } catch (e) {}
+      try { var n = performance.getEntriesByType("navigation")[0]; if (n && n.loadEventEnd > 0) loaded = n.loadEventEnd; } catch (e) {}
       return JSON.stringify({ href: String(location.href), ready: document.readyState, stale: !!w.__strataStale,
                               domQuiet: Date.now() - w.__strataSettle.last, netQuiet: performance.now() - lastResource,
+                              loadQuiet: loaded > 0 ? performance.now() - loaded : -1,
                               text: document.body ? document.body.innerText.length : 0 });
     })()
     """
@@ -109,12 +114,20 @@ enum BrowserSettle {
         var stale: Bool?
         var domQuiet: Double
         var netQuiet: Double
+        /// Milliseconds since the load event ended; nil or negative before it (or from an older probe).
+        var loadQuiet: Double?
         var text: Int
 
         var committed: Bool { !href.isEmpty && !href.lowercased().hasPrefix("about:") && stale != true }
 
-        var isSettled: Bool {
-            committed && ready != "loading" && text > 0 && domQuiet >= BrowserSettle.domQuiet && netQuiet >= BrowserSettle.networkQuiet
+        var isSettled: Bool { settledBy != nil }
+
+        /// Why the page counts as rendered: everything went quiet, or the load event is far enough behind.
+        var settledBy: BrowserOpenTiming.Settle? {
+            guard committed, ready != "loading", text > 0 else { return nil }
+            if domQuiet >= BrowserSettle.domQuiet && netQuiet >= BrowserSettle.networkQuiet { return .quiet }
+            if ready == "complete", let loadQuiet, loadQuiet >= BrowserSettle.afterLoad { return .afterLoad }
+            return nil
         }
 
         static func decode(_ json: String) -> Probe? { try? JSONDecoder().decode(Probe.self, from: Data(json.utf8)) }
@@ -550,16 +563,21 @@ struct BrowserOpenTool {
         let timeouts = timeouts
         let check = robotCheck ?? BrowserRobotCheck.gate
         let sessions = sessions ?? .shared
+        let timing = BrowserOpenTiming.Recorder(host: url.host() ?? "", started: started)
+        defer { DiagnosticCounters.shared.recordBrowserOpen(timing.finish()) }
+        timing.mark(\.resolve)
         do {
             return try await sessions.run(conversation: conversation) { session in
-                try await Deadline.run(overall, onAbort: { session.page.stop() }) {
+                timing.mark(\.queue)
+                return try await Deadline.run(overall, onAbort: { session.page.stop() }) {
                     let page = try await Self.open(url, page: session.page, settleLimit: settleLimit, timeouts: timeouts, progress: report,
-                                                   check: { _ = try await check(session.page, timeouts) })
+                                                   timing: timing, check: { _ = try await check(session.page, timeouts) })
                     session.hasPage = true
                     let out = await Task.detached(priority: .userInitiated) { BrowserText.capped(page.text, limit: limit) }.value
                     let title = page.title.trimmingCharacters(in: .whitespacesAndNewlines)
                     // The elements in view with their indices, so the model can act without asking for the state.
                     let state = try? await BrowserAgentTool.observe(session, maxCharacters: BrowserAgentTool.openStateCharacters, markNew: false)
+                    timing.mark(\.state)
                     let trailer = state.map { "Page state (act on an [index] with browser_click, browser_type, browser_select, browser_scroll):\nScroll: \($0.scroll)\n\n\($0.tree)" }
                     let tail = trailer.map { "\n\n" + $0 } ?? ""
                     guard !out.text.isEmpty else {
@@ -590,6 +608,7 @@ struct BrowserOpenTool {
     @MainActor
     static func open(_ url: URL, page: some BrowserPage, settleLimit: Duration, timeouts: FetchTimeouts,
                      progress: @escaping @MainActor (Double) -> Void = { _ in },
+                     timing: BrowserOpenTiming.Recorder? = nil,
                      check: @MainActor () async throws -> Void = {}) async throws -> FetchedPage {
         let state = LoadState()
         progress(0)
@@ -611,16 +630,23 @@ struct BrowserOpenTool {
             default: break
             }
             let seen = (try? await page.evaluate(BrowserSettle.probe, timeout: timeouts.probe)).flatMap(BrowserSettle.Probe.decode)
-            if let seen, seen.isSettled { break }
+            if let by = seen?.settledBy {
+                timing?.settled(by)
+                break
+            }
             if ContinuousClock.now - started >= settleLimit {
                 guard seen?.committed == true else { throw WebToolError.timeout }
+                timing?.settled(.limit)
                 break
             }
             try await Task.sleep(for: BrowserSettle.pollInterval)
         }
+        timing?.mark(\.load)
         try await check()
+        timing?.mark(\.check)
         progress(FetchProgress.extracting)
         let fetched = try await read(page, timeouts: timeouts, fallbackURL: url)
+        timing?.mark(\.read)
         progress(FetchProgress.done)
         return fetched
     }

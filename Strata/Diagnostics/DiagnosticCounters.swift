@@ -21,6 +21,8 @@ final class DiagnosticCounters: @unchecked Sendable {
     private var _hiddenWebViews = 0
     private var _registeredIdentifiers = 0
     private var _backgroundExpirations = 0
+    private var _browserOpens: [BrowserOpenTiming] = []
+    static let browserOpensKept = 10
     private var _memoryPeak: UInt64 = 0
     private var _turnStats: [UUID: CheckpointStats] = [:]
 
@@ -61,6 +63,11 @@ final class DiagnosticCounters: @unchecked Sendable {
     func webViewDisposed() { lock.withLock { _hiddenWebViews = max(0, _hiddenWebViews - 1) } }
     func backgroundIdentifierRegistered() { lock.withLock { _registeredIdentifiers += 1 } }
     func backgroundTaskExpired() { lock.withLock { _backgroundExpirations += 1 } }
+    /// The latest `browser_open` calls, newest first.
+    var browserOpens: [BrowserOpenTiming] { lock.withLock { _browserOpens } }
+    func recordBrowserOpen(_ timing: BrowserOpenTiming) {
+        lock.withLock { _browserOpens = Array(([timing] + _browserOpens).prefix(Self.browserOpensKept)) }
+    }
 
     /// The highest footprint seen, for devices that do not report a peak.
     func notePeak(_ footprint: UInt64) -> UInt64 {
