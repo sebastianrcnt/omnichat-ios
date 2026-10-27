@@ -864,7 +864,7 @@ struct BrowserShowTool {
                 case .kept(let page):
                     page.thaw() // a page kept by an earlier reply is frozen; it is read after Done
                     let done = await ask(BrowserShowRequests.Request(reason: reason, page: page, conversationID: conversation))
-                    let place = Self.place(page)
+                    let place = await Self.place(page)
                     guard done else {
                         return ToolOutput(text: "The user closed the page without tapping Done. It is now: \(place). Don't show it again unless they ask; use other sources.", isError: true)
                     }
@@ -880,7 +880,7 @@ struct BrowserShowTool {
                         return ToolOutput(text: "Error: no page is open. Open it with browser_open first, then call browser_show.", isError: true)
                     }
                     let done = await ask(BrowserShowRequests.Request(reason: reason, page: page, conversationID: conversation))
-                    let place = Self.place(page)
+                    let place = await Self.place(page)
                     if done {
                         return ToolOutput(text: "The user tapped Done. The page is now: \(place). Read it with browser_state or browser_eval, or open the next page with browser_open; a sign-in stays saved for later.")
                     }
@@ -894,9 +894,15 @@ struct BrowserShowTool {
         }
     }
 
+    /// "Title — URL" of the page now. The title is read from the document: the web view's `title` is updated after
+    /// `didFinish` and is often still empty right after a load. It stays the fallback for a page too busy to answer,
+    /// which is left alone (nothing is stopped).
     @MainActor
-    private static func place(_ page: HiddenWebView) -> String {
-        [page.webView.title.map { PageMetadata.capped($0) }, page.webView.url?.absoluteString].compactMap { $0 }.filter { !$0.isEmpty }
+    static func place(_ page: HiddenWebView) async -> String {
+        let webView = page.webView
+        let read = try? await Deadline.run(.seconds(1)) { try await webView.evaluateJavaScript("document.title") as? String }
+        let title = read ?? webView.title
+        return [title.map { PageMetadata.capped($0) }, webView.url?.absoluteString].compactMap { $0 }.filter { !$0.isEmpty }
             .joined(separator: " — ")
     }
 }
