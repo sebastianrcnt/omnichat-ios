@@ -30,6 +30,35 @@ struct ChatGPTCredentialStore: Sendable {
         try? setRegistration(nil, id)
     }
 
+    /// Moves this device's sign-in of `loser` to `survivor`, another connection of the same account (`ChatGPTDedupe`).
+    /// Only this device's own tokens move (`deviceOnlyServices`: a copy that came through iCloud Keychain is never read),
+    /// with the client they were issued to, so they keep refreshing whatever registration `survivor` has. `survivor`
+    /// keeps its own sign-in unless `replacing` (a sign-in just made). Its registration, which other devices may use, is
+    /// only filled in: the loser's when it has none here, else the newer name and email. Returns whether tokens moved.
+    @discardableResult
+    func adopt(_ loser: UUID, into survivor: UUID, replacing: Bool = false) -> Bool {
+        guard loser != survivor, var moved = tokens(loser), replacing || !hasTokens(survivor) else { return false }
+        // Tokens saved before they recorded their client: the ID token they came with (checked when it was saved) names
+        // it, else the loser's registration does (it syncs, so another device may have changed or removed it since).
+        let from = registration(loser)
+        let issued = moved.idToken.flatMap { try? JWT($0).claims() }
+        moved.clientID = moved.clientID ?? issued.flatMap { $0.azp ?? ($0.aud.count == 1 ? $0.aud[0] : nil) } ?? from?.clientID
+        moved.subject = moved.subject ?? issued?.sub ?? from?.subject
+        guard moved.clientID != nil else { return false } // can't be refreshed or revoked
+        if var kept = registration(survivor) {
+            if replacing, let from {
+                kept.email = from.email ?? kept.email
+                kept.name = from.name ?? kept.name
+                kept.workspace = kept.workspace ?? from.workspace
+                if kept != registration(survivor) { try? setRegistration(kept, survivor) }
+            }
+        } else if let from {
+            try? setRegistration(from, survivor)
+        }
+        do { try setTokens(moved, survivor) } catch { return false }
+        return true
+    }
+
     private func read<T: Decodable>(_ store: any KeyStoring, _ id: UUID) -> T? {
         guard let text = store.key(for: id) else { return nil }
         return try? JSONDecoder().decode(T.self, from: Data(text.utf8))
@@ -121,12 +150,12 @@ actor ChatGPTAuth: ChatGPTTokenProviding {
     }
 
     private func performRefresh(_ id: UUID) async throws -> ChatGPTTokens {
+        let registration = store.registration(id)
         guard let tokens = store.tokens(id), let refreshToken = tokens.refreshToken,
-              let registration = store.registration(id) else { throw ChatGPTAuthError.signInRequired }
+              let clientID = tokens.clientID ?? registration?.clientID else { throw ChatGPTAuthError.signInRequired }
         let generation = signOuts[id, default: 0]
         let (data, status) = try await postForm(ChatGPTOAuth.tokenEndpoint,
-                                                ChatGPTOAuth.refreshRequestBody(clientID: registration.clientID,
-                                                                                refreshToken: refreshToken))
+                                                ChatGPTOAuth.refreshRequestBody(clientID: clientID, refreshToken: refreshToken))
         guard signOuts[id, default: 0] == generation else { throw ChatGPTAuthError.signInRequired } // signed out meanwhile
         guard (200..<300).contains(status) else {
             let code = Self.oauthErrorCode(data)
@@ -146,10 +175,10 @@ actor ChatGPTAuth: ChatGPTTokenProviding {
         // The old refresh token is spent: save the replacement before anything else can fail.
         try store.setTokens(fresh, id)
         if let idToken = response.idToken {
-            // A refreshed identity must still be the account this registration belongs to.
+            // A refreshed identity must still be the account these tokens belong to.
             do {
-                let claims = try await verify(idToken: idToken, clientID: registration.clientID, nonce: nil)
-                if let subject = registration.subject, claims.sub != subject {
+                let claims = try await verify(idToken: idToken, clientID: clientID, nonce: nil)
+                if let subject = tokens.subject ?? registration?.subject, claims.sub != subject {
                     try? store.setTokens(nil, id)
                     throw ChatGPTAuthError.accountMismatch
                 }
@@ -198,10 +227,13 @@ actor ChatGPTAuth: ChatGPTTokenProviding {
         }
         let previous = store.registration(id)
         if let subject = previous?.subject, subject != claims.sub { throw ChatGPTAuthError.accountMismatch }
-        let registration = ChatGPTRegistration(clientID: clientID, subject: claims.sub,
-                                               email: claims.email ?? previous?.email, name: claims.name ?? previous?.name)
+        let registration = ChatGPTRegistration(clientID: clientID, subject: claims.sub, email: claims.email ?? previous?.email,
+                                               name: claims.name ?? previous?.name, workspace: claims.workspace ?? previous?.workspace)
+        var issued = tokens
+        issued.clientID = clientID
+        issued.subject = claims.sub
         try store.setRegistration(registration, id)
-        try store.setTokens(tokens, id)
+        try store.setTokens(issued, id)
         return registration
     }
 
@@ -221,8 +253,8 @@ actor ChatGPTAuth: ChatGPTTokenProviding {
         refreshes[id]?.cancel()
         defer { try? store.setTokens(nil, id) }
         guard let tokens = store.tokens(id), let refreshToken = tokens.refreshToken,
-              let registration = store.registration(id) else { return true }
-        return await revoke(refreshToken, clientID: registration.clientID)
+              let clientID = tokens.clientID ?? store.registration(id)?.clientID else { return true }
+        return await revoke(refreshToken, clientID: clientID)
     }
 
     /// Revokes a refresh token: one retry on a network error or 5xx. True when the server confirmed it.

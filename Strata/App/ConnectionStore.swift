@@ -134,10 +134,13 @@ final class ConnectionStore {
     @ObservationIgnored var changedHeaders: (@MainActor (UUID) -> String?)?
 
     /// The list as another device left it (`ConnectionSync`). Connections it drops were deleted there, along with their
-    /// Keychain items, so nothing more is removed here.
+    /// Keychain items, so nothing more is removed here; but a ChatGPT connection dropped because it merged into another
+    /// of its account there merges here too (this device's sign-in and chats go with it), and duplicates the list
+    /// brings are collapsed (`collapseDuplicateAccounts`).
     func replaceAll(_ list: [Connection]) {
+        let dropped = connections.filter { c in c.isChatGPT && !list.contains { $0.id == c.id } }
         connections = list
-        save()
+        if !collapseDuplicateAccounts(dropped: dropped) { save() }
     }
 
     func connection(_ id: UUID?) -> Connection? { connections.first { $0.id == id } }
@@ -150,6 +153,12 @@ final class ConnectionStore {
 
     func delete(_ id: UUID) {
         connections.removeAll { $0.id == id }
+        forget(id)
+        save()
+    }
+
+    /// The Keychain items of a connection that is gone.
+    private func forget(_ id: UUID) {
         try? keys.setKey(nil, for: id)
         try? headerStore.setKey(nil, for: id)
         storedHeaders[id] = nil
@@ -157,7 +166,6 @@ final class ConnectionStore {
         chatGPT.store.removeAll(id)
         openCode.store.removeAll(id)
         modelsFetchedAt[id] = nil
-        save()
     }
 
     /// Drops OpenAI-compatible and Anthropic connections that were added but never set up (no address, key or models),
@@ -264,6 +272,96 @@ final class ConnectionStore {
 
     /// Whether the signed-in account granted plan usage (nil when signed out).
     func chatGPTAllowsPlanUsage(_ id: UUID) -> Bool? { chatGPT.store.tokens(id)?.allowsPlanUsage }
+
+    // MARK: Duplicate ChatGPT accounts
+
+    /// Connections merged into another of their account, with the one each went to: a chat that still names one (synced
+    /// late from a device that hadn't merged yet) is pointed at the survivor (`CloudSync`).
+    static let mergedKey = "connections.merged"
+
+    var mergedIDs: [UUID: UUID] {
+        (defaults.dictionary(forKey: Self.mergedKey) as? [String: String] ?? [:]).reduce(into: [:]) { out, pair in
+            if let from = UUID(uuidString: pair.key), let to = UUID(uuidString: pair.value) { out[from] = to }
+        }
+    }
+
+    /// Told of each merge, with the ids that went and where they went (`CloudSync` points chats and settings there).
+    @ObservationIgnored var onMerge: (([UUID: UUID]) -> Void)?
+
+    /// Records on each ChatGPT connection the account this device knows it signed in to (`Connection.chatGPTAccount`,
+    /// which syncs), then merges connections of one account into one (`ChatGPTDedupe.plan`: the same one on every device).
+    /// `dropped`: ChatGPT connections sync just removed, which may have merged into one here on another device. Returns
+    /// whether the list changed (and was saved).
+    @discardableResult
+    func collapseDuplicateAccounts(dropped: [Connection] = []) -> Bool {
+        var changed = false
+        for i in connections.indices where connections[i].isChatGPT {
+            let known = connections[i].chatGPTAccount
+            let filled = known.map { $0.filled(from: account(signedIn: connections[i].id)) } ?? account(signedIn: connections[i].id)
+            if filled != known { connections[i].chatGPTAccount = filled; changed = true }
+        }
+        let dropped = dropped.map { c in
+            var c = c
+            c.chatGPTAccount = c.chatGPTAccount ?? account(signedIn: c.id)
+            return c
+        }
+        let plan = ChatGPTDedupe.plan(connections, dropped: dropped)
+        guard !plan.isEmpty else {
+            if changed { save() }
+            return changed
+        }
+        let gone = connections.filter { plan[$0.id] != nil } + dropped.filter { plan[$0.id] != nil }
+        for loser in gone.sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
+            guard let to = plan[loser.id], let i = connections.firstIndex(where: { $0.id == to }) else { continue }
+            chatGPT.store.adopt(loser.id, into: to)
+            connections[i] = ChatGPTDedupe.merged(connections[i], absorbing: loser)
+        }
+        connections.removeAll { plan[$0.id] != nil }
+        for loser in gone { forget(loser.id) }
+        recordMerges(plan)
+        save()
+        onMerge?(plan)
+        return true
+    }
+
+    /// After a sign-in on `id`: records its account, and when another connection already has that account the sign-in
+    /// moves there and `id` goes (its chats follow), so signing in again never adds a second connection. Returns the
+    /// connection that now holds the sign-in.
+    @discardableResult
+    func finishChatGPTSignIn(_ id: UUID) -> UUID {
+        guard var c = connection(id), c.isChatGPT, let account = account(signedIn: id) else { return id }
+        c.chatGPTAccount = account
+        guard let existing = ChatGPTDedupe.survivor(for: account, among: connections.filter { $0.id != id }),
+              let i = connections.firstIndex(where: { $0.id == existing }) else {
+            upsert(c)
+            return id
+        }
+        // Tokens that can't move (none, or no client to refresh them with) stay with `id`, a duplicate for later.
+        guard chatGPT.store.adopt(id, into: existing, replacing: true) else {
+            upsert(c)
+            return id
+        }
+        connections[i] = ChatGPTDedupe.merged(connections[i], absorbing: c)
+        connections.removeAll { $0.id == id }
+        forget(id)
+        recordMerges([id: existing])
+        save()
+        onMerge?([id: existing])
+        return existing
+    }
+
+    /// The account a ChatGPT connection signed in to, from its registration (and this device's ID token).
+    private func account(signedIn id: UUID) -> ChatGPTAccount? {
+        guard let registration = chatGPT.store.registration(id) else { return nil }
+        return ChatGPTAccount(registration, tokens: chatGPT.store.tokens(id))
+    }
+
+    /// Adds merges to `mergedIDs`; one that pointed at a connection now merged too points at where that one went.
+    private func recordMerges(_ plan: [UUID: UUID]) {
+        var all = mergedIDs.mapValues { plan[$0] ?? $0 }
+        all.merge(plan) { _, new in new }
+        defaults.set(Dictionary(uniqueKeysWithValues: all.map { ($0.key.uuidString, $0.value.uuidString) }), forKey: Self.mergedKey)
+    }
 
     // MARK: OpenCode
 
