@@ -93,8 +93,26 @@ final class CloudSync {
             isImport = event.type == .import
             finished = event.endDate
             succeeded = event.succeeded
-            error = event.error?.localizedDescription
+            error = event.error.map(CloudSync.describe)
         }
+    }
+
+    /// An event's error for Settings. CloudKit refusing a record as too large (`CloudRecordSize`) says so: that item
+    /// stays on this device and every later export fails the same way, so the generic "partial failure" would mislead.
+    nonisolated static func describe(_ error: Error) -> String {
+        func tooLarge(_ error: Error) -> Bool {
+            let ns = error as NSError
+            guard ns.domain == CKErrorDomain else {
+                return (ns.userInfo[NSUnderlyingErrorKey] as? Error).map(tooLarge) ?? false
+            }
+            if ns.code == CKError.Code.limitExceeded.rawValue || ns.localizedDescription.localizedCaseInsensitiveContains("too large") {
+                return true
+            }
+            let partial = ns.userInfo[CKPartialErrorsByItemIDKey] as? [AnyHashable: Error] ?? [:]
+            return partial.values.contains(where: tooLarge)
+        }
+        guard tooLarge(error) else { return error.localizedDescription }
+        return String(localized: "An item in a chat is too large for iCloud. It stays on this device but doesn't sync.")
     }
 
     private func record(_ event: EventSummary) {

@@ -119,6 +119,12 @@ struct ConversationDetailsSheet: View {
             SettingsRow(title: "Resume data, dynamic", value: DiagnosticsFormat.bytes(d.storage.resumeDynamicBytes))
             SettingsRow(title: "External values (est.)", value: "\(d.storage.externalValues)")
             SettingsRow(title: "External bytes (est.)", value: DiagnosticsFormat.bytes(d.storage.externalBytes))
+            if let largest = d.storage.largestCloudRecordBytes {
+                SettingsRow(title: "Largest iCloud record (est.)", value: DiagnosticsFormat.bytes(largest))
+            }
+            if let tooLarge = d.storage.cloudRecordsTooLarge, tooLarge > 0 {
+                SettingsRow(title: "Too large for iCloud", value: "\(tooLarge)")
+            }
         }
         GroupedSection(header: "Context") {
             if let p = d.context.promptTokens, let c = d.context.completionTokens {
