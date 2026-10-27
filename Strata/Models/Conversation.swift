@@ -3,7 +3,8 @@ import SwiftData
 
 // CloudKit rules for every stored property of these models (they sync through iCloud, `StrataStore`): optional or
 // with a default value, never `@Attribute(.unique)` (`SyncDedupe` keeps one of two records with the same id instead),
-// relationships optional with an inverse, and large data in `.externalStorage` (it syncs as an asset).
+// relationships optional with an inverse. `.externalStorage` is for the local store only: CloudKit gets the same fields
+// either way, and Core Data moves any large String or Data value into an asset itself (`CloudRecordSize`).
 
 @Model
 final class Conversation {

@@ -57,6 +57,10 @@ struct ConversationDiagnostics: Codable, Equatable, Sendable {
         /// Values big enough that SwiftData keeps them in a separate file (an estimate: the store does not say which).
         var externalValues = 0
         var externalBytes = 0
+        /// The conversation's largest CloudKit record, inline bytes (`CloudRecordSize`), and how many of its records
+        /// are too large to sync. Nil in reports from before they were measured.
+        var largestCloudRecordBytes: Int?
+        var cloudRecordsTooLarge: Int?
     }
 
     struct Context: Codable, Equatable, Sendable {
@@ -138,6 +142,10 @@ struct ConversationDiagnostics: Codable, Equatable, Sendable {
         }
         s.sourcesBytes = conversation.sourcesData?.count ?? 0
         external(s.sourcesBytes)
+        var recordBytes = [conversation.cloudInlineBytes] + conversation.compactions.map(\.cloudInlineBytes)
+        for m in messages { recordBytes += [m.cloudInlineBytes] + m.attachments.map(\.cloudInlineBytes) }
+        s.largestCloudRecordBytes = recordBytes.max()
+        s.cloudRecordsTooLarge = recordBytes.filter { !CloudRecordSize.fits(inlineBytes: $0) }.count
         d.storage = s
 
         var c = Context(estimatedTokens: ContextEstimate.tokens(of: conversation), windowTokens: window)
