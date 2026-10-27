@@ -29,6 +29,18 @@ struct BrowserShowTests {
         sessions.closeAll()
     }
 
+    /// Right after a load the web view's `title` is often still empty or the last page's; the page is named by its
+    /// document's title.
+    @Test func aJustLoadedPageIsNamedByItsTitle() async throws {
+        let page = HiddenWebView(guardNavigations: false, store: BrowserData.store)
+        defer { page.dispose() }
+        for i in 1...6 {
+            try await page.load(html: "<title>Login \(i)</title><p>hi</p>", baseURL: URL(string: "https://example.com/login"))
+            let place = await BrowserShowTool.place(page)
+            #expect(place == "Login \(i) — https://example.com/login", "\(place)")
+        }
+    }
+
     @Test func theModelsBrowserKeepsItsOwnCookies() {
         let page = BrowserSessions().makePage() as? HiddenWebView
         #expect(page?.webView.configuration.websiteDataStore === BrowserData.store)

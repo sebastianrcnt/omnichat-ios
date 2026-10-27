@@ -40,6 +40,26 @@ struct PythonIntegrationTests {
         #expect(!failed.text.contains("_pyodide"), "\(failed.text)")
     }
 
+    /// The load event doesn't wait for the page's module to finish running (here it awaits first), so a run that
+    /// started on `didFinish` alone found no `window.strataPython`: the page says when it is ready.
+    @Test func aRunWaitsUntilThePageScriptIsReady() async throws {
+        let bundle = try #require(Pyodide.bundleRoot)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("py-slow-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        for name in try FileManager.default.contentsOfDirectory(atPath: bundle.path) where name != "host.js" {
+            try FileManager.default.createSymbolicLink(at: root.appendingPathComponent(name), withDestinationURL: bundle.appendingPathComponent(name))
+        }
+        let host = try String(contentsOf: bundle.appendingPathComponent("host.js"), encoding: .utf8)
+        try ("await new Promise((r) => setTimeout(r, 300));\n" + host).write(to: root.appendingPathComponent("host.js"), atomically: true, encoding: .utf8)
+        let live = try #require(PyodideServer.live())
+        let (python, _) = runtime()
+        python.makeServer = { PyodideServer(root: root, lock: live.lock, cache: live.cache, fetch: live.fetch) }
+        defer { python.dispose() }
+        let out = await python.run(code: "1+1", conversationID: UUID(), canView: false)
+        #expect(out.text == "2", "\(out.text)")
+    }
+
     /// A huge last value is cut in the worker, before it is copied into the app.
     @Test func aLargeLastValueIsClippedBeforeItReachesTheApp() async throws {
         let (python, _) = runtime()
@@ -59,7 +79,7 @@ struct PythonIntegrationTests {
         let chat = UUID()
         _ = await python.run(code: "y = 5", conversationID: chat, canView: false)
         let slow = await python.run(code: "while True: pass", conversationID: chat,
-                                    limits: PythonLimits(run: .seconds(2), setup: .seconds(120)), canView: false)
+                                    limits: PythonLimits(run: .seconds(1), setup: .seconds(120)), canView: false)
         #expect(slow.isError)
         #expect(slow.text.contains("Timed out after"), "\(slow.text)")
         #expect(slow.text.contains("reset"), "\(slow.text)")
@@ -136,8 +156,9 @@ struct PythonIntegrationTests {
     @Test func unbundledAndDynamicImportsFailClearlyWithoutDownloads() async {
         let (python, _) = runtime()
         defer { python.dispose() }
+        let chat = UUID() // one interpreter: a failed import leaves it as it was
         for code in ["import sympy", "import micropip", "import importlib; importlib.import_module('scipy')"] {
-            let out = await python.run(code: code, conversationID: UUID(), canView: false)
+            let out = await python.run(code: code, conversationID: chat, canView: false)
             #expect(out.isError && out.text.contains("This package isn't available in OmniChat"), "\(out.text)")
         }
     }

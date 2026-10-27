@@ -123,3 +123,6 @@ window.strataPython = {
     return JSON.stringify(await call({ type: "probe", url }, 15000));
   },
 };
+
+// Tells the app the page is ready to run code: the load event alone doesn't say this module has run.
+window.webkit.messageHandlers.strataPythonReady.postMessage(true);
