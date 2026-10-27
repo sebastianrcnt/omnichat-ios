@@ -364,12 +364,7 @@ struct ConnectionEditor: View {
     }
 
     private func addManual() {
-        let id = manualModel.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard var c = connection, !id.isEmpty, !c.models.contains(where: { $0.id == id }) else { return }
-        var m = c.defaultModel(id: id, fetchedContextLength: nil)
-        m.isManual = true
-        c.models.append(m)
-        connections.upsert(c)
+        guard connections.addManualModel(manualModel, connectionID: connectionID) else { return }
         manualModel = ""
     }
 }

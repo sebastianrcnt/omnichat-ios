@@ -32,6 +32,7 @@ final class ConnectionStore {
         self.chatGPT = chatGPT
         self.openCode = openCode
         load()
+        loadModelsFetchedAt()
     }
 
     private func load() {
@@ -155,6 +156,7 @@ final class ConnectionStore {
         localHeaders[id] = nil
         chatGPT.store.removeAll(id)
         openCode.store.removeAll(id)
+        modelsFetchedAt[id] = nil
         save()
     }
 
@@ -295,6 +297,24 @@ final class ConnectionStore {
 
     private(set) var modelFetches: [UUID: ModelFetch] = [:]
 
+    /// When each connection's model list last came in, kept across launches so the model picker can tell a stale list
+    /// (`ModelListRefresh`). Apart from `Connection` on purpose: this device only, never synced, so a refresh doesn't
+    /// send every connection to the other devices just for a new date.
+    private(set) var modelsFetchedAt: [UUID: Date] = [:] {
+        didSet {
+            let known = Set(connections.map(\.id))
+            let kept = modelsFetchedAt.filter { known.contains($0.key) }
+            defaults.set(Dictionary(uniqueKeysWithValues: kept.map { ($0.key.uuidString, $0.value) }),
+                         forKey: Self.modelsFetchedAtKey)
+        }
+    }
+    static let modelsFetchedAtKey = "connections.modelsFetchedAt"
+
+    private func loadModelsFetchedAt() {
+        let saved = defaults.dictionary(forKey: Self.modelsFetchedAtKey) as? [String: Date] ?? [:]
+        modelsFetchedAt = Dictionary(uniqueKeysWithValues: saved.compactMap { k, v in UUID(uuidString: k).map { ($0, v) } })
+    }
+
     /// Runs a model-list fetch of `id` and records how it went in `modelFetches`.
     private func tracked(_ id: UUID, _ fetch: () async throws -> (count: Int, unsupported: Int, free: Int)) async throws
         -> (count: Int, unsupported: Int, free: Int) {
@@ -302,6 +322,7 @@ final class ConnectionStore {
         do {
             let result = try await fetch()
             modelFetches[id] = ModelFetch(finished: .now, count: result.count, unsupported: result.unsupported, free: result.free)
+            modelsFetchedAt[id] = .now
             return result
         } catch {
             var failed = ModelFetch(finished: .now)
