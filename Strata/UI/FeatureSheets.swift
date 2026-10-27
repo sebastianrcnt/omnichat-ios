@@ -139,25 +139,21 @@ struct ModelPickerSheet: View {
                         }
                     }
                 }
-                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                    GroupedSection(header: "Providers") {
-                        ForEach(groups) { group in
-                            SettingsRow(title: "", value: group.items.count == 1
-                                            ? String(localized: "1 model") : String(localized: "\(group.items.count) models"),
-                                        showsChevron: true, verbatimTitle: group.name) {
-                                query = ""
-                                withAnimation(DS.Motion.snappy) { page = .provider(group.connectionID) }
-                            }
-                        }
-                        ForEach(unset) { c in
-                            SettingsRow(title: "", value: String(localized: "Set up"), showsChevron: true, verbatimTitle: c.name) {
-                                SettingsRoute.shared.connection = c.id // Settings opens on this connection, not its top
-                                onOpenSettings()
-                            }
+                GroupedSection(header: "Providers") {
+                    ForEach(groups) { group in
+                        SettingsRow(title: "", value: group.items.count == 1
+                                        ? String(localized: "1 model") : String(localized: "\(group.items.count) models"),
+                                    showsChevron: true, verbatimTitle: group.name) {
+                            query = ""
+                            withAnimation(DS.Motion.snappy) { page = .provider(group.connectionID) }
                         }
                     }
-                    // Every provider at once from here; a provider's own page refreshes just that one.
-                    ModelRefreshFooter(connectionIDs: connections.connections.map(\.id))
+                    ForEach(unset) { c in
+                        SettingsRow(title: "", value: String(localized: "Set up"), showsChevron: true, verbatimTitle: c.name) {
+                            SettingsRoute.shared.connection = c.id // Settings opens on this connection, not its top
+                            onOpenSettings()
+                        }
+                    }
                 }
             }
             settingsSections
@@ -197,6 +193,8 @@ struct ModelPickerSheet: View {
             .background(theme.surface, in: RoundedRectangle(cornerRadius: DS.Radius.md))
         }
         let items = ModelPickerCatalog.filter(group.items, query: query)
+        // Above the list, so a long one doesn't hide it: refreshing is a provider's own business, one at a time.
+        ModelRefreshFooter(connectionIDs: [group.connectionID])
         VStack(alignment: .leading, spacing: DS.Spacing.xs) {
             if items.isEmpty {
                 GroupedSection { SettingsRow(title: "No models match") }
@@ -205,7 +203,6 @@ struct ModelPickerSheet: View {
                     ForEach(items) { item in modelRow(item, subtitle: item.limits) }
                 }
             }
-            ModelRefreshFooter(connectionIDs: [group.connectionID])
         }
     }
 
