@@ -628,7 +628,7 @@ final class ChatController {
         renderStates[assistant.id] = render
         let run = ChatRun(conversationID: conversation.id, kind: .turn, messageID: assistant.id)
         run.isEarly = assistant.answeredEarly
-        run.liveSources = conversation.sources
+        run.liveSources = conversation.allSources
         run.message = assistant
         run.context = context
         skillOffers[conversation.id] = nil
@@ -697,7 +697,7 @@ final class ChatController {
         // writing handoff notes every few turns ("Summarize now" still can).
         runner.compaction = endpoint.kind == .appleOnDevice ? nil
             : compactionSettings(conversation: conversation, endpoint: endpoint, messages: messages, path: path)
-        let sourceStore = SourceStore(items: conversation.sources)
+        let sourceStore = SourceStore(items: run.liveSources)
         run.sourceStore = sourceStore
 
         run.task = Task { @MainActor [weak self] in

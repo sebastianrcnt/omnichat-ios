@@ -141,8 +141,18 @@ struct ChatView: View {
     }
 
     private var citationContext: CitationContext {
-        let list = run.map(\.liveSources) ?? conversation?.sources ?? []
+        let list = run.map(\.liveSources) ?? conversation?.allSources ?? []
         return CitationContext(sources: Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) }), conversationID: conversation?.id)
+    }
+
+    /// The chat's citations as one message reads them: its own calls' numbering first (`SourceSnapshots.overlay`).
+    private static func citations(_ context: CitationContext, for message: Message) -> CitationContext {
+        guard message.role == .assistant else { return context }
+        let calls = message.segments.flatMap(\.calls)
+        guard calls.contains(where: { $0.sources != nil }) else { return context }
+        var out = context
+        out.sources = SourceSnapshots.overlay(context.sources, calls: calls)
+        return out
     }
 
     /// Every source an answer on the active path read or cited, in order: the Sources sheet's "All" list.
@@ -453,8 +463,10 @@ struct ChatView: View {
                         let tree = conversation.treeIndex
                         let items = conversation.activePath.filter { !$0.isHiddenInTranscript }
                         let summaries = conversation.compactions(anchoredIn: items)
+                        let citations = citationContext
                         ForEach(items) { message in
                             row(message, isLast: message.id == items.last?.id, branch: tree.branch(of: message.id))
+                                .environment(\.citations, Self.citations(citations, for: message))
                                 .id(message.id)
                                 .modifier(PinTopReader(isPinned: message.id == pinnedID, pin: pin))
                             ForEach(summaries[message.id] ?? []) { record in

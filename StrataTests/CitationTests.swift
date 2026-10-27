@@ -224,3 +224,49 @@ struct MarkdownTableTests {
         #expect(MarkdownTable.parse(blocks[0].text)?.rows == [["1 [1]", "2"]])
     }
 }
+
+/// Citations that read the same on every device (`SourceSnapshots`).
+@MainActor
+struct SourceSnapshotTests {
+    private func info(_ id: Int, _ url: String, snippet: String = "") -> SourceInfo {
+        SourceInfo(id: id, title: url, url: url, snippet: snippet)
+    }
+
+    private func call(_ infos: [SourceInfo]) -> ToolCallRecord {
+        var c = ToolCallRecord(id: UUID().uuidString, name: "web_search", arguments: "{}", result: "", isError: false,
+                               sourceIDs: infos.map(\.id))
+        c.sources = SourceSnapshots.snapshot(infos)
+        return c
+    }
+
+    @Test func aLaggingListIsFilledFromTheCalls() {
+        // The conversation synced before the message did: it knows 1 and 2, the message's call numbered 3.
+        let list = [info(1, "https://a.com"), info(2, "https://b.com")]
+        let merged = SourceSnapshots.merged(list, calls: [call([info(2, "https://b.com"), info(3, "https://c.com")])])
+        #expect(merged.map(\.id) == [1, 2, 3])
+        // A turn numbers from there: the next page can't take 3 again.
+        let store = SourceStore(items: merged)
+        #expect(store.assign(SourceCandidate(title: "d", url: "https://d.com", content: "")).id == 4)
+    }
+
+    @Test func aMessageReadsItsOwnNumbering() {
+        // Two devices replied at once and both numbered a page 3; the list kept the other device's.
+        let base = Dictionary(uniqueKeysWithValues: [info(3, "https://other.com")].map { ($0.id, $0) })
+        let mine = SourceSnapshots.overlay(base, calls: [call([info(3, "https://mine.com")])])
+        #expect(mine[3]?.url == "https://mine.com")
+        #expect(SourceSnapshots.overlay(base, calls: [call([])])[3]?.url == "https://other.com", "no snapshot: the list")
+    }
+
+    @Test func snapshotsKeepAShortSnippetAndSurviveDisplayAndCoding() throws {
+        let long = String(repeating: "x", count: 1000)
+        let c = call([info(1, "https://a.com", snippet: long)])
+        #expect(c.sources?.first?.snippet.count == SourceSnapshots.snippetLimit)
+        let shown = c.displayOnly
+        #expect(shown.sources == c.sources)
+        let decoded = try JSONDecoder().decode(ToolCallRecord.self, from: JSONEncoder().encode(shown))
+        #expect(decoded.sources == c.sources)
+        // A call saved before snapshots: none, and the list is used.
+        let legacy = #"{"id":"a","name":"web_search","arguments":"{}","result":"","isError":false,"sourceIDs":[1]}"#
+        #expect(try JSONDecoder().decode(ToolCallRecord.self, from: Data(legacy.utf8)).sources == nil)
+    }
+}

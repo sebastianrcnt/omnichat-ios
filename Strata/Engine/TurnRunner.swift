@@ -305,14 +305,16 @@ struct TurnRunner: Sendable {
                     finished[nextToAppend] = nil
                     nextToAppend += 1
                     var ids: [Int] = []
+                    var infos: [SourceInfo] = []
                     if let sources, !out.sources.isEmpty, !out.isError {
-                        let infos = out.sources.map { sources.assign($0) }
+                        infos = out.sources.map { sources.assign($0) }
                         ids = infos.map(\.id)
                         let blocks = zip(infos, out.sources).map { SourceFormatter.block($0, content: $1.content) }.joined(separator: "\n")
                         out.text = (out.engine.map { "Results from \($0):\n" + blocks } ?? blocks) + (out.trailer.map { "\n\n" + $0 } ?? "")
                     }
                     var record = ToolCallRecord(id: call.id, name: call.name, arguments: call.arguments,
                                                 result: out.text, isError: out.isError, sourceIDs: ids)
+                    record.sources = infos.isEmpty ? nil : SourceSnapshots.snapshot(infos)
                     record.figures = out.figures.isEmpty ? nil : out.figures
                     record.viewedImage = out.viewedImage
                     record.shownImage = out.shownImage

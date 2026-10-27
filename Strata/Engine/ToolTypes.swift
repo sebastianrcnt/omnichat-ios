@@ -84,6 +84,9 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
     var isError: Bool
     /// Ids of the sources this call produced (see `SourceStore`).
     var sourceIDs: [Int] = []
+    /// Those sources as they were numbered when the call ran (`SourceSnapshots`). The message syncs with its calls,
+    /// while the conversation's list syncs on its own and may lag, or hold another device's numbering.
+    var sources: [SourceInfo]?
     /// Display-only facts kept when `displayOnly` drops the result text (never sent to the API): the engine that
     /// answered a search, and a page read's length and whether it held little real content.
     var engine: String?
@@ -116,6 +119,7 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
         result = try c.decode(String.self, forKey: .result)
         isError = try c.decode(Bool.self, forKey: .isError)
         sourceIDs = try c.decodeIfPresent([Int].self, forKey: .sourceIDs) ?? []
+        sources = try c.decodeIfPresent([SourceInfo].self, forKey: .sources)
         engine = try c.decodeIfPresent(String.self, forKey: .engine)
         pageCharacters = try c.decodeIfPresent(Int.self, forKey: .pageCharacters)
         thinPage = try c.decodeIfPresent(Bool.self, forKey: .thinPage)
@@ -199,6 +203,7 @@ struct ToolCallRecord: Codable, Hashable, Sendable, Identifiable {
         let kept = keepsResult ? result : ToolNames.isBrowserAction(name) ? Self.actionDisplay(result) : ""
         var out = ToolCallRecord(id: id, name: name, arguments: arguments, result: kept,
                                  isError: isError, sourceIDs: sourceIDs)
+        out.sources = sources
         out.figures = figures
         out.viewedImage = viewedImage
         out.shownImage = shownImage

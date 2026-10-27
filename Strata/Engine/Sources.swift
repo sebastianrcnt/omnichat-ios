@@ -27,6 +27,37 @@ enum SourceUsage {
     }
 }
 
+/// The sources each tool call numbered, kept with the call (`ToolCallRecord.sources`), so a message's citations read
+/// the same on every device. The conversation's own list syncs as one value: on another device it can lag behind the
+/// messages, or, when two devices replied, number different pages alike.
+enum SourceSnapshots {
+    /// What a call keeps: the snippet shortened, the rest as numbered.
+    static let snippetLimit = 200
+
+    static func snapshot(_ infos: [SourceInfo]) -> [SourceInfo] {
+        infos.map { var s = $0; s.snippet = String(s.snippet.prefix(snippetLimit)); return s }
+    }
+
+    /// The conversation's list, plus every source a call numbered that the list lacks (the conversation's own copy
+    /// wins for an id it has). A turn numbers from here, so a new id never repeats one already in a message.
+    static func merged(_ list: [SourceInfo], calls: some Sequence<ToolCallRecord>) -> [SourceInfo] {
+        var known = Set(list.map(\.id))
+        var out = list
+        for call in calls {
+            for info in call.sources ?? [] where known.insert(info.id).inserted { out.append(info) }
+        }
+        return out
+    }
+
+    /// The citations one message reads: `base`, with the sources its own calls numbered on top. Where devices numbered
+    /// different pages alike, the message's own numbering is the one its text meant.
+    static func overlay(_ base: [Int: SourceInfo], calls: some Sequence<ToolCallRecord>) -> [Int: SourceInfo] {
+        var out = base
+        for call in calls { for info in call.sources ?? [] { out[info.id] = info } }
+        return out
+    }
+}
+
 /// Assigns conversation-wide source ids. The same URL (ignoring fragment, a trailing slash and case of
 /// the host) always keeps its first id, including across turns.
 @MainActor

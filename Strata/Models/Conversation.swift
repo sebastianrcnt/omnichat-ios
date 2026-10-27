@@ -178,6 +178,11 @@ final class Conversation {
         set { effortRaw = newValue.rawValue }
     }
 
+    /// `sources`, plus what the messages' calls numbered that it lacks (`SourceSnapshots.merged`).
+    var allSources: [SourceInfo] {
+        SourceSnapshots.merged(sources, calls: messages.lazy.flatMap { $0.segments.flatMap(\.calls) })
+    }
+
     var sources: [SourceInfo] {
         get {
             guard let data = sourcesData else { return [] }
