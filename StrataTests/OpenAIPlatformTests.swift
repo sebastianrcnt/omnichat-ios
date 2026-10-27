@@ -69,6 +69,31 @@ struct OpenAIPlatformTests {
         #expect(!OpenAIPlatform.isHost(endpoint))
     }
 
+    @Test func gpt6LevelsFollowTheModel() {
+        let upToXhigh: [Effort] = [.low, .medium, .high, .xhigh]
+        for id in ["gpt-6-sol", "gpt-6-astra", "gpt-6-luna"] {
+            #expect(OpenAIPlatform.effortLevels(model: id) == upToXhigh, "\(id)")
+            #expect(OpenAIPlatform.leastEffort(model: id) == "none", "\(id)")
+        }
+        for id in ["gpt-6.1-sol", "gpt-5.6-sol"] {
+            #expect(OpenAIPlatform.effortLevels(model: id) == Effort.allCases, "\(id)")
+            #expect(OpenAIPlatform.leastEffort(model: id) == "low", "\(id): none and minimal are refused")
+        }
+        #expect(OpenAIPlatform.effortLevels(model: "gpt-5.5") == upToXhigh)
+        #expect(OpenAIPlatform.effortLevels(model: "gpt-5") == [.low, .medium, .high])
+        #expect(OpenAIPlatform.leastEffort(model: "gpt-5") == "minimal")
+        #expect(OpenAIPlatform.leastEffort(model: "gpt-5.1") == "none")
+        #expect(OpenAIPlatform.leastEffort(model: "o3") == "low")
+        #expect(!OpenAIPlatform.takesMax("gpt-4.1") && !OpenAIPlatform.takesMax("gpt-6-sol"))
+
+        // ChatGPT's own models: Max on those that take it, sent as `max` there and as `xhigh` elsewhere.
+        #expect(ModelInfo(id: "gpt-6.1-sol", supportsEffort: true).effortLevels(.modelDecides) == Effort.allCases)
+        #expect(ModelInfo(id: "gpt-6-sol", supportsEffort: true).effortLevels(.modelDecides) == upToXhigh)
+        #expect(ResponsesRequest.effort("max", model: "gpt-6.1-sol") == "max")
+        #expect(ResponsesRequest.effort("max", model: "gpt-6-sol") == "xhigh")
+        #expect(ResponsesRequest.effort("high", model: "gpt-6-sol") == "high")
+    }
+
     @Test func nonChatModelsAreLeftOutForKnownProviders() async throws {
         let s = store()
         HostModelsStub.delay = 0

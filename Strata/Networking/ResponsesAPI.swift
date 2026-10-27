@@ -139,12 +139,10 @@ struct ResponsesRequest: Encodable, Sendable {
         }
     }
 
-    /// Effort names the Responses API takes. The app's top level ("Max") has no equal and asks for the highest.
-    static func effort(_ value: String) -> String {
-        switch value {
-        case "max": "xhigh"
-        default: value
-        }
+    /// Effort names the Responses API takes. The app's top level ("Max") asks for the highest a model has: `max` on a
+    /// model that takes it, `xhigh` elsewhere.
+    static func effort(_ value: String, model: String) -> String {
+        value == Effort.max.apiValue && !OpenAIPlatform.takesMax(model) ? Effort.xhigh.apiValue : value
     }
 
     /// Translates a Chat Completions request. The first system message becomes `instructions`, unchanged, so the
@@ -168,7 +166,7 @@ struct ResponsesRequest: Encodable, Sendable {
         }
         self.namespacedTools = namespacedTools
         if supportsReasoning {
-            reasoning = Reasoning(effort: request.reasoningEffort.map(Self.effort))
+            reasoning = Reasoning(effort: request.reasoningEffort.map { Self.effort($0, model: request.model) })
             include = ["reasoning.encrypted_content"]
         }
     }

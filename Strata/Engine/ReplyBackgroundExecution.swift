@@ -74,6 +74,8 @@ final class ReplyBackgroundExecution {
     /// task whose progress stands still, and the list then reads "failed" for a reply that was fine.
     private var heartbeat: Task<Void, Never>?
     static let heartbeatInterval: Duration = .seconds(5)
+    /// The system ended the continued task before the replies did: the person cancelled it, or a system limit.
+    var onCancelled: (@MainActor () -> Void)?
     private var active: Bool { ledger.isHeld }
     /// The running replies in words (`ReplyLiveActivities`: "Searching the web", the chat's title): while the continued
     /// task holds the app, the system's task list says this instead of "Preparing reply".
@@ -107,16 +109,16 @@ final class ReplyBackgroundExecution {
                     task.progress.completedUnitCount = self.units
                     task.expirationHandler = { [weak self] in
                         Task { @MainActor in
-                            // Expiration also covers system resource limits, not just user cancellation.
-                            // Keep the server stream/checkpoint alive; app Stop is the explicit cancel. The list can't
-                            // read anything but "failed" now, so the title says the reply only paused.
+                            // The person cancelled the task, or a system limit ended it; the API doesn't say which.
+                            // Either way the app is about to be suspended, so the replies stop as with Stop (what a
+                            // cancel means) instead of hanging until the app is opened again.
                             DiagnosticCounters.shared.backgroundTaskExpired()
-                            self?.continued?.updateTitle(String(localized: "Reply paused"),
-                                                         subtitle: String(localized: "Open OmniChat to continue"))
+                            self?.continued?.updateTitle(String(localized: "Reply stopped"), subtitle: "")
                             self?.continued?.setTaskCompleted(success: false)
                             self?.continued = nil
                             self?.stopHeartbeat()
                             Self.hasContinuedLease = false
+                            self?.onCancelled?()
                         }
                     }
                     // More chats started, or a phase was reported, before the task did.
@@ -213,6 +215,7 @@ final class ReplyBackgroundExecution {
     // The ledger still counts, so the rules are the same on both.
     func begin(_ run: UUID) { _ = ledger.begin(run) }
     var liveStatus: (title: String, subtitle: String)?
+    var onCancelled: (@MainActor () -> Void)?
     var stateDescription: String { "not needed on macOS" }
     func advance(by count: Int = 1) {}
     func end(_ run: UUID, success: Bool, title: String? = nil, subtitle: String? = nil) {

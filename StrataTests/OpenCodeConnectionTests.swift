@@ -22,7 +22,7 @@ struct OpenCodeConnectionTests {
         #expect(decoded.map(\.kind) == [.chatGPT, .openAICompatible])
         #expect(decoded.allSatisfy { $0.openCodeGateway == nil && !$0.isOpenCode })
         #expect(decoded[0].models[0].openCode == nil)
-        #expect(decoded[0].models[0].effortLevels(.modelDecides) == [.low, .medium, .high, .xhigh])
+        #expect(decoded[0].models[0].effortLevels(.modelDecides) == Effort.allCases, "GPT-6.1 Sol takes Max")
     }
 
     @Test func openCodeConnectionRoundTrips() throws {

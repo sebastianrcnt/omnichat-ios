@@ -150,6 +150,14 @@ final class ChatController {
         #if DEBUG
         DebugHooks.configure(translation)
         #endif
+        // The system's task was cancelled (from its progress on the Lock Screen or in the Dynamic Island): the replies it
+        // carried stop as with Stop, rather than resuming when the app is next opened.
+        background.onCancelled = { [weak self] in self?.backgroundTaskCancelled() }
+    }
+
+    /// Stops every reply that holds the background lease. Internal for tests, which have no system task to cancel.
+    func backgroundTaskCancelled() {
+        for run in Array(runs.values) where run.holdsLease { stop(conversationID: run.conversationID) }
     }
 
     /// Wait until no chat is replying, queued runs included (tests).

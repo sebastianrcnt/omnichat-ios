@@ -10,27 +10,37 @@ enum OpenAIPlatform {
     // MARK: Effort
 
     /// The `reasoning_effort` levels a model takes: low, medium and high (o-series, GPT-5), plus `xhigh` from GPT-5.2 on
-    /// and on the codex-max models. Max isn't an OpenAI level.
+    /// and on the codex-max models, plus `max` on the models that take it (`takesMax`).
     static func effortLevels(model: String) -> [Effort] {
         let id = model.lowercased()
-        if id.contains("codex-max") || (gpt5Minor(id) ?? 0) >= 2 { return [.low, .medium, .high, .xhigh] }
+        if takesMax(id) { return [.low, .medium, .high, .xhigh, .max] }
+        if id.contains("codex-max") || version(id).map({ $0 >= (5, 2) }) == true { return [.low, .medium, .high, .xhigh] }
         return [.low, .medium, .high]
     }
 
-    /// The least thinking a model takes, for "thinking off" (the title request): `none` from GPT-5.1 on, `minimal` on
-    /// GPT-5, `low` on the o-series.
-    static func leastEffort(model: String) -> String {
+    /// `max` as a level of its own: GPT-6.1 on, and the Sol models from GPT-5.6 on. GPT-6.0 stops at `xhigh`.
+    static func takesMax(_ model: String) -> Bool {
         let id = model.lowercased()
-        guard let minor = gpt5Minor(id) else { return Effort.low.apiValue }
-        return minor >= 1 ? "none" : "minimal"
+        guard let v = version(id) else { return false }
+        return v >= (6, 1) || (v.major == 5 && v.minor >= 6 && id.contains("-sol"))
     }
 
-    /// 0 for `gpt-5…`, N for `gpt-5.N…`, nil for any other model.
-    private static func gpt5Minor(_ id: String) -> Int? {
-        guard id.hasPrefix("gpt-5") else { return nil }
-        let rest = id.dropFirst("gpt-5".count)
-        guard rest.first == "." else { return 0 }
-        return Int(rest.dropFirst().prefix { $0.isNumber }) ?? 0
+    /// The least thinking a model takes, for "thinking off" (the title request): `minimal` on GPT-5, `none` from GPT-5.1
+    /// on, `low` on the o-series and on the models that take `max` (they refuse `none` and `minimal`).
+    static func leastEffort(model: String) -> String {
+        let id = model.lowercased()
+        guard let v = version(id), v.major >= 5, !takesMax(id) else { return Effort.low.apiValue }
+        return v == (5, 0) ? "minimal" : "none"
+    }
+
+    /// (5, 0) for `gpt-5…`, (5, N) for `gpt-5.N…`, (6, 1) for `gpt-6.1-sol`; nil for a model that isn't `gpt-N`.
+    private static func version(_ id: String) -> (major: Int, minor: Int)? {
+        guard id.hasPrefix("gpt-") else { return nil }
+        let rest = id.dropFirst("gpt-".count)
+        guard let major = Int(rest.prefix { $0.isNumber }) else { return nil }
+        let after = rest.drop { $0.isNumber }
+        guard after.first == "." else { return (major, 0) }
+        return (major, Int(after.dropFirst().prefix { $0.isNumber }) ?? 0)
     }
 
     /// The request as OpenAI takes it: the output cap as `max_completion_tokens` (`max_tokens` is refused by the

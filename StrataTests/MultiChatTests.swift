@@ -221,6 +221,29 @@ struct MultiChatTests {
 
     // MARK: Background lease
 
+    @Test func cancellingTheBackgroundTaskStopsTheRunsItCarried() async throws {
+        let r = try rig(chats: 3)
+        r.controller.maxConcurrentRuns = 2
+        send(r, 0, "qa")
+        send(r, 1, "qb")
+        send(r, 2, "qc")
+        await waitFor { r.streamer.started.count == 2 }
+        r.streamer.send("qa", ChatDelta(content: "partial"))
+        await waitFor { r.controller.run(for: r.chats[0])?.phase == .writing }
+        r.controller.backgroundTaskCancelled()
+        await r.controller.waitUntilIdle(r.chats[0])
+        await r.controller.waitUntilIdle(r.chats[1])
+        #expect(answer(r.chats[0])?.stoppedByUser == true && answer(r.chats[0])?.text == "partial", "stopped as with Stop")
+        #expect(answer(r.chats[1])?.stoppedByUser == true)
+        // The queued chat held no lease, so it carries on in the freed slot.
+        await waitFor { r.streamer.started.contains("qc") }
+        r.streamer.send("qc", ChatDelta(content: "qc"))
+        r.streamer.finish("qc")
+        await r.controller.waitUntilIdle()
+        #expect(answer(r.chats[2])?.text == "qc" && answer(r.chats[2])?.stoppedByUser == false)
+        #expect(r.controller.backgroundHolderCount == 0)
+    }
+
     @Test func oneBackgroundLeaseIsHeldWhileAnyChatRuns() async throws {
         let r = try rig(chats: 3)
         r.controller.maxConcurrentRuns = 2
