@@ -791,7 +791,7 @@ struct PythonSocketTests {
         """), "\(out.text)")
         #expect(python.testHost?.sockets?.openCount == 3)
         // A run past its limit resets the interpreter, and its sockets close with it.
-        let slow = await run(python, "while True: pass", chat: chat, limits: PythonLimits(run: .seconds(2), setup: .seconds(120)))
+        let slow = await run(python, "while True: pass", chat: chat, limits: PythonLimits(run: .seconds(1), setup: .seconds(120)))
         #expect(slow.text.contains("Timed out"), "\(slow.text)")
         #expect(python.testHost?.sockets?.openCount ?? 0 == 0)
     }

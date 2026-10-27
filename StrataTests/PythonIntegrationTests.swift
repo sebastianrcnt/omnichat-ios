@@ -79,7 +79,7 @@ struct PythonIntegrationTests {
         let chat = UUID()
         _ = await python.run(code: "y = 5", conversationID: chat, canView: false)
         let slow = await python.run(code: "while True: pass", conversationID: chat,
-                                    limits: PythonLimits(run: .seconds(2), setup: .seconds(120)), canView: false)
+                                    limits: PythonLimits(run: .seconds(1), setup: .seconds(120)), canView: false)
         #expect(slow.isError)
         #expect(slow.text.contains("Timed out after"), "\(slow.text)")
         #expect(slow.text.contains("reset"), "\(slow.text)")
@@ -156,8 +156,9 @@ struct PythonIntegrationTests {
     @Test func unbundledAndDynamicImportsFailClearlyWithoutDownloads() async {
         let (python, _) = runtime()
         defer { python.dispose() }
+        let chat = UUID() // one interpreter: a failed import leaves it as it was
         for code in ["import sympy", "import micropip", "import importlib; importlib.import_module('scipy')"] {
-            let out = await python.run(code: code, conversationID: UUID(), canView: false)
+            let out = await python.run(code: code, conversationID: chat, canView: false)
             #expect(out.isError && out.text.contains("This package isn't available in OmniChat"), "\(out.text)")
         }
     }

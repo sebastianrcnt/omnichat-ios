@@ -161,11 +161,11 @@ struct BrowserAgentPageTests {
         defer { sessions.closeAll() }
         let page = try await open("<p>Account</p>", sessions: sessions)
         let eval = BrowserEvalTool(timeout: .milliseconds(300), sessions: sessions, robotCheck: { _, _ in false })
-        let out = await eval.run(code: "await new Promise(r => setTimeout(r, 1500)); document.title = 'acted'; return 1", conversation: chat)
+        let out = await eval.run(code: "await new Promise(r => setTimeout(r, 800)); document.title = 'acted'; return 1", conversation: chat)
         #expect(out.isError && out.text.contains("did not finish") && out.text.contains("call browser_open"), "\(out.text)")
         #expect(page.currentURL?.absoluteString == "about:blank")
         #expect(!page.hasAbortedScript)
-        try await Task.sleep(for: .seconds(2))
+        try await Task.sleep(for: .seconds(1)) // past the script's timer, had it survived
         #expect(try await page.evaluate("document.title", timeout: .seconds(2)) != "acted")
         let next = await eval.run(code: "return 1", conversation: chat)
         #expect(next.text.contains("no page is open"))

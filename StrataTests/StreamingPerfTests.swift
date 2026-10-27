@@ -5,10 +5,11 @@ import UIKit
 import os
 @testable import Strata
 
-/// Replays a long markdown answer at 100 tokens/s into a real UIHostingController and measures the main thread.
+/// Replays a long markdown answer into a real UIHostingController and measures the main thread.
 ///
-/// Default is about 1,500 tokens (15 s). For the full 10k-token run (about 100 s):
-///   TEST_RUNNER_STRATA_PERF_TOKENS=10000 xcodebuild test ... -only-testing:StrataTests/StreamingPerfTests
+/// Default is about 1,500 tokens at 400 tokens/s (4 s): faster than a real stream, so each publish carries more text
+/// while the document grows to the same size. For the full 10k-token run at a real stream's 100 tokens/s (about 100 s):
+///   TEST_RUNNER_STRATA_PERF_TOKENS=10000 TEST_RUNNER_STRATA_PERF_RATE=100 xcodebuild test ... -only-testing:StrataTests/StreamingPerfTests
 /// Simulator-only: the bounds are loose and meant to catch regressions (an O(n^2) re-render), not to benchmark.
 @MainActor
 struct StreamingPerfTests {
@@ -92,6 +93,7 @@ struct StreamingPerfTests {
 
     @Test func tenKTokenReplayStaysSmooth() async throws {
         let target = Int(ProcessInfo.processInfo.environment["STRATA_PERF_TOKENS"] ?? "") ?? 1_500
+        let rate = max(1, Int(ProcessInfo.processInfo.environment["STRATA_PERF_RATE"] ?? "") ?? 400) // tokens per second
         let text = Self.document(tokens: target)
         let tokens = Self.tokens(of: text)
         let model = StreamingMarkdownModel(smoothing: true)
@@ -120,11 +122,12 @@ struct StreamingPerfTests {
         let signpost = Self.signposter.beginInterval("replay", "tokens=\(tokens.count)")
         let clock = ContinuousClock()
         let start = clock.now
-        let interval = Duration.milliseconds(10) // 100 tokens/s
+        let interval = Duration.seconds(1) / rate
+        let layoutEvery = max(1, rate * 33 / 1000) // roughly one forced layout per publish (33 ms)
         var layoutMs: [Double] = []
         for (i, token) in tokens.enumerated() {
             model.append(token)
-            if i % 3 == 0 { // roughly one forced layout per publish (33 ms)
+            if i % layoutEvery == 0 {
                 let id = Self.signposter.beginInterval("layout")
                 let t0 = clock.now
                 host.view.layoutIfNeeded()
@@ -134,7 +137,10 @@ struct StreamingPerfTests {
             try await Task.sleep(until: start + interval * (i + 1), clock: clock)
         }
         model.finish()
-        try await Task.sleep(for: .milliseconds(500))
+        // The final parse comes back from the background pipeline.
+        let parsed = IncrementalBlockParser.parse(text)
+        let deadline = clock.now + .seconds(5)
+        while model.blocks != parsed, clock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
         Self.signposter.endInterval("replay", signpost)
 
         let applyP95 = Self.percentile(applyMs, 0.95), layoutP95 = Self.percentile(layoutMs, 0.95), turnP95 = Self.percentile(turnMs, 0.95)
@@ -144,7 +150,7 @@ struct StreamingPerfTests {
         print(line)
         Logger(subsystem: "cc.coolservices.strata", category: "StreamingPerf").info("\(line, privacy: .public)")
 
-        #expect(model.blocks == IncrementalBlockParser.parse(text), "the streamed document equals a one-shot parse")
+        #expect(model.blocks == parsed, "the streamed document equals a one-shot parse")
         #expect(!applyMs.isEmpty)
         // Loose simulator bounds: a 16 ms frame budget with generous headroom for a busy CI host.
         #expect(applyP95 < 16, "apply p95 \(applyP95) ms")
