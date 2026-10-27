@@ -29,14 +29,15 @@ struct BrowserShowTests {
         sessions.closeAll()
     }
 
-    /// Right after a load the web view's `title` is often still empty; the page is named by its document's title.
+    /// Right after a load the web view's `title` is often still empty or the last page's; the page is named by its
+    /// document's title.
     @Test func aJustLoadedPageIsNamedByItsTitle() async throws {
-        for _ in 0..<10 {
-            let page = HiddenWebView(guardNavigations: false, store: BrowserData.store)
-            defer { page.dispose() }
-            try await page.load(html: "<title>Login</title><p>hi</p>", baseURL: URL(string: "https://example.com/login"))
+        let page = HiddenWebView(guardNavigations: false, store: BrowserData.store)
+        defer { page.dispose() }
+        for i in 1...6 {
+            try await page.load(html: "<title>Login \(i)</title><p>hi</p>", baseURL: URL(string: "https://example.com/login"))
             let place = await BrowserShowTool.place(page)
-            #expect(place == "Login — https://example.com/login", "\(place)")
+            #expect(place == "Login \(i) — https://example.com/login", "\(place)")
         }
     }
 
