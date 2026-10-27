@@ -74,7 +74,11 @@ struct ModelPickerSheet: View {
         .presentationDragIndicator(.visible)
         #endif
         .modelRenameAlert($renaming)
-        .task { await connections.fetchMissingAccountModels() }
+        .task {
+            // Not tied to the sheet: a quick pick that closes it mustn't cancel the refresh halfway.
+            Task { await connections.refreshStaleModels() }
+            await connections.fetchMissingAccountModels()
+        }
     }
 
     #if os(iOS)
@@ -111,13 +115,16 @@ struct ModelPickerSheet: View {
                     SettingsRow(systemImage: "plus", title: "Add a connection", showsChevron: true, action: onAddConnection ?? onOpenSettings)
                 }
             } else if groups.isEmpty {
-                GroupedSection(footer: "Finish setting up a connection, then pick one of its models.") {
-                    ForEach(unset) { c in
-                        SettingsRow(title: "", value: String(localized: "Set up"), showsChevron: true, verbatimTitle: c.name) {
-                            SettingsRoute.shared.connection = c.id
-                            onOpenSettings()
+                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                    GroupedSection(footer: "Finish setting up a connection, then pick one of its models.") {
+                        ForEach(unset) { c in
+                            SettingsRow(title: "", value: String(localized: "Set up"), showsChevron: true, verbatimTitle: c.name) {
+                                SettingsRoute.shared.connection = c.id
+                                onOpenSettings()
+                            }
                         }
                     }
+                    ModelRefreshFooter(connectionIDs: unset.map(\.id))
                 }
             } else if groups.count == 1, unset.isEmpty, let only = groups.first {
                 modelList(only)
@@ -132,21 +139,25 @@ struct ModelPickerSheet: View {
                         }
                     }
                 }
-                GroupedSection(header: "Providers") {
-                    ForEach(groups) { group in
-                        SettingsRow(title: "", value: group.items.count == 1
-                                        ? String(localized: "1 model") : String(localized: "\(group.items.count) models"),
-                                    showsChevron: true, verbatimTitle: group.name) {
-                            query = ""
-                            withAnimation(DS.Motion.snappy) { page = .provider(group.connectionID) }
+                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                    GroupedSection(header: "Providers") {
+                        ForEach(groups) { group in
+                            SettingsRow(title: "", value: group.items.count == 1
+                                            ? String(localized: "1 model") : String(localized: "\(group.items.count) models"),
+                                        showsChevron: true, verbatimTitle: group.name) {
+                                query = ""
+                                withAnimation(DS.Motion.snappy) { page = .provider(group.connectionID) }
+                            }
+                        }
+                        ForEach(unset) { c in
+                            SettingsRow(title: "", value: String(localized: "Set up"), showsChevron: true, verbatimTitle: c.name) {
+                                SettingsRoute.shared.connection = c.id // Settings opens on this connection, not its top
+                                onOpenSettings()
+                            }
                         }
                     }
-                    ForEach(unset) { c in
-                        SettingsRow(title: "", value: String(localized: "Set up"), showsChevron: true, verbatimTitle: c.name) {
-                            SettingsRoute.shared.connection = c.id // Settings opens on this connection, not its top
-                            onOpenSettings()
-                        }
-                    }
+                    // Every provider at once from here; a provider's own page refreshes just that one.
+                    ModelRefreshFooter(connectionIDs: connections.connections.map(\.id))
                 }
             }
             settingsSections
@@ -186,12 +197,15 @@ struct ModelPickerSheet: View {
             .background(theme.surface, in: RoundedRectangle(cornerRadius: DS.Radius.md))
         }
         let items = ModelPickerCatalog.filter(group.items, query: query)
-        if items.isEmpty {
-            GroupedSection { SettingsRow(title: "No models match") }
-        } else {
-            GroupedSection(footer: query.isEmpty ? group.footer.map { LocalizedStringKey($0) } : nil) {
-                ForEach(items) { item in modelRow(item, subtitle: item.limits) }
+        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            if items.isEmpty {
+                GroupedSection { SettingsRow(title: "No models match") }
+            } else {
+                GroupedSection(footer: query.isEmpty ? group.footer.map { LocalizedStringKey($0) } : nil) {
+                    ForEach(items) { item in modelRow(item, subtitle: item.limits) }
+                }
             }
+            ModelRefreshFooter(connectionIDs: [group.connectionID])
         }
     }
 
@@ -282,6 +296,116 @@ struct ModelPickerSheet: View {
                         settings.searchEngine = engine
                     }
                 }
+            }
+        }
+    }
+}
+
+// MARK: - Model list refresh
+
+/// "Can't find a model?" under the picker's list: refreshes the lists of `connectionIDs` (all at once), says when they
+/// last came in, and takes a model id by hand for a server without a model list. Hidden when none of them has a list to
+/// fetch (Apple's on-device model, accounts signed out).
+private struct ModelRefreshFooter: View {
+    @Environment(\.theme) private var theme
+    @Environment(\.connectionStore) private var connections
+    let connectionIDs: [UUID]
+
+    /// The last refresh tapped here, when it failed.
+    @State private var error: String?
+    @State private var adding: UUID?
+    @State private var newModelID = ""
+
+    private var refreshable: [Connection] {
+        connectionIDs.compactMap { connections.connection($0) }.filter { connections.canRefreshModels($0) }
+    }
+    private var running: Bool { refreshable.contains { connections.modelFetches[$0.id]?.running == true } }
+    /// The oldest of the lists, so "Updated" never claims more than all of them.
+    private var updated: Date? { refreshable.compactMap { connections.modelsFetchedAt[$0.id] }.min() }
+
+    var body: some View {
+        let refreshable = refreshable
+        if !refreshable.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: DS.Spacing.xs) {
+                    Text("Can't find a model?").foregroundStyle(theme.textSecondary)
+                    if let updated {
+                        TimelineView(.everyMinute) { context in
+                            Text(verbatim: "· " + ModelListRefresh.updatedText(updated, now: context.date))
+                                .foregroundStyle(theme.textTertiary)
+                        }
+                    }
+                }
+                .font(DS.Typography.uiCaption)
+                .padding(.top, DS.Spacing.xs)
+                HStack(spacing: DS.Spacing.lg) {
+                    Button { refresh(refreshable) } label: {
+                        if running {
+                            Label { Text("Refreshing…") } icon: { ProgressView().controlSize(.mini) }
+                        } else {
+                            Label("Refresh models", systemImage: "arrow.clockwise")
+                        }
+                    }
+                    .buttonStyle(.quietLink(.accent))
+                    .disabled(running)
+                    addButton(refreshable.filter { connections.canAddModelID($0) })
+                }
+                if let error {
+                    Text(verbatim: error).font(DS.Typography.uiCaption).foregroundStyle(theme.destructive)
+                        .lineLimit(3)
+                        .padding(.bottom, DS.Spacing.xs)
+                }
+            }
+            .padding(.horizontal, DS.Spacing.lg)
+            .alert("Add model ID", isPresented: Binding(get: { adding != nil }, set: { if !$0 { adding = nil } })) {
+                TextField("model-id", text: $newModelID)
+                    .autocorrectionDisabled()
+                    #if os(iOS)
+                    .textInputAutocapitalization(.never)
+                    #endif
+                Button("Add") {
+                    if let adding { connections.addManualModel(newModelID, connectionID: adding) }
+                    adding = nil
+                }
+                Button("Cancel", role: .cancel) { adding = nil }
+            } message: {
+                Text("For a server that doesn't list its models. The ID is sent exactly as typed.")
+            }
+        }
+    }
+
+    /// One target: a link. Several: a menu of them.
+    @ViewBuilder private func addButton(_ targets: [Connection]) -> some View {
+        if targets.count == 1, let only = targets.first {
+            Button { startAdding(only.id) } label: { Label("Add model ID", systemImage: "plus") }
+                .buttonStyle(.quietLink(.secondary))
+        } else if targets.count > 1 {
+            Menu {
+                ForEach(targets) { c in Button { startAdding(c.id) } label: { Text(verbatim: c.name) } }
+            } label: {
+                Label("Add model ID", systemImage: "plus")
+            }
+            .menuStyle(.button)
+            .menuIndicator(.hidden)
+            .buttonStyle(.quietLink(.secondary))
+            .fixedSize()
+        }
+    }
+
+    private func startAdding(_ id: UUID) {
+        newModelID = ""
+        adding = id
+    }
+
+    private func refresh(_ targets: [Connection]) {
+        error = nil
+        Task {
+            let errors = await connections.refreshModels(of: targets.map(\.id))
+            let failed = targets.filter { errors[$0.id] != nil }
+            if failed.count == 1, let c = failed.first, let message = errors[c.id] {
+                error = String(localized: "Couldn't refresh \(c.name): \(message)")
+            } else if !failed.isEmpty {
+                error = String(localized: "Couldn't refresh \(failed.map(\.name).formatted(.list(type: .and))).")
             }
         }
     }
