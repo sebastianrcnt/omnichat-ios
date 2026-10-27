@@ -148,6 +148,14 @@ struct ChatGPTConnectionEditor: View {
         defer { self.flow = nil }
         do {
             let account = try await flow.run()
+            // An account another connection already has keeps that one: the sign-in moves there and this one goes, and
+            // the editor shows that one instead.
+            let id = connections.finishChatGPTSignIn(connectionID)
+            if id != connectionID {
+                if let i = path.lastIndex(of: connectionID) { path[i] = id } else { path.append(id) }
+                if connections.chatGPTAllowsPlanUsage(id) != false { try? await connections.refreshModels(for: id) }
+                return
+            }
             reload()
             if let name = account.name ?? account.email, var c = connections.connection(connectionID),
                c.name == String(localized: "ChatGPT") {

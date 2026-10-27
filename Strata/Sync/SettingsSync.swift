@@ -358,6 +358,9 @@ final class ConnectionSync {
         applying = true
         store.replaceAll(merged)
         applying = false
+        // The store merged duplicate ChatGPT accounts (`ConnectionStore.collapseDuplicateAccounts`): the losers' removal
+        // goes up now, or the next pull would bring them back from the cloud.
+        if store.connections != merged { push(store.connections) }
     }
 
     /// Writes this device's list where it differs from the cloud's: changed connections, new ones, the order, and the

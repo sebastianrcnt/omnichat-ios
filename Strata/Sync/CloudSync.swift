@@ -60,6 +60,11 @@ final class CloudSync {
         self.files = files
 
         Task.detached(priority: .utility) { KeychainSync.applyIfNeeded() }
+        // Connections of one ChatGPT account merge into one (here, after a sign-in, or as sync brings them): chats and
+        // settings that named the others follow. Merges from before point late-synced chats at the survivors too.
+        connections.onMerge = { [weak self] merged in self?.remapReferences(merged) }
+        connections.collapseDuplicateAccounts()
+        remapReferences(connections.mergedIDs)
         if SettingsSync.isEnabled(defaults) { startSettingsSync(localWins: false) }
 
         let center = NotificationCenter.default
@@ -130,6 +135,9 @@ final class CloudSync {
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled, let self else { return }
             self.tidyStore()
+            if let context = self.container?.mainContext, let merged = self.connections?.mergedIDs {
+                _ = try? ChatGPTDedupe.remapConversations(context, merged) // chats synced from before a merge
+            }
             self.skills?.apply()
             self.files?.materialize()
             self.files?.removeOrphans() // chats deleted on another device
@@ -143,6 +151,12 @@ final class CloudSync {
         if let visible = controller?.visibleConversationID { busy.insert(visible) }
         _ = try? SyncDedupe.conversations(context, skipping: busy)
         _ = try? SyncDedupe.files(context)
+    }
+
+    /// Points chats and settings at the connections that `merged`'s ids went into.
+    private func remapReferences(_ merged: [UUID: UUID]) {
+        guard let settings else { return }
+        ChatGPTDedupe.remapReferences(merged, settings: settings, context: container?.mainContext)
     }
 
     // MARK: Switches

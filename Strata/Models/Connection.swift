@@ -124,6 +124,9 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
     var hiddenModelIDs: Set<String> = []
     /// The gateway of an OpenCode connection (nil on other kinds).
     var openCodeGateway: OpenCodeGateway?
+    /// The account a ChatGPT connection signed in to (nil on other kinds, and until a device that knows it records it):
+    /// two connections of one account become one (`ChatGPTDedupe`).
+    var chatGPTAccount: ChatGPTAccount?
     /// OpenAI-compatible only: the API each model turned out to need (see `ResponsesFallback`), keyed by model id.
     /// Kept apart from `models` like the aliases, so it survives `/models` refreshes.
     var detectedModelAPIs: [String: ChatAPI] = [:]
@@ -160,6 +163,7 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
         modelAliases = try c.decodeIfPresent([String: String].self, forKey: .modelAliases) ?? [:]
         hiddenModelIDs = try c.decodeIfPresent(Set<String>.self, forKey: .hiddenModelIDs) ?? []
         openCodeGateway = try c.decodeIfPresent(OpenCodeGateway.self, forKey: .openCodeGateway)
+        chatGPTAccount = try? c.decodeIfPresent(ChatGPTAccount.self, forKey: .chatGPTAccount)
         detectedModelAPIs = ChatAPI.decodeMap(c, forKey: .detectedModelAPIs)
         modelAPIOverrides = ChatAPI.decodeMap(c, forKey: .modelAPIOverrides)
         defaultChatAPI = (try? c.decodeIfPresent(String.self, forKey: .defaultChatAPI)).flatMap(ChatAPI.init(rawValue:))

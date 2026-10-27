@@ -211,7 +211,8 @@ struct ChatGPTTokenResponse: Decodable, Sendable {
         if scopes.contains("offline_access") && (refresh ?? "").isEmpty { throw ChatGPTAuthError.invalidTokenResponse }
         return ChatGPTTokens(accessToken: accessToken, refreshToken: refresh, idToken: idToken ?? previous?.idToken,
                              expiresAt: now.addingTimeInterval(expiresIn), scopes: scopes, savedAt: now,
-                             earliestRefreshAt: earliestRefreshAt.map { Date(timeIntervalSince1970: $0) })
+                             earliestRefreshAt: earliestRefreshAt.map { Date(timeIntervalSince1970: $0) },
+                             clientID: previous?.clientID, subject: previous?.subject)
     }
 }
 
@@ -226,6 +227,12 @@ struct ChatGPTTokens: Codable, Sendable, Equatable {
     var savedAt: Date
     /// From the token response: no proactive refresh before this time (a rejected token still refreshes).
     var earliestRefreshAt: Date?
+    /// The client the tokens were issued to and the account they belong to. A refresh and a revocation use these, not
+    /// the registration's: tokens moved from a duplicate connection of the same account (`ConnectionStore`) keep their
+    /// own client while the registration, which syncs, stays as other devices use it. Nil in tokens saved before they
+    /// were recorded, which belong to the registration's client.
+    var clientID: String? = nil
+    var subject: String? = nil
 
     /// How long before expiry a request refreshes first (access tokens last an hour).
     static let refreshLeeway: TimeInterval = 5 * 60
@@ -250,6 +257,8 @@ struct ChatGPTRegistration: Codable, Sendable, Equatable {
     var subject: String?
     var email: String?
     var name: String?
+    /// The ChatGPT workspace the sign-in chose (`chatgpt_account_id`), when the ID token names one.
+    var workspace: String?
 }
 
 // MARK: - Errors
@@ -303,8 +312,19 @@ struct ChatGPTIDClaims: Decodable, Sendable, Equatable {
     var nonce: String?
     var email: String?
     var name: String?
+    /// The ChatGPT workspace (`chatgpt_account_id` under `https://api.openai.com/auth`), when the token names one: one
+    /// login can have several (a personal plan and a Team), and each is its own account here.
+    var workspace: String?
 
-    enum CodingKeys: String, CodingKey { case iss, sub, aud, azp, exp, iat, nonce, email, name }
+    enum CodingKeys: String, CodingKey {
+        case iss, sub, aud, azp, exp, iat, nonce, email, name
+        case auth = "https://api.openai.com/auth"
+    }
+
+    private struct Auth: Decodable {
+        var workspace: String?
+        enum CodingKeys: String, CodingKey { case workspace = "chatgpt_account_id" }
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -317,6 +337,7 @@ struct ChatGPTIDClaims: Decodable, Sendable, Equatable {
         nonce = try c.decodeIfPresent(String.self, forKey: .nonce)
         email = try c.decodeIfPresent(String.self, forKey: .email)
         name = try c.decodeIfPresent(String.self, forKey: .name)
+        workspace = (try? c.decodeIfPresent(Auth.self, forKey: .auth))?.workspace.flatMap { $0.isEmpty ? nil : $0 }
     }
 }
 
