@@ -69,7 +69,7 @@ struct ModelInfo: Codable, Identifiable, Hashable, Sendable {
         if let listed = openCode?.efforts, !listed.isEmpty { return listed }
         if let listed = anthropic?.pickerLevels, !listed.isEmpty { return listed }
         if style == .openAI { return OpenAIPlatform.effortLevels(model: id) }
-        // ChatGPT's own models that take `max` offer it too (`ResponsesRequest.effort` passes it on to them).
+        // ChatGPT's own models that take `max` offer it too (`OpenAIPlatform.responsesEffort` passes it on to them).
         if style == .modelDecides, OpenAIPlatform.takesMax(id) { return Effort.allCases }
         return Effort.levels(style)
     }

@@ -89,9 +89,9 @@ struct OpenAIPlatformTests {
         // ChatGPT's own models: Max on those that take it, sent as `max` there and as `xhigh` elsewhere.
         #expect(ModelInfo(id: "gpt-6.1-sol", supportsEffort: true).effortLevels(.modelDecides) == Effort.allCases)
         #expect(ModelInfo(id: "gpt-6-sol", supportsEffort: true).effortLevels(.modelDecides) == upToXhigh)
-        #expect(ResponsesRequest.effort("max", model: "gpt-6.1-sol") == "max")
-        #expect(ResponsesRequest.effort("max", model: "gpt-6-sol") == "xhigh")
-        #expect(ResponsesRequest.effort("high", model: "gpt-6-sol") == "high")
+        #expect(OpenAIPlatform.responsesEffort("max", model: "gpt-6.1-sol") == "max")
+        #expect(OpenAIPlatform.responsesEffort("max", model: "gpt-6-sol") == "xhigh")
+        #expect(OpenAIPlatform.responsesEffort("high", model: "gpt-6-sol") == "high")
     }
 
     @Test func nonChatModelsAreLeftOutForKnownProviders() async throws {

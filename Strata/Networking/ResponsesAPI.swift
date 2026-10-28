@@ -139,12 +139,6 @@ struct ResponsesRequest: Encodable, Sendable {
         }
     }
 
-    /// Effort names the Responses API takes. The app's top level ("Max") asks for the highest a model has: `max` on a
-    /// model that takes it, `xhigh` elsewhere.
-    static func effort(_ value: String, model: String) -> String {
-        value == Effort.max.apiValue && !OpenAIPlatform.takesMax(model) ? Effort.xhigh.apiValue : value
-    }
-
     /// Translates a Chat Completions request. The first system message becomes `instructions`, unchanged, so the
     /// prefix the server caches starts with the same bytes on every request of a chat; a later one becomes a developer
     /// message. `reasoning` and the encrypted-reasoning `include` go only to a model that takes effort. Tools go in the
@@ -166,7 +160,7 @@ struct ResponsesRequest: Encodable, Sendable {
         }
         self.namespacedTools = namespacedTools
         if supportsReasoning {
-            reasoning = Reasoning(effort: request.reasoningEffort.map { Self.effort($0, model: request.model) })
+            reasoning = Reasoning(effort: request.reasoningEffort.map { OpenAIPlatform.responsesEffort($0, model: request.model) })
             include = ["reasoning.encrypted_content"]
         }
     }

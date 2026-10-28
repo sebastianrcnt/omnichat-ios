@@ -33,6 +33,12 @@ enum OpenAIPlatform {
         return v == (5, 0) ? "minimal" : "none"
     }
 
+    /// The effort name the Responses API (ChatGPT) gets. The app's top level ("Max") asks for the highest a model has:
+    /// `max` on a model that takes it, `xhigh` elsewhere.
+    static func responsesEffort(_ value: String, model: String) -> String {
+        value == Effort.max.apiValue && !takesMax(model) ? Effort.xhigh.apiValue : value
+    }
+
     /// (5, 0) for `gpt-5…`, (5, N) for `gpt-5.N…`, (6, 1) for `gpt-6.1-sol`; nil for a model that isn't `gpt-N`.
     private static func version(_ id: String) -> (major: Int, minor: Int)? {
         guard id.hasPrefix("gpt-") else { return nil }
