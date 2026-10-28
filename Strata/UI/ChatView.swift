@@ -2,11 +2,11 @@ import SwiftUI
 import SwiftData
 
 struct ChatView: View {
-    @Environment(\.theme) private var theme
-    @Environment(\.modelContext) private var context
-    @Environment(\.appSettings) private var settings
-    @Environment(\.connectionStore) private var connections
-    @Environment(\.chatController) private var controller
+    @Environment(\.theme) var theme
+    @Environment(\.modelContext) var context
+    @Environment(\.appSettings) var settings
+    @Environment(\.connectionStore) var connections
+    @Environment(\.chatController) var controller
 
     @Binding var conversation: Conversation?
     let onOpenSidebar: () -> Void
@@ -16,76 +16,76 @@ struct ChatView: View {
     var focusToken = 0
 
     /// Reference-typed so typing never invalidates this view: only `ComposerHost` reads the text.
-    @State private var draft = ComposerDraft()
-    @State private var position = ScrollPosition(edge: .bottom)
-    @State private var atBottom = true
+    @State var draft = ComposerDraft()
+    @State var position = ScrollPosition(edge: .bottom)
+    @State var atBottom = true
     /// The question being answered, held at the top of the screen from its send until the next send or until the user
     /// scrolls the room reserved under it out of view. Nil when nothing is pinned (a chat just opened).
-    @State private var pinnedID: UUID?
+    @State var pinnedID: UUID?
     /// Set by the jump button: the view then sticks to the end while the answer grows, until the user scrolls or sends.
-    @State private var followsBottom = false
+    @State var followsBottom = false
     /// The question just sent: its bubble flies up from the composer once (`SendFlyIn`).
-    @State private var flyingID: UUID?
-    @State private var jumpRetry: Task<Void, Never>?
+    @State var flyingID: UUID?
+    @State var jumpRetry: Task<Void, Never>?
     /// Heights for the room under the pinned question; read only by `PinReserve`, so scrolling and streaming never
     /// re-evaluate this view.
-    @State private var pin = PinLayout()
-    @State private var showAttach = false
+    @State var pin = PinLayout()
+    @State var showAttach = false
     /// The "+" menu's tool switches of a new chat before its first message creates it (nil: the defaults in Settings).
-    @State private var newChatTools: Set<ToolGroup>?
+    @State var newChatTools: Set<ToolGroup>?
     /// A new chat's package switches, once changed in the "+" menu (the defaults until then).
-    @State private var newChatPackages: Set<String>?
+    @State var newChatPackages: Set<String>?
     #if os(macOS)
-    @State private var showNoImageSupport = false
+    @State var showNoImageSupport = false
     #endif
     /// "Select model" (models, effort, search engine): a sheet on the phone, a popover from the gauge on a Mac.
-    @State private var showChatSettings = false
+    @State var showChatSettings = false
     /// The composer's height, so the floating "Answer now" capsule sits just above it.
-    @State private var composerHeight: CGFloat = 0
-    @State private var showContext = false
-    @State private var showDetails = false
+    @State var composerHeight: CGFloat = 0
+    @State var showContext = false
+    @State var showDetails = false
     #if DEBUG
-    @State private var branchDebugDone = false
+    @State var branchDebugDone = false
     #endif
     /// The sent message being edited, and what the composer held before editing began.
-    @State private var editing: Message?
-    @State private var savedDraft: (text: String, attachments: [ComposerAttachment])?
-    @State private var timeline: TimelineRequest?
-    @State private var compactionNotes: CompactionRecord?
-    @State private var citationItem: SourceListItem?
-    @State private var sourcesItem: SourceListItem?
-    @State private var showRename = false
-    @State private var loadingModels = false
+    @State var editing: Message?
+    @State var savedDraft: (text: String, attachments: [ComposerAttachment])?
+    @State var timeline: TimelineRequest?
+    @State var compactionNotes: CompactionRecord?
+    @State var citationItem: SourceListItem?
+    @State var sourcesItem: SourceListItem?
+    @State var showRename = false
+    @State var loadingModels = false
     /// The model fetch a send is waiting on; cancelled when this chat view goes away.
-    @State private var modelFetch: Task<Void, Never>?
+    @State var modelFetch: Task<Void, Never>?
     /// The add-connection sheet, from the empty chat shown while there is no connection.
-    @State private var showAddConnection = false
+    @State var showAddConnection = false
     /// Where "Add a connection" opens: the presets, or straight into a new connection's editor (first-run shortcuts).
-    @State private var addConnectionStart: ConnectionSetupSheet.Start = .presets
+    @State var addConnectionStart: ConnectionSetupSheet.Start = .presets
     #if DEBUG
-    @State private var debugSelection: String?
-    @State private var debugArtifact: ArtifactRef?
+    @State var debugSelection: String?
+    @State var debugArtifact: ArtifactRef?
     #endif
-    @State private var renameText = ""
-    @State private var confirmDelete = false
+    @State var renameText = ""
+    @State var confirmDelete = false
     #if os(macOS)
-    @State private var composerFocused = false
+    @State var composerFocused = false
     #else
-    @FocusState private var composerFocused: Bool
+    @FocusState var composerFocused: Bool
     #endif
     #if DEBUG
-    @State private var debugViewer = false
+    @State var debugViewer = false
     #endif
 
     // MARK: Selection
 
-    private struct Selection {
+    struct Selection {
         var connectionID: UUID?
         var modelID: String?
         var effort: Effort
     }
 
-    private var selection: Selection {
+    var selection: Selection {
         if let c = conversation { return Selection(connectionID: c.connectionID, modelID: c.modelID, effort: c.effort) }
         let choice = ModelSelection.resolve(connections: connections.connections,
                                             preferredConnectionID: settings.lastConnectionID,
@@ -94,31 +94,31 @@ struct ChatView: View {
     }
 
     /// Persist the auto-selected model so it survives relaunch.
-    private func persistAutoSelection() {
+    func persistAutoSelection() {
         guard conversation == nil, let cid = selection.connectionID, let mid = selection.modelID else { return }
         if settings.lastConnectionID != cid { settings.lastConnectionID = cid }
         if settings.lastModelID != mid { settings.lastModelID = mid }
     }
 
-    private var selectedModel: ModelInfo? {
+    var selectedModel: ModelInfo? {
         let s = selection
         return connections.connection(s.connectionID)?.models.first { $0.id == s.modelID }
     }
 
     /// The selected model as the user sees it: its alias when set, else the real id (requests always use the id).
-    private var selectedModelTitle: String? {
+    var selectedModelTitle: String? {
         let s = selection
         return connections.displayName(connectionID: s.connectionID, modelID: s.modelID)
     }
 
-    private func apply(connectionID: UUID, modelID: String) {
+    func apply(connectionID: UUID, modelID: String) {
         settings.lastConnectionID = connectionID
         settings.lastModelID = modelID
         conversation?.connectionID = connectionID
         conversation?.modelID = modelID
     }
 
-    private func enableImagesForSelectedModel() {
+    func enableImagesForSelectedModel() {
         let sel = selection
         guard var c = connections.connection(sel.connectionID), let i = c.models.firstIndex(where: { $0.id == sel.modelID }) else { return }
         c.models[i].supportsImages = true
@@ -126,27 +126,27 @@ struct ChatView: View {
         connections.upsert(c)
     }
 
-    private func apply(effort: Effort) {
+    func apply(effort: Effort) {
         settings.lastEffort = effort
         conversation?.effort = effort
     }
 
-    private var contextLength: Int {
+    var contextLength: Int {
         (selectedModel?.effectiveContextLength(default: settings.defaultContextLength)) ?? settings.defaultContextLength
     }
 
-    private var contextFraction: Double {
+    var contextFraction: Double {
         guard let used = conversation?.lastUsage?.totalTokens, contextLength > 0 else { return 0 }
         return min(1, Double(used) / Double(contextLength))
     }
 
-    private var citationContext: CitationContext {
+    var citationContext: CitationContext {
         let list = run.map(\.liveSources) ?? conversation?.allSources ?? []
         return CitationContext(sources: Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) }), conversationID: conversation?.id)
     }
 
     /// The chat's citations as one message reads them: its own calls' numbering first (`SourceSnapshots.overlay`).
-    private static func citations(_ context: CitationContext, for message: Message) -> CitationContext {
+    static func citations(_ context: CitationContext, for message: Message) -> CitationContext {
         guard message.role == .assistant else { return context }
         let calls = message.segments.flatMap(\.calls)
         guard calls.contains(where: { $0.sources != nil }) else { return context }
@@ -156,7 +156,7 @@ struct ChatView: View {
     }
 
     /// Every source an answer on the active path read or cited, in order: the Sources sheet's "All" list.
-    private var conversationUsedSources: [SourceInfo] {
+    var conversationUsedSources: [SourceInfo] {
         guard let conversation else { return [] }
         let byID = citationContext.sources
         let known = Set(byID.keys)
@@ -170,9 +170,9 @@ struct ChatView: View {
     }
 
     /// This chat's running (or queued) reply. Other chats' runs are theirs: this view never reads them.
-    private var run: ChatRun? { controller.run(for: conversation) }
+    var run: ChatRun? { controller.run(for: conversation) }
 
-    private var isStreamingHere: Bool { run != nil }
+    var isStreamingHere: Bool { run != nil }
 
     // MARK: Body
 
@@ -335,793 +335,6 @@ struct ChatView: View {
             #endif
     }
 
-    // MARK: Header
-
-    #if os(iOS)
-    private var header: some View {
-        GlassEffectContainer(spacing: DS.Spacing.sm) {
-            HStack(spacing: DS.Spacing.sm) {
-                GlassIconButton(systemName: "line.3.horizontal", label: "Sidebar") { composerFocused = false; onOpenSidebar() }
-                // No title: the chat is what's on the page, and the sidebar and the menu name it (Rename is there).
-                // The model and effort are in the composer's chip.
-                Spacer(minLength: 0)
-                // New chat, the context gauge and the menu share one glass capsule, like a toolbar group.
-                HStack(spacing: 0) {
-                    Button {
-                        composerFocused = false
-                        onNewChat()
-                    } label: {
-                        Image(systemName: "square.and.pencil")
-                            .font(.system(size: DS.IconSize.headerIcon, weight: .medium)) // as the menu's
-                            .frame(width: DS.IconSize.controlDiameter, height: DS.IconSize.controlDiameter)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("New Chat")
-                    Button {
-                        composerFocused = false
-                        showContext = true
-                    } label: {
-                        ContextRing(fraction: conversation?.lastUsage == nil ? nil : contextFraction)
-                            .frame(width: DS.IconSize.controlDiameter, height: DS.IconSize.controlDiameter)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    GlassIconMenuPlain(systemName: "ellipsis", label: "More") { menuContent }
-                }
-                .glassEffect(.regular.interactive(), in: Capsule())
-            }
-            .padding(.horizontal, DS.Spacing.md)
-            .padding(.vertical, DS.Spacing.sm) // 8pt below the 44pt buttons, clear of the blur edge
-        }
-        // Glass under every piece: the list's soft top edge effect only blurs and fades what scrolls by.
-    }
-    #endif
-
-    @ViewBuilder
-    private var menuContent: some View {
-        Button("New Chat", systemImage: "square.and.pencil", action: onNewChat)
-        Divider()
-        if let c = conversation {
-            Button(c.isPinned ? "Unpin" : "Pin", systemImage: c.isPinned ? "pin.slash" : "pin") {
-                c.isPinned.toggle()
-                try? context.save()
-            }
-            Button("Rename", systemImage: "pencil") {
-                renameText = c.displayTitle
-                showRename = true
-            }
-            Button("Regenerate title", systemImage: "wand.and.stars") {
-                controller.autoRename(conversation: c, context: context, force: true)
-            }
-            .disabled(controller.isStreaming(c) || controller.isTitling(c.id))
-            ShareLink(item: c.transcript) { Label("Share as text", systemImage: "square.and.arrow.up") }
-            Button("Summarize now", systemImage: "text.line.first.and.arrowtriangle.forward") {
-                controller.compactNow(conversation: c, context: context)
-            }
-            .disabled(controller.isStreaming(c) || c.activePath.isEmpty)
-            Button("Conversation details", systemImage: "info.circle") { showDetails = true }
-            Button("Delete", systemImage: "trash", role: .destructive) { confirmDelete = true }
-            Divider()
-        }
-        Button("Settings", systemImage: "gearshape", action: onOpenSettings)
-    }
-
-    // MARK: Messages
-
-    private var messages: some View {
-        messageList
-            .overlay {
-                if conversation == nil && connections.connections.isEmpty {
-                    NoConnectionState(onChatGPT: { addConnection(preset: .chatGPT) },
-                                      onAdd: { addConnection() },
-                                      onUseOnDevice: OnDevice.system.availability.isSupported
-                                          ? { connections.addOnDeviceConnection() } : nil)
-                }
-            }
-            .overlay(alignment: .bottom) {
-                if conversation == nil, !connections.connections.isEmpty,
-                   connections.connection(selection.connectionID)?.isAppleOnDevice != true {
-                    StarterPrompts(draft: draft) { composerFocused = true }
-                }
-            }
-            .overlay(alignment: .top) { readyBanner }
-    }
-
-    /// "Reply ready · <chat>" when a reply finishes in a chat that isn't this one.
-    @ViewBuilder
-    private var readyBanner: some View {
-        Group {
-            if let notice = controller.readyNotice, notice.conversationID != conversation?.id {
-                ReplyReadyBanner(title: notice.title) {
-                    controller.dismissReadyNotice(notice.id)
-                    open(notice.conversationID)
-                }
-                .padding(.horizontal, DS.Spacing.page)
-                .padding(.top, DS.Spacing.sm)
-                .transition(.move(edge: .top).combined(with: .opacity))
-                .task(id: notice.id) {
-                    try? await Task.sleep(for: ReplyReadyBanner.lifetime)
-                    guard !Task.isCancelled else { return }
-                    withAnimation(DS.Motion.snappy) { controller.dismissReadyNotice(notice.id) }
-                }
-            }
-        }
-        .animation(DS.Motion.spring, value: controller.readyNotice?.id)
-    }
-
-    private var messageList: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DS.Spacing.xl) {
-                LazyVStack(alignment: .leading, spacing: DS.Spacing.xl) {
-                    if let conversation {
-                        let tree = conversation.treeIndex
-                        let items = conversation.activePath.filter { !$0.isHiddenInTranscript }
-                        let summaries = conversation.compactions(anchoredIn: items)
-                        let citations = citationContext
-                        ForEach(items) { message in
-                            row(message, isLast: message.id == items.last?.id, branch: tree.branch(of: message.id))
-                                .environment(\.citations, Self.citations(citations, for: message))
-                                .id(message.id)
-                                .modifier(PinTopReader(isPinned: message.id == pinnedID, pin: pin))
-                            ForEach(summaries[message.id] ?? []) { record in
-                                CompactionDivider { compactionNotes = record }
-                            }
-                        }
-                        if let run, run.isCompaction {
-                            CompactionStatusRow(start: run.turnStart ?? .now)
-                        }
-                    }
-                }
-                // Outside the lazy stack, so it always exists: scrolling to it from far above works even before the
-                // rows near the end are laid out (a lazy child that far away isn't found, and the scroll did nothing).
-                // The end of the chat sits one gap above the composer, or above "Answer now" while it can show.
-                Color.clear.frame(height: Self.floatingGap + (reservesAnswerNowRoom ? DS.IconSize.capsuleHeight + Self.floatingGap : 0))
-                    .id("bottom")
-                    .onScrollVisibilityChange(threshold: 0.01) { atBottom = $0 } // true scroll position: is the end of the chat on screen?
-                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(PinLayout.space)).minY } action: {
-                        pin.contentEnd = $0
-                        if followsBottom { scrollToEnd() }
-                    }
-                if pinnedID != nil { PinReserve(pin: pin) }
-            }
-            .padding(.horizontal, DS.Spacing.page)
-            .padding(.top, DS.Spacing.md)
-            .coordinateSpace(.named(PinLayout.space))
-            #if os(macOS)
-            .readingColumn()
-            #endif
-        }
-        .scrollPosition($position)
-        // A chat opens at its latest messages. Nothing follows the bottom afterwards: a new answer grows under its
-        // pinned question, and the jump button offers the end once it runs past the screen.
-        .defaultScrollAnchor(.bottom, for: .initialOffset)
-        .onScrollGeometryChange(for: PinLayout.Viewport.self) { g in
-            PinLayout.Viewport(height: g.containerSize.height - g.contentInsets.top - g.contentInsets.bottom,
-                               visibleBottom: g.visibleRect.maxY - g.contentInsets.bottom)
-        } action: { _, v in
-            pin.viewport = v.height
-            pin.visibleBottom = v.visibleBottom
-        }
-        .onScrollPhaseChange { old, new in
-            if new == .interacting { followsBottom = false; jumpRetry?.cancel() } // a drag hands the position back to the user
-            // The user scrolled: once the room under the answer is out of view it can go without moving anything.
-            guard pinnedID != nil, new == .idle, old == .interacting || old == .decelerating else { return }
-            if pin.reserveOutOfView { pinnedID = nil }
-        }
-        .scrollDismissesKeyboard(.interactively)
-        .scrollEdgeEffectStyle(.soft, for: .top)
-        .scrollEdgeEffectStyle(.soft, for: .bottom)
-        #if os(iOS)
-        .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
-        #endif
-        .background(theme.background.ignoresSafeArea())
-        .environment(\.citations, citationContext)
-        .environment(\.openURL, OpenURLAction { url in
-            let ids = CitationParser.ids(from: url)
-            guard !ids.isEmpty else {
-                guard InAppBrowser.isWeb(url) else { return .systemAction }
-                InAppBrowser.present(url)
-                return .handled
-            }
-            let known = citationContext.sources
-            let list = ids.compactMap { known[$0] }
-            if !list.isEmpty { citationItem = SourceListItem(sources: list) }
-            return .handled
-        })
-    }
-
-    /// Saved calls plus calls finished in the running round, each id once.
-    static func liveCalls(_ saved: [ToolCallRecord], inRound: [ToolCallRecord]) -> [ToolCallRecord] {
-        let known = Set(saved.map(\.id))
-        return saved + inRound.filter { !known.contains($0.id) }
-    }
-
-    @ViewBuilder
-    private func row(_ message: Message, isLast: Bool, branch: BranchPosition?) -> some View {
-        switch message.role {
-        case .user:
-            MessageBubble(text: message.text, images: ThumbnailBackfill.thumbnails(for: message),
-                          branch: branch, branchEnabled: !isStreamingHere,
-                          onSwitchBranch: { switchBranch(message, by: $0) },
-                          onCopy: { Pasteboard.copy(message.text) },
-                          onEdit: isStreamingHere ? nil : { beginEdit(message) },
-                          isEditing: editing?.id == message.id)
-                .modifier(SendFlyIn(active: message.id == flyingID))
-        case .assistant:
-            let live = run.flatMap { $0.messageID == message.id ? $0 : nil }
-            let active = live != nil
-            let translation = controller.translation.ui(for: message, isStreaming: active)
-            let shownText = translation.showing ? (translation.translatedText ?? message.text) : message.text
-            let segments = message.segments // decoded once per stored value
-            AssistantMessage(
-                content: AssistantContent(
-                    thinkingSeconds: message.thinkingSeconds,
-                    calls: Self.liveCalls(segments.flatMap(\.calls), inRound: live?.roundRecords ?? []),
-                    segments: segments,
-                    pending: live?.pendingCalls ?? [],
-                    roundRequested: live?.roundRequested ?? [],
-                    roundFinished: live?.roundRecords ?? [],
-                    isStreaming: active,
-                    phase: live?.phase ?? .idle,
-                    waiting: live.flatMap { ToolWaits.shared.reason(among: $0.pendingCalls.map(\.id), conversation: $0.conversationID) },
-                    turnStart: live?.turnStart,
-                    errorText: message.errorText,
-                    errorNeedsSettings: message.errorNeedsSettings,
-                    errorManagesUsage: message.errorManagesUsage,
-                    stopped: message.stoppedByUser,
-                    canRegenerate: isLast && !isStreamingHere,
-                    translation: translation,
-                    cutForEarlyAnswer: message.cutForEarlyAnswer,
-                    answeredEarly: message.answeredEarly,
-                    offersSkill: isLast && controller.skillOfferMessageID(for: conversation) == message.id),
-                render: controller.renderState(for: message),
-                onOpenTimeline: { timeline = TimelineRequest(message: message, showsTools: true) },
-                onOpenReasoning: { timeline = TimelineRequest(message: message, showsTools: true) },
-                onOpenSources: { sourcesItem = SourceListItem(sources: $0, all: conversationUsedSources) },
-                onCopy: { Pasteboard.copy(MarkdownPlain.text(from: MessageLayout.fullText(segments: segments, answer: shownText))) },
-                onRegenerate: {
-                    if let c = conversation { controller.regenerate(conversation: c, context: context); pinLatestQuestion() }
-                },
-                onOpenSettings: onOpenSettings,
-                onCopyRaw: { Pasteboard.copy(MessageLayout.fullText(segments: segments, answer: shownText)) },
-                textForSelection: { MarkdownPlain.text(from: MessageLayout.fullText(segments: segments, answer: shownText)) },
-                onTranslate: { controller.translation.translate(message, context: context, isStreaming: active) },
-                onToggleTranslation: { controller.translation.toggle(message, context: context) },
-                branch: branch,
-                branchEnabled: !isStreamingHere,
-                onSwitchBranch: { switchBranch(message, by: $0) },
-                onSaveSkill: {
-                    if let c = conversation { controller.saveAsSkill(conversation: c, context: context) }
-                },
-                onDismissSkillOffer: { if let c = conversation { controller.dismissSkillOffer(c) } })
-            .environment(\.openUIHost, OpenUIHost(
-                messageID: message.id,
-                isInteractive: OpenUIChat.isInteractive(isLast: isLast, conversation: conversation, controller: controller),
-                isStreaming: active, saved: message.openUIStates,
-                send: { block, submission in sendFromView(message, block: block, submission: submission) }))
-            .modifier(AfterSendFlyIn(active: message.parentID != nil && message.parentID == flyingID))
-        }
-    }
-
-    /// Adds photos to the composer and makes their thumbnails in the background.
-    private func addAttachments(_ jpegs: [Data]) {
-        for jpeg in jpegs {
-            let attachment = ComposerAttachment(id: UUID(), jpeg: jpeg)
-            draft.attachments.append(attachment)
-            Task {
-                let thumbnail = await Task.detached(priority: .utility) { ImageProcessor.thumbnailData(from: jpeg) }.value
-                if let i = draft.attachments.firstIndex(where: { $0.id == attachment.id }) { draft.attachments[i].thumbnail = thumbnail }
-            }
-        }
-    }
-
-    // MARK: Branches and editing
-
-    private func switchBranch(_ message: Message, by offset: Int) {
-        guard !isStreamingHere, let conversation else { return }
-        cancelEdit()
-        if conversation.switchBranch(of: message, by: offset) { try? context.save() }
-    }
-
-    /// Puts a sent message back into the composer; sending creates a sibling and leaves the old branch in place.
-    private func beginEdit(_ message: Message) {
-        guard !isStreamingHere else { return }
-        if editing == nil { savedDraft = (draft.text, draft.attachments) }
-        editing = message
-        draft.text = message.text
-        draft.attachments = message.sortedAttachments.map { ComposerAttachment(id: UUID(), jpeg: $0.jpegData, thumbnail: $0.thumbnailData) }
-        composerFocused = true
-    }
-
-    /// Leaves edit mode and puts back what was in the composer before it began.
-    private func cancelEdit() {
-        guard editing != nil else { return }
-        editing = nil
-        if let saved = savedDraft { draft.text = saved.text; draft.attachments = saved.attachments }
-        savedDraft = nil
-    }
-
-    /// One gap between the chat, the floating controls ("Answer now", the jump button) and the composer.
-    static let floatingGap = DS.Spacing.lg
-
-    /// "Answer now" can appear for this chat's running turn: the end of the chat leaves it room.
-    private var reservesAnswerNowRoom: Bool {
-        run?.canAnswerNow ?? false
-    }
-
-    private var jumpButton: some View {
-        Group {
-            if !atBottom && conversation != nil {
-                GlassIconButton(systemName: "arrow.down", label: "Jump to bottom", diameter: DS.IconSize.compactControlDiameter,
-                                iconSize: DS.IconSize.composerIcon) {
-                    jumpToBottom()
-                }
-                .padding(.bottom, Self.floatingGap)
-                .transition(.scale.combined(with: .opacity))
-            }
-        }
-        .animation(DS.Motion.snappy, value: atBottom)
-    }
-
-    /// Scrolls to the end and keeps it there while the answer grows. Rows above the end are laid out lazily from
-    /// estimated heights, so one scroll can stop short: it tries again until the end is on screen.
-    private func jumpToBottom() {
-        // The end isn't on screen, so neither is the room under a pinned question: dropping it moves nothing.
-        pinnedID = nil
-        followsBottom = true
-        // A short way animates; a long one jumps, since an animated scroll across rows the lazy stack hasn't laid out
-        // draws them blank on the way.
-        if pin.contentEnd - pin.visibleBottom < pin.viewport * 2 {
-            withAnimation(DS.Motion.spring) { scrollToEnd() }
-        } else {
-            scrollToEnd()
-        }
-        jumpRetry?.cancel()
-        jumpRetry = Task { @MainActor in
-            for _ in 0..<6 {
-                try? await Task.sleep(for: .milliseconds(300))
-                guard !Task.isCancelled, followsBottom, !atBottom else { return }
-                scrollToEnd()
-            }
-        }
-    }
-
-    /// The end of the chat. The same scroll asked twice is the same `ScrollPosition` value, which SwiftUI may ignore,
-    /// so the anchor alternates by a hair. (Scrolling to the bottom edge instead jumps past rows the lazy stack hasn't
-    /// laid out yet, and the screen stays blank until the next scroll.)
-    private func scrollToEnd() {
-        pin.endAnchorFlip.toggle()
-        position.scrollTo(id: "bottom", anchor: pin.endAnchorFlip ? .bottom : UnitPoint(x: 0.5, y: 0.999))
-    }
-
-    /// Holds the question being answered at the top: room is reserved under it, then one animated scroll puts it there.
-    /// Used for a send, an edit and a regenerate.
-    private func pinLatestQuestion() {
-        guard let id = conversation?.activePath.last(where: { $0.role == .user && !$0.isHiddenInTranscript })?.id else { return }
-        pinnedID = id
-        followsBottom = false
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(60)) // the row and the room under it are laid out first
-            guard pinnedID == id else { return }
-            withAnimation(DS.Motion.spring) { position.scrollTo(id: id, anchor: .top) }
-        }
-    }
-
-    // MARK: Composer
-
-    /// Opens another chat (the "Reply ready" banner).
-    private func open(_ id: UUID) {
-        let descriptor = FetchDescriptor<Conversation>(predicate: #Predicate { $0.id == id })
-        if let other = try? context.fetch(descriptor).first { conversation = other }
-    }
-
-    private var composer: some View {
-        ComposerHost(
-            draft: draft,
-            isStreaming: isStreamingHere,
-            isBusy: isStreamingHere || loadingModels,
-            loadingModels: loadingModels,
-            plusDimmed: !(selectedModel?.supportsImages ?? false),
-            onAttach: attach,
-            toolSwitches: toolSwitchItems,
-            onToolSwitch: setTool,
-            commands: PackageCommandItem.all(controller.packages),
-            onSend: { send() },
-            onStop: { if let c = conversation { controller.stop(c) } },
-            onCancelEdit: editing == nil ? nil : { withAnimation(DS.Motion.snappy) { cancelEdit() } },
-            onPasteImages: pasteHandler,
-            accessory: { settingsButton },
-            isFocused: $composerFocused)
-        #if os(macOS)
-        .readingColumn()
-        #endif
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { composerHeight = $0 }
-    }
-
-    /// The "+" menu's toggles: this chat's switches, or a new chat's (the defaults until changed). Only the views for
-    /// a model without tools; only the web for Apple's on-device model, whose tools are web search and fetch.
-    private var toolSwitchItems: [ComposerToolSwitch] {
-        let groups: [ToolGroup] = if connections.connection(selection.connectionID)?.isAppleOnDevice == true { [.web] }
-            else if selectedModel?.supportsTools ?? true { ToolGroup.supported }
-            else { [.views] }
-        let on = conversation.map { controller.toolSwitches($0) } ?? newChatTools ?? settings.defaultToolGroups
-        let items = groups.map { ComposerToolSwitch(id: $0.rawValue, title: $0.title, systemImage: $0.systemImage, isOn: on.contains($0)) }
-        // Packages that add something to chats, by name, below the groups (not for a model without tools or on device).
-        guard groups.count > 1 else { return items }
-        let _ = PackagesVersion.shared.value
-        let packagesOn = conversation.map { controller.packageSwitches($0) } ?? newChatPackages ?? controller.defaultPackages(groups: on)
-        let packages = controller.packages.all.filter(\.addsToChats).sorted { $0.name.localizedCompare($1.name) == .orderedAscending }
-        return items + packages.map {
-            ComposerToolSwitch(id: ToolSwitch.packagePrefix + $0.id, title: $0.name, systemImage: PackageToolNames.icon, isOn: packagesOn.contains($0.id))
-        }
-    }
-
-    /// Applies from the next message.
-    private func setTool(_ item: ComposerToolSwitch, on: Bool) {
-        if item.id.hasPrefix(ToolSwitch.packagePrefix) {
-            let id = String(item.id.dropFirst(ToolSwitch.packagePrefix.count))
-            if let conversation {
-                controller.setPackage(id, on: on, conversation: conversation)
-                try? context.save()
-            } else {
-                var tools = newChatTools ?? settings.defaultToolGroups
-                var packages = newChatPackages ?? controller.defaultPackages(groups: tools)
-                controller.applyPackage(id, on: on, groups: &tools, packages: &packages)
-                newChatTools = tools
-                newChatPackages = packages
-            }
-            return
-        }
-        guard let group = ToolGroup(rawValue: item.id) else { return }
-        if let conversation {
-            controller.setTool(group, on: on, conversation: conversation)
-            try? context.save()
-        } else {
-            var tools = newChatTools ?? settings.defaultToolGroups
-            if on { tools.insert(group) } else { tools.remove(group) }
-            newChatTools = tools
-        }
-    }
-
-    /// "Answer now", floating just above the composer while this chat's turn runs tool rounds. An overlay, so feed
-    /// cards arriving never move it.
-    @ViewBuilder
-    private var answerNowCapsule: some View {
-        if let conversation, let run, run.canAnswerNow,
-           let message = conversation.messages.first(where: { $0.id == run.messageID }) {
-            let saved = message.segments.flatMap(\.calls).filter { $0.name == ToolNames.webSearch }.count
-            let running = run.roundRequested.filter { $0.name == ToolNames.webSearch }.count
-            AnswerNowCapsule(start: run.turnStart ?? .now, completedToolRounds: run.completedToolRounds,
-                             searches: saved + running, phase: run.phase) { controller.answerNow(conversation) }
-        }
-    }
-
-    /// The model and effort chip: tap for the chat settings (models, then Effort).
-    private var settingsButton: some View {
-        let style = connections.connection(selection.connectionID)?.effortStyle ?? .tokenCaps
-        let levels = selectedModel?.effortLevels(style) ?? []
-        return ModelSettingsButton(
-            model: selectedModelTitle ?? String(localized: "Choose a model"),
-            effort: levels.isEmpty ? nil : selection.effort.resolved(in: levels).title,
-            action: { composerFocused = false; showChatSettings = true })
-        #if os(macOS)
-        .popover(isPresented: $showChatSettings, arrowEdge: .top) { chatSettings }
-        #endif
-    }
-
-    private var chatSettings: some View {
-        let s = selection
-        return ModelPickerSheet(
-            selectedConnectionID: s.connectionID, selectedModelID: s.modelID, effort: s.effort,
-            onSelectModel: apply(connectionID:modelID:),
-            onSelectEffort: apply(effort:),
-            onOpenSettings: { showChatSettings = false; onOpenSettings() },
-            onAddConnection: { showChatSettings = false; addConnection() })
-    }
-
-    /// Opens "Add a connection": on the presets, or with `preset` already picked and its editor open.
-    private func addConnection(preset: ConnectionPreset? = nil) {
-        composerFocused = false
-        if let preset {
-            let new = preset.makeConnection()
-            connections.upsert(new)
-            addConnectionStart = .editor(new.id)
-        } else {
-            addConnectionStart = .presets
-        }
-        showAddConnection = true
-    }
-
-    private var pasteHandler: (([Data]) -> Void)? {
-        #if os(macOS)
-        pasteImages
-        #else
-        nil
-        #endif
-    }
-
-    #if os(macOS)
-    /// Images pasted into the composer (Mac): resized like any other attachment, if the model can read them.
-    private func pasteImages(_ images: [Data]) {
-        guard selectedModel?.supportsImages ?? false else { showNoImageSupport = true; return }
-        Task {
-            var out: [Data] = []
-            for data in images {
-                if let jpeg = await Task.detached(operation: { ImageProcessor.jpegData(from: data) }).value { out.append(jpeg) }
-            }
-            if !out.isEmpty { addAttachments(out) }
-        }
-    }
-    #endif
-
-    private func attach() {
-        composerFocused = false
-        #if os(macOS)
-        if selectedModel?.supportsImages ?? false { showAttach = true } else { showNoImageSupport = true }
-        #else
-        showAttach = true
-        #endif
-    }
-
-    #if os(macOS)
-    /// The Chat menu's Regenerate and Copy Last Answer act on this chat.
-    private func installMenuActions() {
-        guard let c = conversation, let last = c.activePath.last, last.role == .assistant else {
-            WindowActions.shared.regenerate = nil
-            WindowActions.shared.copyLastAnswer = nil
-            return
-        }
-        WindowActions.shared.regenerate = { [controller, context] in
-            guard !controller.isStreaming(c) else { return }
-            controller.regenerate(conversation: c, context: context)
-        }
-        WindowActions.shared.copyLastAnswer = { Pasteboard.copy(MarkdownPlain.text(from: last.text)) }
-    }
-    #endif
-
-    /// No model to send with while a connection that can list models has none yet (right after install, before the
-    /// launch fetch is back, or after it failed).
-    private var needsModelList: Bool {
-        guard (conversation == nil ? selection.modelID : conversation?.modelID) == nil else { return false }
-        return connections.connections.contains { c in
-            c.models.isEmpty && (connections.apiKey(for: c.id) != nil || connections.isChatGPTSignedIn(c.id)
-                                 || connections.isOpenCodeSignedIn(c.id))
-        }
-    }
-
-    private func send(afterFetch: Bool = false) {
-        // Nothing is cleared or created unless the controller will take it. Other chats' replies don't matter: with
-        // every slot taken, this one waits its turn.
-        guard !isStreamingHere, !loadingModels, draft.canSend else { return }
-        // Fetch the model list first, then send: the draft stays in the composer meanwhile. If no model comes, the
-        // send goes on and the chat says what's missing.
-        if !afterFetch, needsModelList {
-            loadingModels = true
-            let origin = conversation?.id
-            modelFetch = Task { @MainActor in
-                for c in connections.connections where c.models.isEmpty {
-                    _ = try? await connections.refreshModels(for: c.id)
-                }
-                loadingModels = false
-                // The binding follows the sidebar: a draft typed here never goes into a chat opened meanwhile.
-                guard !Task.isCancelled, conversation?.id == origin else { return }
-                send(afterFetch: true)
-            }
-            return
-        }
-        let sel = selection
-        let target: Conversation
-        if let existing = conversation {
-            target = existing
-            // A chat made while there was no model takes the one there is now.
-            if existing.modelID == nil, let choice = ModelSelection.resolve(connections: connections.connections,
-                                                                         preferredConnectionID: settings.lastConnectionID,
-                                                                         preferredModelID: settings.lastModelID) {
-                existing.connectionID = choice.connectionID
-                existing.modelID = choice.modelID
-            }
-        } else {
-            target = Conversation(connectionID: sel.connectionID, modelID: sel.modelID, effort: sel.effort)
-            if let newChatPackages {
-                target.setSwitches(groups: newChatTools ?? settings.defaultToolGroups, packages: newChatPackages)
-            } else {
-                target.toolSwitches = newChatTools
-            }
-            newChatTools = nil
-            newChatPackages = nil
-            context.insert(target)
-            conversation = target
-        }
-        let text = draft.text
-        let images = draft.attachments.map(\.jpeg)
-        let thumbnails = draft.attachments.map(\.thumbnail)
-        let edited = editing
-        draft.text = ""
-        draft.attachments = []
-        if edited != nil { // the composer goes back to what it held before the edit
-            editing = nil
-            if let saved = savedDraft { draft.text = saved.text; draft.attachments = saved.attachments }
-            savedDraft = nil
-        }
-        controller.send(text: text, images: images, thumbnails: thumbnails, conversation: target, context: context, editing: edited)
-        let sent = target.activePath.last { $0.role == .user && !$0.isHiddenInTranscript }?.id
-        flyingID = sent
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1))
-            if flyingID == sent { flyingID = nil } // a row laid out again later doesn't fly a second time
-        }
-        pinLatestQuestion()
-    }
-
-    /// A button, choice or form in an answer's interactive view: what was chosen is saved on the answer, and the
-    /// follow-up goes out like a typed message (the composer's draft stays as it is).
-    private func sendFromView(_ message: Message, block: Int, submission: OUISubmission) {
-        guard let conversation,
-              OpenUIChat.send(submission, block: block, from: message, in: conversation, controller: controller, context: context)
-        else { return }
-        pinLatestQuestion()
-    }
-
-    #if DEBUG
-    private func debugTimeline() async {
-        if DebugHooks.value("StrataDebugBranch") != nil {
-            if run == nil, !branchDebugDone, conversation?.leafMessage?.role == .assistant {
-                branchDebugDone = true
-                Task { await debugBranching() } // not tied to this task: it is cancelled when the turn starts
-            }
-            return
-        }
-        guard let sheet = DebugHooks.openSheet, sheet.hasPrefix("timeline") || ["usage", "context", "rename", "selecttext", "regentitle", "artifact", "details", "compaction", "summarize", "translate"].contains(sheet) else { return }
-        if sheet == "translate" { // translates the first answer once it is in
-            if run == nil, !branchDebugDone, let m = conversation?.leafMessage, m.role == .assistant {
-                branchDebugDone = true
-                controller.translation.translate(m, context: context)
-            }
-            return
-        }
-        if sheet == "compaction" {
-            if run == nil, let r = conversation?.sortedCompactions.last { compactionNotes = r }
-            return
-        }
-        if sheet == "summarize" { // "Summarize now" once the first answer is in
-            if run == nil, !branchDebugDone, let c = conversation, c.leafMessage?.role == .assistant {
-                branchDebugDone = true
-                controller.compactNow(conversation: c, context: context)
-            }
-            return
-        }
-        if sheet == "rename" {
-            if run == nil, let c = conversation, c.messages.contains(where: { $0.role == .assistant }) {
-                renameText = "score가 NULL인 행은 어떻게 처리되는지 SQL 집계 함수 동작 정리"
-                showRename = true
-            }
-            return
-        }
-        if sheet == "regentitle" { // "Regenerate title" once the first answer is named
-            if run == nil, !branchDebugDone, let c = conversation, c.leafMessage?.role == .assistant {
-                branchDebugDone = true
-                try? await Task.sleep(for: .seconds(3)) // past the automatic title
-                guard !controller.isTitling(c.id) else { return }
-                controller.autoRename(conversation: c, context: context, force: true)
-            }
-            return
-        }
-        if sheet == "artifact" { // the chat's newest artifact, once the answer is in
-            if run == nil, debugArtifact == nil, let c = conversation,
-               let a = ArtifactStore.shared.artifacts(conversationID: c.id).max(by: { $0.updated < $1.updated }) {
-                debugArtifact = ArtifactRef(conversationID: c.id, id: a.id, title: a.title, version: a.version)
-            }
-            return
-        }
-        if sheet == "selecttext" {
-            if run == nil, debugSelection == nil, let m = conversation?.leafMessage, m.role == .assistant {
-                debugSelection = MarkdownPlain.text(from: m.text)
-            }
-            return
-        }
-        if sheet == "details" {
-            if run == nil, conversation != nil { showDetails = true }
-            return
-        }
-        if sheet == "usage" || sheet == "context" {
-            if run == nil, conversation?.messages.contains(where: { $0.role == .assistant }) == true { showContext = true }
-            return
-        }
-        if sheet == "timelinelive" {
-            guard let id = run?.messageID else { return }
-            try? await Task.sleep(for: .seconds(2.5))
-            timeline = conversation?.messages.first { $0.id == id }.map { TimelineRequest(message: $0, showsTools: true) }
-        } else if run == nil {
-            timeline = conversation?.messages.filter { $0.role == .assistant }.max { $0.sortIndex < $1.sortIndex }
-                .map { TimelineRequest(message: $0, showsTools: sheet != "timelinereasoning") }
-        }
-    }
-    #endif
-
-    #if DEBUG
-    /// `-StrataDebugBranch switch`: edits the first question and regenerates the answer, so the switchers show.
-    /// `-StrataDebugBranch editbar`: puts the first question into the composer in edit mode.
-    private func debugBranching() async {
-        guard let mode = DebugHooks.value("StrataDebugBranch"), let c = conversation,
-              let first = c.activePath.first(where: { $0.role == .user }) else { return }
-        func settle() async {
-            for _ in 0..<200 {
-                try? await Task.sleep(for: .milliseconds(200))
-                if !isStreamingHere { break }
-            }
-        }
-        if mode == "editbar" { beginEdit(first); return }
-        controller.send(text: "An edited version of the first question", images: [], conversation: c, context: context, editing: first)
-        await settle()
-        controller.regenerate(conversation: c, context: context)
-        await settle()
-    }
-    #endif
-
-    private func debugActions() async {
-        #if DEBUG
-        func openRequestedSheet() {
-            switch DebugHooks.openSheet {
-            case "usage" where conversation != nil: showContext = true
-            case "model", "chatsettings": showChatSettings = true
-            case "settings", "diagnostics", "licenses", "connection", "health", "icloud": onOpenSettings()
-            case "attach": showAttach = true
-            case "code": debugViewer = true
-            default: break
-            }
-        }
-        if DebugHooks.autoPickRecent {
-            showAttach = true
-            try? await Task.sleep(for: .seconds(4)) // the strip picks a photo and the sheet closes
-            if let text = DebugHooks.autoSend { draft.text = text; send() }
-            return
-        }
-        if let text = DebugHooks.autoSend, conversation == nil, !DebugHooks.autoSendFired {
-            DebugHooks.autoSendFired = true // New Chat later must not send it again
-            try? await Task.sleep(for: .seconds(1.5))
-            // `-StrataAutoSendRepeat N` sends it N times, each after the last answer, for a long chat.
-            let times = max(1, DebugHooks.value("StrataAutoSendRepeat").flatMap(Int.init) ?? 1)
-            for _ in 0..<times {
-                draft.text = text
-                send()
-                for _ in 0..<200 {
-                    try? await Task.sleep(for: .milliseconds(200))
-                    if !isStreamingHere { break }
-                }
-                try? await Task.sleep(for: .seconds(1))
-            }
-            // `-StrataDebugJump 1`: scroll to the top, then press the jump button.
-            if DebugHooks.value("StrataDebugJump") != nil {
-                position.scrollTo(edge: .top)
-                try? await Task.sleep(for: .seconds(3))
-                jumpToBottom()
-                // How long the main thread stalls while the jump lays the rows out (printed for smoke runs).
-                let clock = ContinuousClock()
-                var last = clock.now, worst = Duration.zero
-                let end = last + .seconds(4)
-                while clock.now < end {
-                    try? await Task.sleep(for: .milliseconds(16))
-                    worst = max(worst, clock.now - last)
-                    last = clock.now
-                }
-                print("StrataDebugJump worst main-thread gap:", worst, "atBottom:", atBottom)
-            }
-        } else if DebugHooks.autoSend != nil {
-            return
-        } else {
-            try? await Task.sleep(for: .seconds(1))
-        }
-        openRequestedSheet()
-        if let text = DebugHooks.value("StrataDraft") { draft.text = text }
-        #if os(iOS)
-        if let n = DebugHooks.value("StrataOpenMenu").flatMap(Int.init) {
-            try? await Task.sleep(for: .seconds(1.5))
-            DebugHooks.presentMenu(index: n)
-        }
-        #endif
-        #endif
-    }
 }
 
 /// The Timeline sheet for a message: everything, or the reasoning alone.
@@ -1137,250 +350,3 @@ struct SourceListItem: Identifiable {
     var all: [SourceInfo] = []
     var id: String { sources.map { String($0.id) }.joined(separator: ",") }
 }
-
-/// The composer's text and attachments. Observable and separate from `ChatView` on purpose.
-@MainActor
-@Observable
-final class ComposerDraft {
-    var text = ""
-    var attachments: [ComposerAttachment] = []
-
-    /// Sending is allowed whenever there is something to send; missing key or model is reported inline.
-    var canSend: Bool {
-        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty
-    }
-}
-
-/// Things to try, over the first new chat: tapping one puts it in the composer. Gone once there is a chat, or while
-/// the composer has text. Reads the draft itself, like the composer, so `ChatView` doesn't re-render per keystroke.
-private struct StarterPrompts: View {
-    @Environment(\.theme) private var theme
-    @Bindable var draft: ComposerDraft
-    let onPick: () -> Void
-    @Query(Self.anyChat) private var chats: [Conversation]
-
-    private static var anyChat: FetchDescriptor<Conversation> {
-        var descriptor = FetchDescriptor<Conversation>()
-        descriptor.fetchLimit = 1
-        return descriptor
-    }
-
-    private static let prompts: [LocalizedStringResource] = [
-        "Weather in Lisbon vs Athens next week",
-        "Chart $500 a month at 6% for 30 years",
-        "Quiet cafés near me, on a map",
-        "Find flights to Tokyo next month",
-    ]
-
-    var body: some View {
-        if chats.isEmpty && draft.text.isEmpty {
-            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                Text("Try asking")
-                    .font(DS.Typography.uiSmall)
-                    .foregroundStyle(theme.textSecondary)
-                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                    ForEach(Self.prompts.indices, id: \.self) { i in
-                        let prompt = Self.prompts[i]
-                        Button {
-                            draft.text = String(localized: prompt)
-                            onPick()
-                        } label: {
-                            Text(prompt)
-                                .font(DS.Typography.ui)
-                                .foregroundStyle(theme.textPrimary)
-                                .multilineTextAlignment(.leading)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(.horizontal, DS.Spacing.md)
-                                .padding(.vertical, DS.Spacing.sm)
-                        }
-                        .buttonStyle(.plain)
-                        .glassEffect(.regular.interactive(), in: Capsule())
-                    }
-                }
-            }
-            .frame(maxWidth: 560, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, DS.Spacing.page)
-            .padding(.bottom, DS.Spacing.md)
-            .transition(.opacity)
-        }
-    }
-}
-
-/// Reads the draft so `ChatView` does not: a keystroke re-renders only the composer.
-private struct ComposerHost<Accessory: View>: View {
-    @Bindable var draft: ComposerDraft
-    let isStreaming: Bool
-    let isBusy: Bool
-    /// The model list is being fetched before a send (`ChatView.send`).
-    var loadingModels = false
-    let plusDimmed: Bool
-    let onAttach: () -> Void
-    var toolSwitches: [ComposerToolSwitch] = []
-    var onToolSwitch: (ComposerToolSwitch, Bool) -> Void = { _, _ in }
-    /// Package commands, offered while the draft is a `/` word.
-    var commands: [PackageCommandItem] = []
-    let onSend: () -> Void
-    let onStop: () -> Void
-    var onCancelEdit: (() -> Void)?
-    var onPasteImages: (([Data]) -> Void)?
-    @ViewBuilder let accessory: () -> Accessory
-    #if os(macOS)
-    var isFocused: Binding<Bool>
-    #else
-    var isFocused: FocusState<Bool>.Binding
-    #endif
-
-    var body: some View {
-        VStack(spacing: DS.Spacing.sm) {
-            let matches = PackageCommandItem.matches(commands, draft: draft.text)
-            if !matches.isEmpty {
-                PackageCommandList(commands: matches) { draft.text = $0.template.expanded() }
-                    .transition(.opacity)
-            }
-            composer
-        }
-    }
-
-    private var composer: some View {
-        ComposerBar(
-            text: $draft.text,
-            attachments: draft.attachments,
-            placeholder: "Message",
-            isStreaming: isStreaming,
-            canSend: draft.canSend && !isBusy,
-            plusDimmed: plusDimmed,
-            onAttach: onAttach,
-            toolSwitches: toolSwitches,
-            onToolSwitch: onToolSwitch,
-            onRemoveAttachment: { id in draft.attachments.removeAll { $0.id == id } },
-            onCancelEdit: onCancelEdit,
-            onPasteImages: onPasteImages,
-            notice: loadingModels ? "Loading models…" : nil,
-            onSend: onSend,
-            onStop: onStop,
-            accessory: accessory,
-            isFocused: isFocused)
-    }
-}
-
-/// Geometry for pinning a question to the top while its answer streams. A reference type written from geometry
-/// callbacks and read only by `PinReserve`, so neither scrolling nor a growing answer re-evaluates the chat.
-@MainActor
-@Observable
-final class PinLayout {
-    static let space = "chatContent"
-
-    struct Viewport: Equatable { var height: CGFloat; var visibleBottom: CGFloat }
-
-    /// Top of the pinned question and end of the transcript, in content coordinates.
-    var pinnedTop: CGFloat = 0
-    var contentEnd: CGFloat = 0
-    /// The visible height (between the header and the composer).
-    var viewport: CGFloat = 0
-    @ObservationIgnored var visibleBottom: CGFloat = 0
-    /// Alternates the end scroll's anchor, so asking again is a new value and never a no-op (`ChatView.scrollToEnd`).
-    @ObservationIgnored var endAnchorFlip = false
-
-    /// Room under the transcript so the pinned question can sit at the top of the screen.
-    var reserve: CGFloat { Self.reserve(viewport: viewport, pinnedTop: pinnedTop, contentEnd: contentEnd) }
-
-    nonisolated static func reserve(viewport: CGFloat, pinnedTop: CGFloat, contentEnd: CGFloat) -> CGFloat {
-        max(0, viewport - (contentEnd - pinnedTop))
-    }
-
-    /// Nothing of the reserved room is on screen, so dropping it moves nothing.
-    var reserveOutOfView: Bool { reserve <= 0 || visibleBottom <= contentEnd + 1 }
-}
-
-/// Measures the pinned question's top.
-private struct PinTopReader: ViewModifier {
-    let isPinned: Bool
-    let pin: PinLayout
-
-    func body(content: Content) -> some View {
-        if isPinned {
-            content.onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(PinLayout.space)).minY } action: { pin.pinnedTop = $0 }
-        } else {
-            content
-        }
-    }
-}
-
-/// The room under a pinned question's answer. It shrinks as the answer grows into it, never by a jump.
-private struct PinReserve: View {
-    let pin: PinLayout
-    var body: some View { Color.clear.frame(height: pin.reserve).accessibilityHidden(true) }
-}
-
-/// A sent question's bubble rises from the composer into its place, like a sent iMessage: it starts lower, a little
-/// smaller and faint, and springs up as the chat scrolls the question to the top.
-private struct SendFlyIn: ViewModifier {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    let active: Bool
-    @State private var settled: Bool
-
-    init(active: Bool) {
-        self.active = active
-        _settled = State(initialValue: !active)
-    }
-
-    func body(content: Content) -> some View {
-        content
-            .scaleEffect(settled ? 1 : 0.9, anchor: .bottomTrailing)
-            .offset(y: settled ? 0 : 140)
-            .opacity(settled ? 1 : 0.3)
-            .onAppear {
-                guard !settled else { return }
-                if reduceMotion { settled = true; return }
-                withAnimation(.spring(response: 0.42, dampingFraction: 0.78)) { settled = true }
-            }
-    }
-}
-
-/// The reply under a question that is flying in waits for it to land, so "Thinking" doesn't show up while the bubble
-/// is still on its way.
-private struct AfterSendFlyIn: ViewModifier {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    let active: Bool
-    @State private var shown: Bool
-
-    init(active: Bool) {
-        self.active = active
-        _shown = State(initialValue: !active)
-    }
-
-    func body(content: Content) -> some View {
-        content
-            .opacity(shown ? 1 : 0)
-            .onAppear {
-                guard !shown else { return }
-                if reduceMotion { shown = true; return }
-                withAnimation(.easeOut(duration: 0.2).delay(0.4)) { shown = true }
-            }
-    }
-}
-
-#if DEBUG
-/// `-StrataOpenSheet artifact` presents one by its ref.
-extension ArtifactRef: Identifiable {}
-
-/// The sheets `-StrataOpenSheet` opens for screenshots, kept apart from the chat's own modifier chain (a long chain
-/// makes the type checker give up).
-private struct DebugSheets: ViewModifier {
-    @Binding var viewer: Bool
-    @Binding var selection: String?
-    @Binding var artifact: ArtifactRef?
-
-    func body(content: Content) -> some View {
-        content
-            .fullScreenCoverOrSheet(isPresented: $viewer) {
-                CodeViewer(content: .init(language: "swift", code: (1...60).map { "let step\($0) = configure(glassEffect: .regular, id: \($0)) // long line to scroll" }.joined(separator: "\n"))).inAppLinks()
-            }
-            .sheet(isPresented: Binding(get: { selection != nil }, set: { if !$0 { selection = nil } })) {
-                SelectableTextSheet(text: selection ?? "")
-            }
-            .fullScreenCoverOrSheet(item: $artifact) { ArtifactViewer(ref: $0) }
-    }
-}
-#endif
