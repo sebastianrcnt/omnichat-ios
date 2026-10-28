@@ -60,6 +60,7 @@
 		0FEA73DEBC8567E572B24B48 /* OnDevicePromptBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBEED40101593DF4FB5687A5 /* OnDevicePromptBuilder.swift */; };
 		10B53EFCF0898AEB123E3321 /* ChatAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF5B920549D60E7E1258E825 /* ChatAPI.swift */; };
 		1146FED5315C179FB8023C2E /* ResponsesClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6A7759097BB69338E3086E6 /* ResponsesClient.swift */; };
+		11D10028C7D96BA7CCD0B9EB /* AppearanceMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 998CD04D80CDE195874528DA /* AppearanceMode.swift */; };
 		12110CD7034DB6C806CAEB79 /* VideoTranscriptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E996E176036C71B38FDC84 /* VideoTranscriptTests.swift */; };
 		12297F0A8831E7B3C57D391B /* SSHStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F1D1D7A99AE5DACAF4808A7 /* SSHStore.swift */; };
 		123AAC24DA6AD1D19D65B740 /* ConnectionHeadersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52456DC15AD97C0E9E117D78 /* ConnectionHeadersTests.swift */; };
@@ -348,6 +349,7 @@
 		8558909ED2246B974759897E /* SyntaxHighlighter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D35D3DE95E22BA2A824C1C6 /* SyntaxHighlighter.swift */; };
 		85E14A9155990CB360D78B23 /* ZoomableImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0CB73D9E008A6C0380E94DD /* ZoomableImage.swift */; };
 		860545EBDA61B29F7B5473D5 /* IntentChat.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9E37AF343F7CFB5A7201272 /* IntentChat.swift */; };
+		868C700B03CC5F389555588B /* AppearanceMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 998CD04D80CDE195874528DA /* AppearanceMode.swift */; };
 		86F6474AFDA8AEDB536796EC /* MessageLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2787E35474BAA48D4652C8AE /* MessageLayout.swift */; };
 		86F9C79AFB0F36A2E6E9A2A9 /* DeviceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6B7BAFAD15B7869DE6EC679 /* DeviceIdentity.swift */; };
 		8725567713EB5830AE64BDAF /* ShareItemLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AECCF73F6748FE84F7099DE /* ShareItemLoader.swift */; };
@@ -971,6 +973,7 @@
 		973EDA429EEB946ED0BF8A70 /* OmniChatWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = OmniChatWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		986B69DEECDDC6A5FF0DE689 /* ChatOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatOptions.swift; sourceTree = "<group>"; };
 		998841C6FE4AED2FF59DC7EC /* Dictation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dictation.swift; sourceTree = "<group>"; };
+		998CD04D80CDE195874528DA /* AppearanceMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceMode.swift; sourceTree = "<group>"; };
 		99A0A7E74FCC21114AF04AE2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		99BD62D54DF706A79DBC1137 /* PackageAudit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackageAudit.swift; sourceTree = "<group>"; };
 		9A6AC1D6A0D425D2934E4B1D /* PyodideServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PyodideServer.swift; sourceTree = "<group>"; };
@@ -1380,6 +1383,7 @@
 			isa = PBXGroup;
 			children = (
 				770837757E21D529E0872376 /* ActivityGallery.swift */,
+				998CD04D80CDE195874528DA /* AppearanceMode.swift */,
 				F5E5FCEC48EE0C6E9B2B7CED /* AppLinks.swift */,
 				8466A7CDF21ACE56C1F711D2 /* AppSettings.swift */,
 				CE00F016BD732E6F71D9D841 /* ConnectionStore.swift */,
@@ -2309,6 +2313,7 @@
 				9ECE231AD18BC1DD33FE3C96 /* AppLinks.swift in Sources */,
 				0CC2BD255DF2D13E88ABF0EC /* AppSettings.swift in Sources */,
 				E60ABAA22C8AC2C6810153D7 /* AppShortcuts.swift in Sources */,
+				11D10028C7D96BA7CCD0B9EB /* AppearanceMode.swift in Sources */,
 				07CAF0163C6020AE6C869747 /* AppleFoundationModel.swift in Sources */,
 				F74523D0C7F82A8E2185D01B /* ArtifactGallery.swift in Sources */,
 				31F0B81C90D3E205658F05D8 /* ArtifactGalleryViews.swift in Sources */,
@@ -2578,6 +2583,7 @@
 				33C84C688382F0E40E7A597D /* AppLinks.swift in Sources */,
 				8A077D9658E0C5C76D7D3362 /* AppSettings.swift in Sources */,
 				A21FF6F2E2FDC156361CBCB8 /* AppShortcuts.swift in Sources */,
+				868C700B03CC5F389555588B /* AppearanceMode.swift in Sources */,
 				32E57C56C03CE5E603BB7ACF /* AppleFoundationModel.swift in Sources */,
 				C44358E2AD7A4B9DB900CD77 /* ArtifactGallery.swift in Sources */,
 				81051C5E64B506FEADF28E20 /* ArtifactGalleryViews.swift in Sources */,

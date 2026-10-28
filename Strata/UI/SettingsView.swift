@@ -655,6 +655,16 @@ private struct AppearanceSettingsView: View {
         @Bindable var settings = settings
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Spacing.lg) {
+                GroupedSection(header: "Appearance") {
+                    Picker("Appearance", selection: $settings.appearance) {
+                        ForEach(AppearanceMode.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .padding(.horizontal, DS.Spacing.lg)
+                    .padding(.vertical, DS.Spacing.sm)
+                }
+
                 #if os(iOS)
                 TextSizeSection() // a Mac has no Dynamic Type: text there keeps the size it is designed at
                 #endif

@@ -65,6 +65,7 @@ private struct StrataEnvironment: ViewModifier {
             .font(DS.Typography.ui)
             .dsLeading(.ui)
             .modifier(TextSizeOverride(size: settings.dynamicTypeOverride))
+            .modifier(AppearanceApplier(mode: settings.appearance))
             .modelContainer(container)
     }
 }

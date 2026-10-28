@@ -95,6 +95,8 @@ final class AppSettings {
     private let defaults: UserDefaults
 
     var accentHex: String { didSet { defaults.set(accentHex, forKey: "accentHex") } }
+    /// Light, dark, or as the system is. This device only: each device has its own surroundings.
+    var appearance: AppearanceMode { didSet { defaults.set(appearance.rawValue, forKey: "appearance") } }
     var defaultContextLength: Int { didSet { defaults.set(defaultContextLength, forKey: "defaultContextLength") } }
     var lastConnectionID: UUID? { didSet { defaults.set(lastConnectionID?.uuidString, forKey: "lastConnectionID") } }
     var lastModelID: String? { didSet { defaults.set(lastModelID, forKey: "lastModelID") } }
@@ -167,6 +169,7 @@ final class AppSettings {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         accentHex = defaults.string(forKey: "accentHex") ?? AccentPreset.defaultHex
+        appearance = defaults.string(forKey: "appearance").flatMap(AppearanceMode.init(rawValue:)) ?? .system
         let ctx = defaults.integer(forKey: "defaultContextLength")
         defaultContextLength = ctx > 0 ? ctx : Self.defaultContextLength
         lastConnectionID = defaults.string(forKey: "lastConnectionID").flatMap(UUID.init(uuidString:))

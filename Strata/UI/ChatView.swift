@@ -342,27 +342,22 @@ struct ChatView: View {
         GlassEffectContainer(spacing: DS.Spacing.sm) {
             HStack(spacing: DS.Spacing.sm) {
                 GlassIconButton(systemName: "line.3.horizontal", label: "Sidebar") { composerFocused = false; onOpenSidebar() }
-                // The model and effort are in the composer's chip; the header names the chat.
-                TitlingText(conversation?.displayTitle ?? String(localized: "New chat"),
-                            isTitling: controller.isTitling(conversation?.id))
-                    .font(DS.Typography.title)
-                    .foregroundStyle(theme.textPrimary)
-                    .lineLimit(1)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        // The title renames the chat, as in the menu.
-                        guard let c = conversation else { return }
-                        renameText = c.displayTitle
-                        showRename = true
-                    }
-                // Its own glass capsule, as tall as the buttons: the title never sits on the bare page, so the list's
-                // top edge can stay soft (no band across the screen).
-                .padding(.horizontal, DS.Spacing.md)
-                .frame(height: DS.IconSize.controlDiameter)
-                .glassEffect(.regular.interactive(), in: Capsule())
+                // No title: the chat is what's on the page, and the sidebar and the menu name it (Rename is there).
+                // The model and effort are in the composer's chip.
                 Spacer(minLength: 0)
-                // The context gauge and the menu share one glass capsule, like a toolbar group.
+                // New chat, the context gauge and the menu share one glass capsule, like a toolbar group.
                 HStack(spacing: 0) {
+                    Button {
+                        composerFocused = false
+                        onNewChat()
+                    } label: {
+                        Image(systemName: "square.and.pencil")
+                            .font(.system(size: DS.IconSize.headerIcon, weight: .medium)) // as the menu's
+                            .frame(width: DS.IconSize.controlDiameter, height: DS.IconSize.controlDiameter)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("New Chat")
                     Button {
                         composerFocused = false
                         showContext = true

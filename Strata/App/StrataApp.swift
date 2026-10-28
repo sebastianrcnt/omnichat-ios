@@ -56,6 +56,7 @@ struct StrataApp: App {
                 .font(DS.Typography.ui)
                 .dsLeading(.ui)
                 .modifier(TextSizeOverride(size: settings.dynamicTypeOverride))
+                .modifier(AppearanceApplier(mode: settings.appearance))
                 .modelContainer(container)
                 .replyActivityLinks()
                 #if DEBUG
