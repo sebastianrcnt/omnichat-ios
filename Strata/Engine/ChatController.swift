@@ -138,6 +138,8 @@ final class ChatController {
     /// "Only send health data to on-device or local models" (Settings > Health); tests set it.
     @ObservationIgnored var healthLocalOnly: () -> Bool = { HealthSettings.localOnly }
     @ObservationIgnored var cancelTasks: [UUID: Task<Void, Never>] = [:]
+    /// Title requests in flight, so a test can wait for them (`waitUntilIdle`) before its store goes away.
+    @ObservationIgnored var titleTasks: [UUID: Task<Void, Never>] = [:]
     private let background = ReplyBackgroundExecution()
 
     init(connections: ConnectionStore, settings: AppSettings,
@@ -169,6 +171,8 @@ final class ChatController {
             guard !tasks.isEmpty else { return } // only queued runs with nothing ahead of them: can't happen
             for task in tasks { await task.value }
         }
+        // A title request a finished turn started saves when it lands.
+        while let task = titleTasks.values.first { await task.value }
     }
 
     /// Wait until this chat's run (and an early answer it hands over to) has ended (tests).

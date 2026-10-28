@@ -44,8 +44,11 @@ extension ChatController {
         let titleAtStart = conversation.title
         conversation.autoRenameDone = true
         titlingConversationIDs.insert(conversationID)
-        Task { @MainActor [weak self] in
-            defer { self?.titlingConversationIDs.remove(conversationID) }
+        titleTasks[conversationID] = Task { @MainActor [weak self] in
+            defer {
+                self?.titlingConversationIDs.remove(conversationID)
+                self?.titleTasks[conversationID] = nil
+            }
             let name = await AutoRename.generate(prompt: prompt, endpoint: endpoint, streamer: streamer, followUp: followUp) { event in
                 switch event {
                 case .sent(let id, let url, let body): ring.record(conversationID: conversationID, url: url, body: body, id: id)

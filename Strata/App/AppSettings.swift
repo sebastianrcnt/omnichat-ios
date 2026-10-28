@@ -220,18 +220,50 @@ final class AppSettings {
     /// set, so views that read the rest don't redraw.
     func reload(from defaults: UserDefaults) {
         let fresh = AppSettings(defaults: defaults)
-        func take<T: Equatable>(_ key: ReferenceWritableKeyPath<AppSettings, T>) {
-            if self[keyPath: key] != fresh[keyPath: key] { self[keyPath: key] = fresh[keyPath: key] }
-        }
-        take(\.accentHex); take(\.defaultContextLength); take(\.lastConnectionID); take(\.lastModelID); take(\.fetchLength)
-        take(\.fetchPatience); take(\.searchEngine); take(\.smoothStreaming); take(\.continueOnEmptyAnswer); take(\.generateTitles)
-        take(\.nameChatsOnDevice); take(\.developerMode); take(\.useSystemTextSize); take(\.textSizeStep); take(\.lastEffortRaw)
-        take(\.recentModels); take(\.notifyReplies); take(\.liveActivities); take(\.thinkingLines); take(\.translateThinking)
-        take(\.dictationLanguage); take(\.dictationEngine); take(\.dictationConnectionID); take(\.dictationModel)
-        take(\.userPreferences); take(\.enabledPlugins); take(\.webSearchEnabled); take(\.pythonEnabled); take(\.pythonTimeLimit)
-        take(\.browserEnabled); take(\.locationEnabled); take(\.sshEnabled); take(\.videoTranscriptsEnabled)
-        take(\.interactiveViewsEnabled); take(\.healthEnabled); take(\.askRobotChecks)
+        for field in Self.fields { field.take(fresh, self) }
     }
+
+    /// Every stored setting: its key, whether it follows the user to their other devices (`SettingsSync` syncs those),
+    /// and how `reload` takes it. A new setting goes here too; a test fails while one is missing.
+    static let fields: [SettingField] = [
+        SettingField(\.accentHex, key: "accentHex", .synced),
+        SettingField(\.appearance, key: "appearance", .thisDevice),
+        SettingField(\.defaultContextLength, key: "defaultContextLength", .synced),
+        SettingField(\.lastConnectionID, key: "lastConnectionID", .thisDevice),
+        SettingField(\.lastModelID, key: "lastModelID", .thisDevice),
+        SettingField(\.fetchLength, key: "fetchLength", .synced),
+        SettingField(\.fetchPatience, key: FetchPatience.defaultsKey, .synced),
+        SettingField(\.searchEngine, key: "searchEngine", .synced),
+        SettingField(\.smoothStreaming, key: "smoothStreaming", .synced),
+        SettingField(\.continueOnEmptyAnswer, key: "continueOnEmptyAnswer", .synced),
+        SettingField(\.generateTitles, key: "generateTitles", .synced),
+        SettingField(\.nameChatsOnDevice, key: "nameChatsOnDevice", .synced),
+        SettingField(\.developerMode, key: "developerMode", .thisDevice),
+        SettingField(\.useSystemTextSize, key: "useSystemTextSize", .thisDevice),
+        SettingField(\.textSizeStep, key: "textSizeStep", .thisDevice),
+        SettingField(\.lastEffortRaw, key: "lastEffort", .thisDevice),
+        SettingField(\.recentModels, key: "recentModels", .synced),
+        SettingField(\.notifyReplies, key: "notifyReplies", .thisDevice),
+        SettingField(\.liveActivities, key: AppSettings.liveActivitiesKey, .thisDevice),
+        SettingField(\.thinkingLines, key: "thinkingLines", .synced),
+        SettingField(\.translateThinking, key: "translateThinking", .synced),
+        SettingField(\.dictationLanguage, key: DictationLanguage.defaultsKey, .thisDevice),
+        SettingField(\.dictationEngine, key: DictationSettings.engineKey, .thisDevice),
+        SettingField(\.dictationConnectionID, key: DictationSettings.connectionKey, .thisDevice),
+        SettingField(\.dictationModel, key: DictationSettings.modelKey, .thisDevice),
+        SettingField(\.userPreferences, key: AppSettings.userPreferencesKey, .synced),
+        SettingField(\.enabledPlugins, key: AppSettings.enabledPluginsKey, .synced),
+        SettingField(\.webSearchEnabled, key: AppSettings.webSearchEnabledKey, .synced),
+        SettingField(\.pythonEnabled, key: PythonSettings.enabledKey, .synced),
+        SettingField(\.pythonTimeLimit, key: PythonSettings.timeLimitKey, .synced),
+        SettingField(\.browserEnabled, key: AppSettings.browserEnabledKey, .synced),
+        SettingField(\.locationEnabled, key: AppSettings.locationEnabledKey, .synced),
+        SettingField(\.sshEnabled, key: AppSettings.sshEnabledKey, .synced),
+        SettingField(\.videoTranscriptsEnabled, key: AppSettings.videoTranscriptsEnabledKey, .synced),
+        SettingField(\.interactiveViewsEnabled, key: AppSettings.interactiveViewsEnabledKey, .synced),
+        SettingField(\.healthEnabled, key: AppSettings.healthEnabledKey, .thisDevice),
+        SettingField(\.askRobotChecks, key: RobotCheck.askKey, .synced),
+    ]
 
     /// Applied at the root; nil leaves Dynamic Type to the system (accessibility sizes included).
     var dynamicTypeOverride: DynamicTypeSize? { TextSizeSetting.override(useSystem: useSystemTextSize, step: textSizeStep) }
@@ -258,5 +290,25 @@ final class AppSettings {
     var lastEffort: Effort {
         get { Effort(rawValue: lastEffortRaw) ?? .default }
         set { lastEffortRaw = newValue.rawValue }
+    }
+}
+
+/// One stored setting of `AppSettings`, for the code that handles them all: sync and reload.
+@MainActor
+struct SettingField {
+    enum Scope { case synced, thisDevice }
+
+    let key: String
+    let scope: Scope
+    /// Sets the value from one settings object on another, only when it differs (views that read it redraw then).
+    let take: (_ from: AppSettings, _ to: AppSettings) -> Void
+    /// Assigns the value to itself, which writes it under `key` (tests check the key is the one the property uses).
+    let rewrite: (AppSettings) -> Void
+
+    init<T: Equatable>(_ path: ReferenceWritableKeyPath<AppSettings, T>, key: String, _ scope: Scope) {
+        self.key = key
+        self.scope = scope
+        take = { from, to in if to[keyPath: path] != from[keyPath: path] { to[keyPath: path] = from[keyPath: path] } }
+        rewrite = { s in s[keyPath: path] = s[keyPath: path] }
     }
 }

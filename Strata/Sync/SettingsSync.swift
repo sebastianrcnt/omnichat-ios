@@ -41,6 +41,8 @@ final class SettingsSync {
     static let enabledKey = "sync.settings"
     nonisolated static let prefix = "settings."
 
+    /// The synced `AppSettings.fields`, plus the keys other settings keep (SSH approvals). Listed here because sync
+    /// runs off the main actor; a test keeps it equal to the fields marked `.synced`.
     nonisolated static let keys: [String] = [
         "accentHex", "defaultContextLength", "fetchLength", FetchPatience.defaultsKey, "searchEngine", "smoothStreaming",
         "continueOnEmptyAnswer", "generateTitles", "nameChatsOnDevice", "thinkingLines", "translateThinking", "recentModels",

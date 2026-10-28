@@ -334,6 +334,29 @@ struct SettingsSyncTests {
         }
     }
 
+    @Test func everySettingIsDeclaredOnceAndSyncFollowsTheDeclarations() {
+        let d = defaults()
+        let settings = AppSettings(defaults: d)
+        // Every stored setting has a field: the observable stored properties, less the defaults themselves.
+        let stored = Mirror(reflecting: settings).children.compactMap(\.label)
+            .filter { $0.hasPrefix("_") && !$0.hasPrefix("_$") && $0 != "_defaults" }
+        #expect(stored.count == AppSettings.fields.count, "\(stored.count) stored settings, \(AppSettings.fields.count) fields")
+        #expect(Set(AppSettings.fields.map(\.key)).count == AppSettings.fields.count, "keys are unique")
+        // Each field's key is the one its property writes.
+        settings.lastConnectionID = UUID()
+        settings.lastModelID = "m"
+        settings.dictationConnectionID = UUID()
+        for field in AppSettings.fields {
+            d.removeObject(forKey: field.key)
+            field.rewrite(settings)
+            #expect(d.object(forKey: field.key) != nil, "\(field.key)")
+        }
+        // Sync carries exactly the fields marked synced, plus SSH approvals.
+        let synced = AppSettings.fields.filter { $0.scope == .synced }.map(\.key) + [SSHApprovalPolicy.askKey]
+        #expect(Set(SettingsSync.keys) == Set(synced))
+        #expect(SettingsSync.keys.count == synced.count)
+    }
+
     @Test func anotherDevicesChangesComeDownAndShowAtOnce() {
         let d = defaults(), cloud = InMemoryKeyValueStore()
         let settings = AppSettings(defaults: d)
