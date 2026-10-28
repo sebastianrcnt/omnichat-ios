@@ -336,6 +336,7 @@
 		7DE041156E65A30DC9075827 /* AnthropicClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2664233C04F756984C6F2D8B /* AnthropicClient.swift */; };
 		7E1056D92B99471BE1919978 /* Skills.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8D8B674FF40A93C900B658F /* Skills.swift */; };
 		7E1E618885FEFCC120A25FD8 /* ChatStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = B63857674820F2E11039ED28 /* ChatStream.swift */; };
+		7E384EBEB1970A7DD08DD877 /* ConnectionStore+Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A922CBF91AC695C8C015B1 /* ConnectionStore+Models.swift */; };
 		7E3BD333FC1B029DA0180EED /* StrataApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78839B98DAD55E4352AEA1E3 /* StrataApp.swift */; };
 		7EC81E84BF1A96E6310FF026 /* ChatController+Recovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FC5ABBC5337B51A952041F9 /* ChatController+Recovery.swift */; };
 		7EFE8A77DC3399772C0FAD67 /* Skills.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8D8B674FF40A93C900B658F /* Skills.swift */; };
@@ -664,6 +665,7 @@
 		F10D7A9E1E3DECD6ED58543B /* RequestRing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A73ADE2586D58C97EEF31AB /* RequestRing.swift */; };
 		F1694D1268114C3C0C6FB1F1 /* DiagnosticsReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF300060906154D00BBB08AC /* DiagnosticsReport.swift */; };
 		F1A5418500FD90BDC571E512 /* PackagesSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8139DB913F3D56EC791684AD /* PackagesSettingsView.swift */; };
+		F21C3483E8AB1C157F72F850 /* ConnectionStore+Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A922CBF91AC695C8C015B1 /* ConnectionStore+Models.swift */; };
 		F2B94DA81A5E4E4CC1E8947E /* DiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60932D1B714F8CE587A2343A /* DiagnosticsTests.swift */; };
 		F2BFD1C031FD79EEFD56DAB4 /* BrowserOpenTiming.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE49608279EE736021BE706A /* BrowserOpenTiming.swift */; };
 		F31035DB2E368D42741A5D5C /* SSHSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A77A5B8F9A674E1ADC34E2 /* SSHSettingsView.swift */; };
@@ -1060,6 +1062,7 @@
 		B52E1B6F805640C7BCBE67C3 /* SkillSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillSync.swift; sourceTree = "<group>"; };
 		B62DB34499406A1921D8E58C /* ContextGridTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextGridTests.swift; sourceTree = "<group>"; };
 		B63857674820F2E11039ED28 /* ChatStream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatStream.swift; sourceTree = "<group>"; };
+		B6A922CBF91AC695C8C015B1 /* ConnectionStore+Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ConnectionStore+Models.swift"; sourceTree = "<group>"; };
 		B6E3B9C5865EB6DCC5972037 /* StrataMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StrataMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B6F85CEAFCCA5E519C8FC093 /* MacSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSidebarView.swift; sourceTree = "<group>"; };
 		B72613A56D557C2C034E2812 /* IncrementalBlockParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncrementalBlockParser.swift; sourceTree = "<group>"; };
@@ -1420,6 +1423,7 @@
 				F5E5FCEC48EE0C6E9B2B7CED /* AppLinks.swift */,
 				8466A7CDF21ACE56C1F711D2 /* AppSettings.swift */,
 				CE00F016BD732E6F71D9D841 /* ConnectionStore.swift */,
+				B6A922CBF91AC695C8C015B1 /* ConnectionStore+Models.swift */,
 				62C6E50D199A95EB9EB282FD /* DebugHooks.swift */,
 				286261BD4A85D0E72EC64FBA /* HeaderGallery.swift */,
 				BFF586CC627A5C4DBAB30E20 /* ModelListRefresh.swift */,
@@ -2416,6 +2420,7 @@
 				8B037A90132334110A240840 /* Connection.swift in Sources */,
 				E9688FB772AB024C34BB9D92 /* ConnectionPresets.swift in Sources */,
 				22A6ED08C6AD0A8398C79460 /* ConnectionSetup.swift in Sources */,
+				7E384EBEB1970A7DD08DD877 /* ConnectionStore+Models.swift in Sources */,
 				4EF597EE82946406F36AE7E4 /* ConnectionStore.swift in Sources */,
 				80D17984AA12BED9D8A03287 /* ContextGrid.swift in Sources */,
 				DE653CDADB08C8BF3496D982 /* ContextGridViews.swift in Sources */,
@@ -2697,6 +2702,7 @@
 				36CAB15311724CF0DFD17154 /* Connection.swift in Sources */,
 				899E5CA65A387408036CD5B8 /* ConnectionPresets.swift in Sources */,
 				18539D4251FCEAFD537AD1F7 /* ConnectionSetup.swift in Sources */,
+				F21C3483E8AB1C157F72F850 /* ConnectionStore+Models.swift in Sources */,
 				228B3B6E87F0A2BC239A02C9 /* ConnectionStore.swift in Sources */,
 				6B7DFBF937A67DA96B802592 /* ContextGrid.swift in Sources */,
 				E9E6C555F1703416B013C83C /* ContextGridViews.swift in Sources */,
