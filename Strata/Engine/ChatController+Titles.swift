@@ -44,10 +44,12 @@ extension ChatController {
         let titleAtStart = conversation.title
         conversation.autoRenameDone = true
         titlingConversationIDs.insert(conversationID)
-        titleTasks[conversationID] = Task { @MainActor [weak self] in
+        // The request outlives the turn: it holds the store until it saves (a test's store can go before it lands).
+        let container = context.container
+        Task { @MainActor [weak self] in
             defer {
                 self?.titlingConversationIDs.remove(conversationID)
-                self?.titleTasks[conversationID] = nil
+                withExtendedLifetime(container) {}
             }
             let name = await AutoRename.generate(prompt: prompt, endpoint: endpoint, streamer: streamer, followUp: followUp) { event in
                 switch event {
