@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Archives a Release build and uploads it to App Store Connect for TestFlight, signed and uploaded with
-# the Apple account Xcode is signed in to. The build number is the current time, so every upload is new.
+# the App Store Connect API key when it is set up (else the Apple account Xcode is signed in to). The build number is the current time, so every upload is new.
 #
 #   Tools/testflight.sh           archive + upload
 #   Tools/testflight.sh --export  archive + a local .ipa only (no upload)
@@ -13,6 +13,25 @@ DESTINATION=upload
 [[ ${1:-} == --export ]] && DESTINATION=export
 
 mkdir -p "$WORK"
+# Sign and upload with the App Store Connect API key when it's set up (outside the repo), so an expired Xcode account
+# sign-in doesn't block it. The key can't use cloud-managed certificates: the Apple Distribution certificate it signs
+# with is in the login keychain.
+# Its App Store profiles ("OmniChat AppStore <bundle id>", made through the API) are installed in
+# ~/Library/MobileDevice/Provisioning Profiles; without the key, Xcode's account signs automatically.
+AUTH=()
+SIGNING='<key>signingStyle</key><string>automatic</string>'
+if [[ -f ~/.appstoreconnect/omnichat.env ]]; then
+  source ~/.appstoreconnect/omnichat.env
+  AUTH=(-authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+  SIGNING='<key>signingStyle</key><string>manual</string>
+  <key>signingCertificate</key><string>Apple Distribution</string>
+  <key>provisioningProfiles</key><dict>'
+  for id in cc.coolservices.strata cc.coolservices.strata.widgets cc.coolservices.strata.share; do
+    SIGNING+="<key>$id</key><string>OmniChat AppStore $id</string>"
+  done
+  SIGNING+='</dict>'
+fi
+
 cat > "$WORK/ExportOptions.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -20,20 +39,11 @@ cat > "$WORK/ExportOptions.plist" <<EOF
   <key>method</key><string>app-store-connect</string>
   <key>destination</key><string>$DESTINATION</string>
   <key>teamID</key><string>CYYK3A72BM</string>
-  <key>signingStyle</key><string>automatic</string>
+  $SIGNING
   <key>uploadSymbols</key><true/>
   <key>manageAppVersionAndBuildNumber</key><false/>
 </dict></plist>
 EOF
-
-# Sign and upload with the App Store Connect API key when it's set up (outside the repo), so an expired Xcode account
-# sign-in doesn't block it. The key can't use cloud-managed certificates: the Apple Distribution certificate it signs
-# with is in the login keychain.
-AUTH=()
-if [[ -f ~/.appstoreconnect/omnichat.env ]]; then
-  source ~/.appstoreconnect/omnichat.env
-  AUTH=(-authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
-fi
 
 rm -rf "$WORK/OmniChat.xcarchive" "$WORK/export"
 xcodebuild -project "$REPO/Strata.xcodeproj" -scheme Strata -configuration Release -destination 'generic/platform=iOS' \
