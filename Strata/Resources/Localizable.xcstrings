@@ -505,9 +505,7 @@
     },
     "Could not resolve the host %@.": {},
     "Could not save: %@": {},
-    "Couldn't add the connection": {
-      "extractionState": "stale"
-    },
+    "Couldn't add the connection": {},
     "Couldn't check Apple Health": {},
     "Couldn't choose%@": {},
     "Couldn't click%@": {},
@@ -1352,9 +1350,7 @@
     "Saved": {},
     "Saved credential %@": {},
     "Saved in the Keychain": {},
-    "Saved in the Keychain when you add the connection": {
-      "extractionState": "stale"
-    },
+    "Saved in the Keychain when you add the connection": {},
     "Saved server %@": {},
     "Saved skill %@": {},
     "Saved to Documents/Debug/%@. API keys and Authorization values are always removed.": {},
@@ -1614,9 +1610,7 @@
     "The dictation model couldn't be downloaded. Try again later.": {},
     "The downloaded package isn't the one the link names (its SHA-256 differs).": {},
     "The installed %@ is signed, and this version isn't. Only its publisher can update it.": {},
-    "The key is saved in the Keychain when you add the connection. Enter a new one to replace it.": {
-      "extractionState": "stale"
-    },
+    "The key is saved in the Keychain when you add the connection. Enter a new one to replace it.": {},
     "The language download didn't finish. Try again.": {},
     "The language the microphone in the composer listens for, sent as a hint. The recording is sent to the connection's /audio/transcriptions when you tap Done, and the words appear then. Works with OpenAI (whisper-1, gpt-4o-transcribe), Groq (whisper-large-v3) and local whisper servers; add one under Connections if it isn't there.": {},
     "The language the microphone in the composer listens for. Speech in another language comes out garbled. Apple on-device shows the words as you speak; nothing leaves the device.": {},
