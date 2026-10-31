@@ -283,6 +283,7 @@
     "Answer ready": {},
     "Answered early": {},
     "Answers": {},
+    "Answers without thinking": {},
     "Anthropic": {},
     "Anthropic Messages": {},
     "Anthropic doesn't know this model or address. Fetch the models again, or check the base URL.": {},

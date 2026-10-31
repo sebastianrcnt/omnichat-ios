@@ -14,6 +14,8 @@ struct MacRootView: View {
     @State private var columns = NavigationSplitViewVisibility.all
     @State private var focusToken = 0
     @State private var findToken = 0
+    /// The artifact open in the panel beside the chat.
+    @State private var artifact: ArtifactRef?
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
@@ -30,9 +32,13 @@ struct MacRootView: View {
                      onNewChat: newChat, focusToken: focusToken)
                 .id(chatKey.id)
                 .background(theme.background)
+                .artifactPanel($artifact)
         }
         .frame(minWidth: 760, minHeight: 520)
-        .onChange(of: selected?.id) { old, new in chatKey.update(old: old, new: new, active: new.flatMap { controller.isRunning($0) ? $0 : nil }) }
+        .onChange(of: selected?.id) { old, new in
+            if artifact?.conversationID != new { artifact = nil } // another chat: its artifact panel goes
+            chatKey.update(old: old, new: new, active: new.flatMap { controller.isRunning($0) ? $0 : nil })
+        }
         .chatLifecycle(selected: $selected)
         .intentRoutes(newChat: newChat)
         .connectionLinks(closing: .constant(false))

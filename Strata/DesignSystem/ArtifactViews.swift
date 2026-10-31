@@ -9,6 +9,7 @@ import WebKit
 /// "Mortgage calculator  HTML  v2 ›" in the feed; a tap opens the page.
 struct ArtifactFeedCard: View {
     @Environment(\.theme) private var theme
+    @Environment(\.artifactPanel) private var panel
     let card: FeedCard
     var onDetails: () -> Void
     @State private var showing = false
@@ -16,7 +17,10 @@ struct ArtifactFeedCard: View {
     static let icon = "chevron.left.forwardslash.chevron.right"
 
     var body: some View {
-        Button { if card.artifact != nil { showing = true } } label: {
+        Button {
+            guard let ref = card.artifact else { return }
+            if let panel { panel.open(ref) } else { showing = true }
+        } label: {
             FeedLine(title: title, meta: meta, expanded: card.artifact == nil || card.isRunning ? nil : false) {
                 if card.isRunning { FeedSpinner() } else { FeedSymbol(name: Self.icon) }
             }
@@ -51,6 +55,7 @@ struct ArtifactFeedCard: View {
 /// An artifact in the answer: a card with the page's title that opens it full screen. The feed keeps its one line too.
 struct ArtifactAnswerCard: View {
     @Environment(\.theme) private var theme
+    @Environment(\.artifactPanel) private var panel
     let ref: ArtifactRef
     @State private var showing = false
 
@@ -66,7 +71,7 @@ struct ArtifactAnswerCard: View {
     }
 
     var body: some View {
-        Button { showing = true } label: {
+        Button { if let panel { panel.open(ref) } else { showing = true } } label: {
             HStack(spacing: DS.Spacing.md) {
                 Image(systemName: ArtifactFeedCard.icon)
                     .font(.system(size: 17, weight: .semibold))
@@ -126,6 +131,11 @@ struct ArtifactViewer: View {
     var store: ArtifactStore = .shared
     var onGoToChat: (() -> Void)?
     var paging: Paging?
+    /// Set when the viewer is the panel beside the chat (`ArtifactPanel`): Done closes the panel, and the panel's column
+    /// sets the size.
+    var onClose: (() -> Void)?
+
+    private func close() { if let onClose { onClose() } else { dismiss() } }
 
     /// Where the artifact is in the gallery's order, and how to move from it.
     struct Paging {
@@ -166,8 +176,9 @@ struct ArtifactViewer: View {
             content = .page(artifact, html, rules)
         }
         #if os(macOS)
-        .frame(minWidth: 640, idealWidth: 900, minHeight: 520, idealHeight: 720)
-        .background { Button("Close") { dismiss() }.keyboardShortcut(.cancelAction).opacity(0).accessibilityHidden(true) }
+        .frame(minWidth: onClose == nil ? 640 : nil, idealWidth: onClose == nil ? 900 : nil,
+               minHeight: onClose == nil ? 520 : nil, idealHeight: onClose == nil ? 720 : nil)
+        .background { Button("Close", action: close).keyboardShortcut(.cancelAction).opacity(0).accessibilityHidden(true) }
         #endif
         .background {
             if let paging {
@@ -205,7 +216,7 @@ struct ArtifactViewer: View {
             Spacer(minLength: 0)
             if let onGoToChat {
                 GlassIconButton(systemName: "bubble.left", label: "Go to chat") {
-                    dismiss()
+                    close()
                     onGoToChat()
                 }
                 .help("Go to chat")
@@ -221,7 +232,7 @@ struct ArtifactViewer: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text("Share"))
             }
-            Button("Done") { dismiss() }
+            Button("Done", action: close)
                 .buttonStyle(.glassProminent)
                 .tint(theme.accent)
         }

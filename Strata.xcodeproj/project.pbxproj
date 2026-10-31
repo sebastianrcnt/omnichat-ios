@@ -174,6 +174,7 @@
 		360D03BBE0802F9B04E60206 /* Compactor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DE91374F2E8D63D589AFF75 /* Compactor.swift */; };
 		36CAB15311724CF0DFD17154 /* Connection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BF0AF47017DCCFA223A305F /* Connection.swift */; };
 		36CD6399DE6BF968ECAD65EE /* OpenCodeAuthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F7EDA3AB6D39C31110D19B /* OpenCodeAuthTests.swift */; };
+		37D2CDE6D0E4C3F77107A40E /* ArtifactPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57CEC7704F2F6511CD9FD73E /* ArtifactPanel.swift */; };
 		381E181A3117886E1688C70E /* ChatView+Composer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EA670C94EB4E0BCC32C57BA /* ChatView+Composer.swift */; };
 		38A11196FD2A3913FF230788 /* SearchEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 435074B411A9B8C1F389A1EE /* SearchEngine.swift */; };
 		38E4C517C4C35C50887C9E75 /* ActivityFeedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD0861E7AEE55DE07A31CCB5 /* ActivityFeedTests.swift */; };
@@ -707,6 +708,7 @@
 		FCA5C72A7ACD9473505DABBE /* CompactionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10BECBBEADB52A82B8FD8109 /* CompactionRecord.swift */; };
 		FCB22976E8EB5937A3F5C5B1 /* CompactionCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6228DBB234F66B75123A7D26 /* CompactionCore.swift */; };
 		FD0652DC20956C88A2C18258 /* OpenUIPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4EB64071A9DF0F26379AA73 /* OpenUIPrompt.swift */; };
+		FD17F4CC9E541B2891171FE2 /* ArtifactPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57CEC7704F2F6511CD9FD73E /* ArtifactPanel.swift */; };
 		FD24D1ED12BCC63615A1C3D5 /* TranslationCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82C404FA2628001A9F85F7EC /* TranslationCore.swift */; };
 		FD7A254BCC75D3463E13417C /* OpenAIPlatform.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EA8F84A489258266A3B7F07 /* OpenAIPlatform.swift */; };
 		FD7F8E950E5183214D8AE008 /* FaviconTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EAC7838625B6FD3C2C89EDB /* FaviconTests.swift */; };
@@ -913,6 +915,7 @@
 		55FDE352DB25A325EEDDDB0A /* ChatComposerViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatComposerViews.swift; sourceTree = "<group>"; };
 		577C99863BBA69F6E419DF04 /* naver-results.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "naver-results.html"; sourceTree = "<group>"; };
 		57C860BFAC93144D535EE9CD /* CompactionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactionTests.swift; sourceTree = "<group>"; };
+		57CEC7704F2F6511CD9FD73E /* ArtifactPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactPanel.swift; sourceTree = "<group>"; };
 		580F50B9BAFF5058C292E7D1 /* ThoughtTranslator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThoughtTranslator.swift; sourceTree = "<group>"; };
 		5AAC4C66201D12CE56989A5A /* OpenUIChat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenUIChat.swift; sourceTree = "<group>"; };
 		5BE71F054206A44A777DE1CD /* OpenUIMultiChatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenUIMultiChatTests.swift; sourceTree = "<group>"; };
@@ -1894,6 +1897,7 @@
 				0303DF43A59DAF489DA9A7A1 /* Activity.swift */,
 				1B6F4AF3C683785E704E15A0 /* ActivityFeedViews.swift */,
 				4D1D207CEBD4D374E1551FDB /* ArtifactGalleryViews.swift */,
+				57CEC7704F2F6511CD9FD73E /* ArtifactPanel.swift */,
 				3704C62E7CE89423007DFF19 /* ArtifactViews.swift */,
 				AFB12D5FD8CEF9C79D43AF6D /* BrowserViews.swift */,
 				917024912CE32D2FB4F90CBC /* Buttons.swift */,
@@ -2369,6 +2373,7 @@
 				07CAF0163C6020AE6C869747 /* AppleFoundationModel.swift in Sources */,
 				F74523D0C7F82A8E2185D01B /* ArtifactGallery.swift in Sources */,
 				31F0B81C90D3E205658F05D8 /* ArtifactGalleryViews.swift in Sources */,
+				37D2CDE6D0E4C3F77107A40E /* ArtifactPanel.swift in Sources */,
 				510EDAB0953F6252F9A3AB52 /* ArtifactThumbnails.swift in Sources */,
 				C44D921087FDBA0F0642958E /* ArtifactViews.swift in Sources */,
 				BEF013CEB02D118BEADBC033 /* Artifacts.swift in Sources */,
@@ -2652,6 +2657,7 @@
 				32E57C56C03CE5E603BB7ACF /* AppleFoundationModel.swift in Sources */,
 				C44358E2AD7A4B9DB900CD77 /* ArtifactGallery.swift in Sources */,
 				81051C5E64B506FEADF28E20 /* ArtifactGalleryViews.swift in Sources */,
+				FD17F4CC9E541B2891171FE2 /* ArtifactPanel.swift in Sources */,
 				21CD0A152C5399FE500A6FD7 /* ArtifactThumbnails.swift in Sources */,
 				A8A8A581BE7022B5097ECEBA /* ArtifactViews.swift in Sources */,
 				2053C48352BAD70BD4F3605F /* Artifacts.swift in Sources */,
