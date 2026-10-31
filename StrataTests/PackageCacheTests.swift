@@ -11,7 +11,7 @@ struct PackageCacheGoldenTests {
     /// groups, with and without image input. The digest was taken from the code before packages were added, and
     /// retaken when run_python's description changed for sockets, when the app was renamed from OpenChat to OmniChat
     /// (the system prompt's first line and health_query's description name the app), and for run_python's v1
-    /// bundled-only package policy.
+    /// bundled-only package policy, and when web_search and show_places learned about places outside Korea.
     @Test func chatsWithoutPackagesSendTheSameBytes() async throws {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
                                            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
@@ -43,7 +43,7 @@ struct PackageCacheGoldenTests {
             #expect(streamer.requests.count == 1 << all.count)
         }
         let digest = hasher.finalize().map { String(format: "%02x", $0) }.joined()
-        #expect(digest == "ff9ac8ccd7a1dd2a20a685d29cb569892d9c028c6f901e281f0d039051557e6f")
+        #expect(digest == "ad378b93507dd636c9a9ad3af0547218a080caf68ee7dcaff860e19be68f2b4c")
     }
 }
 
