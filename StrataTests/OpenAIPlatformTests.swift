@@ -60,9 +60,14 @@ struct OpenAIPlatformTests {
     @Test func onlyOpenAIsOwnAPIIsAdapted() {
         let openAI = Connection(name: "OpenAI", baseURL: "https://api.openai.com/v1", models: [ModelInfo(id: "o3", supportsEffort: true)])
         let gateway = Connection(name: "Gateway", baseURL: "https://gateway.example/v1", models: [ModelInfo(id: "o3", supportsEffort: true)])
-        #expect(openAI.effortStyle == .openAI && gateway.effortStyle == .tokenCaps)
+        var engine = gateway
+        engine.supportsResumable = true
+        #expect(openAI.effortStyle == .openAI && gateway.effortStyle == .serverDecides && engine.effortStyle == .tokenCaps)
         #expect(openAI.models[0].effortLevels(openAI.effortStyle) == [.low, .medium, .high])
-        #expect(gateway.models[0].effortLevels(gateway.effortStyle) == [.off] + Effort.allCases)
+        #expect(gateway.models[0].effortLevels(gateway.effortStyle) == [.off, .low, .medium, .high, .xhigh])
+        #expect(engine.models[0].effortLevels(engine.effortStyle) == [.off] + Effort.allCases)
+        // Another server reads the level its own way: no token cap is promised.
+        #expect(!Effort.medium.hint(gateway.effortStyle).contains("tokens"))
         #expect(ModelInfo(id: "gpt-5.2", supportsEffort: true).effortLevels(.openAI) == [.off, .low, .medium, .high, .xhigh])
         let endpoint = Endpoint(connectionID: UUID(), connectionName: "x", baseURL: URL(string: "https://gateway.example/v1")!,
                                 apiKey: nil, headers: [:], model: ModelInfo(id: "o3"))

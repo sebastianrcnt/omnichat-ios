@@ -88,7 +88,7 @@ struct ModelInfo: Codable, Identifiable, Hashable, Sendable {
         if openCode != nil { return false }
         if let anthropic { return anthropic.thinking == .budget && anthropic.efforts.isEmpty }
         switch style {
-        case .tokenCaps: return true
+        case .tokenCaps, .serverDecides: return true
         case .openAI, .modelDecides: return OpenAIPlatform.answersWithoutThinking(id)
         }
     }
@@ -215,7 +215,9 @@ struct Connection: Codable, Identifiable, Hashable, Sendable {
     var isAnthropic: Bool { kind == .anthropic }
     var effortStyle: EffortStyle {
         if kind == .openAICompatible, OpenAIPlatform.isHost(normalizedBaseURL) { return .openAI }
-        return isChatGPT || isOpenCode || isAnthropic ? .modelDecides : .tokenCaps
+        if isChatGPT || isOpenCode || isAnthropic { return .modelDecides }
+        // Only the Strata engine (the gateway that replays streams) turns a level into a thinking-token cap.
+        return supportsResumable ? .tokenCaps : .serverDecides
     }
 
     /// Defaults for newly discovered models on this connection: what `/models` said, else the connection's settings.
