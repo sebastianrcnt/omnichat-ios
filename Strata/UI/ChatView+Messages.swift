@@ -181,6 +181,7 @@ extension ChatView {
                 onOpenSettings: onOpenSettings,
                 onCopyRaw: { Pasteboard.copy(MessageLayout.fullText(segments: segments, answer: shownText)) },
                 textForSelection: { MarkdownPlain.text(from: MessageLayout.fullText(segments: segments, answer: shownText)) },
+                shareMarkdown: { MessageLayout.fullText(segments: segments, answer: shownText) },
                 onTranslate: { controller.translation.translate(message, context: context, isStreaming: active) },
                 onToggleTranslation: { controller.translation.toggle(message, context: context) },
                 branch: branch,
