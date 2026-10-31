@@ -143,24 +143,21 @@ final class StreamingMarkdownModel {
     nonisolated static let answerFadeDuration: TimeInterval = 0.45
 
     private func publish(_ delta: String, fresh: Bool) {
-        if fresh {
-            let now = Date()
-            freshSpans = freshSpans.filter { $0.isFading(at: now) }
-            freshSpans.append(FreshSpan(length: delta.count, born: now, duration: Self.answerFadeDuration, easeOut: true))
-        }
         if pipeline == nil {
             // Everything received before this delta, by byte count (Character counts drift across chunk boundaries).
             let keep = max(0, text.utf8.count - delta.utf8.count - reveal.backlog.utf8.count)
             pipeline = Pipeline(model: self, seed: String(decoding: text.utf8.prefix(keep), as: UTF8.self))
         }
-        pipeline?.send(.append(delta, epoch))
+        pipeline?.send(.append(delta, epoch, fresh: fresh))
     }
 
     /// Bumped by `reset` and `load`: a parse the background pipeline finished for the text before them is dropped
     /// instead of putting the previous answer's blocks on top of the new one.
     private var epoch = 0
 
-    fileprivate func apply(_ result: PipelineResult, epoch: Int) {
+    /// `fresh`: the length of the delta the update shows, to fade in. Its fade starts here, when the text is on screen:
+    /// started when the delta went to the parser, it lands on the words already shown, which dim and come back.
+    fileprivate func apply(_ result: PipelineResult, epoch: Int, fresh: Int? = nil) {
         guard epoch == self.epoch else { return }
         let interval = Self.signposter.beginInterval("apply")
         let start = ContinuousClock.now
@@ -168,6 +165,12 @@ final class StreamingMarkdownModel {
         case .update(let u):
             if !u.newlyFinalized.isEmpty { finalized.append(contentsOf: u.newlyFinalized) }
             if tail != u.tail { tail = u.tail }
+            if let fresh, fresh > 0 {
+                let now = Date()
+                freshSpans = freshSpans.filter { $0.isFading(at: now) }
+                freshSpans.append(FreshSpan(length: fresh, born: now, duration: Self.answerFadeDuration, easeOut: true))
+                scheduleTick() // ends the fade even when nothing is left to reveal
+            }
         case .reconcile(let all):
             if all != finalized + tail {
                 finalized = all
@@ -187,7 +190,7 @@ final class StreamingMarkdownModel {
     }
 
     fileprivate enum Command: Sendable {
-        case append(String, Int), finish(Int), reset
+        case append(String, Int, fresh: Bool), finish(Int), reset
     }
 
     /// Serial background parser. Commands are processed in order.
@@ -204,9 +207,9 @@ final class StreamingMarkdownModel {
                 if !seed.isEmpty { parser.reset(text: seed) }
                 for await command in stream {
                     switch command {
-                    case .append(let s, let epoch):
+                    case .append(let s, let epoch, let fresh):
                         let update = parser.append(s)
-                        await model?.apply(.update(update), epoch: epoch)
+                        await model?.apply(.update(update), epoch: epoch, fresh: fresh ? s.count : nil)
                     case .finish(let epoch):
                         await model?.apply(.reconcile(parser.finish()), epoch: epoch)
                     case .reset:

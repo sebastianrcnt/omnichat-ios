@@ -587,8 +587,10 @@ struct InlineMarkdownText: View {
 
     var body: some View {
         // The expensive inline pipeline runs once per body (that is, per reveal tick); a frame only applies the fade.
+        // Text still growing stays in the timeline even between fades: switching views at each pause in the stream
+        // redrew the whole paragraph, a blink.
         let attributed = make()
-        if spans.isEmpty {
+        if spans.isEmpty && !isOpen {
             styled(attributed)
         } else {
             let now = Date()

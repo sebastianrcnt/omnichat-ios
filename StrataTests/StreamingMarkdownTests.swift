@@ -382,6 +382,22 @@ struct StreamingModelTests {
         #expect(m.text == "First thought.\n\nSecond thought continues.\n\nThird")
     }
 
+    @Test func anAnswersFadeStartsOnlyOnceItsWordsAreShown() async {
+        // A fade begun before the parse put its words on screen fell on the words already there, which blinked.
+        let m = StreamingMarkdownModel(smoothing: true)
+        m.append(String(repeating: "word ", count: 60))
+        var checks = 0, ahead = 0
+        let deadline = ContinuousClock.now + .seconds(5)
+        while m.unrevealedCount > 0 || m.freshSpans.isEmpty, ContinuousClock.now < deadline {
+            let shown = m.blocks.reduce(0) { $0 + $1.text.count }
+            let fading = m.freshSpans.reduce(0) { $0 + $1.length }
+            if !m.freshSpans.isEmpty { checks += 1; if fading > shown + 1 { ahead += 1 } }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(checks > 0)
+        #expect(ahead == 0, "fresh spans counted words not on screen yet")
+    }
+
     @Test func reasoningFadeSpansAppearWhileSmoothingAndClearAfterwards() async {
         let m = ReasoningChunkModel(smoothing: true)
         m.append(String(repeating: "word ", count: 40))
