@@ -36,6 +36,11 @@ final class ManualStreamer: ChatStreaming, @unchecked Sendable {
         lock.withLock { feeds.removeValue(forKey: key) }?.finish()
     }
 
+    /// The stream ends with `error`, as a dropped connection would.
+    func fail(_ key: String, _ error: Error) {
+        lock.withLock { feeds.removeValue(forKey: key) }?.finish(throwing: error)
+    }
+
     private static func question(_ request: ChatRequest) -> String {
         guard let user = request.messages.last(where: { $0.role == "user" }), case .text(let text) = user.content else { return "" }
         return text
@@ -52,7 +57,8 @@ struct MultiChatTests {
         let chats: [Conversation]
     }
 
-    private func rig(chats: Int = 2) throws -> Rig {
+    /// - Parameter resumable: whether the connection has Resumable replies (a gateway).
+    private func rig(chats: Int = 2, resumable: Bool = true) throws -> Rig {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
                                            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
         let context = container.mainContext
@@ -61,6 +67,7 @@ struct MultiChatTests {
         try connections.setAPIKey("k", for: Connection.testID)
         var strata = connections.testGateway()
         strata.models = [ModelInfo(id: "m", supportsTools: true)]
+        strata.supportsResumable = resumable
         connections.upsert(strata)
         let streamer = ManualStreamer()
         let controller = ChatController(connections: connections, settings: AppSettings(defaults: defaults),
@@ -242,6 +249,55 @@ struct MultiChatTests {
         await r.controller.waitUntilIdle()
         #expect(answer(r.chats[2])?.text == "qc" && answer(r.chats[2])?.stoppedByUser == false)
         #expect(r.controller.backgroundHolderCount == 0)
+    }
+
+    @Test func theBackgroundLeaseEndingWithoutResumableRepliesSaysWhyTheReplyStopped() async throws {
+        let r = try rig(chats: 1, resumable: false)
+        send(r, 0, "qa")
+        await waitFor { r.streamer.started.count == 1 }
+        r.streamer.send("qa", ChatDelta(content: "partial"))
+        await waitFor { r.controller.run(for: r.chats[0])?.phase == .writing }
+        r.controller.backgroundTaskCancelled()
+        await r.controller.waitUntilIdle()
+        let a = answer(r.chats[0])
+        #expect(a?.text == "partial", "the text so far stays")
+        #expect(a?.stoppedByUser == false, "not shown as if Stop was pressed")
+        #expect(a?.errorText == BackgroundInterruption().errorDescription)
+        #expect(r.controller.backgroundHolderCount == 0)
+    }
+
+    @Test func aConnectionLostAfterTheAppWentToTheBackgroundSaysSo() async throws {
+        let r = try rig(chats: 1, resumable: false)
+        send(r, 0, "qa")
+        await waitFor { r.streamer.started.count == 1 }
+        r.streamer.send("qa", ChatDelta(content: "partial"))
+        await waitFor { r.controller.run(for: r.chats[0])?.phase == .writing }
+        r.controller.appEnteredBackground()
+        r.streamer.fail("qa", URLError(.networkConnectionLost))
+        await r.controller.waitUntilIdle()
+        let a = answer(r.chats[0])
+        #expect(a?.text == "partial")
+        #expect(a?.stoppedByUser == false)
+        #expect(a?.errorText == BackgroundInterruption().errorDescription)
+    }
+
+    @Test func aServerErrorAfterTheAppWentToTheBackgroundKeepsItsOwnMessage() async throws {
+        let r = try rig(chats: 1, resumable: false)
+        send(r, 0, "qa")
+        await waitFor { r.streamer.started.count == 1 }
+        r.controller.appEnteredBackground()
+        r.streamer.fail("qa", APIError.http(status: 500, message: "boom"))
+        await r.controller.waitUntilIdle()
+        #expect(answer(r.chats[0])?.errorText == APIError.http(status: 500, message: "boom").errorDescription)
+    }
+
+    @Test func aConnectionLostWhileTheAppStaysInFrontKeepsItsOwnMessage() async throws {
+        let r = try rig(chats: 1, resumable: false)
+        send(r, 0, "qa")
+        await waitFor { r.streamer.started.count == 1 }
+        r.streamer.fail("qa", URLError(.networkConnectionLost))
+        await r.controller.waitUntilIdle()
+        #expect(answer(r.chats[0])?.errorText == URLError(.networkConnectionLost).localizedDescription)
     }
 
     @Test func oneBackgroundLeaseIsHeldWhileAnyChatRuns() async throws {
