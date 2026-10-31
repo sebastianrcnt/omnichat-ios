@@ -203,7 +203,7 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
         name: "web_search",
         description: "Search the web and return the top results (title, URL, snippet). Use for current events, facts you are unsure about, or to find pages to read.",
         parameters: .init(properties: ["query": .init(description: "The search query."),
-                                       "engine": .init(description: "Optional. The search engine to use: naver for Korean topics (Korean news, places, blogs, communities), bing for most other searches, duckduckgo as an alternative to bing. Leave it out to use the user's default.",
+                                       "engine": .init(description: "Optional. The search engine to use: naver for topics in Korea (Korean news, places in Korea, blogs, communities), bing for most other searches, including places outside Korea even when the query is in Korean, duckduckgo as an alternative to bing. Leave it out to use the user's default.",
                                                        choices: ["naver", "bing", "duckduckgo"])],
                           required: ["query"])))
 
@@ -337,7 +337,7 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
 
     static let showPlaces = ToolDefinition(function: .init(
         name: "show_places",
-        description: "Show places to the user on a map card in the chat: numbered pins, a card per place with your note and a review quote, and Naver Map directions (walk, transit, car, bike). Use it whenever you recommend specific places. Places without lat/lng are looked up on the map by name and address.",
+        description: "Show places to the user on a map card in the chat: numbered pins, a card per place with your note and a review quote, and directions (walk, transit, car, bike) in Naver Map for places in Korea, Google Maps or Apple Maps elsewhere. Use it whenever you recommend specific places. Places without lat/lng are looked up on the map by name and address.",
         parameters: .init(properties: [
             "title": .init(description: "Optional. A short title for the map, like \"Quiet cafes in Seongsu\"."),
             "places": .init(type: "array", description: "The places, best first (at most 20).", items: .init(properties: [
@@ -348,7 +348,7 @@ struct ToolDefinition: Encodable, Sendable, Equatable {
                 "address": .init(description: "Optional. Street address or area."),
                 "lat": .init(type: "number", description: "Optional. Latitude."),
                 "lng": .init(type: "number", description: "Optional. Longitude."),
-                "placeId": .init(description: "Optional. The Naver Place id."),
+                "placeId": .init(description: "Optional. The Naver Place id, for a place in Korea."),
                 "note": .init(description: "Optional. One sentence on why it fits the request, in the user's language."),
                 "quote": .init(description: "Optional. A short quote from a real review that backs the note."),
             ], required: ["name"])),

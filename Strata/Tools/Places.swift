@@ -4,7 +4,7 @@ import os
 import MapKit
 
 // `show_places`: the model's picks on a map card in the chat, and `current_location`: roughly where the user is. Places
-// without coordinates are looked up with MapKit on the device; directions hand off to the Naver Map app (or its website).
+// without coordinates are looked up with MapKit on the device; directions hand off to Naver Map in Korea and to Google Maps or Apple Maps elsewhere (`MapTarget`).
 
 /// One place as `show_places` takes it. Numbers may arrive as strings ("4.5", "1,234") and are read leniently.
 struct PlaceInput: Codable, Sendable, Equatable {
@@ -426,7 +426,7 @@ struct ShowPlacesTool {
     /// What the model reads: the card is shown, and which places could not be put on the map.
     static func summary(_ collection: PlaceCollection) -> String {
         let placed = collection.places.filter(\.hasLocation).count
-        var lines = ["Shown to the user as a map card with \(collection.places.count) place\(collection.places.count == 1 ? "" : "s") (\(placed) on the map). Each card has Naver Map directions; do not repeat the list in full."]
+        var lines = ["Shown to the user as a map card with \(collection.places.count) place\(collection.places.count == 1 ? "" : "s") (\(placed) on the map). Each card has map directions; do not repeat the list in full."]
         for p in collection.places {
             let where_ = p.hasLocation ? (p.locatedOnDevice == true ? "located by name" : "pinned") : "not found on the map, listed only"
             lines.append("\(p.number). \(p.name): \(where_)")
