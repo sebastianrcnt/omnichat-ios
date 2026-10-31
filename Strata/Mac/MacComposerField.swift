@@ -78,11 +78,16 @@ struct MacComposerField: NSViewRepresentable {
             view.textStorage?.addAttributes([.font: font, .foregroundColor: color, .paragraphStyle: style],
                                             range: NSRange(location: 0, length: (text as NSString).length))
         }
-        view.wantsFocus = isFocused
-        if isFocused, let window = view.window, window.firstResponder !== view {
-            window.makeFirstResponder(view)
-        } else if !isFocused, let window = view.window, window.firstResponder === view {
-            window.makeFirstResponder(nil)
+        // Only a change of `isFocused` moves focus. Comparing levels on every update would let a stale `false` (the
+        // binding catches up asynchronously) take focus straight back from a click, leaving nothing to type into.
+        if context.coordinator.requestedFocus != isFocused {
+            context.coordinator.requestedFocus = isFocused
+            view.wantsFocus = isFocused
+            if isFocused, let window = view.window, window.firstResponder !== view {
+                window.makeFirstResponder(view)
+            } else if !isFocused, let window = view.window, window.firstResponder === view {
+                window.makeFirstResponder(nil)
+            }
         }
     }
 
@@ -103,6 +108,8 @@ struct MacComposerField: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: MacComposerField
+        /// The focus last asked for or reached, so an update acts only when `isFocused` changes.
+        var requestedFocus: Bool?
 
         init(_ parent: MacComposerField) { self.parent = parent }
 
@@ -112,6 +119,7 @@ struct MacComposerField: NSViewRepresentable {
         }
 
         func focusChanged(_ focused: Bool) {
+            requestedFocus = focused
             DispatchQueue.main.async { [self] in
                 if parent.isFocused != focused { parent.isFocused = focused }
             }
