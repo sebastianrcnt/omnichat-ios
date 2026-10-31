@@ -222,9 +222,7 @@
     "A link asks to add this server. Add it only if you trust where the link came from: what you send in chats goes to this server.": {},
     "A running reply on the Lock Screen and in the Dynamic Island when iOS isn't showing its own progress for it.": {},
     "A server with an OpenAI-compatible API, Anthropic, or your ChatGPT plan. API keys and sign-ins are stored in the Keychain.": {},
-    "A server with an OpenAI-compatible API, your ChatGPT plan, or your OpenCode account. API keys and sign-ins are stored in the Keychain.": {
-      "extractionState": "stale"
-    },
+    "A server with an OpenAI-compatible API, your ChatGPT plan, or your OpenCode account. API keys and sign-ins are stored in the Keychain.": {},
     "API": {},
     "API key": {},
     "API key from console.groq.com": {
@@ -247,21 +245,15 @@
     "Activity": {},
     "Add": {},
     "Add a connection": {},
-    "Add a connection in Settings, then fetch its models or add one by hand.": {
-      "extractionState": "stale"
-    },
-    "Add a connection to start": {
-      "extractionState": "stale"
-    },
+    "Add a connection in Settings, then fetch its models or add one by hand.": {},
+    "Add a connection to start": {},
     "Add a connection with a model in OmniChat first.": {},
     "Add a connection with a model in OpenChat first.": {
       "extractionState": "stale"
     },
     "Add an API key for %@ in Settings.": {},
     "Add an API key to use this server": {},
-    "Add another service": {
-      "extractionState": "stale"
-    },
+    "Add another service": {},
     "Add connection": {},
     "Add credential": {},
     "Add credential…": {},
@@ -275,9 +267,7 @@
     "Add server": {},
     "Add this connection?": {},
     "Added to the system prompt of chats that use it: %lld characters, about %lld tokens.": {},
-    "Added · Open": {
-      "extractionState": "stale"
-    },
+    "Added · Open": {},
     "After the first answer, ask the model for a short title.": {},
     "Allow Python to connect to %@?": {},
     "Allow a connection to %@": {},
@@ -353,18 +343,12 @@
     "Auto searches Naver for Korean queries and Bing otherwise. If the engine fails or finds nothing, the next one is tried. web_fetch returns up to the fetch length per call; longer pages continue in further calls. A chat can turn web search on or off from the + menu.": {},
     "Automatic": {},
     "Available": {},
-    "Away for %lld s.": {
-      "extractionState": "stale"
-    },
+    "Away for %lld s.": {},
     "Back": {},
     "Background identifiers": {},
     "Background lease": {},
-    "Background sound test": {
-      "extractionState": "stale"
-    },
-    "Background sound test finished": {
-      "extractionState": "stale"
-    },
+    "Background sound test": {},
+    "Background sound test finished": {},
     "Background tasks ended by iOS": {},
     "Bad certificate": {},
     "Balance": {
@@ -521,7 +505,9 @@
     },
     "Could not resolve the host %@.": {},
     "Could not save: %@": {},
-    "Couldn't add the connection": {},
+    "Couldn't add the connection": {
+      "extractionState": "stale"
+    },
     "Couldn't check Apple Health": {},
     "Couldn't choose%@": {},
     "Couldn't click%@": {},
@@ -598,9 +584,7 @@
     "Discard share": {},
     "Dismiss": {},
     "Display name": {},
-    "Doesn't match the expected format": {
-      "extractionState": "stale"
-    },
+    "Doesn't match the expected format": {},
     "Don't Save": {},
     "Don't save as skill": {},
     "Done": {},
@@ -959,9 +943,7 @@
     "No plugins": {},
     "No reasoning was shared for this reply.": {},
     "No requests yet": {},
-    "No results yet": {
-      "extractionState": "stale"
-    },
+    "No results yet": {},
     "No saved skills": {},
     "No secrets were in iCloud.": {},
     "No text": {},
@@ -1012,12 +994,8 @@
     "OmniChat is using this page · view only": {},
     "OmniChat isn't allowed to add photos. You can allow it in Settings.": {},
     "OmniChat stops at a robot check (CAPTCHA) and asks you to solve it on the page; it never solves one itself. With this off, a page that shows one isn't read.": {},
-    "OmniChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT account.": {
-      "extractionState": "stale"
-    },
-    "OmniChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.": {
-      "extractionState": "stale"
-    },
+    "OmniChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT account.": {},
+    "OmniChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.": {},
     "OmniChat waits while you use the page. Tap Done to hand it back.": {},
     "On": {},
     "On in new chats": {},
@@ -1334,9 +1312,7 @@
     },
     "Responses API": {},
     "Restricted": {},
-    "Results": {
-      "extractionState": "stale"
-    },
+    "Results": {},
     "Resumable replies": {},
     "Resume data": {
       "extractionState": "stale"
@@ -1376,7 +1352,9 @@
     "Saved": {},
     "Saved credential %@": {},
     "Saved in the Keychain": {},
-    "Saved in the Keychain when you add the connection": {},
+    "Saved in the Keychain when you add the connection": {
+      "extractionState": "stale"
+    },
     "Saved server %@": {},
     "Saved skill %@": {},
     "Saved to Documents/Debug/%@. API keys and Authorization values are always removed.": {},
@@ -1539,9 +1517,7 @@
     "Speech recognition is off. Turn it on in Settings.": {},
     "Speech recognition is off. Turn it on in System Settings.": {},
     "Standard (25 s)": {},
-    "Start": {
-      "extractionState": "stale"
-    },
+    "Start": {},
     "Start again": {},
     "Start date": {},
     "Static / dynamic": {
@@ -1594,9 +1570,7 @@
     "System prompt": {},
     "Take over": {},
     "Taking a screenshot…": {},
-    "Tap Start, go to the Home screen or another app for about a minute, then come back. A page that kept running has a longest gap near 1 s; one that was suspended shows a gap about as long as you were away. The sound plays only while you are away, and only when Settings > Tools > Play a sound while browsing in the background is on.": {
-      "extractionState": "stale"
-    },
+    "Tap Start, go to the Home screen or another app for about a minute, then come back. A page that kept running has a longest gap near 1 s; one that was suspended shows a gap about as long as you were away. The sound plays only while you are away, and only when Settings > Tools > Play a sound while browsing in the background is on.": {},
     "Teal": {},
     "Temporarily unavailable": {},
     "Test": {},
@@ -1640,7 +1614,9 @@
     "The dictation model couldn't be downloaded. Try again later.": {},
     "The downloaded package isn't the one the link names (its SHA-256 differs).": {},
     "The installed %@ is signed, and this version isn't. Only its publisher can update it.": {},
-    "The key is saved in the Keychain when you add the connection. Enter a new one to replace it.": {},
+    "The key is saved in the Keychain when you add the connection. Enter a new one to replace it.": {
+      "extractionState": "stale"
+    },
     "The language download didn't finish. Try again.": {},
     "The language the microphone in the composer listens for, sent as a hint. The recording is sent to the connection's /audio/transcriptions when you tap Done, and the words appear then. Works with OpenAI (whisper-1, gpt-4o-transcribe), Groq (whisper-large-v3) and local whisper servers; add one under Connections if it isn't there.": {},
     "The language the microphone in the composer listens for. Speech in another language comes out garbled. Apple on-device shows the words as you speak; nothing leaves the device.": {},
