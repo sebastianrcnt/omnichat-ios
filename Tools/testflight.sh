@@ -26,15 +26,24 @@ cat > "$WORK/ExportOptions.plist" <<EOF
 </dict></plist>
 EOF
 
+# Sign and upload with the App Store Connect API key when it's set up (outside the repo), so an expired Xcode account
+# sign-in doesn't block it. The key can't use cloud-managed certificates: the Apple Distribution certificate it signs
+# with is in the login keychain.
+AUTH=()
+if [[ -f ~/.appstoreconnect/omnichat.env ]]; then
+  source ~/.appstoreconnect/omnichat.env
+  AUTH=(-authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+fi
+
 rm -rf "$WORK/OmniChat.xcarchive" "$WORK/export"
 xcodebuild -project "$REPO/Strata.xcodeproj" -scheme Strata -configuration Release -destination 'generic/platform=iOS' \
-  -allowProvisioningUpdates -derivedDataPath "$WORK/dd" -archivePath "$WORK/OmniChat.xcarchive" archive \
+  -allowProvisioningUpdates "${AUTH[@]}" -derivedDataPath "$WORK/dd" -archivePath "$WORK/OmniChat.xcarchive" archive \
   CURRENT_PROJECT_VERSION=$BUILD \
   | grep -a "ARCHIVE SUCCEEDED\|ARCHIVE FAILED\|error: [^t]" || true
 [[ -d "$WORK/OmniChat.xcarchive" ]] || { echo "archive failed" >&2; exit 1; }
 
 # Homebrew rsync on PATH breaks the IPA copy step ("Copy failed"): export with the system tools.
 PATH=/usr/bin:/bin:/usr/sbin:/sbin xcodebuild -exportArchive -archivePath "$WORK/OmniChat.xcarchive" -exportPath "$WORK/export" \
-  -exportOptionsPlist "$WORK/ExportOptions.plist" -allowProvisioningUpdates 2>&1 \
+  -exportOptionsPlist "$WORK/ExportOptions.plist" -allowProvisioningUpdates "${AUTH[@]}" 2>&1 \
   | grep -av "IDEDistributionLogging\|^\s*$" | tail -25
 echo "build $BUILD ($(git -C "$REPO" log -1 --format=%h))"
