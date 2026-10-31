@@ -131,8 +131,11 @@ targets:
             LSItemContentTypes:
               - cc.coolservices.omnichat.package
               - cc.coolservices.openchat.package
+        # Connections go to servers the user enters, and self-hosted ones (vLLM, Ollama, llama.cpp) are often plain http
+        # under a domain name (a home server's DDNS, a tailnet name). NSAllowsLocalNetworking would override this key, so
+        # it goes: local addresses are covered too. The connection editor warns when a non-local server uses http.
         NSAppTransportSecurity:
-          NSAllowsLocalNetworking: true
+          NSAllowsArbitraryLoads: true
   # Widget extension: the Live Activity of running replies (`Strata/LiveActivity`) and the New Chat control. Named
   # for widgets in general, so Home Screen widgets and more controls can join it.
   OmniChatWidgets:
@@ -299,8 +302,11 @@ targets:
             LSItemContentTypes:
               - cc.coolservices.omnichat.package
               - cc.coolservices.openchat.package
+        # Connections go to servers the user enters, and self-hosted ones (vLLM, Ollama, llama.cpp) are often plain http
+        # under a domain name (a home server's DDNS, a tailnet name). NSAllowsLocalNetworking would override this key, so
+        # it goes: local addresses are covered too. The connection editor warns when a non-local server uses http.
         NSAppTransportSecurity:
-          NSAllowsLocalNetworking: true
+          NSAllowsArbitraryLoads: true
   StrataTests:
     type: bundle.unit-test
     platform: iOS
