@@ -382,6 +382,18 @@ struct StreamingModelTests {
         #expect(m.text == "First thought.\n\nSecond thought continues.\n\nThird")
     }
 
+    @Test func aFinalTextThatDiffersReplacesTheAnswerWithoutEmptyingIt() async {
+        let m = StreamingMarkdownModel(smoothing: false)
+        m.append("First paragraph.\n\nSecond one ")
+        await waitUntil { m.blocks.count == 2 }
+        let ids = m.blocks.map(\.id)
+        m.finish(finalText: "First paragraph.\n\nSecond one.")
+        // At once, with the same blocks: never an empty answer that fades in again.
+        #expect(m.blocks.map(\.id) == ids)
+        #expect(m.blocks.last?.text == "Second one.")
+        #expect(m.freshSpans.isEmpty && m.unrevealedCount == 0)
+    }
+
     @Test func anAnswersFadeStartsOnlyOnceItsWordsAreShown() async {
         // A fade begun before the parse put its words on screen fell on the words already there, which blinked.
         let m = StreamingMarkdownModel(smoothing: true)

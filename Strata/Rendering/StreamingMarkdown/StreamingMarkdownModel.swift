@@ -80,9 +80,14 @@ final class StreamingMarkdownModel {
         freshSpans = []
     }
 
-    /// Final reconciliation once the stream ends: one full parse replaces the incremental result.
+    /// Final reconciliation once the stream ends: one full parse replaces the incremental result. A final text that
+    /// differs from what streamed replaces the document in place (blocks keep their ids): clearing it first emptied the
+    /// answer until the parse came back, and the whole answer faded in again.
     func finish(finalText: String? = nil) {
-        if let finalText, finalText != text { reset(); text = finalText; reveal.receive(finalText) }
+        if let finalText, finalText != text {
+            load(finalText)
+            return
+        }
         revealAll()
         pipeline?.send(.finish(epoch))
         if pipeline == nil { load(text) }
