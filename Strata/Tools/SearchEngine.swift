@@ -97,10 +97,15 @@ enum SearchEnginePreference: String, CaseIterable, Identifiable, Sendable {
     }
 
     /// Engine ids to try for `query`, in order. The first that answers wins; the others are fallbacks.
-    /// Auto: Naver for a Hangul query, Bing otherwise.
-    func order(for query: String) -> [String] {
+    /// Auto: Naver for a Hangul query in Korea, Bing otherwise. Abroad, Naver knows little about the places around, so a
+    /// Hangul query tries Bing first and keeps Naver as the fallback. `timeZone` says where the device is: unlike the
+    /// region setting, it follows the device when the user travels.
+    func order(for query: String, timeZone: TimeZone = .current) -> [String] {
         switch self {
-        case .auto: SearchEngines.containsHangul(query) ? ["naver", "bing", "duckduckgo"] : ["bing", "duckduckgo"]
+        case .auto:
+            if !SearchEngines.containsHangul(query) { ["bing", "duckduckgo"] }
+            else if SearchEngines.isInKorea(timeZone) { ["naver", "bing", "duckduckgo"] }
+            else { ["bing", "naver", "duckduckgo"] }
         case .naver: ["naver", "bing", "duckduckgo"]
         case .bing: ["bing", "duckduckgo"]
         case .duckduckgo: ["duckduckgo", "bing"]
@@ -133,9 +138,13 @@ enum SearchEngines {
     static var `default`: SearchEngine? { bundled().first { $0.id == "duckduckgo" } ?? bundled().first }
 
     /// The engines to try for `query`, best first (engines missing from `available` are skipped).
-    static func chain(for query: String, preference: SearchEnginePreference, available: [SearchEngine] = bundled()) -> [SearchEngine] {
-        preference.order(for: query).compactMap { id in available.first { $0.id == id } }
+    static func chain(for query: String, preference: SearchEnginePreference, available: [SearchEngine] = bundled(),
+                      timeZone: TimeZone = .current) -> [SearchEngine] {
+        preference.order(for: query, timeZone: timeZone).compactMap { id in available.first { $0.id == id } }
     }
+
+    /// True if the device's time zone is Korea's (it follows the device abroad, unlike the region setting).
+    static func isInKorea(_ timeZone: TimeZone) -> Bool { timeZone.identifier == "Asia/Seoul" }
 
     /// True if `text` has any Hangul (syllables, jamo, compatibility jamo).
     static func containsHangul(_ text: String) -> Bool {

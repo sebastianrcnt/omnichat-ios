@@ -163,57 +163,88 @@ struct PlaceCollection: Codable, Sendable, Hashable {
     var places: [MapPlace]
 }
 
-// MARK: - Naver Map links
+// MARK: - Map links
+
+/// How to get to a place: the directions buttons on its sheet.
+enum RouteMode: String, CaseIterable, Identifiable, Sendable {
+    case walk, transit, car, bike
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .walk: String(localized: "Walk")
+        case .transit: String(localized: "Transit")
+        case .car: String(localized: "Car")
+        case .bike: String(localized: "Bike")
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .walk: "figure.walk"
+        case .transit: "tram.fill"
+        case .car: "car.fill"
+        case .bike: "bicycle"
+        }
+    }
+}
+
+/// The maps a place opens in: Naver Map in Korea; abroad, where Naver knows little, Google Maps when it is installed and
+/// Apple Maps otherwise.
+enum MapTarget: Sendable, Equatable {
+    case naver, google, apple
+
+    static func `for`(_ place: MapPlace, googleMapsInstalled: Bool) -> MapTarget {
+        if place.isInKorea { return .naver }
+        return googleMapsInstalled ? .google : .apple
+    }
+
+    var name: String {
+        switch self {
+        case .naver: String(localized: "Naver Map")
+        case .google: String(localized: "Google Maps")
+        case .apple: String(localized: "Apple Maps")
+        }
+    }
+}
+
+extension MapPlace {
+    /// South Korea, roughly: a box from Jeju to the DMZ and from Baengnyeong to Dokdo, less the corner of it that holds
+    /// Tsushima and northern Kyushu (Fukuoka). North of the DMZ is left in; nobody plans a cafe trip there.
+    static func isInKorea(lat: Double, lng: Double) -> Bool {
+        guard (33.0...38.7).contains(lat), (124.5...132.0).contains(lng) else { return false }
+        return !(lat < 35.0 && lng > 129.1)
+    }
+
+    /// Whether the place is in Korea: by its coordinates, or without them by what the model gave (a Naver Place id, or
+    /// a name or address in Hangul), since a place without coordinates opens as a search for its name.
+    var isInKorea: Bool {
+        if let lat, let lng { return Self.isInKorea(lat: lat, lng: lng) }
+        return placeId != nil || [name, address ?? ""].contains(where: SearchEngines.containsHangul)
+    }
+}
 
 enum NaverMap {
     static let appName = "cc.coolservices.strata"
 
-    enum Mode: String, CaseIterable, Identifiable, Sendable {
-        case walk, transit, car, bike
-        var id: String { rawValue }
-
-        /// The `nmap://route/<path>` of the mode.
-        var appPath: String {
-            switch self {
-            case .walk: "walk"
-            case .transit: "public"
-            case .car: "car"
-            case .bike: "bicycle"
-            }
-        }
-
-        var label: String {
-            switch self {
-            case .walk: String(localized: "Walk")
-            case .transit: String(localized: "Transit")
-            case .car: String(localized: "Car")
-            case .bike: String(localized: "Bike")
-            }
-        }
-
-        var systemImage: String {
-            switch self {
-            case .walk: "figure.walk"
-            case .transit: "tram.fill"
-            case .car: "car.fill"
-            case .bike: "bicycle"
-            }
-        }
-    }
-
-    private static func query(_ items: [(String, String)]) -> String {
-        var comps = URLComponents()
-        comps.queryItems = items.map { URLQueryItem(name: $0.0, value: $0.1) }
-        // `+` would read as a space; `&` and `=` are already escaped by URLComponents.
-        return (comps.percentEncodedQuery ?? "").replacingOccurrences(of: "+", with: "%2B")
-    }
+    private static func query(_ items: [(String, String)]) -> String { MapLinkQuery.encode(items) }
 
     private static func coordinate(_ value: Double) -> String { String(format: "%.7f", value) }
 
+    /// The `nmap://route/<path>` of a mode.
+    private static func appPath(_ mode: RouteMode) -> String {
+        switch mode {
+        case .walk: "walk"
+        case .transit: "public"
+        case .car: "car"
+        case .bike: "bicycle"
+        }
+    }
+
     /// Directions in the Naver Map app, from the current location.
-    static func appRoute(_ mode: Mode, to place: MapPlace) -> URL? {
+    static func appRoute(_ mode: RouteMode, to place: MapPlace) -> URL? {
         guard let lat = place.lat, let lng = place.lng else { return nil }
-        return URL(string: "nmap://route/\(mode.appPath)?" + query([("dlat", coordinate(lat)), ("dlng", coordinate(lng)),
+        return URL(string: "nmap://route/\(appPath(mode))?" + query([("dlat", coordinate(lat)), ("dlng", coordinate(lng)),
                                                                    ("dname", place.name), ("appname", appName)]))
     }
 
@@ -232,7 +263,7 @@ enum NaverMap {
     }
 
     /// Directions on map.naver.com (the fallback without the app).
-    static func webRoute(_ mode: Mode, to place: MapPlace) -> URL? {
+    static func webRoute(_ mode: RouteMode, to place: MapPlace) -> URL? {
         guard let lat = place.lat, let lng = place.lng else { return webPlace(place) }
         let id = place.placeId.map(segment) ?? ""
         let goal = [coordinate(lng), coordinate(lat), segment(place.name), id, place.placeId == nil ? "" : "PLACE_POI"].joined(separator: ",")
@@ -245,6 +276,76 @@ enum NaverMap {
         let q = [place.name, place.address].compactMap { $0 }.joined(separator: " ")
         return URL(string: "https://map.naver.com/p/search/\(segment(q))")
     }
+}
+
+/// The Google Maps app (`comgooglemaps://`), for places abroad.
+enum GoogleMaps {
+    static let probe = URL(string: "comgooglemaps://")!
+
+    private static func directionsMode(_ mode: RouteMode) -> String {
+        switch mode {
+        case .walk: "walking"
+        case .transit: "transit"
+        case .car: "driving"
+        case .bike: "bicycling"
+        }
+    }
+
+    /// Directions from the current location.
+    static func appRoute(_ mode: RouteMode, to place: MapPlace) -> URL? {
+        guard let lat = place.lat, let lng = place.lng else { return nil }
+        return URL(string: "comgooglemaps://?" + MapLinkQuery.encode([("daddr", MapLinkQuery.coordinate(lat, lng)),
+                                                                     ("directionsmode", directionsMode(mode))]))
+    }
+
+    /// A search for the place: by name around its coordinates, so the result is the place itself rather than a bare pin.
+    static func appPlace(_ place: MapPlace) -> URL? {
+        let q = [place.name, place.address].compactMap { $0 }.joined(separator: " ")
+        guard let lat = place.lat, let lng = place.lng else { return URL(string: "comgooglemaps://?" + MapLinkQuery.encode([("q", q)])) }
+        return URL(string: "comgooglemaps://?" + MapLinkQuery.encode([("q", q), ("center", MapLinkQuery.coordinate(lat, lng)), ("zoom", "16")]))
+    }
+}
+
+/// Apple Maps links (maps.apple.com opens the Maps app on iPhone and Mac), for places abroad without Google Maps.
+enum AppleMaps {
+    private static func mode(_ mode: RouteMode) -> String {
+        switch mode {
+        case .walk: "walking"
+        case .transit: "transit"
+        case .car: "driving"
+        case .bike: "cycling"
+        }
+    }
+
+    /// Directions from the current location.
+    static func route(_ mode: RouteMode, to place: MapPlace) -> URL? {
+        guard let lat = place.lat, let lng = place.lng else { return self.place(place) }
+        return URL(string: "https://maps.apple.com/directions?" + MapLinkQuery.encode([("destination", MapLinkQuery.coordinate(lat, lng)),
+                                                                                       ("mode", self.mode(mode))]))
+    }
+
+    /// The place's pin with its name, or a search for its name when it has no coordinates.
+    static func place(_ place: MapPlace) -> URL? {
+        guard let lat = place.lat, let lng = place.lng else {
+            let q = [place.name, place.address].compactMap { $0 }.joined(separator: " ")
+            return URL(string: "https://maps.apple.com/search?" + MapLinkQuery.encode([("query", q)]))
+        }
+        return URL(string: "https://maps.apple.com/place?" + MapLinkQuery.encode([("coordinate", MapLinkQuery.coordinate(lat, lng)),
+                                                                                  ("name", place.name)]))
+    }
+}
+
+/// Query strings for the Google and Apple links.
+enum MapLinkQuery {
+    static func encode(_ items: [(String, String)]) -> String {
+        var comps = URLComponents()
+        comps.queryItems = items.map { URLQueryItem(name: $0.0, value: $0.1) }
+        // `+` would read as a space; `&` and `=` are already escaped by URLComponents.
+        return (comps.percentEncodedQuery ?? "").replacingOccurrences(of: "+", with: "%2B")
+    }
+
+    /// "33.7490000,-84.3880000".
+    static func coordinate(_ lat: Double, _ lng: Double) -> String { String(format: "%.7f,%.7f", lat, lng) }
 }
 
 // MARK: - Lookup

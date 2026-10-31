@@ -230,9 +230,23 @@ struct SearchEngineSelectionTests {
         #expect(!SearchEngines.containsHangul(""))
     }
 
+    private let seoul = TimeZone(identifier: "Asia/Seoul")!
+    private let newYork = TimeZone(identifier: "America/New_York")!
+
     @Test func autoChoosesNaverForHangulElseBing() {
-        #expect(SearchEnginePreference.auto.order(for: "\u{C11C}\u{C6B8} \u{B0A0}\u{C528}") == ["naver", "bing", "duckduckgo"])
-        #expect(SearchEnginePreference.auto.order(for: "weather in Seoul") == ["bing", "duckduckgo"])
+        #expect(SearchEnginePreference.auto.order(for: "\u{C11C}\u{C6B8} \u{B0A0}\u{C528}", timeZone: seoul) == ["naver", "bing", "duckduckgo"])
+        #expect(SearchEnginePreference.auto.order(for: "weather in Seoul", timeZone: seoul) == ["bing", "duckduckgo"])
+    }
+
+    @Test func autoPutsBingFirstForHangulAbroad() {
+        // "애틀랜타 맛집" from Atlanta: Bing first, Naver still before DuckDuckGo.
+        #expect(SearchEnginePreference.auto.order(for: "\u{C560}\u{D2C0}\u{B79C}\u{D0C0} \u{B9DB}\u{C9D1}", timeZone: newYork) == ["bing", "naver", "duckduckgo"])
+        #expect(SearchEnginePreference.auto.order(for: "weather in Seoul", timeZone: newYork) == ["bing", "duckduckgo"])
+        #expect(SearchEnginePreference.auto.order(for: "\u{AC00}", timeZone: TimeZone(identifier: "Asia/Tokyo")!) == ["bing", "naver", "duckduckgo"],
+                "the same UTC offset is not Korea")
+        // An explicit choice ignores the time zone.
+        #expect(SearchEnginePreference.naver.order(for: "\u{AC00}", timeZone: newYork) == ["naver", "bing", "duckduckgo"])
+        #expect(SearchEngines.isInKorea(seoul) && !SearchEngines.isInKorea(newYork))
     }
 
     @Test func fallbackOrderPerPreference() {
@@ -242,7 +256,8 @@ struct SearchEngineSelectionTests {
     }
 
     @Test func chainResolvesBundledEngines() {
-        #expect(SearchEngines.chain(for: "\u{AC00}", preference: .auto).map(\.id) == ["naver", "bing", "duckduckgo"])
+        #expect(SearchEngines.chain(for: "\u{AC00}", preference: .auto, timeZone: seoul).map(\.id) == ["naver", "bing", "duckduckgo"])
+        #expect(SearchEngines.chain(for: "\u{AC00}", preference: .auto, timeZone: newYork).map(\.id) == ["bing", "naver", "duckduckgo"])
         #expect(SearchEngines.chain(for: "q", preference: .auto).map(\.id) == ["bing", "duckduckgo"])
         #expect(SearchEngines.chain(for: "q", preference: .duckduckgo).map(\.id) == ["duckduckgo", "bing"])
         // An engine missing from the list is skipped.

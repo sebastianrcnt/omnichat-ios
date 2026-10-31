@@ -287,7 +287,7 @@ struct ModelPickerSheet: View {
 
     private var searchPage: some View {
         SheetScaffold(title: "Search engine", leading: .back({ withAnimation(DS.Motion.snappy) { page = .root } })) {
-            GroupedSection(footer: "Auto searches Naver for Korean queries and Bing otherwise. If the engine fails or finds nothing, the next one is tried.") {
+            GroupedSection(footer: "Auto searches Naver for Korean queries while you're in Korea, and Bing otherwise. If the engine fails or finds nothing, the next one is tried.") {
                 ForEach(SearchEnginePreference.allCases) { engine in
                     SettingsRow(title: LocalizedStringKey(engine.label), isChecked: engine == settings.searchEngine) {
                         settings.searchEngine = engine

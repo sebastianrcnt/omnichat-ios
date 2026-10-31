@@ -102,6 +102,7 @@ targets:
         UIFileSharingEnabled: true
         LSApplicationQueriesSchemes:
           - nmap
+          - comgooglemaps
         LSSupportsOpeningDocumentsInPlace: true
         CFBundleURLTypes:
           - CFBundleURLName: OmniChat links

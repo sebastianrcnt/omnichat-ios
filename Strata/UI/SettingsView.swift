@@ -727,7 +727,7 @@ private struct ToolSettingsView: View {
         @Bindable var settings = settings
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                GroupedSection(header: "Web tools", footer: "Auto searches Naver for Korean queries and Bing otherwise. If the engine fails or finds nothing, the next one is tried. web_fetch returns up to the fetch length per call; longer pages continue in further calls. A chat can turn web search on or off from the + menu.") {
+                GroupedSection(header: "Web tools", footer: "Auto searches Naver for Korean queries while you're in Korea, and Bing otherwise. If the engine fails or finds nothing, the next one is tried. web_fetch returns up to the fetch length per call; longer pages continue in further calls. A chat can turn web search on or off from the + menu.") {
                     SettingsToggleRow(title: "Web search in new chats", subtitle: "Let the model search the web and read pages.",
                                       isOn: $settings.webSearchEnabled)
                     HStack {

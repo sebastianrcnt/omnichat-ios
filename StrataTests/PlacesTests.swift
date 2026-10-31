@@ -72,6 +72,82 @@ struct NaverMapLinkTests {
     }
 }
 
+struct MapTargetTests {
+    private func at(_ lat: Double, _ lng: Double, name: String = "Spot") -> MapPlace {
+        MapPlace(number: 1, input: PlaceInput(name: name, lat: lat, lng: lng))
+    }
+
+    @Test func koreanCoordinatesAreInKorea() {
+        // Seoul, Busan (Haeundae), Jeju, Gangneung, Ulleungdo, Dokdo, Baengnyeongdo.
+        for (lat, lng) in [(37.5665, 126.978), (35.1587, 129.1604), (33.4996, 126.5312), (37.7519, 128.8761),
+                           (37.4844, 130.9057), (37.2426, 131.8669), (37.9592, 124.6653)] {
+            #expect(MapPlace.isInKorea(lat: lat, lng: lng), "\(lat),\(lng)")
+        }
+    }
+
+    @Test func foreignCoordinatesAreNot() {
+        // Atlanta, Tokyo, Fukuoka, Tsushima, Shanghai, Beijing, Sydney.
+        for (lat, lng) in [(33.749, -84.388), (35.6762, 139.6503), (33.5902, 130.4017), (34.4, 129.3),
+                           (31.2304, 121.4737), (39.9042, 116.4074), (-33.8688, 151.2093)] {
+            #expect(!MapPlace.isInKorea(lat: lat, lng: lng), "\(lat),\(lng)")
+        }
+    }
+
+    @Test func withoutCoordinatesTheModelsHintsDecide() {
+        #expect(MapPlace(number: 1, input: PlaceInput(name: "서관면옥", address: "서울 마포구")).isInKorea)
+        #expect(MapPlace(number: 1, input: PlaceInput(name: "Cafe", placeId: "123")).isInKorea, "a Naver Place id")
+        #expect(!MapPlace(number: 1, input: PlaceInput(name: "Ponce City Market", address: "675 Ponce De Leon Ave NE, Atlanta")).isInKorea)
+        // Coordinates win over a Hangul name.
+        #expect(!at(33.749, -84.388, name: "애틀랜타 한식당").isInKorea)
+    }
+
+    @Test func targetFollowsThePlaceAndGoogleMaps() {
+        let seoul = at(37.5665, 126.978), atlanta = at(33.749, -84.388)
+        #expect(MapTarget.for(seoul, googleMapsInstalled: true) == .naver)
+        #expect(MapTarget.for(seoul, googleMapsInstalled: false) == .naver)
+        #expect(MapTarget.for(atlanta, googleMapsInstalled: true) == .google)
+        #expect(MapTarget.for(atlanta, googleMapsInstalled: false) == .apple)
+    }
+}
+
+struct GoogleAndAppleMapLinkTests {
+    private let place = MapPlace(number: 1, input: PlaceInput(name: "Ponce City Market", address: "675 Ponce De Leon Ave NE",
+                                                              lat: 33.7724, lng: -84.3656))
+
+    @Test func googleRoutesUseGoogleModes() throws {
+        #expect(try #require(GoogleMaps.appRoute(.walk, to: place)).absoluteString
+                == "comgooglemaps://?daddr=33.7724000,-84.3656000&directionsmode=walking")
+        #expect(GoogleMaps.appRoute(.transit, to: place)!.absoluteString.hasSuffix("&directionsmode=transit"))
+        #expect(GoogleMaps.appRoute(.car, to: place)!.absoluteString.hasSuffix("&directionsmode=driving"))
+        #expect(GoogleMaps.appRoute(.bike, to: place)!.absoluteString.hasSuffix("&directionsmode=bicycling"))
+    }
+
+    @Test func googlePlaceSearchesByNameAroundThePin() throws {
+        #expect(try #require(GoogleMaps.appPlace(place)).absoluteString
+                == "comgooglemaps://?q=Ponce%20City%20Market%20675%20Ponce%20De%20Leon%20Ave%20NE&center=33.7724000,-84.3656000&zoom=16")
+        let nowhere = MapPlace(number: 2, input: PlaceInput(name: "A&B+C"))
+        #expect(GoogleMaps.appRoute(.walk, to: nowhere) == nil, "no route without coordinates")
+        let url = try #require(GoogleMaps.appPlace(nowhere))
+        #expect(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "q" }?.value == "A&B+C")
+    }
+
+    @Test func appleRoutesUseAppleModes() throws {
+        #expect(try #require(AppleMaps.route(.walk, to: place)).absoluteString
+                == "https://maps.apple.com/directions?destination=33.7724000,-84.3656000&mode=walking")
+        #expect(AppleMaps.route(.transit, to: place)!.absoluteString.hasSuffix("&mode=transit"))
+        #expect(AppleMaps.route(.car, to: place)!.absoluteString.hasSuffix("&mode=driving"))
+        #expect(AppleMaps.route(.bike, to: place)!.absoluteString.hasSuffix("&mode=cycling"))
+    }
+
+    @Test func applePlaceLinks() {
+        #expect(AppleMaps.place(place)!.absoluteString
+                == "https://maps.apple.com/place?coordinate=33.7724000,-84.3656000&name=Ponce%20City%20Market")
+        let nowhere = MapPlace(number: 2, input: PlaceInput(name: "Ponce City Market", address: "Atlanta"))
+        #expect(AppleMaps.place(nowhere)!.absoluteString == "https://maps.apple.com/search?query=Ponce%20City%20Market%20Atlanta")
+        #expect(AppleMaps.route(.car, to: nowhere) == AppleMaps.place(nowhere), "no route without coordinates: the search")
+    }
+}
+
 private struct FakeLocator: PlaceLocating {
     var found: [String: CLLocationCoordinate2D]
     func locate(_ place: MapPlace, near: CLLocationCoordinate2D?) async -> CLLocationCoordinate2D? { found[place.name] }

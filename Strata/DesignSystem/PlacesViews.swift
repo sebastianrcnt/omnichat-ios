@@ -6,10 +6,24 @@ import UIKit
 
 // The map card `show_places` puts in the chat: numbered pins over a small map, the picks as cards underneath. The map
 // opens full screen with the same pins and cards; a pin or card opens the place, with the model's note and quote and
-// Naver Map directions.
+// directions in Naver Map (Google Maps or Apple Maps abroad).
 
-/// Opens a Naver Map link: the app when it is installed, otherwise the website (always the website on a Mac).
-enum NaverMapOpener {
+/// Opens a place in its maps (`MapTarget`). Naver Map: the app when it is installed, otherwise the website (always the
+/// website on a Mac). Google Maps: the app (it is the target only when installed). Apple Maps: maps.apple.com, which
+/// opens the Maps app.
+enum MapOpener {
+    @MainActor
+    static var googleMapsInstalled: Bool {
+        #if canImport(UIKit)
+        UIApplication.shared.canOpenURL(GoogleMaps.probe)
+        #else
+        false
+        #endif
+    }
+
+    @MainActor
+    static func target(for place: MapPlace) -> MapTarget { .for(place, googleMapsInstalled: googleMapsInstalled) }
+
     @MainActor
     static func open(app: URL?, web: URL?, openURL: OpenURLAction) {
         #if canImport(UIKit)
@@ -23,12 +37,20 @@ enum NaverMapOpener {
 
     @MainActor
     static func openPlace(_ place: MapPlace, openURL: OpenURLAction) {
-        open(app: NaverMap.appPlace(place), web: NaverMap.webPlace(place), openURL: openURL)
+        switch target(for: place) {
+        case .naver: open(app: NaverMap.appPlace(place), web: NaverMap.webPlace(place), openURL: openURL)
+        case .google: open(app: GoogleMaps.appPlace(place), web: AppleMaps.place(place), openURL: openURL)
+        case .apple: open(app: nil, web: AppleMaps.place(place), openURL: openURL)
+        }
     }
 
     @MainActor
-    static func route(_ mode: NaverMap.Mode, to place: MapPlace, openURL: OpenURLAction) {
-        open(app: NaverMap.appRoute(mode, to: place), web: NaverMap.webRoute(mode, to: place), openURL: openURL)
+    static func route(_ mode: RouteMode, to place: MapPlace, openURL: OpenURLAction) {
+        switch target(for: place) {
+        case .naver: open(app: NaverMap.appRoute(mode, to: place), web: NaverMap.webRoute(mode, to: place), openURL: openURL)
+        case .google: open(app: GoogleMaps.appRoute(mode, to: place), web: AppleMaps.route(mode, to: place), openURL: openURL)
+        case .apple: open(app: nil, web: AppleMaps.route(mode, to: place), openURL: openURL)
+        }
     }
 }
 
@@ -362,8 +384,8 @@ struct PlaceDetailSheet: View {
                     Text("Directions").font(DS.Typography.sectionHeader).foregroundStyle(theme.textSecondary)
                         .padding(.horizontal, DS.Spacing.xs)
                     HStack(spacing: DS.Spacing.sm) {
-                        ForEach(NaverMap.Mode.allCases) { mode in
-                            Button { NaverMapOpener.route(mode, to: place, openURL: openURL) } label: {
+                        ForEach(RouteMode.allCases) { mode in
+                            Button { MapOpener.route(mode, to: place, openURL: openURL) } label: {
                                 VStack(spacing: DS.Spacing.xs) {
                                     Image(systemName: mode.systemImage).font(.system(size: DS.IconSize.md))
                                     Text(mode.label).font(DS.Typography.uiCaption)
@@ -379,8 +401,8 @@ struct PlaceDetailSheet: View {
                     }
                 }
             }
-            Button { NaverMapOpener.openPlace(place, openURL: openURL) } label: {
-                Label("Open in Naver Map", systemImage: "map.fill")
+            Button { MapOpener.openPlace(place, openURL: openURL) } label: {
+                Label("Open in \(MapOpener.target(for: place).name)", systemImage: "map.fill")
                     .font(DS.Typography.uiEmphasis)
                     .foregroundStyle(theme.onAccent)
                     .frame(maxWidth: .infinity, minHeight: 50)

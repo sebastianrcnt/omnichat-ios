@@ -55,6 +55,7 @@
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>nmap</string>
+		<string>comgooglemaps</string>
 	</array>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
