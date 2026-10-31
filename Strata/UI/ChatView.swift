@@ -58,10 +58,9 @@ struct ChatView: View {
     @State var loadingModels = false
     /// The model fetch a send is waiting on; cancelled when this chat view goes away.
     @State var modelFetch: Task<Void, Never>?
-    /// The add-connection sheet, from the empty chat shown while there is no connection.
-    @State var showAddConnection = false
-    /// Where "Add a connection" opens: the presets, or straight into a new connection's editor (first-run shortcuts).
-    @State var addConnectionStart: ConnectionSetupSheet.Start = .presets
+    /// The add-connection sheet, from the empty chat shown while there is no connection: on the presets, or straight
+    /// into a new connection's editor (first-run shortcuts).
+    @State var addConnectionRequest: ConnectionSetupSheet.Request?
     #if DEBUG
     @State var debugSelection: String?
     @State var debugArtifact: ArtifactRef?
@@ -230,8 +229,8 @@ struct ChatView: View {
                     .task { await DebugHooks.autoAnswerSheet { BrowserShowRequests.shared.answer(request.id, done: true) } }
                     #endif
             }
-            .sheet(isPresented: $showAddConnection) {
-                ConnectionSetupSheet(start: addConnectionStart)
+            .sheet(item: $addConnectionRequest) { request in
+                ConnectionSetupSheet(start: request.start)
                     .inAppLinks()
                     .environment(\.theme, theme)
             }

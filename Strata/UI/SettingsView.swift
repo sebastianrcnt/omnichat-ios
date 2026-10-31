@@ -26,7 +26,7 @@ struct SettingsView: View {
     @State private var showHealth = false
     @State private var showChats = false
     @State private var showICloud = false
-    @State private var showAddConnection = false
+    @State private var addConnection: ConnectionSetupSheet.Request?
 
     var body: some View {
         @Bindable var settings = settings
@@ -39,10 +39,8 @@ struct SettingsView: View {
                                         value: c.models.isEmpty ? nil : String(localized: "\(c.models.count) models"),
                                         showsChevron: true) { path.append(c.id) }
                         }
-                        SettingsRow(systemImage: "plus", title: "Add connection") { showAddConnection = true }
+                        SettingsRow(systemImage: "plus", title: "Add connection") { addConnection = ConnectionSetupSheet.Request(start: .presets) }
                     }
-                    .onAppear { connections.removeUnconfigured() }
-                    .onChange(of: path) { _, now in if now.isEmpty { connections.removeUnconfigured() } }
 
                     GroupedSection(header: "Personalization", footer: "How the assistant should behave and respond: personality, tone, a name, how long answers should be. Sent with every message. A chat keeps the preferences it started with; changes apply to new chats.") {
                         TextField("", text: $settings.userPreferences,
@@ -115,18 +113,16 @@ struct SettingsView: View {
             .navigationDestination(isPresented: $showICloud) { ICloudSettingsView() }
         }
         .presentationBackground(theme.background)
-        .sheet(isPresented: $showAddConnection) { ConnectionSetupSheet(start: .presets).inAppLinks() }
+        .sheet(item: $addConnection) { request in ConnectionSetupSheet(start: request.start).inAppLinks() }
         #if DEBUG
         .task {
             if DebugHooks.openSheet == "diagnostics" { settings.developerMode = true; showDiagnostics = true }
             if DebugHooks.openSheet == "licenses" { showLicenses = true }
             if DebugHooks.openSheet == "health" { showHealth = true }
             if DebugHooks.openSheet == "icloud" { showICloud = true }
-            if DebugHooks.openSheet == "addconnection" { showAddConnection = true }
+            if DebugHooks.openSheet == "addconnection" { addConnection = ConnectionSetupSheet.Request(start: .presets) }
             if DebugHooks.openSheet == "connection" { // what "Add connection" > "Other server" does
-                let new = Connection(name: String(localized: "New connection"), baseURL: "https://")
-                connections.upsert(new)
-                path.append(new.id)
+                addConnection = ConnectionSetupSheet.Request(start: .editor(ConnectionPreset.custom.makeConnection()))
             }
         }
         #endif
@@ -148,11 +144,14 @@ struct SettingsView: View {
 
 // MARK: - Connection editor
 
+/// Settings > Connections > a server (OpenAI-compatible or Anthropic): its address, headers, key and models. Being
+/// added (`draft`), every change goes to the draft, the key too, until Add.
 struct ConnectionEditor: View {
     @Environment(\.theme) private var theme
     @Environment(\.connectionStore) private var connections
     let connectionID: UUID
     @Binding var path: [UUID]
+    var draft: ConnectionDraft?
 
     @State private var apiKeyText = ""
     @State private var hasKey = false
@@ -169,7 +168,10 @@ struct ConnectionEditor: View {
     /// The last fetch failed (its message is `fetchStatus`).
     @State private var fetchFailed = false
 
-    private var connection: Connection? { connections.connection(connectionID) }
+    private var connection: Connection? { connections.connection(connectionID, draft: draft) }
+
+    /// Whether a key is saved, or entered in the draft.
+    private var keyIsSaved: Bool { draft.map { $0.apiKey != nil } ?? (connections.apiKey(for: connectionID) != nil) }
 
     /// Where the connection stands, at the top of the editor: no key yet, the last fetch's error, or how many models.
     private var status: (text: String, symbol: String, ok: Bool) {
@@ -191,11 +193,7 @@ struct ConnectionEditor: View {
 
     private func binding<T>(_ keyPath: WritableKeyPath<Connection, T>, fallback: T) -> Binding<T> {
         Binding(get: { connection?[keyPath: keyPath] ?? fallback },
-                set: { value in
-                    guard var c = connection else { return }
-                    c[keyPath: keyPath] = value
-                    connections.upsert(c)
-                })
+                set: { value in connections.edit(connectionID, draft: draft) { $0[keyPath: keyPath] = value } })
     }
 
     var body: some View {
@@ -280,8 +278,10 @@ struct ConnectionEditor: View {
                         }
                     }
 
-                    GroupedSection {
-                        SettingsRow(systemImage: "trash", title: "Delete connection", isDestructive: true) { confirmDelete = true }
+                    if draft == nil {
+                        GroupedSection {
+                            SettingsRow(systemImage: "trash", title: "Delete connection", isDestructive: true) { confirmDelete = true }
+                        }
                     }
                 }
                 .padding(DS.Spacing.lg)
@@ -289,7 +289,7 @@ struct ConnectionEditor: View {
             .background(theme.background.ignoresSafeArea())
             .navigationTitle(connection.name)
             .inlineNavigationTitle()
-            .onAppear { hasKey = connections.apiKey(for: connectionID) != nil }
+            .onAppear { hasKey = keyIsSaved }
             .confirmationDialog("Delete \(connection.name)?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Delete connection", role: .destructive) {
                     connections.delete(connectionID)
@@ -302,7 +302,7 @@ struct ConnectionEditor: View {
                 Button("Remove key", role: .destructive) { removeKey() }
             }
             .sheet(item: Binding(get: { editingModel.map { ModelRef(id: $0) } }, set: { editingModel = $0?.id })) { ref in
-                ModelEditor(connectionID: connectionID, modelID: ref.id)
+                ModelEditor(connectionID: connectionID, modelID: ref.id, draft: draft)
             }
         }
     }
@@ -310,6 +310,7 @@ struct ConnectionEditor: View {
     private struct ModelRef: Identifiable { let id: String }
 
     private func keyFooter(anthropic: Bool) -> LocalizedStringKey {
+        if hasKey, draft != nil { return "The key is saved in the Keychain when you add the connection. Enter a new one to replace it." }
         if hasKey { return "A key is saved in the Keychain. Enter a new one to replace it." }
         return anthropic ? "Create a key at console.anthropic.com. It is stored in the Keychain, never in the app's files."
                          : "Pasted keys are stored in the Keychain, never in the app's files."
@@ -333,9 +334,9 @@ struct ConnectionEditor: View {
 
     private func saveKey() {
         do {
-            try connections.setAPIKey(apiKeyText, for: connectionID)
+            if let draft { draft.setAPIKey(apiKeyText) } else { try connections.setAPIKey(apiKeyText, for: connectionID) }
             apiKeyText = ""
-            hasKey = connections.apiKey(for: connectionID) != nil
+            hasKey = keyIsSaved
             keyError = nil
             Task { await fetch() } // a new key usually means models can now be listed
         } catch {
@@ -344,7 +345,7 @@ struct ConnectionEditor: View {
     }
 
     private func removeKey() {
-        try? connections.setAPIKey(nil, for: connectionID)
+        if let draft { draft.setAPIKey(nil) } else { try? connections.setAPIKey(nil, for: connectionID) }
         hasKey = false
     }
 
@@ -352,7 +353,7 @@ struct ConnectionEditor: View {
         fetching = true
         defer { fetching = false }
         do {
-            let n = try await connections.refreshModels(for: connectionID)
+            let n = try await connections.refreshModels(for: connectionID, draft: draft)
             fetchStatus = String(localized: "Fetched \(n) models.")
             fetchFailed = false
         } catch is CancellationError {
@@ -364,26 +365,30 @@ struct ConnectionEditor: View {
     }
 
     private func addManual() {
-        guard connections.addManualModel(manualModel, connectionID: connectionID) else { return }
+        guard connections.addManualModel(manualModel, connectionID: connectionID, draft: draft) else { return }
         manualModel = ""
     }
 }
 
+/// One model of a connection: its display name, whether the picker shows it, its context and capabilities. In a draft
+/// (`ConnectionDraft`), the changes go to the draft.
 struct ModelEditor: View {
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
     @Environment(\.connectionStore) private var connections
     let connectionID: UUID
     let modelID: String
+    var draft: ConnectionDraft?
 
-    private var model: ModelInfo? { connections.connection(connectionID)?.models.first { $0.id == modelID } }
+    private var connection: Connection? { connections.connection(connectionID, draft: draft) }
+    private var model: ModelInfo? { connection?.models.first { $0.id == modelID } }
     /// Edited here and saved trimmed, so typing a space between words is not undone mid-edit.
     @State private var aliasText = ""
 
     private func update(_ change: (inout ModelInfo) -> Void) {
-        guard var c = connections.connection(connectionID), let i = c.models.firstIndex(where: { $0.id == modelID }) else { return }
-        change(&c.models[i])
-        connections.upsert(c)
+        connections.edit(connectionID, draft: draft) { c in
+            if let i = c.models.firstIndex(where: { $0.id == modelID }) { change(&c.models[i]) }
+        }
     }
 
     var body: some View {
@@ -394,8 +399,8 @@ struct ModelEditor: View {
                 }
                 GroupedSection(footer: "Off keeps this model out of the composer's model menu. A chat already using it keeps it.") {
                     SettingsToggleRow(title: "Show in picker",
-                                      isOn: Binding(get: { connections.connection(connectionID)?.showsInPicker(modelID) ?? true },
-                                                    set: { connections.setModelShownInPicker($0, connectionID: connectionID, modelID: modelID) }))
+                                      isOn: Binding(get: { connection?.showsInPicker(modelID) ?? true },
+                                                    set: { on in connections.edit(connectionID, draft: draft) { $0.setShowsInPicker(on, forModel: modelID) } }))
                 }
                 GroupedSection(header: "Context", footer: model.fetchedContextLength.map { LocalizedStringKey("The server reports \($0.formatted()) tokens. Leave blank to use it.") }) {
                     SettingsFieldRow(title: "Context length",
@@ -407,22 +412,19 @@ struct ModelEditor: View {
                 GroupedSection(header: "Capabilities") {
                     SettingsToggleRow(title: "Supports images", isOn: Binding(get: { model.supportsImages }, set: { v in update { $0.supportsImages = v; $0.supportsImagesUserSet = true } }))
                     SettingsToggleRow(title: "Supports reasoning effort",
-                                      subtitle: connections.connection(connectionID)?.isAnthropic == true
+                                      subtitle: connection?.isAnthropic == true
                                           ? "Sends the chat's level as the model's thinking and effort." : "Sends reasoning_effort with each request.",
                                       isOn: Binding(get: { model.supportsEffort }, set: { v in update { $0.supportsEffort = v; $0.supportsEffortUserSet = true } }))
                     SettingsToggleRow(title: "Supports tools", subtitle: "Lets the model use web search, Python, the browser and plugins.",
                                       isOn: Binding(get: { model.supportsTools }, set: { v in update { $0.supportsTools = v } }))
                 }
-                if connections.connection(connectionID)?.kind == .openAICompatible {
-                    ModelAPISection(connectionID: connectionID, modelID: modelID)
+                if connection?.kind == .openAICompatible {
+                    ModelAPISection(connectionID: connectionID, modelID: modelID, draft: draft)
                 }
                 if model.isManual {
                     GroupedSection {
                         SettingsRow(systemImage: "trash", title: "Remove model", isDestructive: true) {
-                            if var c = connections.connection(connectionID) {
-                                c.models.removeAll { $0.id == modelID }
-                                connections.upsert(c)
-                            }
+                            connections.edit(connectionID, draft: draft) { $0.models.removeAll { $0.id == modelID } }
                             dismiss()
                         }
                     }
@@ -430,11 +432,11 @@ struct ModelEditor: View {
             }
         }
         .presentationDetents([.medium, .large])
-        .onAppear { aliasText = connections.connection(connectionID)?.alias(forModel: modelID) ?? "" }
+        .onAppear { aliasText = connection?.alias(forModel: modelID) ?? "" }
         .onChange(of: aliasText) { _, text in
             let capped = String(text.prefix(ModelAlias.maxLength))
             if capped != text { aliasText = capped; return }
-            connections.setModelAlias(text, connectionID: connectionID, modelID: modelID)
+            connections.edit(connectionID, draft: draft) { $0.setAlias(text, forModel: modelID) }
         }
     }
 }
@@ -446,8 +448,9 @@ private struct ModelAPISection: View {
     @Environment(\.connectionStore) private var connections
     let connectionID: UUID
     let modelID: String
+    var draft: ConnectionDraft?
 
-    private var connection: Connection? { connections.connection(connectionID) }
+    private var connection: Connection? { connections.connection(connectionID, draft: draft) }
 
     private var footer: LocalizedStringKey {
         guard let connection else { return "" }
@@ -472,7 +475,7 @@ private struct ModelAPISection: View {
                 Text("API").font(DS.Typography.ui).foregroundStyle(theme.textPrimary)
                 Spacer()
                 Picker("API", selection: Binding(get: { connection?.modelAPIOverrides[modelID] },
-                                                 set: { connections.setModelAPIOverride($0, connectionID: connectionID, modelID: modelID) })) {
+                                                 set: { api in connections.edit(connectionID, draft: draft) { $0.setAPIOverride(api, forModel: modelID) } })) {
                     Text("Automatic").tag(ChatAPI?.none)
                     ForEach(ChatAPI.allCases, id: \.self) { Text($0.title).tag(ChatAPI?.some($0)) }
                 }

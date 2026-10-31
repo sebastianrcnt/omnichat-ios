@@ -2,13 +2,15 @@ import SwiftUI
 
 /// Settings > Connections > a ChatGPT account: the signed-in account, sign-in and sign-out, and the account's models.
 /// No base URL, headers, API key or resumable replies: the connection always talks to the Responses API with the
-/// account's OAuth token.
+/// account's OAuth token. Being added (`draft`), the sign-in is kept under the draft's id and the rest stays in the
+/// draft; on Add, an account that is already connected goes to that connection (`ConnectionStore.add`).
 struct ChatGPTConnectionEditor: View {
     @Environment(\.theme) private var theme
     @Environment(\.connectionStore) private var connections
     @Environment(\.openURL) private var openURL
     let connectionID: UUID
     @Binding var path: [UUID]
+    var draft: ConnectionDraft?
 
     @State private var signedIn = false
     @State private var registration: ChatGPTRegistration?
@@ -25,7 +27,7 @@ struct ChatGPTConnectionEditor: View {
     private var fetchingModels: Bool { fetching || connections.modelFetches[connectionID]?.running == true }
     @State private var editingModel: String?
 
-    private var connection: Connection? { connections.connection(connectionID) }
+    private var connection: Connection? { connections.connection(connectionID, draft: draft) }
 
     var body: some View {
         if let connection {
@@ -69,11 +71,7 @@ struct ChatGPTConnectionEditor: View {
                     GroupedSection(header: "Connection") {
                         SettingsFieldRow(title: "Name", prompt: "Name", text: Binding(
                             get: { connection.name },
-                            set: { value in
-                                guard var c = connections.connection(connectionID) else { return }
-                                c.name = value
-                                connections.upsert(c)
-                            }))
+                            set: { value in connections.edit(connectionID, draft: draft) { $0.name = value } }))
                     }
 
                     GroupedSection(header: "Models", footer: connections.modelFetches[connectionID]?.footer.map { LocalizedStringKey($0) }) {
@@ -91,14 +89,16 @@ struct ChatGPTConnectionEditor: View {
                         .disabled(fetching || !signedIn)
                     }
 
-                    GroupedSection {
-                        SettingsRow(systemImage: "trash", title: "Delete connection", isDestructive: true) {
-                            flow?.cancel()
-                            Task {
-                                await connections.chatGPT.signOut(connectionID: connectionID)
-                                connections.delete(connectionID)
+                    if draft == nil {
+                        GroupedSection {
+                            SettingsRow(systemImage: "trash", title: "Delete connection", isDestructive: true) {
+                                flow?.cancel()
+                                Task {
+                                    await connections.chatGPT.signOut(connectionID: connectionID)
+                                    connections.delete(connectionID)
+                                }
+                                path.removeAll()
                             }
-                            path.removeAll()
                         }
                     }
                 }
@@ -110,7 +110,7 @@ struct ChatGPTConnectionEditor: View {
             .onAppear(perform: reload)
             .onDisappear { flow?.cancel() }
             .sheet(item: Binding(get: { editingModel.map { ModelRef(id: $0) } }, set: { editingModel = $0?.id })) { ref in
-                ModelEditor(connectionID: connectionID, modelID: ref.id)
+                ModelEditor(connectionID: connectionID, modelID: ref.id, draft: draft)
             }
             .alert("You're using your ChatGPT plan", isPresented: $showsWelcome) {
                 Button("Manage usage") { openURL(ChatGPTOAuth.usageURL) }
@@ -134,6 +134,7 @@ struct ChatGPTConnectionEditor: View {
         signedIn = connections.isChatGPTSignedIn(connectionID)
         registration = connections.chatGPTRegistration(connectionID)
         planAllowed = connections.chatGPTAllowsPlanUsage(connectionID)
+        if let draft { connections.checkSignIn(draft) }
     }
 
     private func show(_ text: String?, error: Bool = false) {
@@ -149,18 +150,16 @@ struct ChatGPTConnectionEditor: View {
         do {
             let account = try await flow.run()
             // An account another connection already has keeps that one: the sign-in moves there and this one goes, and
-            // the editor shows that one instead.
-            let id = connections.finishChatGPTSignIn(connectionID)
+            // the editor shows that one instead. A draft waits for Add to do that.
+            let id = draft == nil ? connections.finishChatGPTSignIn(connectionID) : connectionID
             if id != connectionID {
                 if let i = path.lastIndex(of: connectionID) { path[i] = id } else { path.append(id) }
                 if connections.chatGPTAllowsPlanUsage(id) != false { try? await connections.refreshModels(for: id) }
                 return
             }
             reload()
-            if let name = account.name ?? account.email, var c = connections.connection(connectionID),
-               c.name == String(localized: "ChatGPT") {
-                c.name = "ChatGPT (\(name))"
-                connections.upsert(c)
+            if let name = account.name ?? account.email, connection?.name == String(localized: "ChatGPT") {
+                connections.edit(connectionID, draft: draft) { $0.name = "ChatGPT (\(name))" }
             }
             if planAllowed == false {
                 show(String(localized: "Signed in, but plan usage wasn't allowed."), error: true)
@@ -193,6 +192,6 @@ struct ChatGPTConnectionEditor: View {
         fetching = true
         defer { fetching = false }
         // How it went shows in the Models footer (`ConnectionStore.modelFetches`).
-        do { try await connections.refreshModels(for: connectionID) } catch { reload() }
+        do { try await connections.refreshModels(for: connectionID, draft: draft) } catch { reload() }
     }
 }

@@ -315,9 +315,8 @@ struct OnDeviceConnectionTests {
         #expect(endpoint.kind == .appleOnDevice)
         #expect(endpoint.apiKey == nil && !endpoint.supportsResumable)
         #expect(!ChatController.needsKey(endpoint, connections: reloaded))
-        // Never cleaned up as an unconfigured server.
-        reloaded.removeUnconfigured()
-        #expect(reloaded.connections.count == 1)
+        // Never cleaned up as a leftover server.
+        #expect(!ConnectionStore.isLeftover(added, hasKey: false))
         // New chats pick it when it's the only connection.
         #expect(ModelSelection.resolve(connections: reloaded.connections, preferredConnectionID: nil, preferredModelID: nil)
                 == .init(connectionID: added.id, modelID: OnDevice.modelID))

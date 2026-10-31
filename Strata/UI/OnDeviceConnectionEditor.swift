@@ -1,16 +1,18 @@
 import SwiftUI
 
 /// Settings > Connections > Apple Intelligence: whether the on-device model can run here (and what to do if not),
-/// what it can do, and the web tools switch. No key, address or model list: there is one model, the system's.
+/// what it can do, and the web tools switch. No key, address or model list: there is one model, the system's. Being
+/// added (`draft`), it needs nothing more: Add is on from the start.
 struct OnDeviceConnectionEditor: View {
     @Environment(\.theme) private var theme
     @Environment(\.connectionStore) private var connections
     let connectionID: UUID
     @Binding var path: [UUID]
+    var draft: ConnectionDraft?
 
     @State private var availability = OnDevice.system.availability
 
-    private var connection: Connection? { connections.connection(connectionID) }
+    private var connection: Connection? { connections.connection(connectionID, draft: draft) }
 
     var body: some View {
         if let connection {
@@ -35,17 +37,15 @@ struct OnDeviceConnectionEditor: View {
                     GroupedSection(header: "Connection") {
                         SettingsFieldRow(title: "Name", prompt: "Name", text: Binding(
                             get: { connection.name },
-                            set: { value in
-                                guard var c = connections.connection(connectionID) else { return }
-                                c.name = value
-                                connections.upsert(c)
-                            }))
+                            set: { value in connections.edit(connectionID, draft: draft) { $0.name = value } }))
                     }
 
-                    GroupedSection {
-                        SettingsRow(systemImage: "trash", title: "Delete connection", isDestructive: true) {
-                            connections.delete(connectionID)
-                            path.removeAll()
+                    if draft == nil {
+                        GroupedSection {
+                            SettingsRow(systemImage: "trash", title: "Delete connection", isDestructive: true) {
+                                connections.delete(connectionID)
+                                path.removeAll()
+                            }
                         }
                     }
                 }
@@ -56,7 +56,13 @@ struct OnDeviceConnectionEditor: View {
             .inlineNavigationTitle()
             .onAppear {
                 availability = OnDevice.system.availability
-                connections.refreshOnDeviceModels()
+                if let draft {
+                    connections.edit(connectionID, draft: draft) { c in
+                        c.models = [OnDevice.modelInfo(OnDevice.system, keeping: c.models.first { $0.id == OnDevice.modelID })]
+                    }
+                } else {
+                    connections.refreshOnDeviceModels()
+                }
             }
         }
     }
@@ -69,9 +75,9 @@ struct OnDeviceConnectionEditor: View {
     }
 
     private func setTools(_ on: Bool) {
-        guard var c = connections.connection(connectionID), let i = c.models.firstIndex(where: { $0.id == OnDevice.modelID }) else { return }
-        c.models[i].supportsTools = on
-        connections.upsert(c)
+        connections.edit(connectionID, draft: draft) { c in
+            if let i = c.models.firstIndex(where: { $0.id == OnDevice.modelID }) { c.models[i].supportsTools = on }
+        }
     }
 }
 
@@ -79,8 +85,8 @@ struct OnDeviceConnectionEditor: View {
 /// screen, on a device that supports it.
 struct OnDeviceOfferSection: View {
     @Environment(\.connectionStore) private var connections
-    /// Opens the connection after it is added.
-    var onAdded: (UUID) -> Void
+    /// Opens the new connection's editor (as a draft: `ConnectionDraft`).
+    var onPick: () -> Void
 
     var body: some View {
         let availability = OnDevice.system.availability
@@ -90,7 +96,7 @@ struct OnDeviceOfferSection: View {
                            : LocalizedStringKey(availability.message)) {
                 SettingsRow(systemImage: "apple.intelligence", title: "", subtitle: String(localized: "Free, private, on this device"),
                             showsChevron: true, verbatimTitle: String(localized: "Apple Intelligence")) {
-                    onAdded(connections.addOnDeviceConnection().id)
+                    onPick()
                 }
             }
         }

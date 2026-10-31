@@ -176,8 +176,9 @@ final class ConnectionSync {
         return x.isEqual(y)
     }
 
-    /// The on-device connection stays, and so does one still being set up (no address yet, or an Anthropic connection
-    /// without models: Settings removes those, and another device must not remove one being set up here).
+    /// The on-device connection stays, and so does one not set up yet (no address, or an Anthropic connection without
+    /// models: one added before its models came in, or a leftover of a version that saved connections before Add, which
+    /// `ConnectionStore.removeLeftovers` removes on this device alone).
     nonisolated static func syncs(_ connection: Connection) -> Bool {
         guard connection.kind != .appleOnDevice else { return false }
         if connection.kind == .anthropic { return !connection.models.isEmpty }

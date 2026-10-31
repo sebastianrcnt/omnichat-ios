@@ -114,17 +114,11 @@ extension ChatView {
             onAddConnection: { showChatSettings = false; addConnection() })
     }
 
-    /// Opens "Add a connection": on the presets, or with `preset` already picked and its editor open.
+    /// Opens "Add a connection": on the presets, or with `preset` already picked and its editor open (nothing is saved
+    /// before the editor's Add).
     func addConnection(preset: ConnectionPreset? = nil) {
         composerFocused = false
-        if let preset {
-            let new = preset.makeConnection()
-            connections.upsert(new)
-            addConnectionStart = .editor(new.id)
-        } else {
-            addConnectionStart = .presets
-        }
-        showAddConnection = true
+        addConnectionRequest = ConnectionSetupSheet.Request(start: preset.map { .editor($0.makeConnection()) } ?? .presets)
     }
 
     var pasteHandler: (([Data]) -> Void)? {

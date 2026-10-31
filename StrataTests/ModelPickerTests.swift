@@ -4,18 +4,25 @@ import Foundation
 
 @MainActor
 struct UnconfiguredConnectionTests {
-    @Test func anAddedButUnsetServerIsDropped() throws {
-        let store = ConnectionStore(defaults: UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!, keys: InMemoryKeyStore())
+    /// What versions before Add left behind goes once, at launch; set-up connections and accounts stay.
+    @Test func leftoversOfOlderVersionsAreRemovedOnce() throws {
+        let defaults = UserDefaults(suiteName: "strata.tests.\(UUID().uuidString)")!
+        let keys = InMemoryKeyStore()
         let blank = Connection(name: "New connection", baseURL: "https://")
         let keyed = Connection(name: "Keyed", baseURL: "https://")
         let real = Connection(name: "Real", baseURL: "https://x/v1")
+        let anthropic = Connection.anthropic(name: "Anthropic")
         let account = Connection.openCode(name: "OpenCode")
-        for c in [blank, keyed, real, account] { store.upsert(c) }
-        try store.setAPIKey("k", for: keyed.id)
-        store.removeUnconfigured()
+        defaults.set(try JSONEncoder().encode([blank, keyed, real, anthropic, account]), forKey: "connections.v1")
+        try keys.setKey("k", for: keyed.id)
+        let store = ConnectionStore(defaults: defaults, keys: keys)
         let ids = Set(store.connections.map(\.id))
-        #expect(!ids.contains(blank.id))
-        #expect(ids.isSuperset(of: [keyed.id, real.id, account.id]))
+        #expect(!ids.contains(blank.id) && !ids.contains(anthropic.id))
+        #expect(ids == [keyed.id, real.id, account.id])
+
+        // Only once: from now on nothing half-made is saved, so a connection emptied later is the user's own.
+        store.upsert(blank)
+        #expect(ConnectionStore(defaults: defaults, keys: keys).connection(blank.id) != nil)
     }
 }
 
