@@ -33,6 +33,7 @@ final class ConnectionStore {
         self.openCode = openCode
         load()
         loadModelsFetchedAt()
+        removeLeftovers() // after the dates are read: removing a connection writes them back
     }
 
     private func load() {
@@ -157,8 +158,8 @@ final class ConnectionStore {
         save()
     }
 
-    /// The Keychain items of a connection that is gone.
-    private func forget(_ id: UUID) {
+    /// The Keychain items of a connection that is gone (or of one that was never added: `discard`).
+    func forget(_ id: UUID) {
         try? keys.setKey(nil, for: id)
         try? headerStore.setKey(nil, for: id)
         storedHeaders[id] = nil
@@ -168,17 +169,27 @@ final class ConnectionStore {
         modelsFetchedAt[id] = nil
     }
 
-    /// Drops OpenAI-compatible and Anthropic connections that were added but never set up (no address, key or models),
-    /// so a tap on "Add" that was backed out of doesn't leave a "New connection" in the list. An Anthropic connection
-    /// has its address from the start: no key and no models is enough (it isn't synced before it has models).
-    func removeUnconfigured() {
-        let empty = connections.filter { c in
-            guard c.kind == .openAICompatible || c.kind == .anthropic, c.models.isEmpty, keys.key(for: c.id) == nil else { return false }
-            if c.kind == .anthropic { return true }
-            let url = c.baseURL.trimmingCharacters(in: .whitespaces).lowercased()
-            return url.isEmpty || url == "https://" || url == "http://"
-        }
-        for c in empty { delete(c.id) }
+    /// Set once the connections earlier versions left behind have been removed (`removeLeftovers`).
+    static let leftoversRemovedKey = "connections.leftoversRemoved"
+
+    /// Versions before Add (`ConnectionDraft`) saved a connection as soon as it was picked, and removed the ones backed
+    /// out of whenever Settings showed. What that left on a device goes once: OpenAI-compatible and Anthropic
+    /// connections that were never set up (`isLeftover`). They never synced (`ConnectionSync.syncs`), so removing them
+    /// here touches no other device. Accounts that were never signed in stay: a sign-in is kept on the device that made
+    /// it, so one that is signed out here may be in use on another device.
+    private func removeLeftovers() {
+        guard !defaults.bool(forKey: Self.leftoversRemovedKey) else { return }
+        defaults.set(true, forKey: Self.leftoversRemovedKey)
+        for c in connections where Self.isLeftover(c, hasKey: keys.key(for: c.id) != nil) { delete(c.id) }
+    }
+
+    /// An OpenAI-compatible connection with no address, key or models, or an Anthropic one with no key and no models
+    /// (it has its address from the start).
+    static func isLeftover(_ c: Connection, hasKey: Bool) -> Bool {
+        guard c.kind == .openAICompatible || c.kind == .anthropic, c.models.isEmpty, !hasKey else { return false }
+        if c.kind == .anthropic { return true }
+        let url = c.baseURL.trimmingCharacters(in: .whitespaces).lowercased()
+        return url.isEmpty || url == "https://" || url == "http://"
     }
 
     /// What the UI shows for a model: the user's alias, else the id. Nil only when there is no model id.
@@ -329,7 +340,19 @@ final class ConnectionStore {
     /// connection that now holds the sign-in.
     @discardableResult
     func finishChatGPTSignIn(_ id: UUID) -> UUID {
-        guard var c = connection(id), c.isChatGPT, let account = account(signedIn: id) else { return id }
+        guard let c = connection(id), c.isChatGPT, account(signedIn: id) != nil else { return id }
+        return keepChatGPTSignIn(c)
+    }
+
+    /// `finishChatGPTSignIn` for `c` as it is: a saved connection, or one being added (`add`), which is saved here
+    /// unless its account goes to another connection. Returns the connection that now holds the sign-in.
+    func keepChatGPTSignIn(_ c: Connection) -> UUID {
+        var c = c
+        let id = c.id
+        guard let account = account(signedIn: id) else {
+            upsert(c)
+            return id
+        }
         c.chatGPTAccount = account
         guard let existing = ChatGPTDedupe.survivor(for: account, among: connections.filter { $0.id != id }),
               let i = connections.firstIndex(where: { $0.id == existing }) else {
@@ -341,12 +364,14 @@ final class ConnectionStore {
             upsert(c)
             return id
         }
+        // One that was never saved has no chats or settings to point elsewhere, and no other device knows it.
+        let saved = connections.contains { $0.id == id }
         connections[i] = ChatGPTDedupe.merged(connections[i], absorbing: c)
         connections.removeAll { $0.id == id }
         forget(id)
-        recordMerges([id: existing])
+        if saved { recordMerges([id: existing]) }
         save()
-        onMerge?([id: existing])
+        if saved { onMerge?([id: existing]) }
         return existing
     }
 

@@ -81,15 +81,15 @@ extension ConnectionStore {
     }
 
     /// Adds a model by id, as typed, for a server that doesn't list it. It stays through refreshes (`isManual`) and
-    /// syncs like the rest of the list. False when the id is blank or already listed.
+    /// syncs like the rest of the list. False when the id is blank or already listed. With a draft, it goes into the
+    /// draft (`ConnectionDraft`).
     @discardableResult
-    func addManualModel(_ id: String, connectionID: UUID) -> Bool {
+    func addManualModel(_ id: String, connectionID: UUID, draft: ConnectionDraft? = nil) -> Bool {
         let id = id.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard var c = connection(connectionID), !id.isEmpty, !c.models.contains(where: { $0.id == id }) else { return false }
+        guard let c = connection(connectionID, draft: draft), !id.isEmpty, !c.models.contains(where: { $0.id == id }) else { return false }
         var m = c.defaultModel(id: id, fetchedContextLength: nil)
         m.isManual = true
-        c.models.append(m)
-        upsert(c)
+        edit(connectionID, draft: draft) { $0.models.append(m) }
         return true
     }
 }

@@ -51,6 +51,17 @@ protocol OpenCodeTokenProviding: Sendable {
     func tokenAfterRejection(connectionID: UUID, rejected: String) async throws -> String
 }
 
+/// A service-account key that isn't saved yet (a connection still being added, `ConnectionDraft`): sent as it is, with
+/// nothing to refresh.
+struct OpenCodeKeyToken: OpenCodeTokenProviding {
+    let key: String
+    func accessToken(connectionID: UUID) async throws -> String { key }
+    func tokenAfterRejection(connectionID: UUID, rejected: String) async throws -> String {
+        if key != rejected { return key }
+        throw OpenCodeAuthError.invalidAPIKey
+    }
+}
+
 /// Token lifecycle for OpenCode connections: the device-code sign-in, refresh before expiry and after a 401 (one
 /// refresh at a time per connection: each refresh token works once, and reusing one revokes the whole session), and
 /// sign-out (local only; the Console documents no revocation endpoint).
@@ -145,8 +156,10 @@ actor OpenCodeAuth: OpenCodeTokenProviding {
     }
 
     /// Polls until the person approves (or declines, or the code expires), then saves the session and looks up the
-    /// account's email. Cancelling the task stops the polling (`OpenCodeAuthError.cancelled`).
+    /// account's email. Cancelling the task stops the polling (`OpenCodeAuthError.cancelled`), and so does a sign-out
+    /// meanwhile (or the deletion that comes with one): nothing is saved for a connection that is gone.
     func completeSignIn(connectionID id: UUID, device: OpenCodeDeviceCode) async throws -> OpenCodeSession {
+        let generation = signOuts[id, default: 0]
         var interval = device.interval
         while now() < device.expiresAt {
             do { try await sleep(.seconds(interval)) } catch { throw OpenCodeAuthError.cancelled }
@@ -173,7 +186,7 @@ actor OpenCodeAuth: OpenCodeTokenProviding {
                 session.email = await email(token: session.accessToken)
                 // Cancelled while the token or the email was on its way: nothing is saved, so a key entered meanwhile
                 // stays (a session replaces it).
-                if Task.isCancelled { throw OpenCodeAuthError.cancelled }
+                if Task.isCancelled || signOuts[id, default: 0] != generation { throw OpenCodeAuthError.cancelled }
                 try store.setSession(session, id)
                 return session
             }
@@ -206,8 +219,13 @@ actor OpenCodeAuth: OpenCodeTokenProviding {
     /// The gateways the workspace offers, from `GET /api/v2/config`: its `providers` map lists `opencode` (Console,
     /// pay as you go) and `opencode-go` when the workspace has a Go subscription. Nil when the config can't be read.
     func availableGateways(connectionID id: UUID) async -> Set<OpenCodeGateway>? {
-        guard let token = try? await accessToken(connectionID: id),
-              let (data, status) = try? await http.send(OpenCodeAPI.get(OpenCodeAPI.configEndpoint, token: token)) else { return nil }
+        guard let token = try? await accessToken(connectionID: id) else { return nil }
+        return await availableGateways(token: token)
+    }
+
+    /// The same with a token at hand: a service-account key that isn't saved yet.
+    func availableGateways(token: String) async -> Set<OpenCodeGateway>? {
+        guard let (data, status) = try? await http.send(OpenCodeAPI.get(OpenCodeAPI.configEndpoint, token: token)) else { return nil }
         Self.log.debug("config status=\(status, privacy: .public)")
         guard (200..<300).contains(status) else { return nil }
         return OpenCodeGateway.available(inConfig: data)

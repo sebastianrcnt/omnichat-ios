@@ -5,6 +5,7 @@ import AppKit
 
 /// Settings > Connections > an OpenCode account: the device-code sign-in (or a service-account API key instead), the
 /// plan the requests go to (Go or pay as you go), and the account's models. No base URL, headers or resumable replies.
+/// Being added (`draft`), a sign-in is kept under the draft's id, while a service-account key waits in the draft for Add.
 struct OpenCodeConnectionEditor: View {
     @Environment(\.theme) private var theme
     @Environment(\.connectionStore) private var connections
@@ -12,6 +13,7 @@ struct OpenCodeConnectionEditor: View {
     @Environment(\.scenePhase) private var scenePhase
     let connectionID: UUID
     @Binding var path: [UUID]
+    var draft: ConnectionDraft?
 
     @State private var session: OpenCodeSession?
     @State private var hasAPIKey = false
@@ -30,7 +32,7 @@ struct OpenCodeConnectionEditor: View {
     @State private var copied = false
     @State private var browser = DeviceSignInBrowser()
 
-    private var connection: Connection? { connections.connection(connectionID) }
+    private var connection: Connection? { connections.connection(connectionID, draft: draft) }
     private var signedIn: Bool { session != nil || hasAPIKey }
 
     var body: some View {
@@ -44,7 +46,9 @@ struct OpenCodeConnectionEditor: View {
                                         verbatimTitle: session.email ?? String(localized: "Signed in"))
                             signOutRow
                         } else if hasAPIKey {
-                            SettingsRow(systemImage: "key", title: "API key", subtitle: String(localized: "Saved in the Keychain"))
+                            SettingsRow(systemImage: "key", title: "API key",
+                                        subtitle: draft == nil ? String(localized: "Saved in the Keychain")
+                                                               : String(localized: "Saved in the Keychain when you add the connection"))
                             signOutRow
                         } else if let device {
                             deviceCodeRows(device)
@@ -80,11 +84,7 @@ struct OpenCodeConnectionEditor: View {
                     GroupedSection(header: "Connection") {
                         SettingsFieldRow(title: "Name", prompt: "Name", text: Binding(
                             get: { connection.name },
-                            set: { value in
-                                guard var c = connections.connection(connectionID) else { return }
-                                c.name = value
-                                connections.upsert(c)
-                            }))
+                            set: { value in connections.edit(connectionID, draft: draft) { $0.name = value } }))
                     }
 
                     GroupedSection(header: "Models", footer: connections.modelFetches[connectionID]?.footer.map { LocalizedStringKey($0) }) {
@@ -102,14 +102,16 @@ struct OpenCodeConnectionEditor: View {
                         .disabled(fetching || !signedIn)
                     }
 
-                    GroupedSection {
-                        SettingsRow(systemImage: "trash", title: "Delete connection", isDestructive: true) {
-                            signIn?.cancel()
-                            Task {
-                                await connections.openCode.signOut(connectionID: connectionID)
-                                connections.delete(connectionID)
+                    if draft == nil {
+                        GroupedSection {
+                            SettingsRow(systemImage: "trash", title: "Delete connection", isDestructive: true) {
+                                signIn?.cancel()
+                                Task {
+                                    await connections.openCode.signOut(connectionID: connectionID)
+                                    connections.delete(connectionID)
+                                }
+                                path.removeAll()
                             }
-                            path.removeAll()
                         }
                     }
                 }
@@ -125,7 +127,7 @@ struct OpenCodeConnectionEditor: View {
             .onChange(of: scenePhase) { _, phase in if phase == .active { fetchIfEmpty() } }
             .onDisappear { signIn?.cancel() }
             .sheet(item: Binding(get: { editingModel.map { ModelRef(id: $0) } }, set: { editingModel = $0?.id })) { ref in
-                ModelEditor(connectionID: connectionID, modelID: ref.id)
+                ModelEditor(connectionID: connectionID, modelID: ref.id, draft: draft)
             }
         }
     }
@@ -188,7 +190,8 @@ struct OpenCodeConnectionEditor: View {
 
     private func reload() {
         session = connections.openCode.store.session(connectionID)
-        hasAPIKey = connections.openCode.store.apiKey(connectionID) != nil
+        hasAPIKey = draft.map { $0.apiKey != nil } ?? (connections.openCode.store.apiKey(connectionID) != nil)
+        if let draft { connections.checkSignIn(draft) }
     }
 
     private func show(_ text: String?, error: Bool = false) {
@@ -216,9 +219,8 @@ struct OpenCodeConnectionEditor: View {
             let session = try await auth.completeSignIn(connectionID: connectionID, device: code)
             reload()
             device = nil
-            if let email = session.email, var c = connections.connection(connectionID), c.name == String(localized: "OpenCode") {
-                c.name = "OpenCode (\(email))"
-                connections.upsert(c)
+            if let email = session.email, connection?.name == String(localized: "OpenCode") {
+                connections.edit(connectionID, draft: draft) { $0.name = "OpenCode (\(email))" }
             }
             await detectPlanAndFetch()
         } catch OpenCodeAuthError.cancelled {
@@ -235,7 +237,7 @@ struct OpenCodeConnectionEditor: View {
 
     private func saveKey() {
         do {
-            try connections.openCode.saveAPIKey(apiKeyText, connectionID: connectionID)
+            if let draft { draft.setAPIKey(apiKeyText) } else { try connections.openCode.saveAPIKey(apiKeyText, connectionID: connectionID) }
             apiKeyText = ""
             showsKeyField = false
             reload()
@@ -248,6 +250,7 @@ struct OpenCodeConnectionEditor: View {
 
     private func signOut() async {
         await connections.openCode.signOut(connectionID: connectionID)
+        draft?.setAPIKey(nil)
         reload()
         show(String(localized: "Signed out on this device."))
     }
@@ -255,30 +258,35 @@ struct OpenCodeConnectionEditor: View {
     /// After a sign-in: the workspace config says whether it has Go. With Go the connection uses it; without, pay as you
     /// go. When the config can't be read, the plan stays as it is.
     private func detectPlanAndFetch() async {
-        if let gateways = await connections.openCode.availableGateways(connectionID: connectionID),
-           var c = connections.connection(connectionID) {
-            let current = c.openCodeGateway ?? .go
+        let auth = connections.openCode
+        let gateways = if let key = draft?.apiKey { await auth.availableGateways(token: key) }
+                       else { await auth.availableGateways(connectionID: connectionID) }
+        if let gateways, let current = connection.map({ $0.openCodeGateway ?? .go }) {
+            var picked = current
             if gateways.contains(.go) {
-                c.openCodeGateway = .go
+                picked = .go
             } else if !gateways.isEmpty {
-                c.openCodeGateway = .console
+                picked = .console
                 if current == .go { show(String(localized: "No Go subscription found for this workspace, so Pay as you go is selected.")) }
             }
-            if c.openCodeGateway != current {
-                c.baseURL = (c.openCodeGateway ?? .go).baseURL.absoluteString
-                c.models = []
+            connections.edit(connectionID, draft: draft) { c in
+                c.openCodeGateway = picked
+                if picked != current {
+                    c.baseURL = picked.baseURL.absoluteString
+                    c.models = []
+                }
             }
-            connections.upsert(c)
         }
         await fetch()
     }
 
     private func select(_ gateway: OpenCodeGateway) {
-        guard var c = connections.connection(connectionID), (c.openCodeGateway ?? .go) != gateway else { return }
-        c.openCodeGateway = gateway
-        c.baseURL = gateway.baseURL.absoluteString
-        c.models = [] // each plan has its own models
-        connections.upsert(c)
+        guard let c = connection, (c.openCodeGateway ?? .go) != gateway else { return }
+        connections.edit(connectionID, draft: draft) { c in
+            c.openCodeGateway = gateway
+            c.baseURL = gateway.baseURL.absoluteString
+            c.models = [] // each plan has its own models
+        }
         if signedIn { Task { await fetch() } }
     }
 
@@ -293,7 +301,7 @@ struct OpenCodeConnectionEditor: View {
         fetching = true
         defer { fetching = false }
         // How it went shows in the Models footer (`ConnectionStore.modelFetches`).
-        do { try await connections.refreshOpenCodeModels(for: connectionID) } catch { reload() }
+        do { try await connections.refreshModels(for: connectionID, draft: draft) } catch { reload() }
     }
 
 }

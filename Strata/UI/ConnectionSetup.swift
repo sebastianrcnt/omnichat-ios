@@ -1,21 +1,61 @@
 import SwiftUI
 
 /// The editor for a connection: ChatGPT and OpenCode accounts have their own, every other connection (Anthropic too)
-/// the server editor.
+/// the server editor. A connection being added (`draft`) opens in the same editor, with Cancel and Add in place of the
+/// back button, like a new contact: its changes stay in the draft, and only Add saves it.
 struct ConnectionDestination: View {
     @Environment(\.connectionStore) private var connections
     let connectionID: UUID
     @Binding var path: [UUID]
+    var draft: ConnectionDraft?
+    /// After Add saved the draft (true) or Cancel was pressed (false). Whoever holds the draft discards it.
+    var onFinish: (Bool) -> Void = { _ in }
+
+    @State private var addError: String?
 
     var body: some View {
-        if connections.connection(connectionID)?.isChatGPT == true {
-            ChatGPTConnectionEditor(connectionID: connectionID, path: $path)
-        } else if connections.connection(connectionID)?.isOpenCode == true {
-            OpenCodeConnectionEditor(connectionID: connectionID, path: $path)
-        } else if connections.connection(connectionID)?.isAppleOnDevice == true {
-            OnDeviceConnectionEditor(connectionID: connectionID, path: $path)
+        editor
+            .navigationBarBackButtonHidden(draft != nil)
+            .toolbar {
+                if let draft {
+                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { onFinish(false) } }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Add") { add(draft) }.disabled(!draft.canAdd)
+                    }
+                }
+            }
+            .alert("Couldn't add the connection", isPresented: Binding(get: { addError != nil }, set: { if !$0 { addError = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(verbatim: addError ?? "")
+            }
+    }
+
+    @ViewBuilder
+    private var editor: some View {
+        let connection = connections.connection(connectionID, draft: draft)
+        if connection?.isChatGPT == true {
+            ChatGPTConnectionEditor(connectionID: connectionID, path: $path, draft: draft)
+        } else if connection?.isOpenCode == true {
+            OpenCodeConnectionEditor(connectionID: connectionID, path: $path, draft: draft)
+        } else if connection?.isAppleOnDevice == true {
+            OnDeviceConnectionEditor(connectionID: connectionID, path: $path, draft: draft)
         } else {
-            ConnectionEditor(connectionID: connectionID, path: $path)
+            ConnectionEditor(connectionID: connectionID, path: $path, draft: draft)
+        }
+    }
+
+    private func add(_ draft: ConnectionDraft) {
+        do {
+            guard let id = try connections.add(draft) else { return }
+            // Added before its models were fetched (or while a fetch still runs): they come in the background.
+            if let c = connections.connection(id), c.models.isEmpty, connections.modelFetches[draft.id]?.running != true,
+               connections.canRefreshModels(c) {
+                Task { try? await connections.refreshModels(for: id) }
+            }
+            onFinish(true)
+        } catch {
+            addError = error.localizedDescription
         }
     }
 }
@@ -79,13 +119,22 @@ extension View {
 }
 
 /// Adds a connection: a list of services to start from (first run, Settings), or the confirmation of an add-connection
-/// link. Either way the new connection then opens in its editor, which asks for the key or the sign-in.
+/// link. Either way the new connection then opens in its editor, which asks for the key or the sign-in, as a draft
+/// (`ConnectionDraft`): Add saves it and closes the sheet; Cancel goes back to where it was picked (or closes the
+/// sheet when it opened on the editor), and nothing of it is left.
 struct ConnectionSetupSheet: View {
     enum Start {
         case presets
-        /// Straight into this new connection's editor (a first-run shortcut), with the presets one step back.
-        case editor(UUID)
+        /// Straight into the editor of this new connection, not saved until Add (a first-run shortcut).
+        case editor(Connection)
         case link(Result<AddConnectionLink, AddConnectionLink.Failure>)
+    }
+
+    /// The sheet asked for, with where it starts: shown with `.sheet(item:)`, so it opens on the start it was asked
+    /// with (a start kept apart from an `isPresented` flag can be read before it is set).
+    struct Request: Identifiable {
+        let id = UUID()
+        let start: Start
     }
 
     @Environment(\.theme) private var theme
@@ -94,12 +143,19 @@ struct ConnectionSetupSheet: View {
     let start: Start
 
     @State private var path: [UUID]
-    /// The connection the link added, so going back from its editor doesn't offer to add it again.
-    @State private var addedFromLink: UUID?
+    /// The connection being added, open in its editor. Kept after it is discarded so the editor still has it while it
+    /// slides away.
+    @State private var draft: ConnectionDraft?
 
     init(start: Start) {
         self.start = start
-        if case .editor(let id) = start { _path = State(initialValue: [id]) } else { _path = State(initialValue: []) }
+        if case .editor(let connection) = start {
+            let draft = ConnectionDraft(connection)
+            _draft = State(initialValue: draft)
+            _path = State(initialValue: [draft.id])
+        } else {
+            _path = State(initialValue: [])
+        }
     }
 
     var body: some View {
@@ -120,14 +176,32 @@ struct ConnectionSetupSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
             }
-            .navigationDestination(for: UUID.self) { id in ConnectionDestination(connectionID: id, path: $path) }
+            .navigationDestination(for: UUID.self) { id in
+                ConnectionDestination(connectionID: id, path: $path, draft: draft?.id == id ? draft : nil) { added in
+                    if added { dismiss() } else if case .editor = start { dismiss() } else { path = [] }
+                }
+            }
         }
         .presentationBackground(theme.background)
         #if os(macOS)
         .frame(width: 520, height: 620)
         #endif
-        .onDisappear { connections.removeUnconfigured() }
-        .onChange(of: path) { _, now in if now.isEmpty { connections.removeUnconfigured() } }
+        // Closing the sheet, or leaving the editor any way but Add, drops the draft.
+        .onDisappear { discardDraft() }
+        .onChange(of: path) { _, now in if let draft, !now.contains(draft.id) { discardDraft() } }
+    }
+
+    /// Opens a new connection in its editor, as a draft.
+    private func open(_ connection: Connection) {
+        discardDraft()
+        let new = ConnectionDraft(connection)
+        draft = new
+        path = [new.id]
+    }
+
+    private func discardDraft() {
+        guard let draft, draft.isOpen else { return }
+        Task { await connections.discard(draft) }
     }
 
     private var title: LocalizedStringKey {
@@ -147,7 +221,7 @@ struct ConnectionSetupSheet: View {
                 .padding(.horizontal, DS.Spacing.lg)
             Link("Privacy Policy", destination: URL(string: "https://sebastianrcnt.github.io/omnichat-ios/privacy/")!)
                 .padding(.horizontal, DS.Spacing.lg)
-            OnDeviceOfferSection { id in path = [id] }
+            OnDeviceOfferSection { open(.appleOnDevice(name: String(localized: "Apple Intelligence"))) }
             let builtIn = PackageStore.shared.package(id: BuiltInPackages.connections)?.manifest.connections ?? []
             GroupedSection(header: "With an API key") {
                 row(.anthropic)
@@ -181,20 +255,12 @@ struct ConnectionSetupSheet: View {
 
     private func row(_ preset: PackageConnectionPreset) -> some View {
         SettingsRow(systemImage: preset.systemImage, title: "", subtitle: preset.subtitleText, showsChevron: true,
-                    verbatimTitle: preset.name) {
-            let new = preset.makeConnection()
-            connections.upsert(new)
-            path = [new.id]
-        }
+                    verbatimTitle: preset.name) { open(preset.makeConnection()) }
     }
 
     private func row(_ preset: ConnectionPreset) -> some View {
         SettingsRow(systemImage: preset.systemImage, title: "", subtitle: preset.subtitle, showsChevron: true,
-                    verbatimTitle: preset.title) {
-            let new = preset.makeConnection()
-            connections.upsert(new)
-            path = [new.id]
-        }
+                    verbatimTitle: preset.title) { open(preset.makeConnection()) }
     }
 
     // MARK: Link
@@ -224,17 +290,8 @@ struct ConnectionSetupSheet: View {
                     .padding(.horizontal, DS.Spacing.lg)
             }
             GroupedSection(footer: "You'll enter the API key next. Links never carry keys.") {
-                // Backing out of an unfinished connection removes it (removeUnconfigured): then it can be added again.
-                if let addedFromLink, connections.connection(addedFromLink) != nil {
-                    SettingsRow(systemImage: "checkmark.circle", title: "Added · Open", showsChevron: true) { path = [addedFromLink] }
-                } else {
-                    SettingsRow(systemImage: "plus", title: "Add connection") {
-                        let new = link.makeConnection()
-                        connections.upsert(new)
-                        addedFromLink = new.id
-                        path = [new.id]
-                    }
-                }
+                // Nothing is saved before the editor's Add: backing out of it leaves the link to add again.
+                SettingsRow(systemImage: "plus", title: "Add connection") { open(link.makeConnection()) }
             }
         }
     }
