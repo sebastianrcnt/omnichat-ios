@@ -222,9 +222,7 @@
     "A link asks to add this server. Add it only if you trust where the link came from: what you send in chats goes to this server.": {},
     "A running reply on the Lock Screen and in the Dynamic Island when iOS isn't showing its own progress for it.": {},
     "A server with an OpenAI-compatible API, Anthropic, or your ChatGPT plan. API keys and sign-ins are stored in the Keychain.": {},
-    "A server with an OpenAI-compatible API, your ChatGPT plan, or your OpenCode account. API keys and sign-ins are stored in the Keychain.": {
-      "extractionState": "stale"
-    },
+    "A server with an OpenAI-compatible API, your ChatGPT plan, or your OpenCode account. API keys and sign-ins are stored in the Keychain.": {},
     "API": {},
     "API key": {},
     "API key from console.groq.com": {
@@ -247,21 +245,15 @@
     "Activity": {},
     "Add": {},
     "Add a connection": {},
-    "Add a connection in Settings, then fetch its models or add one by hand.": {
-      "extractionState": "stale"
-    },
-    "Add a connection to start": {
-      "extractionState": "stale"
-    },
+    "Add a connection in Settings, then fetch its models or add one by hand.": {},
+    "Add a connection to start": {},
     "Add a connection with a model in OmniChat first.": {},
     "Add a connection with a model in OpenChat first.": {
       "extractionState": "stale"
     },
     "Add an API key for %@ in Settings.": {},
     "Add an API key to use this server": {},
-    "Add another service": {
-      "extractionState": "stale"
-    },
+    "Add another service": {},
     "Add connection": {},
     "Add credential": {},
     "Add credential…": {},
@@ -275,9 +267,7 @@
     "Add server": {},
     "Add this connection?": {},
     "Added to the system prompt of chats that use it: %lld characters, about %lld tokens.": {},
-    "Added · Open": {
-      "extractionState": "stale"
-    },
+    "Added · Open": {},
     "After the first answer, ask the model for a short title.": {},
     "Allow Python to connect to %@?": {},
     "Allow a connection to %@": {},
@@ -317,7 +307,9 @@
     "Apple Intelligence is off": {},
     "Apple Intelligence is off. Turn it on in Settings > Apple Intelligence & Siri to use the on-device model.": {},
     "Apple Intelligence is off. Turn it on in System Settings > Apple Intelligence & Siri to use the on-device model.": {},
-    "Apple Maps": {},
+    "Apple Maps": {
+      "extractionState": "stale"
+    },
     "Apple on-device": {},
     "Apple's on-device model answers without an API key or an account. Your messages never leave this device, and it works offline. It's a small model with a short memory: good for quick questions, rewriting and summaries. For long chats or hard questions, use a larger model.": {},
     "Apple's on-device safety guardrails stopped this answer. Try rephrasing, or use another connection.": {},
@@ -347,31 +339,25 @@
     "Assistant": {},
     "Attachments": {},
     "Auto": {},
-    "Auto searches Naver for Korean queries and Bing otherwise. If the engine fails or finds nothing, the next one is tried.": {
-      "extractionState": "stale"
-    },
+    "Auto searches Naver for Korean queries and Bing otherwise. If the engine fails or finds nothing, the next one is tried.": {},
     "Auto searches Naver for Korean queries and Bing otherwise. If the engine fails or finds nothing, the next one is tried. web_fetch returns up to the fetch length per call; longer pages continue in further calls.": {
       "extractionState": "stale"
     },
-    "Auto searches Naver for Korean queries and Bing otherwise. If the engine fails or finds nothing, the next one is tried. web_fetch returns up to the fetch length per call; longer pages continue in further calls. A chat can turn web search on or off from the + menu.": {
+    "Auto searches Naver for Korean queries and Bing otherwise. If the engine fails or finds nothing, the next one is tried. web_fetch returns up to the fetch length per call; longer pages continue in further calls. A chat can turn web search on or off from the + menu.": {},
+    "Auto searches Naver for Korean queries while you're in Korea, and Bing otherwise. If the engine fails or finds nothing, the next one is tried.": {
       "extractionState": "stale"
     },
-    "Auto searches Naver for Korean queries while you're in Korea, and Bing otherwise. If the engine fails or finds nothing, the next one is tried.": {},
-    "Auto searches Naver for Korean queries while you're in Korea, and Bing otherwise. If the engine fails or finds nothing, the next one is tried. web_fetch returns up to the fetch length per call; longer pages continue in further calls. A chat can turn web search on or off from the + menu.": {},
+    "Auto searches Naver for Korean queries while you're in Korea, and Bing otherwise. If the engine fails or finds nothing, the next one is tried. web_fetch returns up to the fetch length per call; longer pages continue in further calls. A chat can turn web search on or off from the + menu.": {
+      "extractionState": "stale"
+    },
     "Automatic": {},
     "Available": {},
-    "Away for %lld s.": {
-      "extractionState": "stale"
-    },
+    "Away for %lld s.": {},
     "Back": {},
     "Background identifiers": {},
     "Background lease": {},
-    "Background sound test": {
-      "extractionState": "stale"
-    },
-    "Background sound test finished": {
-      "extractionState": "stale"
-    },
+    "Background sound test": {},
+    "Background sound test finished": {},
     "Background tasks ended by iOS": {},
     "Bad certificate": {},
     "Balance": {
@@ -605,9 +591,7 @@
     "Discard share": {},
     "Dismiss": {},
     "Display name": {},
-    "Doesn't match the expected format": {
-      "extractionState": "stale"
-    },
+    "Doesn't match the expected format": {},
     "Don't Save": {},
     "Don't save as skill": {},
     "Done": {},
@@ -728,7 +712,9 @@
     "Go back to an older version?": {},
     "Go is the monthly subscription with usage limits. Pay as you go bills the workspace balance. Each plan has its own models.": {},
     "Go to chat": {},
-    "Google Maps": {},
+    "Google Maps": {
+      "extractionState": "stale"
+    },
     "Got it": {},
     "Got your location": {},
     "Green": {},
@@ -916,7 +902,9 @@
       "shouldTranslate": false
     },
     "Naming chat": {},
-    "Naver Map": {},
+    "Naver Map": {
+      "extractionState": "stale"
+    },
     "Needs %@ on in the chat.": {},
     "Needs you": {},
     "New": {},
@@ -968,9 +956,7 @@
     "No plugins": {},
     "No reasoning was shared for this reply.": {},
     "No requests yet": {},
-    "No results yet": {
-      "extractionState": "stale"
-    },
+    "No results yet": {},
     "No saved skills": {},
     "No secrets were in iCloud.": {},
     "No text": {},
@@ -1021,12 +1007,8 @@
     "OmniChat is using this page · view only": {},
     "OmniChat isn't allowed to add photos. You can allow it in Settings.": {},
     "OmniChat stops at a robot check (CAPTCHA) and asks you to solve it on the page; it never solves one itself. With this off, a page that shows one isn't read.": {},
-    "OmniChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT account.": {
-      "extractionState": "stale"
-    },
-    "OmniChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.": {
-      "extractionState": "stale"
-    },
+    "OmniChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT account.": {},
+    "OmniChat talks to the AI service you choose: OpenAI, Anthropic, OpenRouter, Groq, a server on your computer such as Ollama or LM Studio, or your ChatGPT or OpenCode account.": {},
     "OmniChat waits while you use the page. Tap Done to hand it back.": {},
     "On": {},
     "On in new chats": {},
@@ -1066,11 +1048,11 @@
       "extractionState": "stale"
     },
     "Open full screen": {},
-    "Open in %@": {},
-    "Open in Browser": {},
-    "Open in Naver Map": {
+    "Open in %@": {
       "extractionState": "stale"
     },
+    "Open in Browser": {},
+    "Open in Naver Map": {},
     "Open in Safari": {},
     "Open page": {},
     "Open sign-in page": {},
@@ -1346,9 +1328,7 @@
     },
     "Responses API": {},
     "Restricted": {},
-    "Results": {
-      "extractionState": "stale"
-    },
+    "Results": {},
     "Resumable replies": {},
     "Resume data": {
       "extractionState": "stale"
@@ -1551,9 +1531,7 @@
     "Speech recognition is off. Turn it on in Settings.": {},
     "Speech recognition is off. Turn it on in System Settings.": {},
     "Standard (25 s)": {},
-    "Start": {
-      "extractionState": "stale"
-    },
+    "Start": {},
     "Start again": {},
     "Start date": {},
     "Static / dynamic": {
@@ -1606,9 +1584,7 @@
     "System prompt": {},
     "Take over": {},
     "Taking a screenshot…": {},
-    "Tap Start, go to the Home screen or another app for about a minute, then come back. A page that kept running has a longest gap near 1 s; one that was suspended shows a gap about as long as you were away. The sound plays only while you are away, and only when Settings > Tools > Play a sound while browsing in the background is on.": {
-      "extractionState": "stale"
-    },
+    "Tap Start, go to the Home screen or another app for about a minute, then come back. A page that kept running has a longest gap near 1 s; one that was suspended shows a gap about as long as you were away. The sound plays only while you are away, and only when Settings > Tools > Play a sound while browsing in the background is on.": {},
     "Teal": {},
     "Temporarily unavailable": {},
     "Test": {},
@@ -1700,7 +1676,9 @@
     "The page took too long to load.": {},
     "The recipient changed or the destination is unavailable. Nothing has been sent. Confirm the recipient below, or keep the share for later and check your connection settings.": {},
     "The recording is too long to transcribe. Try a shorter one.": {},
-    "The reply stopped while OmniChat was in the background. Try again.": {},
+    "The reply stopped while OmniChat was in the background. Try again.": {
+      "extractionState": "stale"
+    },
     "The reply was stopped.": {},
     "The request is too large for the Anthropic API. Remove some images, or start a new chat.": {},
     "The response ended before it was complete. Try again.": {},
