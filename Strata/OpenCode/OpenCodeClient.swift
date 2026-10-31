@@ -62,10 +62,10 @@ struct OpenCodeClient: ChatStreaming {
 
     // MARK: Requests
 
-    /// The effort to send: the requested level as one the model offers (nil when it offers none). The title request's
-    /// "none" is its lowest level: the catalog lists levels only.
+    /// The effort to send: the requested level as one the model offers (nil when it offers none, or for the title
+    /// request's "none", which isn't one of the catalog's levels).
     static func effort(_ request: ChatRequest, model: ModelInfo) -> String? {
-        guard let raw = request.reasoningEffort, let effort = Effort(rawValue: raw) else { return nil }
+        guard let raw = request.reasoningEffort, let effort = Effort(rawValue: raw), effort != .off else { return nil }
         let levels = model.effortLevels(.modelDecides)
         return levels.isEmpty ? nil : effort.resolved(in: levels).apiValue
     }

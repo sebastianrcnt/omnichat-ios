@@ -194,7 +194,7 @@ struct AnthropicRequestTests {
         #expect(family("gpt-5") == nil)
         let model = AnthropicModels.model(id: "claude-sonnet-4-5")
         #expect(model.supportsImages && model.supportsTools && model.supportsEffort)
-        #expect(model.effortLevels(.modelDecides) == Effort.allCases)
+        #expect(model.effortLevels(.modelDecides) == [.off] + Effort.allCases) // a budget model can skip thinking
         #expect(AnthropicModels.model(id: "claude-opus-5-5").effortLevels(.modelDecides) == Effort.allCases)
         #expect(!AnthropicModels.model(id: "claude-3-5-haiku-latest").supportsEffort)
         // max_tokens: the request's, else the model's cap, else the default.
