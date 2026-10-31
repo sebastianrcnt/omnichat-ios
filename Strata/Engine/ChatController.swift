@@ -497,7 +497,7 @@ final class ChatController {
             }
         }
         DiagnosticCounters.shared.beginTurn(conversation: conversation.id)
-        let effort = conversation.effort
+        let effort = requestEffort(conversation, endpoint: endpoint)
         if !restoring, endpoint.model.supportsTools { applyToolSwitches(conversation, path: path) }
         let messages = apiHistory(path: path, conversation: conversation, endpoint: endpoint)
         runner.offered = endpoint.model.supportsTools ? offeredTools(conversation, freeze: true) : []
@@ -658,7 +658,7 @@ final class ChatController {
         let messages = apiHistory(path: path, conversation: conversation, endpoint: endpoint)
         let window = contextWindow(for: endpoint)
         var request = ChatRequest(model: endpoint.model.id, messages: messages)
-        if endpoint.model.supportsEffort { request.reasoningEffort = conversation.effort.apiValue }
+        if endpoint.model.supportsEffort { request.setEffort(requestEffort(conversation, endpoint: endpoint)) }
         if endpoint.model.supportsTools { request.tools = requestTools(endpoint, conversation: conversation) }
         let streamer = streamer
         let ring = requestRing

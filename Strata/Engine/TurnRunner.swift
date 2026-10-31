@@ -141,7 +141,7 @@ struct TurnRunner: Sendable {
 
         func makeRequest(_ messages: [APIMessage], capped: Bool) -> ChatRequest {
             var request = ChatRequest(model: endpoint.model.id, messages: messages)
-            if endpoint.model.supportsEffort, let effort { request.reasoningEffort = effort.apiValue }
+            if endpoint.model.supportsEffort, let effort { request.setEffort(effort) }
             if toolsEnabled {
                 request.tools = toolList // identical on every request
                 if capped { request.toolChoice = "none" }

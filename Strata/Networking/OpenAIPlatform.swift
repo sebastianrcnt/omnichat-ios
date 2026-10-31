@@ -35,9 +35,15 @@ enum OpenAIPlatform {
 
     /// The effort name the Responses API (ChatGPT) gets. The app's top level ("Max") asks for the highest a model has:
     /// `max` on a model that takes it, `xhigh` elsewhere.
+    /// Off ("none", also the title request's) is the least the model takes.
     static func responsesEffort(_ value: String, model: String) -> String {
-        value == Effort.max.apiValue && !takesMax(model) ? Effort.xhigh.apiValue : value
+        if value == Effort.off.apiValue { return leastEffort(model: model) }
+        return value == Effort.max.apiValue && !takesMax(model) ? Effort.xhigh.apiValue : value
     }
+
+    /// Whether a model can be asked not to think (`leastEffort` is `minimal` or `none`): the GPT-5 family, not the
+    /// models that take `max`, not the o-series.
+    static func answersWithoutThinking(_ model: String) -> Bool { leastEffort(model: model) != Effort.low.apiValue }
 
     /// (5, 0) for `gpt-5…`, (5, N) for `gpt-5.N…`, (6, 1) for `gpt-6.1-sol`; nil for a model that isn't `gpt-N`.
     private static func version(_ id: String) -> (major: Int, minor: Int)? {
@@ -57,12 +63,8 @@ enum OpenAIPlatform {
             r.maxCompletionTokens = cap
             r.maxTokens = nil
         }
-        if let raw = r.reasoningEffort {
-            if let effort = Effort(rawValue: raw) {
-                r.reasoningEffort = effort.resolved(in: effortLevels(model: r.model)).apiValue
-            } else if raw == "none" {
-                r.reasoningEffort = leastEffort(model: r.model)
-            }
+        if let raw = r.reasoningEffort, let effort = Effort(rawValue: raw) {
+            r.reasoningEffort = effort == .off ? leastEffort(model: r.model) : effort.resolved(in: effortLevels(model: r.model)).apiValue
         }
         r.chatTemplateKwargs = nil
         return r

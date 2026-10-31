@@ -33,7 +33,7 @@ extension ChatController {
         if path.last?.role == .assistant, endpoint.kind != .appleOnDevice {
             var base = ChatRequest(model: endpoint.model.id,
                                    messages: apiHistory(path: path, conversation: conversation, endpoint: endpoint))
-            if endpoint.model.supportsEffort { base.reasoningEffort = conversation.effort.apiValue }
+            if endpoint.model.supportsEffort { base.setEffort(requestEffort(conversation, endpoint: endpoint)) }
             if endpoint.model.supportsTools { base.tools = requestTools(endpoint, conversation: conversation) }
             followUp = AutoRename.followUp(base, replacing: force ? conversation.displayTitle : nil,
                                            forbidTools: endpoint.kind != .anthropic)

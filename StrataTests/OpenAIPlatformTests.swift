@@ -62,8 +62,8 @@ struct OpenAIPlatformTests {
         let gateway = Connection(name: "Gateway", baseURL: "https://gateway.example/v1", models: [ModelInfo(id: "o3", supportsEffort: true)])
         #expect(openAI.effortStyle == .openAI && gateway.effortStyle == .tokenCaps)
         #expect(openAI.models[0].effortLevels(openAI.effortStyle) == [.low, .medium, .high])
-        #expect(gateway.models[0].effortLevels(gateway.effortStyle) == Effort.allCases)
-        #expect(ModelInfo(id: "gpt-5.2", supportsEffort: true).effortLevels(.openAI) == [.low, .medium, .high, .xhigh])
+        #expect(gateway.models[0].effortLevels(gateway.effortStyle) == [.off] + Effort.allCases)
+        #expect(ModelInfo(id: "gpt-5.2", supportsEffort: true).effortLevels(.openAI) == [.off, .low, .medium, .high, .xhigh])
         let endpoint = Endpoint(connectionID: UUID(), connectionName: "x", baseURL: URL(string: "https://gateway.example/v1")!,
                                 apiKey: nil, headers: [:], model: ModelInfo(id: "o3"))
         #expect(!OpenAIPlatform.isHost(endpoint))
@@ -88,10 +88,13 @@ struct OpenAIPlatformTests {
 
         // ChatGPT's own models: Max on those that take it, sent as `max` there and as `xhigh` elsewhere.
         #expect(ModelInfo(id: "gpt-6.1-sol", supportsEffort: true).effortLevels(.modelDecides) == Effort.allCases)
-        #expect(ModelInfo(id: "gpt-6-sol", supportsEffort: true).effortLevels(.modelDecides) == upToXhigh)
+        #expect(ModelInfo(id: "gpt-6-sol", supportsEffort: true).effortLevels(.modelDecides) == [.off] + upToXhigh)
         #expect(OpenAIPlatform.responsesEffort("max", model: "gpt-6.1-sol") == "max")
         #expect(OpenAIPlatform.responsesEffort("max", model: "gpt-6-sol") == "xhigh")
         #expect(OpenAIPlatform.responsesEffort("high", model: "gpt-6-sol") == "high")
+        // Off: the least the model takes ("none" on ChatGPT's GPT-5.1 on, "low" where none is refused).
+        #expect(OpenAIPlatform.responsesEffort("none", model: "gpt-5.5") == "none")
+        #expect(OpenAIPlatform.responsesEffort("none", model: "gpt-6.1-sol") == "low")
     }
 
     @Test func nonChatModelsAreLeftOutForKnownProviders() async throws {
@@ -133,5 +136,38 @@ struct OpenAIPlatformTests {
         #expect(s.connection(c.id)?.models.isEmpty == true)
         try await s.refreshModels(for: c.id)
         #expect(s.connection(c.id)?.models.map(\.id) == ["b-model"])
+    }
+}
+
+struct EffortOffTests {
+    private func model(_ id: String) -> ModelInfo { ModelInfo(id: id, supportsEffort: true) }
+
+    @Test func offComesFirstOnTheModelsThatCanAnswerWithoutThinking() {
+        let base: [Effort] = [.low, .medium, .high, .xhigh]
+        #expect(model("gpt-5.5").effortLevels(.openAI) == [.off] + base)
+        #expect(model("gpt-5.5").effortLevels(.modelDecides) == [.off] + base)
+        #expect(model("qwen3-32b").effortLevels(.tokenCaps) == [.off] + Effort.allCases)
+        // Models that refuse none and minimal: no Off.
+        #expect(!model("gpt-6.1-sol").effortLevels(.modelDecides).contains(.off))
+        #expect(!model("o3").effortLevels(.openAI).contains(.off))
+        // No effort, no Off.
+        #expect(ModelInfo(id: "m", supportsEffort: false).effortLevels(.tokenCaps).isEmpty)
+        #expect(!Effort.allCases.contains(.off))
+    }
+
+    @Test func offOnAModelThatAlwaysThinksIsItsLowestLevel() {
+        #expect(Effort.off.resolved(in: [.low, .medium, .high]) == .low)
+        #expect(Effort.off.resolved(in: [.off, .low]) == .off)
+        // A level below a model's lowest never becomes Off.
+        #expect(Effort.low.resolved(in: [.off, .medium, .high]) == .medium)
+    }
+
+    @Test func openAIGetsTheLeastTheModelTakesForOff() {
+        var r = ChatRequest(model: "gpt-5", messages: [])
+        r.setEffort(.off)
+        let adapted = OpenAIPlatform.adapted(r)
+        #expect(adapted.reasoningEffort == "minimal" && adapted.chatTemplateKwargs == nil)
+        r.model = "gpt-5.5"
+        #expect(OpenAIPlatform.adapted(r).reasoningEffort == "none")
     }
 }

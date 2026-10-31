@@ -398,3 +398,43 @@ extension ResponsesFallbackClientTests {
         #expect(ToolChoiceFallback.shouldRetry(capped(), status: 400, body: Data(autoOnly.utf8)))
     }
 }
+
+/// Off's thinking controls on a server that refuses them: same stub, same serialized suite.
+extension ResponsesFallbackClientTests {
+    private static let unknownKwargs = #"{"error":{"message":"Unrecognized request argument supplied: chat_template_kwargs"}}"#
+
+    private func thinkingOff() -> ChatRequest {
+        var r = ChatRequest(model: "m", messages: [.system("S"), .user("q")])
+        r.setEffort(.off)
+        return r
+    }
+
+    @Test func offIsSentAsNoneAndEnableThinkingFalse() {
+        let r = thinkingOff()
+        #expect(r.reasoningEffort == "none" && r.chatTemplateKwargs == .init(enableThinking: false))
+        var low = ChatRequest(model: "m", messages: [])
+        low.setEffort(.low)
+        #expect(low.reasoningEffort == "low" && low.chatTemplateKwargs == nil)
+    }
+
+    @Test func aServerThatRefusesOffsControlsGetsTheRequestWithoutThem() async throws {
+        APIStub.reset(chat: [.init(status: 400, body: Self.unknownKwargs), .init(status: 200, body: chatAnswer),
+                             .init(status: 200, body: chatAnswer)])
+        let ep = autoOnlyEndpoint()
+        let client = ChatClient(session: APIStub.session)
+        #expect(try await collect(client.stream(thinkingOff(), endpoint: ep)).text == "chat")
+        #expect(try await collect(client.stream(thinkingOff(), endpoint: ep)).text == "chat") // remembered
+        let bodies = APIStub.bodies("chat/completions")
+        #expect(bodies.count == 3)
+        #expect(bodies[0]["reasoning_effort"] as? String == "none" && bodies[0]["chat_template_kwargs"] != nil)
+        for body in bodies.dropFirst() { #expect(body["reasoning_effort"] == nil && body["chat_template_kwargs"] == nil) }
+    }
+
+    @Test func onlyOffRequestsRefusedForTheirControlsAreRetried() {
+        let body = Data(Self.unknownKwargs.utf8)
+        #expect(ThinkingOffFallback.shouldRetry(thinkingOff(), status: 400, body: body))
+        #expect(!ThinkingOffFallback.shouldRetry(thinkingOff(), status: 400, body: Data(#"{"error":{"message":"context too long"}}"#.utf8)))
+        #expect(!ThinkingOffFallback.shouldRetry(ChatRequest(model: "m", messages: []), status: 400, body: body))
+        #expect(!ThinkingOffFallback.shouldRetry(thinkingOff(), status: 401, body: body))
+    }
+}

@@ -61,17 +61,36 @@ struct ModelInfo: Codable, Identifiable, Hashable, Sendable {
         anthropic = try? c.decodeIfPresent(AnthropicModelInfo.self, forKey: .anthropic)
     }
 
-    /// The reasoning effort levels this model offers, lowest first (none when it takes no `reasoning_effort`). An
-    /// OpenCode model offers the levels its catalog lists, an Anthropic model those its capabilities list (every level for
-    /// a model that thinks against a budget: the level picks the budget).
+    /// The reasoning effort levels this model offers, lowest first (none when it takes no `reasoning_effort`), with
+    /// Off first on a model that can answer without thinking (`offersOff`). An OpenCode model offers the levels its
+    /// catalog lists, an Anthropic model those its capabilities list (every level for a model that thinks against a
+    /// budget: the level picks the budget).
     func effortLevels(_ style: EffortStyle) -> [Effort] {
         guard supportsEffort else { return [] }
+        let levels = thinkingLevels(style)
+        return offersOff(style) && !levels.isEmpty ? [.off] + levels : levels
+    }
+
+    private func thinkingLevels(_ style: EffortStyle) -> [Effort] {
         if let listed = openCode?.efforts, !listed.isEmpty { return listed }
         if let listed = anthropic?.pickerLevels, !listed.isEmpty { return listed }
         if style == .openAI { return OpenAIPlatform.effortLevels(model: id) }
         // ChatGPT's own models that take `max` offer it too (`OpenAIPlatform.responsesEffort` passes it on to them).
         if style == .modelDecides, OpenAIPlatform.takesMax(id) { return Effort.allCases }
         return Effort.levels(style)
+    }
+
+    /// Whether the model can answer without thinking: OpenAI's GPT-5 family, but not the models that take `max` (they
+    /// refuse `none` and `minimal`) or the o-series; an Anthropic model that thinks against a budget (no `thinking`);
+    /// and the Strata engine and other OpenAI-compatible servers (`enable_thinking: false`, dropped if refused).
+    /// Not OpenCode, whose catalog lists levels only, or Anthropic's adaptive models, some of which always think.
+    private func offersOff(_ style: EffortStyle) -> Bool {
+        if openCode != nil { return false }
+        if let anthropic { return anthropic.thinking == .budget && anthropic.efforts.isEmpty }
+        switch style {
+        case .tokenCaps: return true
+        case .openAI, .modelDecides: return OpenAIPlatform.answersWithoutThinking(id)
+        }
     }
 
     /// "Images · Effort · Web tools": what the model can do, for a row subtitle.

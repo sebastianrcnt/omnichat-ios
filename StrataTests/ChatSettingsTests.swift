@@ -12,7 +12,7 @@ struct ChatSettingsTests {
 
     @Test func effortLevelsFollowTheModelAndStyle() {
         #expect(ModelInfo(id: "m", supportsEffort: false).effortLevels(.tokenCaps).isEmpty)
-        #expect(ModelInfo(id: "m", supportsEffort: true).effortLevels(.tokenCaps) == Effort.allCases)
+        #expect(ModelInfo(id: "m", supportsEffort: true).effortLevels(.tokenCaps) == [.off] + Effort.allCases)
         // OpenAI's models top out at xhigh: Max would send the same, so it isn't offered, and a chat set to Max reads as Extra.
         let openAI = ModelInfo(id: "m", supportsEffort: true).effortLevels(.modelDecides)
         #expect(openAI == [.low, .medium, .high, .xhigh])

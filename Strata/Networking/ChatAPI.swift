@@ -111,7 +111,7 @@ struct ChatRequest: Encodable, Sendable {
     var maxTokens: Int?
     /// The same cap under the name OpenAI's own API takes (`OpenAIPlatform.adapted`); unset otherwise.
     var maxCompletionTokens: Int?
-    /// Only the title request sets this (to turn thinking off); chat requests leave it unset.
+    /// Set only to turn thinking off (the title request, a chat set to Off); other requests leave it unset.
     var chatTemplateKwargs: ChatTemplateKwargs?
 
     struct ChatTemplateKwargs: Encodable, Sendable, Equatable {
@@ -507,5 +507,14 @@ enum APIError: Error, LocalizedError, Equatable {
         case .server(let message): message
         case .transport(let message): message
         }
+    }
+}
+
+extension ChatRequest {
+    /// The chat's effort: the level as `reasoning_effort`, and Off also as `enable_thinking: false` for the servers that
+    /// steer thinking through the chat template (each API's client turns them into what it takes, or drops them).
+    mutating func setEffort(_ effort: Effort) {
+        reasoningEffort = effort.apiValue
+        if effort == .off { chatTemplateKwargs = .init(enableThinking: false) }
     }
 }

@@ -56,6 +56,12 @@ extension ChatController {
             + (chatPackages(conversation)?.requestTools(browserOffered: offered.contains(.browser)) ?? [])
     }
 
+    /// The chat's effort as one the model offers: Off picked on a model that always thinks is sent as its lowest level.
+    func requestEffort(_ conversation: Conversation, endpoint: Endpoint) -> Effort {
+        let style = connections.connection(endpoint.connectionID)?.effortStyle ?? .tokenCaps
+        return conversation.effort.resolved(in: endpoint.model.effortLevels(style))
+    }
+
     /// The window, the room for an answer and the context size before this turn's own message.
     func contextWindow(for endpoint: Endpoint) -> Int {
         var window = endpoint.model.effectiveContextLength(default: settings.defaultContextLength)

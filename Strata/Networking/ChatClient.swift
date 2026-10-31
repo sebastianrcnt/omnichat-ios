@@ -51,8 +51,10 @@ struct ChatClient: ChatStreaming {
         if endpoint.kind == .appleOnDevice { return OnDeviceClient().stream(request, endpoint: endpoint) }
         if endpoint.kind == .anthropic { return AnthropicClient(session: session).stream(request, endpoint: endpoint) }
         let platform = OpenAIPlatform.isHost(endpoint) ? OpenAIPlatform.adapted(request) : request
-        let request = ToolChoiceFallback.isRefused(endpoint) && platform.toolChoice == "none"
+        let toolChoice = ToolChoiceFallback.isRefused(endpoint) && platform.toolChoice == "none"
             ? ToolChoiceFallback.adapted(platform) : platform
+        let request = ThinkingOffFallback.isRefused(endpoint) && ThinkingOffFallback.isOff(toolChoice)
+            ? ThinkingOffFallback.adapted(toolChoice) : toolChoice
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
@@ -65,12 +67,19 @@ struct ChatClient: ChatStreaming {
                     var (bytes, response) = try await send(request, endpoint: endpoint)
                     if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
                         var errorData = try await Self.errorBody(bytes)
-                        // A server that takes only `tool_choice: "auto"`: once more without it (`ToolChoiceFallback`).
-                        if ToolChoiceFallback.shouldRetry(request, status: http.statusCode, body: errorData) {
-                            request = ToolChoiceFallback.adapted(request)
+                        // A server that refuses Off's thinking controls (`ThinkingOffFallback`), or takes only
+                        // `tool_choice: "auto"` (`ToolChoiceFallback`): once more without what it refused.
+                        let status = { (response as? HTTPURLResponse)?.statusCode ?? http.statusCode }
+                        let fallbacks: [(retry: (ChatRequest, Int, Data) -> Bool, adapted: (ChatRequest) -> ChatRequest,
+                                         remember: (Endpoint) -> Void)] = [
+                            (ThinkingOffFallback.shouldRetry, ThinkingOffFallback.adapted, ThinkingOffFallback.remember),
+                            (ToolChoiceFallback.shouldRetry, ToolChoiceFallback.adapted, ToolChoiceFallback.remember),
+                        ]
+                        for fallback in fallbacks where fallback.retry(request, status(), errorData) {
+                            request = fallback.adapted(request)
                             (bytes, response) = try await send(request, endpoint: endpoint)
                             if let retried = response as? HTTPURLResponse, (200..<300).contains(retried.statusCode) {
-                                ToolChoiceFallback.remember(endpoint)
+                                fallback.remember(endpoint)
                                 try await Self.consume(bytes) { continuation.yield($0) }
                                 continuation.finish()
                                 return
