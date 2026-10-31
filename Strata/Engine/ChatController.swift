@@ -153,11 +153,28 @@ final class ChatController {
         // The system's task was cancelled (from its progress on the Lock Screen or in the Dynamic Island): the replies it
         // carried stop as with Stop, rather than resuming when the app is next opened.
         background.onCancelled = { [weak self] in self?.backgroundTaskCancelled() }
+        background.onEnteredBackground = { [weak self] in self?.appEnteredBackground() }
     }
 
     /// Stops every reply that holds the background lease. Internal for tests, which have no system task to cancel.
+    /// A reply on a connection without Resumable replies can't be picked up again: it ends with a notice that says
+    /// the background stopped it (`BackgroundInterruption`), rather than reading as if Stop was pressed.
     func backgroundTaskCancelled() {
-        for run in Array(runs.values) where run.holdsLease { stop(conversationID: run.conversationID) }
+        for run in Array(runs.values) where run.holdsLease {
+            if run.endpoint?.supportsResumable == true {
+                stop(conversationID: run.conversationID)
+            } else {
+                run.leaseExpired = true
+                revealAll(run)
+                run.task?.cancel()
+            }
+        }
+    }
+
+    /// The app left the screen while these replies run: a connection that drops from here on likely dropped because
+    /// of it. Internal for tests, which never leave the screen.
+    func appEnteredBackground() {
+        for run in runs.values where run.holdsLease { run.wentToBackground = true }
     }
 
     /// Wait until no chat is replying, queued runs included (tests).
@@ -485,6 +502,8 @@ final class ChatController {
         } : nil
         background.begin(run.conversationID)
         run.holdsLease = true
+        run.wentToBackground = AppLifecycle.isBackground
+        run.leaseExpired = false
         var runner = TurnRunner(streamer: streamer, tools: tools)
         runner.toolsDisabled = assistant.answeredEarly
         runner.continueOnEmptyAnswer = settings.continueOnEmptyAnswer
@@ -536,6 +555,16 @@ final class ChatController {
                                                           body: Self.notificationBody(assistant.text),
                                                           conversationID: conversation.id)
                 self.finish(run, message: assistant, conversation: conversation, context: context, error: nil, tracker: tracker)
+            } catch where run.leaseExpired && !run.discarded {
+                // The background lease ended mid-reply on a connection that can't resume: the text so far stays, with
+                // a notice that says why it stopped.
+                tracker.keepFinishedCallsOfOpenRound()
+                tracker.finishThinking()
+                tracker.complete(finalText: nil)
+                conversation.sources = sourceStore.items
+                assistant.steps = tracker.completedSteps
+                self.finish(run, message: assistant, conversation: conversation, context: context,
+                            error: BackgroundInterruption(), tracker: tracker)
             } catch where error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
                 guard !run.discarded else { return }
                 // Stop in any state (first byte, thinking, writing, tool): keep what is there, mark it Stopped. A round
@@ -557,6 +586,8 @@ final class ChatController {
                 conversation.sources = sourceStore.items
                 tracker.complete(finalText: nil)
                 assistant.steps = tracker.completedSteps
+                let error = BackgroundInterruption.classify(error, wentToBackground: run.wentToBackground,
+                                                            resumable: endpoint.supportsResumable)
                 self.finish(run, message: assistant, conversation: conversation, context: context, error: error, tracker: tracker)
             }
         }

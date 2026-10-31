@@ -190,11 +190,13 @@ struct NoteText: View {
     }
 }
 
-/// Copy and regenerate under an answer.
+/// Copy, share and regenerate under an answer.
 struct MessageActionBar: View {
     @Environment(\.theme) private var theme
     let onCopy: () -> Void
     var onCopyRaw: (() -> Void)?
+    /// The answer as text for the share sheet (`AnswerShare`); nil hides Share.
+    var shareText: (() -> String)?
     var onRegenerate: (() -> Void)?
     var translation = TranslationUI.none
     var onTranslate: () -> Void = {}
@@ -230,6 +232,10 @@ struct MessageActionBar: View {
                     .actionTarget()
             } primaryAction: { onCopy(); flash() }
             .accessibilityLabel(Text("Copy"))
+            if let shareText {
+                ShareLink(item: shareText()) { Image(systemName: "square.and.arrow.up").actionTarget() }
+                    .accessibilityLabel(Text("Share"))
+            }
             if let onRegenerate {
                 Button(action: onRegenerate) { Image(systemName: "arrow.clockwise").actionTarget() }
                     .accessibilityLabel(Text("Regenerate"))
@@ -365,6 +371,8 @@ struct AssistantMessage: View {
     var onCopyRaw: (() -> Void)?
     /// The answer as plain text for "Select Text", made only when asked for.
     var textForSelection: (() -> String)?
+    /// The answer's Markdown as shown (the translation when that is showing), for Share.
+    var shareMarkdown: (() -> String)?
     @State private var selectionText: MessageActionBar.SelectionText?
     /// Translates the answer, or flips between the translation and the original.
     var onTranslate: () -> Void = {}
@@ -685,7 +693,11 @@ struct AssistantMessage: View {
                 if !used.isEmpty { SourcesRow(count: used.count) { onOpenSources(used) } }
             }
             if !content.isStreaming && (render.markdown.hasContent || !notes.isEmpty || content.errorText != nil) {
-                MessageActionBar(onCopy: onCopy, onCopyRaw: onCopyRaw, onRegenerate: content.canRegenerate ? onRegenerate : nil,
+                MessageActionBar(onCopy: onCopy, onCopyRaw: onCopyRaw,
+                                 shareText: render.markdown.hasContent ? shareMarkdown.map { markdown in
+                                     { AnswerShare.text(markdown: markdown(), sources: usedSources) }
+                                 } : nil,
+                                 onRegenerate: content.canRegenerate ? onRegenerate : nil,
                                  translation: content.translation,
                                  onTranslate: content.translation.hasTranslation ? onToggleTranslation : onTranslate,
                                  branch: branch, branchEnabled: branchEnabled, onSwitchBranch: onSwitchBranch,

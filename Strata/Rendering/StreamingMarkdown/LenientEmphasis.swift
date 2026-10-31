@@ -168,12 +168,25 @@ enum TildeEscaper {
 
 /// Plain text for the "Copy" action: Markdown markers removed, line structure kept.
 enum MarkdownPlain {
-    static func text(from markdown: String) -> String {
+    /// - Parameter showingLinks: a web link keeps its address after its words ("Apple (https://apple.com)"), for text
+    ///   that leaves the app (Share), where nothing can be tapped to find it.
+    static func text(from markdown: String, showingLinks: Bool = false) -> String {
         // Interactive views copy as what they show, not as their program (`OUIPlainText`).
         let markdown = OpenUIFence.replacingBlocks(in: markdown) { OUIPlainText.text(source: $0) }
         let prepared = LenientEmphasis.normalize(TildeEscaper.escape(markdown))
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         guard let attributed = try? AttributedString(markdown: prepared, options: options) else { return markdown }
-        return String(LenientEmphasis.stripZeroWidth(attributed).characters)
+        let plain = LenientEmphasis.stripZeroWidth(attributed)
+        guard showingLinks else { return String(plain.characters) }
+        var out = ""
+        for (link, range) in plain.runs[\.link] {
+            let words = String(plain[range].characters)
+            out += words
+            if let link, ["http", "https"].contains(link.scheme?.lowercased() ?? ""),
+               words.trimmingCharacters(in: .whitespaces) != link.absoluteString {
+                out += " (\(link.absoluteString))"
+            }
+        }
+        return out
     }
 }

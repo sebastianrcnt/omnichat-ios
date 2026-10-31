@@ -1700,6 +1700,7 @@
     "The page took too long to load.": {},
     "The recipient changed or the destination is unavailable. Nothing has been sent. Confirm the recipient below, or keep the share for later and check your connection settings.": {},
     "The recording is too long to transcribe. Try a shorter one.": {},
+    "The reply stopped while OmniChat was in the background. Try again.": {},
     "The reply was stopped.": {},
     "The request is too large for the Anthropic API. Remove some images, or start a new chat.": {},
     "The response ended before it was complete. Try again.": {},

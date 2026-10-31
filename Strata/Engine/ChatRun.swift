@@ -52,6 +52,11 @@ final class ChatRun {
     @ObservationIgnored var discarded = false
     /// Holds the shared background lease (`ReplyBackgroundExecution`).
     @ObservationIgnored var holdsLease = false
+    /// The app went to the background while this ran (iOS), so a dropped connection is likely iOS's doing
+    /// (`BackgroundInterruption`).
+    @ObservationIgnored var wentToBackground = false
+    /// The background lease ended before this reply did, on a connection that can't resume it.
+    @ObservationIgnored var leaseExpired = false
 
     init(conversationID: UUID, kind: Kind, messageID: UUID?) {
         self.conversationID = conversationID

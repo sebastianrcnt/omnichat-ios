@@ -76,6 +76,9 @@ final class ReplyBackgroundExecution {
     static let heartbeatInterval: Duration = .seconds(5)
     /// The system ended the continued task before the replies did: the person cancelled it, or a system limit.
     var onCancelled: (@MainActor () -> Void)?
+    /// The app left the screen while replies run: iOS stops their connections soon after, unless a lease holds it.
+    var onEnteredBackground: (@MainActor () -> Void)?
+    private var backgroundObserver: NSObjectProtocol?
     private var active: Bool { ledger.isHeld }
     /// The running replies in words (`ReplyLiveActivities`: "Searching the web", the chat's title): while the continued
     /// task holds the app, the system's task list says this instead of "Preparing reply".
@@ -90,6 +93,10 @@ final class ReplyBackgroundExecution {
             return
         }
         progressLimiter.reset()
+        backgroundObserver = NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification,
+                                                                    object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.onEnteredBackground?() }
+        }
         fallback = UIApplication.shared.beginBackgroundTask(withName: "Strata reply") { [weak self] in
             Task { @MainActor in self?.endFallback() }
         }
@@ -192,6 +199,8 @@ final class ReplyBackgroundExecution {
             return
         }
         stopHeartbeat()
+        if let backgroundObserver { NotificationCenter.default.removeObserver(backgroundObserver) }
+        backgroundObserver = nil
         if let continued {
             // A failed reply's title says so, instead of the last phase ("Reading sec.gov") it stopped on.
             let title = summary.title ?? (summary.success ? nil : String(localized: "Reply failed"))
@@ -216,6 +225,7 @@ final class ReplyBackgroundExecution {
     func begin(_ run: UUID) { _ = ledger.begin(run) }
     var liveStatus: (title: String, subtitle: String)?
     var onCancelled: (@MainActor () -> Void)?
+    var onEnteredBackground: (@MainActor () -> Void)?
     var stateDescription: String { "not needed on macOS" }
     func advance(by count: Int = 1) {}
     func end(_ run: UUID, success: Bool, title: String? = nil, subtitle: String? = nil) {
