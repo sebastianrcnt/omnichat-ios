@@ -15,6 +15,7 @@ struct StrataMacApp: App {
         DebugHooks.runWebSelfTest()
         DebugHooks.runVideoSelfTest()
         MacKeyTest.runIfRequested()
+        DispatchQueue.main.async { MacInputDiagnostics.install() } // once NSApp exists
         #endif
         MemoryPurge.install()
         HighlightService.registerForPurge()

@@ -176,6 +176,7 @@
 		360D03BBE0802F9B04E60206 /* Compactor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DE91374F2E8D63D589AFF75 /* Compactor.swift */; };
 		36CAB15311724CF0DFD17154 /* Connection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BF0AF47017DCCFA223A305F /* Connection.swift */; };
 		36CD6399DE6BF968ECAD65EE /* OpenCodeAuthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F7EDA3AB6D39C31110D19B /* OpenCodeAuthTests.swift */; };
+		36DD070950B66626B151EC21 /* MacInputDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D9881B9B310EA4A9EC02BB2 /* MacInputDiagnostics.swift */; };
 		37D2CDE6D0E4C3F77107A40E /* ArtifactPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57CEC7704F2F6511CD9FD73E /* ArtifactPanel.swift */; };
 		381E181A3117886E1688C70E /* ChatView+Composer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EA670C94EB4E0BCC32C57BA /* ChatView+Composer.swift */; };
 		38A11196FD2A3913FF230788 /* SearchEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 435074B411A9B8C1F389A1EE /* SearchEngine.swift */; };
@@ -460,6 +461,7 @@
 		A63A4385A9E867437FCC6F0A /* Sources.swift in Sources */ = {isa = PBXBuildFile; fileRef = 603FD8755196D4C36A00346F /* Sources.swift */; };
 		A63E56DD718C874A17DFA4E4 /* IntentChat.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9E37AF343F7CFB5A7201272 /* IntentChat.swift */; };
 		A6594570C1EF329CF2E4C6D9 /* OnDeviceConnectionEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61B043E619EBE1EAF598236B /* OnDeviceConnectionEditor.swift */; };
+		A6C0C04853F467CA423EA516 /* MacInputDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D9881B9B310EA4A9EC02BB2 /* MacInputDiagnostics.swift */; };
 		A6D08EC936293E866E184CE1 /* AnswerShare.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1A67DBB289DD41895E863C /* AnswerShare.swift */; };
 		A7F9A516AA2BA729C4452A39 /* PythonRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5280BB687C005E6ECA5D7CA6 /* PythonRuntime.swift */; };
 		A7FDC9E955EDC3176F1BB145 /* FileSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28C3F01A4DD8D5A0A228C372 /* FileSync.swift */; };
@@ -930,6 +932,7 @@
 		580F50B9BAFF5058C292E7D1 /* ThoughtTranslator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThoughtTranslator.swift; sourceTree = "<group>"; };
 		5AAC4C66201D12CE56989A5A /* OpenUIChat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenUIChat.swift; sourceTree = "<group>"; };
 		5BE71F054206A44A777DE1CD /* OpenUIMultiChatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenUIMultiChatTests.swift; sourceTree = "<group>"; };
+		5D9881B9B310EA4A9EC02BB2 /* MacInputDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacInputDiagnostics.swift; sourceTree = "<group>"; };
 		5E59111DFEC2815CA7A165FF /* ChatSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSettingsTests.swift; sourceTree = "<group>"; };
 		5E7D641D69D53ED5D2EEE87E /* BrowserRunTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserRunTests.swift; sourceTree = "<group>"; };
 		5EA670C94EB4E0BCC32C57BA /* ChatView+Composer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChatView+Composer.swift"; sourceTree = "<group>"; };
@@ -1700,6 +1703,7 @@
 				4844AE0B1B003F0118BD56B6 /* MacComposerField.swift */,
 				1B5BBAA2FDE1CDE917B886E5 /* MacDebug.swift */,
 				A9D1DDD718804C25A9044ECA /* MacImageAttaching.swift */,
+				5D9881B9B310EA4A9EC02BB2 /* MacInputDiagnostics.swift */,
 				47232D28ED3A73F94A9C06BF /* MacRootView.swift */,
 				B6F85CEAFCCA5E519C8FC093 /* MacSidebarView.swift */,
 				B780BC54FC0281497876F7B6 /* StrataCommands.swift */,
@@ -2510,6 +2514,7 @@
 				93A4FFBDCE66B926A0F492BD /* MacComposerField.swift in Sources */,
 				9E53D09EF85B50BEDE3CF9A9 /* MacDebug.swift in Sources */,
 				1B91C9618B3C625698C3EFEE /* MacImageAttaching.swift in Sources */,
+				A6C0C04853F467CA423EA516 /* MacInputDiagnostics.swift in Sources */,
 				FECC75B9B83AA535B25C0A0C /* MacRootView.swift in Sources */,
 				2488A23B810A1FE3CE36566F /* MacSidebarView.swift in Sources */,
 				7A4AB033521DA71E829776C9 /* MarkdownBlock.swift in Sources */,
@@ -2797,6 +2802,7 @@
 				0499F27BFD7B6D1267F4499F /* MacComposerField.swift in Sources */,
 				4677C7BBC549D586B0F14DC8 /* MacDebug.swift in Sources */,
 				F0E4FA238F15F99E75FE012B /* MacImageAttaching.swift in Sources */,
+				36DD070950B66626B151EC21 /* MacInputDiagnostics.swift in Sources */,
 				A400F2059FD780FFD574CCD3 /* MacRootView.swift in Sources */,
 				3100E5014391FBEB1A83B590 /* MacSidebarView.swift in Sources */,
 				5DE1FB9CA2AD5FB98F1B6C83 /* MarkdownBlock.swift in Sources */,
