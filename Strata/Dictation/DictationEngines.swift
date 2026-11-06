@@ -94,10 +94,11 @@ final class ConfiguredDictationEngine: DictationEngine {
 
     init(settings: @escaping () -> DictationSettings = { DictationSettings.load() },
          connections: @escaping () -> ConnectionStore = { SharedModels.connections },
-         session: URLSession = .shared) {
+         session: URLSession = .shared, active: (any DictationEngine)? = nil) {
         self.settings = settings
         self.connections = connections
         self.session = session
+        self.active = active
     }
 
     var transcribesOnFinish: Bool { active?.transcribesOnFinish ?? false }
@@ -145,6 +146,10 @@ final class ConfiguredDictationEngine: DictationEngine {
 
     func finish() async {
         await active?.finish()
+    }
+
+    func stopCapture() {
+        active?.stopCapture()
     }
 
     func cancel() {

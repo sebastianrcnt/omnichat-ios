@@ -370,3 +370,35 @@ struct AudioFileWriterTests {
         #expect(abs(Double(read.length) / read.fileFormat.sampleRate - 1) < 0.1)
     }
 }
+
+@MainActor
+struct ConfiguredDictationStopTests {
+    @Test func closingTheRecordingFileDropsLaterAudioBuffers() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".m4a")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let writer = try AudioFileWriter(url: url)
+        let buffer = try #require(AVAudioPCMBuffer(pcmFormat: writer.format, frameCapacity: 160))
+        buffer.frameLength = 160
+        for channel in 0..<Int(writer.format.channelCount) {
+            buffer.floatChannelData?[channel].initialize(repeating: 0, count: 160)
+        }
+        writer.write(buffer)
+        let seconds = writer.seconds
+        #expect(seconds > 0)
+        writer.close()
+        writer.write(buffer)
+        #expect(writer.seconds == seconds)
+    }
+
+    @Test func stopReachesTheActiveRecordingEngine() async throws {
+        let recorder = FakeDictationEngine()
+        recorder.transcribes = true
+        let configured = ConfiguredDictationEngine(active: recorder)
+        _ = try await configured.start(locale: Locale(identifier: "en_US"))
+        #expect(configured.transcribesOnFinish)
+        configured.stopCapture()
+        #expect(recorder.captureStopped == 1)
+        #expect(recorder.finished == 0)
+        configured.cancel()
+    }
+}
