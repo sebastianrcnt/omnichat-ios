@@ -427,6 +427,26 @@ struct ResumeTests {
         }
     }
 
+    @Test func modelSwitchRecoveryFailureKeepsTheSavedPartialAnswer() async throws {
+        let streamer = RecoveryStreamer()
+        let (controller, context, conversation, reply, container) = try outageChat(streamer: streamer)
+        _ = container
+        var checkpoint = try #require(reply.resumeCheckpoint)
+        checkpoint.endpointFingerprint = "original-server|m"
+        checkpoint.accumulator.apply(ChatDelta(reasoning: "current round reasoning"))
+        reply.resumeData = try JSONEncoder().encode(checkpoint)
+        conversation.modelID = "different-model"
+        controller.regenerate(conversation: conversation, context: context)
+        await controller.waitUntilIdle()
+        #expect(streamer.checkpoints.isEmpty)
+        #expect(reply.text == "partial")
+        #expect(reply.reasoning == "current round reasoning")
+        #expect(reply.errorText?.contains("different server or model") == true)
+        #expect(reply.resumeData == nil)
+        let saved = try #require(try ModelContext(container).fetch(FetchDescriptor<Message>()).first { $0.id == reply.id })
+        #expect(saved.text == "partial" && saved.reasoning == "current round reasoning")
+    }
+
     /// From the audit: Try again after an outage started a second reply and left the first to resume on its own later.
     @Test func tryAgainAfterAnOutageResumesTheSameReply() async throws {
         let streamer = RecoveryStreamer(deltas: [ChatDelta(content: " rest", sequence: 2), ChatDelta(isDone: true, sequence: 3)])

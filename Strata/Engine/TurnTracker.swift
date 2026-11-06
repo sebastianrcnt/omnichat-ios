@@ -26,11 +26,14 @@ final class TurnTracker {
     private var roundReasoning = ""
     private var roundSeconds: Double = 0
     private var thinkingEmitted = false
+    private let initialCheckpoint: TurnCheckpoint?
+    private var beganRound = false
 
     init(message: Message, conversation: Conversation, render: MessageRenderState, checkpoint: TurnCheckpoint? = nil) {
         self.message = message
         self.conversation = conversation
         self.render = render
+        initialCheckpoint = checkpoint
         completedSteps = checkpoint?.steps ?? []
         reasoningAll = checkpoint?.priorReasoning ?? ""
         if !reasoningAll.isEmpty { render.reasoning.append(reasoningAll) }
@@ -60,6 +63,7 @@ final class TurnTracker {
     }
 
     func beginRound(_ n: Int) {
+        beganRound = true
         finishThinking()
         roundContent = ""
         roundHasReasoning = false
@@ -152,6 +156,9 @@ final class TurnTracker {
 
     /// Persist the final text and reasoning and reconcile the render models.
     func complete(finalText: String?) {
+        // The endpoint fingerprint (or another early guard) can fail before the runner emits its saved round.
+        // Finalizing the blank renderer in that case would erase the durable partial answer and reasoning.
+        if !beganRound, let initialCheckpoint { restoreSavedRound(initialCheckpoint) }
         let text = finalText ?? render.markdown.text
         message.text = text
         message.reasoning = reasoningAll
