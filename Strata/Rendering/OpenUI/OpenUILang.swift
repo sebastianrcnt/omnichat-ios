@@ -217,15 +217,34 @@ struct OUIParser {
 
     private let tokens: [OUIToken]
     private var pos = 0
+    private var depth = 0
     private(set) var problems: [String] = []
 
-    init(tokens: [OUIToken]) { self.tokens = tokens.filter { $0 != .newline } }
+    init(tokens: [OUIToken]) {
+        // Also bound the AST size, including long non-nested binary/member chains.
+        if tokens.count > 20_000 {
+            self.tokens = []
+            problems = ["Expression is too large"]
+        } else {
+            self.tokens = tokens.filter { $0 != .newline }
+        }
+    }
+
+    private mutating func enter() -> Bool {
+        guard depth < 64 else {
+            problems.append("Expression nesting limit exceeded")
+            pos = tokens.count
+            return false
+        }
+        depth += 1
+        return true
+    }
 
     /// `name = expression`, or nil when the tokens don't have that shape (such a line is skipped without an error).
     static func statement(_ source: String) -> (statement: OUIStatement?, problems: [String]) {
         let lexed = OUILexer.lex(source)
         var parser = OUIParser(tokens: lexed.tokens)
-        guard let head = parser.peek, parser.peek(1) == .op("=") else { return (nil, []) }
+        guard let head = parser.peek, parser.peek(1) == .op("=") else { return (nil, parser.problems) }
         let name: String
         switch head {
         case .ident(let n) where !["true", "false", "null"].contains(n): name = n
@@ -235,6 +254,7 @@ struct OUIParser {
         parser.pos = 2
         guard parser.peek != nil else { return (nil, ["\(name): no value"]) }
         let expr = parser.expression()
+        guard !parser.problems.contains("Expression nesting limit exceeded") else { return (nil, parser.problems) }
         let kind: OUIStatement.Kind
         switch expr {
         case .call("Query", _): kind = .query
@@ -261,6 +281,8 @@ struct OUIParser {
     mutating func expression() -> OUIExpr { ternary() }
 
     private mutating func ternary() -> OUIExpr {
+        guard enter() else { return .null }
+        defer { depth -= 1 }
         let condition = binary(level: 0)
         guard eat("?") else { return condition }
         let yes = peek == nil ? OUIExpr.null : ternary()
@@ -282,6 +304,8 @@ struct OUIParser {
     }
 
     private mutating func unary() -> OUIExpr {
+        guard enter() else { return .null }
+        defer { depth -= 1 }
         if case .op(let o)? = peek, o == "!" || o == "-" {
             advance()
             return .unary(o, unary())

@@ -421,3 +421,19 @@ extension AppPrompt {
         return parts[1].components(separatedBy: "\n```").first ?? ""
     }
 }
+
+struct OpenUIParserLimitTests {
+    @Test(arguments: ["parentheses", "unary", "ternary", "array"])
+    func excessiveNestingIsAParseProblem(_ kind: String) {
+        let source: String
+        switch kind {
+        case "parentheses": source = String(repeating: "(", count: 5_000) + "null" + String(repeating: ")", count: 5_000)
+        case "unary": source = String(repeating: "!", count: 5_000) + "true"
+        case "ternary": source = String(repeating: "true ? null : ", count: 1_000) + "null"
+        default: source = String(repeating: "[", count: 5_000) + "null" + String(repeating: "]", count: 5_000)
+        }
+        let parsed = OUIParser.statement("root = " + source)
+        #expect(parsed.statement == nil)
+        #expect(!parsed.problems.isEmpty)
+    }
+}
