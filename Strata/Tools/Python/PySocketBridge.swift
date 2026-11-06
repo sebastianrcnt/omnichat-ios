@@ -892,14 +892,23 @@ final class PySocketBridge: @unchecked Sendable {
 
     // MARK: Listening
 
+    /// Bind is not DNS resolution: unsupported hosts fail rather than becoming wildcard listeners.
+    static func bindEndpoint(host: String, port: Int) -> NWEndpoint? {
+        guard (0...65535).contains(port) else { return nil }
+        let address = host.isEmpty ? "0.0.0.0" : host.lowercased() == "localhost" ? "127.0.0.1" : host
+        guard PySocketPolicy.isIPLiteral(address), let port = NWEndpoint.Port(rawValue: UInt16(port)) else { return nil }
+        return .hostPort(host: NWEndpoint.Host(address), port: port)
+    }
+
     private func bind(_ a: Args) async -> Reply {
         let id = a.int("id"), host = a.string("host"), port = a.int("port")
         let kind: Sock.Kind = a.string("kind") == "udp" ? .udp : .tcp
-        guard (0...65535).contains(port) else { return .error("EINVAL") }
+        guard (0...65535).contains(port), let local = Self.bindEndpoint(host: host, port: port) else { return .error("EINVAL") }
         let created: Bool = await sync { self.newSocket(id, kind: kind) != nil }
         guard created else { return .error("EMFILE") }
         let params = kind == .tcp ? Self.tcpParameters() : NWParameters.udp
         params.allowLocalEndpointReuse = true
+        params.requiredLocalEndpoint = local
         let loopback = PySocketPolicy.isLoopback(host)
         if loopback { params.requiredInterfaceType = .loopback }
         let listener: NWListener
@@ -942,7 +951,7 @@ final class PySocketBridge: @unchecked Sendable {
         if let result { return .error(result == "EIO" ? "EADDRINUSE" : result) }
         return await sync {
             guard let sock = self.sockets[id] else { return .error("EBADF") }
-            return Reply(json: ["port": sock.boundPort, "host": loopback ? "127.0.0.1" : "0.0.0.0"])
+            return Reply(json: ["port": sock.boundPort, "host": Self.describe(local).0])
         }
     }
 

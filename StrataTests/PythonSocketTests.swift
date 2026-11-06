@@ -796,3 +796,13 @@ struct PythonSocketTests {
         #expect(python.testHost?.sockets?.openCount ?? 0 == 0)
     }
 }
+
+struct PythonBindEndpointTests {
+    @Test func preservesSpecificAddressesAndFamilies() {
+        for address in ["10.8.0.2", "127.0.0.2", "::1", "2001:db8::1", "0.0.0.0", "::"] {
+            #expect(PySocketBridge.bindEndpoint(host: address, port: 8000) == .hostPort(host: NWEndpoint.Host(address), port: 8000))
+        }
+        #expect(PySocketBridge.bindEndpoint(host: "not-an-address", port: 8000) == nil)
+        #expect(PySocketBridge.bindEndpoint(host: "127.0.0.1", port: -1) == nil)
+    }
+}
