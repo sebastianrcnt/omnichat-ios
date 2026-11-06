@@ -488,3 +488,58 @@ struct ChatGPTTokenRefreshTests {
         }
     }
 }
+
+private actor SuspendedRefreshHTTP: ChatGPTHTTP {
+    let response: Data
+    let keys: Data
+    var gate: CheckedContinuation<(Data, Int), Error>?
+    var arrived: CheckedContinuation<Void, Never>?
+
+    init(response: Data, keys: Data) { self.response = response; self.keys = keys }
+
+    func send(_ request: URLRequest) async throws -> (Data, Int) {
+        if request.url == ChatGPTOAuth.jwksURL {
+            return try await withCheckedThrowingContinuation { continuation in
+                gate = continuation
+                arrived?.resume(); arrived = nil
+            }
+        }
+        if request.url == ChatGPTOAuth.revocationEndpoint { return (Data(), 200) }
+        return (response, 200)
+    }
+
+    func waitForVerification() async {
+        if gate != nil { return }
+        await withCheckedContinuation { arrived = $0 }
+    }
+
+    func release(failing: Bool) {
+        if failing { gate?.resume(throwing: URLError(.cancelled)) }
+        else { gate?.resume(returning: (keys, 200)) }
+        gate = nil
+    }
+}
+
+struct ChatGPTRefreshSignOutTests {
+    @Test(arguments: [false, true]) func suspendedVerificationCannotRestoreSignedOutCredentials(_ failing: Bool) async throws {
+        let store = ChatGPTCredentialStore.inMemory()
+        let clock = FakeClock()
+        let signer = TestSigner()
+        let idToken = signer.token(["iss": "https://auth.openai.com", "sub": "user-1", "aud": "oaiapp_1",
+                                    "exp": clock.now.timeIntervalSince1970 + 3600, "iat": clock.now.timeIntervalSince1970])
+        let response = json(["access_token": "test-access", "refresh_token": "test-refresh", "id_token": idToken,
+                             "token_type": "Bearer", "expires_in": 3600])
+        let http = SuspendedRefreshHTTP(response: response, keys: signer.jwks)
+        let id = UUID()
+        try store.setRegistration(ChatGPTRegistration(clientID: "oaiapp_1", subject: "user-1", email: nil, name: nil), id)
+        try store.setTokens(ChatGPTTokens(accessToken: "old-test", refreshToken: "old-refresh", idToken: nil,
+                                         expiresAt: clock.now, scopes: [], savedAt: clock.now), id)
+        let auth = ChatGPTAuth(store: store, http: http, now: { clock.now })
+        let refresh = Task { try await auth.refresh(id) }
+        await http.waitForVerification()
+        _ = await auth.signOut(connectionID: id)
+        await http.release(failing: failing)
+        do { _ = try await refresh.value; Issue.record("Refresh returned after sign-out") } catch {}
+        #expect(store.tokens(id) == nil)
+    }
+}

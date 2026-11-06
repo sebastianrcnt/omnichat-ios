@@ -178,6 +178,8 @@ actor ChatGPTAuth: ChatGPTTokenProviding {
             // A refreshed identity must still be the account these tokens belong to.
             do {
                 let claims = try await verify(idToken: idToken, clientID: clientID, nonce: nil)
+                try Task.checkCancellation()
+                guard signOuts[id, default: 0] == generation else { throw ChatGPTAuthError.signInRequired }
                 if let subject = tokens.subject ?? registration?.subject, claims.sub != subject {
                     try? store.setTokens(nil, id)
                     throw ChatGPTAuthError.accountMismatch
@@ -185,11 +187,16 @@ actor ChatGPTAuth: ChatGPTTokenProviding {
             } catch ChatGPTAuthError.accountMismatch {
                 throw ChatGPTAuthError.accountMismatch
             } catch {
+                // Cancellation/sign-out must never enter the fallback credential write.
+                try Task.checkCancellation()
+                guard signOuts[id, default: 0] == generation else { throw ChatGPTAuthError.signInRequired }
                 // Key set unavailable or an unverifiable refreshed ID token: keep the earlier verified one.
                 fresh.idToken = tokens.idToken
                 try store.setTokens(fresh, id)
             }
         }
+        try Task.checkCancellation()
+        guard signOuts[id, default: 0] == generation else { throw ChatGPTAuthError.signInRequired }
         return fresh
     }
 
