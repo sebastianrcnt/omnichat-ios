@@ -136,14 +136,10 @@ struct ConversationPreferencesTests {
 
     @Test func aChatKeepsThePluginsItStartedWith() async throws {
         let r = try rig()
-        let key = AppSettings.enabledPluginsKey
-        let saved = UserDefaults.standard.object(forKey: key)
-        defer { UserDefaults.standard.set(saved, forKey: key) }
-        UserDefaults.standard.set([String](), forKey: key)
         let chat = newChat(r)
         r.controller.send(text: "hi", images: [], conversation: chat, context: r.context)
         await r.controller.waitUntilIdle()
-        UserDefaults.standard.set(["wikipedia_summary"], forKey: key)
+        r.controller.settings.enabledPlugins = ["wikipedia_summary"]
         r.controller.send(text: "again", images: [], conversation: chat, context: r.context)
         await r.controller.waitUntilIdle()
 

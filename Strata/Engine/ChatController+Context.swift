@@ -17,7 +17,7 @@ extension ChatController {
         // A plugin a built-in package replaced (Wikipedia) is left out when the chat has that package: it offers it.
         let currentPlugins = {
             let replaced = self.packages.replacedPlugins(by: self.chatPackages(conversation)?.ids ?? [])
-            return PluginRegistry.bundled.promptSection(enabled: AppSettings.currentEnabledPlugins.subtracting(replaced))
+            return PluginRegistry.bundled.promptSection(enabled: self.settings.enabledPlugins.subtracting(replaced))
         }
         let plugins = !offered.contains(.web) ? ""
             : freeze ? conversation.frozenPluginSection(current: currentPlugins()) : conversation.pluginSectionSnapshot ?? currentPlugins()

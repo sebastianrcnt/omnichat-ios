@@ -230,11 +230,8 @@ struct WikipediaPackageTests {
     }
 
     @Test func aChatWithWikipediaListsItInsteadOfThePlugin() async throws {
-        let key = AppSettings.enabledPluginsKey
-        let saved = UserDefaults.standard.object(forKey: key)
-        defer { UserDefaults.standard.set(saved, forKey: key) }
-        UserDefaults.standard.set(["wikipedia_summary"], forKey: key)
         let rig = try PackageRigForWiki(store: try store())
+        rig.controller.settings.enabledPlugins = ["wikipedia_summary"]
         let chat = rig.chat()
         await rig.send("hi", in: chat)
         let request = try #require(rig.streamer.requests.last)
