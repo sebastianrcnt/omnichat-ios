@@ -187,12 +187,12 @@ actor ChatGPTAuth: ChatGPTTokenProviding {
             } catch ChatGPTAuthError.accountMismatch {
                 throw ChatGPTAuthError.accountMismatch
             } catch {
-                // Cancellation/sign-out must never enter the fallback credential write.
-                try Task.checkCancellation()
+                // Sign-out must never reach the write below. Cancellation must: it replaces the unverified ID token.
                 guard signOuts[id, default: 0] == generation else { throw ChatGPTAuthError.signInRequired }
                 // Key set unavailable or an unverifiable refreshed ID token: keep the earlier verified one.
                 fresh.idToken = tokens.idToken
                 try store.setTokens(fresh, id)
+                try Task.checkCancellation()
             }
         }
         try Task.checkCancellation()
