@@ -169,6 +169,48 @@ struct RobotCheckGateTests {
         #expect(ContinuousClock.now - started < .seconds(5))
     }
 
+    @Test func donePageThatStillLooksLikeACheckIsNotAskedAgain() async throws {
+        let page = CheckPage()
+        let memory = RobotCheckMemory()
+        var asked = 0
+        #expect(try await RobotCheckGate.pass(page, timeouts: timeouts, memory: memory) { _, _ in asked += 1; return .solved })
+        #expect(asked == 1)
+        // The next call on that page (a browser step, a retried fetch) goes on, and says nothing was solved just now.
+        #expect(try await !RobotCheckGate.pass(page, timeouts: timeouts, memory: memory) { _, _ in asked += 1; return .solved })
+        #expect(asked == 1)
+    }
+
+    @Test func aSkippedPageStaysSkippedWithoutAsking() async {
+        let memory = RobotCheckMemory()
+        var asked = 0
+        for _ in 0..<2 {
+            await #expect(throws: RobotCheckError.skipped(host: "www.google.com")) {
+                try await RobotCheckGate.pass(CheckPage(), timeouts: timeouts, memory: memory) { _, _ in asked += 1; return .skipped }
+            }
+        }
+        #expect(asked == 1)
+    }
+
+    @Test func anotherPageIsAskedAboutAndAnAnswerRunsOut() async throws {
+        let memory = RobotCheckMemory()
+        var clock = ContinuousClock.now
+        memory.now = { clock }
+        let page = CheckPage()
+        memory.remember(.done, for: URL(string: "https://www.google.com/sorry/other"))
+        var asked = 0
+        try await RobotCheckGate.pass(page, timeouts: timeouts, memory: memory) { _, _ in asked += 1; return .solved }
+        #expect(asked == 1)
+        #expect(memory.answer(for: page.currentURL) == .done)
+        clock += RobotCheckMemory.lifetime
+        #expect(memory.answer(for: page.currentURL) == nil)
+    }
+
+    @Test func aPageIsTheSameWithoutItsFragmentOrCloudflareTokens() {
+        #expect(RobotCheckMemory.key(URL(string: "https://a.com/p?x=1&__cf_chl_rt_tk=abc#top")) == "https://a.com/p?x=1")
+        #expect(RobotCheckMemory.key(URL(string: "https://a.com/p?__cf_chl_tk=abc")) == "https://a.com/p")
+        #expect(RobotCheckMemory.key(URL(string: "https://a.com/p?x=2")) != RobotCheckMemory.key(URL(string: "https://a.com/p?x=1")))
+    }
+
     @Test func skipAndTheSettingEndTheToolWithAClearResult() async {
         await #expect(throws: RobotCheckError.skipped(host: "www.google.com")) {
             try await RobotCheckGate.pass(CheckPage(), timeouts: timeouts) { _, _ in .skipped }

@@ -65,6 +65,7 @@ enum BrowsingData {
         BrowserSessions.shared.closeAll()
         WebViewPool.shared.drain()
         PageCache.shared.removeAll()
+        RobotCheckMemory.shared.clear() // a solved check goes with its cookies
         await BrowserData.store.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast)
     }
 }

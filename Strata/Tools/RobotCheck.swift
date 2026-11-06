@@ -147,13 +147,24 @@ enum RobotCheckGate {
 
     /// Returns when the page shows no check (now, or after the user solved it in that same view: then true); throws
     /// `RobotCheckError` when the user skipped it or doesn't want to be asked, and `CancellationError` for a stopped turn.
+    /// The user is asked once per page: what they answered stands (`RobotCheckMemory`), even if the page still looks
+    /// like a check, because they have seen it and we may be wrong.
     @discardableResult
-    static func pass(_ page: some FetchablePage, timeouts: FetchTimeouts, asks: Bool = RobotCheck.asksUser, ask: Ask) async throws -> Bool {
+    static func pass(_ page: some FetchablePage, timeouts: FetchTimeouts, asks: Bool = RobotCheck.asksUser,
+                     memory: RobotCheckMemory = RobotCheckMemory(), ask: Ask) async throws -> Bool {
         var solved = false
         var waited = false
         while true {
             try Task.checkCancellation()
             guard let kind = await kind(of: page, timeouts: timeouts) else { return solved }
+            switch memory.answer(for: page.currentURL) {
+            case .skipped: throw RobotCheckError.skipped(host: page.currentURL?.host() ?? "the site")
+            case .done:
+                // Just after Done the page may still be on its way out.
+                if solved { _ = await clears(page, timeouts: timeouts) }
+                return solved
+            case nil: break
+            }
             if kind.clearsOnItsOwn && !waited {
                 waited = true
                 if await clears(page, timeouts: timeouts) {
@@ -162,14 +173,18 @@ enum RobotCheckGate {
                 }
                 try Task.checkCancellation()
             }
-            let host = page.currentURL?.host() ?? "the site"
+            let checkURL = page.currentURL
+            let host = checkURL?.host() ?? "the site"
             guard asks else { throw RobotCheckError.notAsked(host: host) }
             // The user may take minutes: pause the deadline; a notification brings them back instead.
             let outcome = await Deadline.pausing { await ask(host, kind) }
             switch outcome {
-            case .skipped: throw RobotCheckError.skipped(host: host)
+            case .skipped:
+                memory.remember(.skipped, for: checkURL)
+                throw RobotCheckError.skipped(host: host)
             case .cancelled: throw CancellationError()
             case .solved:
+                memory.remember(.done, for: checkURL)
                 solved = true
                 await settle(page, timeouts: timeouts) // and look again: a check can come back
             }
@@ -181,7 +196,7 @@ enum RobotCheckGate {
     static func pass(_ view: HiddenWebView, timeouts: FetchTimeouts) async throws -> Bool {
         let conversation = ToolContext.conversationID
         let callID = ToolContext.callID
-        return try await pass(view, timeouts: timeouts) { host, kind in
+        return try await pass(view, timeouts: timeouts, memory: .shared) { host, kind in
             await RobotCheckRequests.shared.ask(.init(host: host, kind: kind, page: view, conversationID: conversation, callID: callID))
         }
     }
@@ -215,6 +230,44 @@ enum RobotCheckGate {
         }
         try? await Task.sleep(for: timeouts.settle)
     }
+}
+
+/// What the user answered about a page, so a retry, the next browser step or a page that keeps looking like a check
+/// doesn't ask again.
+@MainActor
+final class RobotCheckMemory {
+    static let shared = RobotCheckMemory()
+    /// Long enough for a reply's retries; a real block later on is asked about again.
+    static let lifetime: Duration = .seconds(600)
+
+    enum Answer: Equatable { case done, skipped }
+
+    private var answers: [String: (answer: Answer, at: ContinuousClock.Instant)] = [:]
+    /// Test seam.
+    var now: () -> ContinuousClock.Instant = { ContinuousClock.now }
+
+    /// The page: its fragment and Cloudflare's one-time tokens don't make it another one.
+    nonisolated static func key(_ url: URL?) -> String? {
+        guard let url, var parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
+        parts.fragment = nil
+        let items = parts.queryItems?.filter { !$0.name.hasPrefix("__cf_chl") }
+        parts.queryItems = items?.isEmpty == true ? nil : items
+        return parts.string
+    }
+
+    func answer(for url: URL?) -> Answer? {
+        guard let key = Self.key(url), let entry = answers[key] else { return nil }
+        guard now() - entry.at < Self.lifetime else { answers[key] = nil; return nil }
+        return entry.answer
+    }
+
+    func remember(_ answer: Answer, for url: URL?) {
+        guard let key = Self.key(url) else { return }
+        answers = answers.filter { now() - $0.value.at < Self.lifetime }
+        answers[key] = (answer, now())
+    }
+
+    func clear() { answers = [:] }
 }
 
 /// Robot checks waiting for the user: the running reply's feed shows each as a card ("<host> wants a robot check",
