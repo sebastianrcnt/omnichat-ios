@@ -579,7 +579,7 @@ struct SSHTool: Sendable {
             return ToolOutput(text: "Error: missing required argument \"command\".", isError: true)
         }
         let target = try SSHTargetResolver.resolve(args, store: store)
-        guard await approve(SSHApproval(target: target.key, server: target.label, action: .exec(command: command)),
+        guard await approve(SSHApproval(target: target.key, server: target.label, action: .exec(command: command, stdin: args.raw("stdin"))),
                             conversation: conversation, callID: callID) else {
             return ToolOutput(text: Self.declined, isError: true)
         }

@@ -337,16 +337,18 @@ struct SSHApprovalTests {
         #expect(Set(store.alwaysAllowed) == ["bastion", "other"])
     }
 
-    @Test func aDeniedCommandNeverConnects() async throws {
+    @Test(arguments: ["echo approved\n", String(repeating: "echo full script\n", count: 1_000)])
+    func aDeniedCommandNeverConnects(_ stdin: String) async throws {
         let store = SSHStore(vault: InMemorySSHVault())
         try store.save(SSHServer(name: "nas", host: "203.0.113.1", user: "u"))
         let tool = SSHTool(store: store, outputs: SSHOutputStore(),
                            client: SSHClient(checkHostKey: { _ in Issue.record("connected") }, prompt: nil),
                            ask: { approval in
-                               #expect(approval == SSHApproval(target: "nas", server: "nas", action: .exec(command: "rm -rf /tmp/x")))
+                               #expect(approval == SSHApproval(target: "nas", server: "nas", action: .exec(command: "rm -rf /tmp/x", stdin: stdin)))
                                return .deny
                            }, asks: true)
-        let out = await tool.run(name: SSHToolNames.exec, arguments: #"{"server":"nas","command":"rm -rf /tmp/x","password":"p"}"#,
+        let arguments = String(decoding: try JSONEncoder().encode(["server": "nas", "command": "rm -rf /tmp/x", "stdin": stdin]), as: UTF8.self)
+        let out = await tool.run(name: SSHToolNames.exec, arguments: arguments,
                                  conversation: nil, callID: nil)
         #expect(out.isError && out.text.hasPrefix("Error: the user declined"))
     }

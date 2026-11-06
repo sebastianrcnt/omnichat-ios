@@ -7,7 +7,7 @@ import UIKit
 /// What a command waits for the user to approve.
 struct SSHApproval: Sendable, Equatable {
     enum Action: Sendable, Equatable {
-        case exec(command: String)
+        case exec(command: String, stdin: String? = nil)
         case upload(path: String, bytes: Int)
     }
     /// The approval key "Always for this server" saves: a server's name, or `user@host:port`.

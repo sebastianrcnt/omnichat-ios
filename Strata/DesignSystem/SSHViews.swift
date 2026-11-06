@@ -352,9 +352,17 @@ struct SSHApprovalCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             switch approval.action {
-            case .exec(let command):
+            case .exec(let command, let stdin):
                 Text("Run this command on \(approval.server)?").font(DS.Typography.feedEmphasis).foregroundStyle(theme.textPrimary)
                 CodeBlockView(content: CodeBlockContent(language: "bash", code: command))
+                if let stdin {
+                    Text("Standard input (sent to the command)").font(DS.Typography.feedEmphasis)
+                    ScrollView([.vertical, .horizontal]) {
+                        Text(verbatim: stdin).font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled).fixedSize(horizontal: true, vertical: true)
+                    }
+                    .frame(maxHeight: 240)
+                }
             case .upload(let path, let bytes):
                 Text("Write \(path) on \(approval.server)?").font(DS.Typography.feedEmphasis).foregroundStyle(theme.textPrimary)
                 Text("\(bytes.formatted(.byteCount(style: .file))), replacing the file if it exists.")
