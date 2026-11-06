@@ -12,6 +12,8 @@ struct FetchTimeouts: Sendable, Equatable {
     var settle: Duration = .milliseconds(600)
     /// The whole fetch, from URL check to extracted text.
     var overall: Duration = .seconds(25)
+    /// How long a check that usually passes by itself gets before the user is asked.
+    var checkClears: Duration = .seconds(6)
 
     static let standard = FetchTimeouts()
 

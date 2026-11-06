@@ -9,6 +9,9 @@ import WebKit
 enum RobotCheck {
     enum Kind: String, Equatable, Sendable {
         case recaptcha, hcaptcha, turnstile, cloudflare, googleSorry, naverCaptcha, other
+
+        /// Cloudflare's checks run by themselves and most visitors never touch them.
+        var clearsOnItsOwn: Bool { self == .cloudflare || self == .turnstile }
     }
 
     /// What the probe reads in the page.
@@ -16,11 +19,14 @@ enum RobotCheck {
         var title = ""
         /// Sources of the iframes that take up room on the page (a check's box), the first few.
         var frames: [String] = []
-        /// Cloudflare's challenge page markers: `#challenge-form`, `#challenge-running`, `window._cf_chl_opt`.
+        /// Cloudflare's challenge page markers: `#challenge-form`, `#challenge-running`, `window._cf_chl_opt.cType`.
+        /// (`_cf_chl_opt` alone doesn't count: ordinary pages behind Cloudflare can define it too.)
         var cloudflare = false
         /// The length of the visible text, and its start.
         var textLength = 0
         var text = ""
+        /// Visible text inputs and text areas: two or more is a form the page is for, not a check.
+        var formFields = 0
 
         static func decode(_ json: String) -> Signals? { try? JSONDecoder().decode(Signals.self, from: Data(json.utf8)) }
     }
@@ -31,37 +37,44 @@ enum RobotCheck {
         UserDefaults.standard.object(forKey: askKey) == nil ? true : UserDefaults.standard.bool(forKey: askKey)
     }
 
-    /// A check's box or wording only counts on a page with little else on it: an article with a comment form that
+    /// A check's markers and box only count on a page with little else on it: an article with a comment form that
     /// carries a reCAPTCHA is not a check.
     static let shortPage = 2_000
+    /// Wording alone is weaker evidence, so it needs a page that says hardly anything else.
+    static let wordingPage = 800
+    /// A login or contact form with a check's box in it is the form's page, not a wall.
+    static let formPage = 2
 
-    static let cloudflareTitles = ["just a moment", "attention required! | cloudflare", "checking your browser"]
+    static let cloudflareTitles = ["just a moment", "잠시만 기다리십시오", "attention required! | cloudflare", "checking your browser"]
 
     static let phrases = [
         "verify you are human", "verifying you are human", "verify that you are human", "are you a robot",
-        "i'm not a robot", "not a robot", "unusual traffic", "checking your browser", "complete the security check",
-        "bots use duckduckgo too", "자동입력 방지", "자동 입력 방지", "로봇이 아닙니다", "보안 확인",
+        "i'm not a robot", "unusual traffic", "checking your browser", "complete the security check",
+        "bots use duckduckgo too", "자동입력 방지", "자동 입력 방지", "로봇이 아닙니다",
     ]
 
     static func detect(url: URL?, signals: Signals) -> Kind? {
         let host = url?.host()?.lowercased() ?? ""
         let path = url?.path().lowercased() ?? ""
-        let query = url?.query()?.lowercased() ?? ""
+        // Names only: the values are what was searched for, and a search for "captcha" is not a check.
+        let queryNames = url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems }?.map { $0.name.lowercased() } ?? []
         let title = signals.title.lowercased()
         let text = signals.text.lowercased()
         let short = signals.textLength < shortPage
         let naver = host == "naver.com" || host.hasSuffix(".naver.com")
 
         if isGoogle(host) && path.hasPrefix("/sorry") { return .googleSorry }
-        if naver && (path.contains("captcha") || query.contains("captcha")) { return .naverCaptcha }
+        if naver && (path.contains("captcha") || queryNames.contains { $0.contains("captcha") }) { return .naverCaptcha }
         if host == "challenges.cloudflare.com" || path.hasPrefix("/cdn-cgi/challenge-platform") { return .cloudflare }
-        if signals.cloudflare || (short && cloudflareTitles.contains { title.hasPrefix($0) }) { return .cloudflare }
         guard short else { return nil }
-        for frame in signals.frames.map({ $0.lowercased() }) where !frame.contains("size=invisible") {
+        if signals.cloudflare || cloudflareTitles.contains(where: { title.hasPrefix($0) }) { return .cloudflare }
+        let frames = signals.formFields < formPage ? signals.frames.map { $0.lowercased() } : []
+        for frame in frames where !frame.contains("size=invisible") {
             if frame.contains("/recaptcha/") && (frame.contains("/anchor") || frame.contains("/bframe")) { return .recaptcha }
             if frame.contains("hcaptcha.com") { return .hcaptcha }
             if frame.contains("challenges.cloudflare.com") { return .turnstile }
         }
+        guard signals.textLength < wordingPage else { return nil }
         if phrases.contains(where: { text.contains($0) || title.contains($0) }) { return naver ? .naverCaptcha : .other }
         return nil
     }
@@ -87,9 +100,16 @@ enum RobotCheck {
         });
       } catch (e) {}
       var cf = false;
-      try { cf = !!(window._cf_chl_opt || document.getElementById("challenge-form") || document.getElementById("challenge-running") || document.getElementById("cf-challenge-running")); } catch (e) {}
+      try { cf = !!((window._cf_chl_opt && window._cf_chl_opt.cType) || document.getElementById("challenge-form") || document.getElementById("challenge-running") || document.getElementById("cf-challenge-running")); } catch (e) {}
+      var fields = 0;
+      try {
+        document.querySelectorAll("textarea, input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=submit]):not([type=button])").forEach(function(f) {
+          var r = f.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0) fields++;
+        });
+      } catch (e) {}
       var t = document.body ? (document.body.innerText || "") : "";
-      return JSON.stringify({ title: document.title || "", frames: frames, cloudflare: cf, textLength: t.length, text: t.slice(0, 600) });
+      return JSON.stringify({ title: document.title || "", frames: frames, cloudflare: cf, textLength: t.length, text: t.slice(0, 600), formFields: fields });
     })()
     """
 
@@ -130,11 +150,18 @@ enum RobotCheckGate {
     @discardableResult
     static func pass(_ page: some FetchablePage, timeouts: FetchTimeouts, asks: Bool = RobotCheck.asksUser, ask: Ask) async throws -> Bool {
         var solved = false
+        var waited = false
         while true {
             try Task.checkCancellation()
-            guard let json = try? await page.evaluate(RobotCheck.probe, timeout: timeouts.probe),
-                  let signals = RobotCheck.Signals.decode(json),
-                  let kind = RobotCheck.detect(url: page.currentURL, signals: signals) else { return solved }
+            guard let kind = await kind(of: page, timeouts: timeouts) else { return solved }
+            if kind.clearsOnItsOwn && !waited {
+                waited = true
+                if await clears(page, timeouts: timeouts) {
+                    await settle(page, timeouts: timeouts)
+                    continue // and look again: the page may only have been navigating
+                }
+                try Task.checkCancellation()
+            }
             let host = page.currentURL?.host() ?? "the site"
             guard asks else { throw RobotCheckError.notAsked(host: host) }
             // The user may take minutes: pause the deadline; a notification brings them back instead.
@@ -159,7 +186,26 @@ enum RobotCheckGate {
         }
     }
 
-    /// After Done: the page the check let through may still be loading.
+    /// The check the page shows now, if any.
+    private static func kind(of page: some FetchablePage, timeouts: FetchTimeouts) async -> RobotCheck.Kind? {
+        guard let json = try? await page.evaluate(RobotCheck.probe, timeout: timeouts.probe),
+              let signals = RobotCheck.Signals.decode(json) else { return nil }
+        return RobotCheck.detect(url: page.currentURL, signals: signals)
+    }
+
+    /// Whether a check goes away by itself. This only waits for the page: nothing touches the check.
+    private static func clears(_ page: some FetchablePage, timeouts: FetchTimeouts) async -> Bool {
+        await Deadline.pausing {
+            let started = ContinuousClock.now
+            while ContinuousClock.now - started < timeouts.checkClears, !Task.isCancelled {
+                try? await Task.sleep(for: timeouts.checkClears / 12)
+                if await kind(of: page, timeouts: timeouts) == nil { return true }
+            }
+            return false
+        }
+    }
+
+    /// After Done, or a check that cleared: the page it let through may still be loading.
     private static func settle(_ page: some FetchablePage, timeouts: FetchTimeouts) async {
         let started = ContinuousClock.now
         while ContinuousClock.now - started < timeouts.load {

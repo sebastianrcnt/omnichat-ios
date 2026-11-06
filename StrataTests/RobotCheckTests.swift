@@ -15,7 +15,10 @@ struct RobotCheckDetectorTests {
     @Test func cloudflareChallengePages() {
         #expect(detect("https://site.com/", title: "Just a moment...", text: "Checking if the site connection is secure") == .cloudflare)
         #expect(detect("https://site.com/", title: "Attention Required! | Cloudflare") == .cloudflare)
-        #expect(detect("https://site.com/", cloudflare: true, length: 10_000) == .cloudflare)
+        #expect(detect("https://site.com/", cloudflare: true, length: 500) == .cloudflare)
+        #expect(detect("https://site.com/", title: "잠시만 기다리십시오...") == .cloudflare)
+        // A real challenge has nothing else on the page.
+        #expect(detect("https://site.com/", cloudflare: true, length: 10_000) == nil)
         #expect(detect("https://site.com/cdn-cgi/challenge-platform/h/b/orchestrate") == .cloudflare)
         // A long page whose title happens to start that way is an article.
         #expect(detect("https://blog.com/", title: "Just a moment of calm", length: 9_000) == nil)
@@ -36,6 +39,9 @@ struct RobotCheckDetectorTests {
         #expect(detect("https://nid.naver.com/login/ext/captcha?x=1") == .naverCaptcha)
         #expect(detect("https://search.naver.com/search.naver?query=a", text: "자동입력 방지를 위해 아래 문자를 입력해 주세요") == .naverCaptcha)
         #expect(detect("https://blog.naver.com/a", text: String(repeating: "카페 ", count: 1_500)) == nil)
+        // Searching for the word is not a check.
+        #expect(detect("https://search.naver.com/search.naver?query=captcha", length: 9_000) == nil)
+        #expect(detect("https://search.naver.com/search.naver?query=captcha") == nil)
     }
 
     @Test func checkBoxesOnShortPagesOnly() {
@@ -55,11 +61,21 @@ struct RobotCheckDetectorTests {
         #expect(detect("https://x.com/", text: "Our systems have detected unusual traffic from your computer network.") == .other)
         #expect(detect("https://x.com/", text: "An essay on whether you are a robot or not", length: 30_000) == nil)
         #expect(detect("https://example.com/", title: "Example Domain", text: "This domain is for use in examples.") == nil)
+        // A short article that only mentions it, and everyday wording.
+        #expect(detect("https://x.com/", text: "Our systems saw unusual traffic last week.", length: 1_500) == nil)
+        #expect(detect("https://bank.co.kr/", text: "보안 확인 코드를 입력하세요") == nil)
+    }
+
+    @Test func aFormWithACheckBoxIsTheFormsPage() {
+        let turnstile = "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/turnstile/if/ov2"
+        let signals = { (fields: Int) in RobotCheck.Signals(frames: [turnstile], textLength: 200, formFields: fields) }
+        #expect(RobotCheck.detect(url: URL(string: "https://shop.com/login"), signals: signals(2)) == nil)
+        #expect(RobotCheck.detect(url: URL(string: "https://shop.com/verify"), signals: signals(1)) == .turnstile)
     }
 
     @Test func signalsDecodeFromTheProbe() throws {
-        let s = try #require(RobotCheck.Signals.decode(#"{"title":"T","frames":["a"],"cloudflare":false,"textLength":3,"text":"abc"}"#))
-        #expect(s == .init(title: "T", frames: ["a"], cloudflare: false, textLength: 3, text: "abc"))
+        let s = try #require(RobotCheck.Signals.decode(#"{"title":"T","frames":["a"],"cloudflare":false,"textLength":3,"text":"abc","formFields":2}"#))
+        #expect(s == .init(title: "T", frames: ["a"], cloudflare: false, textLength: 3, text: "abc", formFields: 2))
         #expect(RobotCheck.Signals.decode("nope") == nil)
     }
 
@@ -76,6 +92,8 @@ private final class CheckPage: FetchablePage {
     var currentURL: URL? = URL(string: "https://www.google.com/sorry/index")
     var onProgress: (@MainActor (Double) -> Void)?
     var showsCheck = true
+    /// The probe after which the check goes away by itself.
+    var clearsAfter: Int?
     private(set) var probes = 0
 
     func solve() {
@@ -87,7 +105,8 @@ private final class CheckPage: FetchablePage {
     func evaluate(_ js: String, timeout: Duration) async throws -> String {
         if js == "document.readyState" { return "complete" }
         probes += 1
-        return #"{"title":"","frames":[],"cloudflare":false,"textLength":5000,"text":""}"#
+        if probes == clearsAfter { solve() }
+        return #"{"title":"","frames":[],"cloudflare":false,"textLength":5000,"text":"","formFields":0}"#
     }
     func stop() {}
 }
@@ -95,7 +114,8 @@ private final class CheckPage: FetchablePage {
 @MainActor
 @Suite(.serialized)
 struct RobotCheckGateTests {
-    private var timeouts: FetchTimeouts { FetchTimeouts(probe: .seconds(1), settle: .milliseconds(1)) }
+    private var timeouts: FetchTimeouts { FetchTimeouts(probe: .seconds(1), settle: .milliseconds(1), checkClears: .milliseconds(60)) }
+    private let cloudflare = URL(string: "https://site.com/cdn-cgi/challenge-platform/h/b/orchestrate")
 
     @Test func aPageWithoutACheckPassesWithoutAsking() async throws {
         let page = CheckPage()
@@ -116,6 +136,37 @@ struct RobotCheckGateTests {
         #expect(solved)
         #expect(asked == ["www.google.com googleSorry"])
         #expect(page.probes == 2) // looked again after Done
+    }
+
+    @Test func aCheckThatPassesByItselfAsksNobody() async throws {
+        let page = CheckPage()
+        page.currentURL = cloudflare
+        page.clearsAfter = 3
+        var asked = 0
+        let solved = try await RobotCheckGate.pass(page, timeouts: timeouts) { _, _ in asked += 1; return .solved }
+        #expect(!solved && asked == 0)
+    }
+
+    @Test func aCheckThatStaysIsHandedOverOnce() async throws {
+        let page = CheckPage()
+        page.currentURL = cloudflare
+        var asked: [String] = []
+        let solved = try await RobotCheckGate.pass(page, timeouts: timeouts) { host, kind in
+            asked.append("\(host) \(kind)")
+            page.solve()
+            return .solved
+        }
+        #expect(solved)
+        #expect(asked == ["site.com cloudflare"])
+    }
+
+    @Test func aCheckThatNeedsAPersonIsAskedAtOnce() async throws {
+        let page = CheckPage()
+        var slow = timeouts
+        slow.checkClears = .seconds(30)
+        let started = ContinuousClock.now
+        try await RobotCheckGate.pass(page, timeouts: slow) { _, _ in page.solve(); return .solved }
+        #expect(ContinuousClock.now - started < .seconds(5))
     }
 
     @Test func skipAndTheSettingEndTheToolWithAClearResult() async {
