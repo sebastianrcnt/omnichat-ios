@@ -81,14 +81,10 @@ final class ShareImporter {
     }
 
     /// A PDF's text, page by page (`[Page n]` headers like `web_fetch` reads PDFs).
-    nonisolated static func pdfText(_ url: URL) -> String? {
-        guard let document = PDFDocument(url: url) else { return nil }
-        var parts: [String] = []
-        for index in 0..<document.pageCount {
-            guard let page = document.page(at: index)?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !page.isEmpty else { continue }
-            parts.append("[Page \(index + 1)]\n" + page)
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: "\n\n")
+    nonisolated static func pdfText(_ url: URL, maxPages: Int = PDFFetch.maxPages,
+                                    maxCharacters: Int = PDFFetch.maxCharacters) -> String? {
+        guard !Task.isCancelled, let data = try? Data(contentsOf: url) else { return nil }
+        return try? PDFFetch.text(of: data, url: url, maxPages: maxPages, maxCharacters: maxCharacters).text
     }
 
     /// A changed/missing recipient or an unusable destination never silently falls back to another service.

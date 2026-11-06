@@ -55,6 +55,23 @@ struct PDFFetchTests {
         #expect(PDFFetch.configuration(cookies: []).httpCookieStorage?.cookies?.isEmpty ?? true)
     }
 
+    @Test func shareImportUsesTheSameExtractionBounds() async throws {
+        let data = try #require(Self.makePDF(pages: ["First page text.", "Second page text.", "Third page text."]))
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".pdf")
+        try data.write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let pages = try #require(ShareImporter.pdfText(url, maxPages: 1))
+        #expect(pages.contains("[Page 1]") && !pages.contains("[Page 2]"))
+        #expect(pages.contains("Stopped reading"))
+        let characters = try #require(ShareImporter.pdfText(url, maxCharacters: 5))
+        #expect(!characters.contains("[Page 2]"))
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return ShareImporter.pdfText(url)
+        }
+        #expect(await task.value == nil)
+    }
+
     @Test func notAPDFIsRefused() {
         #expect(!PDFFetch.isPDF(Data("<html></html>".utf8)))
     }
