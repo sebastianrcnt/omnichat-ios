@@ -580,6 +580,19 @@ struct SSHToolSwitchTests {
 }
 
 struct SSHRedactionTests {
+    @Test func debugBundlesHideEveryKeyboardInteractiveAnswer() throws {
+        for answers in ["one-time-answer", "first-answer\nsecond-answer\nwith \"quotes\" and \\slashes"] {
+            let result = "name: nas\nkind: keyboardInteractive\nanswers:" + (answers.contains("\n") ? "\n" : " ") + answers + "\nnote: saved"
+            let json = String(decoding: try JSONEncoder().encode(["content": result]), as: UTF8.self)
+            let redacted = DebugRedaction.redact(json)
+            #expect(!redacted.contains("one-time-answer"))
+            #expect(!redacted.contains("first-answer"))
+            #expect(!redacted.contains("second-answer"))
+            #expect(!redacted.contains("quotes"))
+            #expect((try? JSONSerialization.jsonObject(with: Data(redacted.utf8))) != nil)
+        }
+    }
+
     @Test func debugBundlesHideSSHSecrets() {
         let call = #"{"name":"ssh_exec","arguments":"{\"server\":\"nas\",\"password\":\"hunter2\",\"stdin\":\"hunter2\\n\",\"command\":\"uptime\"}"}"#
         let out = DebugRedaction.redact(call)

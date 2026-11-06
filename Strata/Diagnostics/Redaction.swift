@@ -29,6 +29,11 @@ enum DebugRedaction {
     private static let sshResultLine = try! NSRegularExpression(
         pattern: #"((?:\\n|^)(?:password|passphrase): )(?:[^"\\]|\\[^n"])*"#, options: [.anchorsMatchLines])
 
+    // Answers have no unambiguous line delimiter: each answer may itself contain newlines.
+    // Remove the rest of the result string rather than guessing where the credentials end.
+    private static let sshAnswers = try! NSRegularExpression(
+        pattern: #"((?:\\n|^|\n)answers: ?)(?:[^"\\]|\\.)*"#)
+
     /// A `health_query` result (it starts with `HealthReport.marker`): the whole JSON string, whatever API shape holds it.
     private static let healthResult = try! NSRegularExpression(
         pattern: "\"" + NSRegularExpression.escapedPattern(for: HealthReport.marker) + #"(?:[^"\\]|\\.)*""#)
@@ -57,6 +62,7 @@ enum DebugRedaction {
         out = replace(skKey, in: out) { _, _ in "sk-<redacted>" }
         out = replace(privateKey, in: out) { _, groups in "-----BEGIN \(groups[1])PRIVATE KEY----- <redacted>" }
         out = replace(sshArgument, in: out) { _, groups in groups[1] + "<redacted>" + groups[2] }
+        out = replace(sshAnswers, in: out) { _, groups in groups[1] + "<redacted>" }
         out = replace(sshResultLine, in: out) { _, groups in groups[1] + "<redacted>" }
         out = replace(healthResult, in: out) { _, _ in "\"" + healthPlaceholder + "\"" }
         return out
