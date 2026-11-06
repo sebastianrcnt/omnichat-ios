@@ -16,7 +16,7 @@ struct ChatView: View {
     var focusToken = 0
 
     /// Reference-typed so typing never invalidates this view: only `ComposerHost` reads the text.
-    @State var draft = ComposerDraft()
+    var draft = ComposerDraft()
     @State var position = ScrollPosition(edge: .bottom)
     @State var atBottom = true
     /// The question being answered, held at the top of the screen from its send until the next send or until the user

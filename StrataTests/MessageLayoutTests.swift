@@ -254,3 +254,22 @@ struct ReplyNotificationTests {
         #expect(ChatController.notificationBody("Short.") == "Short.")
     }
 }
+
+@MainActor
+struct ComposerDraftStoreTests {
+    @Test func switchingChatsKeepsTextAndAttachmentsWithoutSharingDrafts() {
+        let store = ComposerDraftStore()
+        let a = UUID(), b = UUID()
+        let draft = store.draft(for: a)
+        draft.text = "Unsent question"
+        draft.attachments = [ComposerAttachment(id: UUID(), jpeg: Data([1, 2]), thumbnail: Data([3]))]
+        store.draft(for: b).text = "Other question"
+        store.draft(for: nil).text = "New chat question"
+        #expect(store.draft(for: a) === draft)
+        #expect(store.draft(for: a).text == "Unsent question")
+        #expect(store.draft(for: a).attachments == draft.attachments)
+        #expect(store.draft(for: b).text == "Other question")
+        #expect(store.draft(for: nil).text == "New chat question")
+        #expect(ComposerDraftStore().draft(for: a).text.isEmpty)
+    }
+}

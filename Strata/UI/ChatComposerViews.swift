@@ -14,6 +14,21 @@ final class ComposerDraft {
     }
 }
 
+/// Window-session only: no text or attachment bytes are written to another persistent store.
+@MainActor
+final class ComposerDraftStore {
+    private var chats: [UUID: ComposerDraft] = [:]
+    private let newChat = ComposerDraft()
+
+    func draft(for conversationID: UUID?) -> ComposerDraft {
+        guard let conversationID else { return newChat }
+        if let draft = chats[conversationID] { return draft }
+        let draft = ComposerDraft()
+        chats[conversationID] = draft
+        return draft
+    }
+}
+
 /// Things to try, over the first new chat: tapping one puts it in the composer. Gone once there is a chat, or while
 /// the composer has text. Reads the draft itself, like the composer, so `ChatView` doesn't re-render per keystroke.
 struct StarterPrompts: View {

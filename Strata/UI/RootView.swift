@@ -9,6 +9,7 @@ struct RootView: View {
 
     @State private var selected: Conversation?
     @State private var chatKey = ChatViewKey()
+    @State private var drafts = ComposerDraftStore()
     @State private var sidebarOpen = false
     @State private var showSettings = false
     @State private var focusToken = 0
@@ -26,7 +27,7 @@ struct RootView: View {
 
             DrawerLayer(drag: drag, isOpen: sidebarOpen, width: sidebarWidth, onClose: closeSidebar) {
                 ChatView(conversation: $selected, onOpenSidebar: { setSidebar(true) }, onOpenSettings: { openSettings() },
-                         onNewChat: newChat, focusToken: focusToken)
+                         onNewChat: newChat, focusToken: focusToken, draft: drafts.draft(for: selected?.id))
                     .id(chatKey.id)
                     .background(theme.background.ignoresSafeArea())
             }

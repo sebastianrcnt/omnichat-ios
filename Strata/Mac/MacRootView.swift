@@ -11,6 +11,7 @@ struct MacRootView: View {
 
     @State private var selected: Conversation?
     @State private var chatKey = ChatViewKey()
+    @State private var drafts = ComposerDraftStore()
     @State private var columns = NavigationSplitViewVisibility.all
     @State private var focusToken = 0
     @State private var findToken = 0
@@ -29,7 +30,7 @@ struct MacRootView: View {
                 }
         } detail: {
             ChatView(conversation: $selected, onOpenSidebar: {}, onOpenSettings: { openSettings() },
-                     onNewChat: newChat, focusToken: focusToken)
+                     onNewChat: newChat, focusToken: focusToken, draft: drafts.draft(for: selected?.id))
                 .id(chatKey.id)
                 .background(theme.background)
                 .artifactPanel($artifact)
