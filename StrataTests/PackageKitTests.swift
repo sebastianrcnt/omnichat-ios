@@ -263,3 +263,15 @@ struct PackageProjectionTests {
         #expect(out.truncated && out.text.hasSuffix("[Truncated: the result exceeded 1000 characters.]"))
     }
 }
+
+struct PackageCaptureLimitTests {
+    @Test func catastrophicCaptureFailsWithinTheMatcher() throws {
+        let schema: PackageJSON = .object(["type": "object", "properties": .object([
+            "value": .object(["type": "string", "capture": "^(a+)+$"])
+        ])])
+        try JSONSchemaSubset.validateSchema(schema, where: "test")
+        #expect(throws: PackageError.self) {
+            try JSONSchemaSubset.validateArguments(.object(["value": .string(String(repeating: "a", count: 100) + "!")]), schema: schema, tool: "test")
+        }
+    }
+}

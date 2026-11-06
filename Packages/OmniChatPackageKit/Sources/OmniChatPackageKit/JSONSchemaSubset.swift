@@ -47,7 +47,8 @@ public enum JSONSchemaSubset {
             guard top, type == "string", let pattern = capture.stringValue else {
                 throw fail("\(path).capture is only for top-level string parameters, as a regular expression.")
             }
-            guard let regex = try? NSRegularExpression(pattern: pattern), regex.numberOfCaptureGroups >= 1 else {
+            guard pattern.utf16.count <= maxBytes,
+                  let regex = try? NSRegularExpression(pattern: pattern), regex.numberOfCaptureGroups >= 1 else {
                 throw fail("\(path).capture must be a regular expression with one capture group, like \"status/(\\\\d+)\".")
             }
         }
@@ -144,10 +145,26 @@ public enum JSONSchemaSubset {
     }
 
     private static func capture(_ text: String, pattern: String, name: String, fail: (String) -> PackageError) throws -> String {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return text }
+        guard pattern.utf16.count <= maxBytes, text.utf16.count <= 65_536,
+              let regex = try? NSRegularExpression(pattern: pattern) else {
+            throw fail("\"\(name)\" capture is too large or invalid.")
+        }
         let ns = text as NSString
-        guard let m = regex.firstMatch(in: text, range: NSRange(location: 0, length: ns.length)) else {
-            throw fail("\"\(name)\" doesn't have the expected form.")
+        let deadline = ContinuousClock.now.advanced(by: .milliseconds(50))
+        var match: NSTextCheckingResult?
+        var interrupted = false
+        // ICU calls back during matching, not just on a match. An outer async timeout would leave it running.
+        regex.enumerateMatches(in: text, options: [.reportProgress], range: NSRange(location: 0, length: ns.length)) { result, _, stop in
+            if Task.isCancelled || ContinuousClock.now >= deadline {
+                interrupted = true
+                stop.pointee = true
+            } else if let result {
+                match = result
+                stop.pointee = true
+            }
+        }
+        guard !interrupted, let m = match else {
+            throw fail("\"\(name)\" doesn't have the expected form or capture exceeded its work limit.")
         }
         for i in 1..<m.numberOfRanges where m.range(at: i).location != NSNotFound {
             return ns.substring(with: m.range(at: i))
