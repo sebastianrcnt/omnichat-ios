@@ -78,9 +78,9 @@ struct MacComposerField: NSViewRepresentable {
             view.textStorage?.addAttributes([.font: font, .foregroundColor: color, .paragraphStyle: style],
                                             range: NSRange(location: 0, length: (text as NSString).length))
         }
-        // Only a change of `isFocused` moves focus. Comparing levels on every update would let a stale `false` (the
-        // binding catches up asynchronously) take focus straight back from a click, leaving nothing to type into.
-        if context.coordinator.requestedFocus != isFocused {
+        // AppKit focus notifications reach the binding asynchronously. Until that delivery, the binding is stale:
+        // do not interpret it as a new request to undo a click. Otherwise only a binding edge moves focus.
+        if context.coordinator.pendingFocus == nil, context.coordinator.requestedFocus != isFocused {
             context.coordinator.requestedFocus = isFocused
             view.wantsFocus = isFocused
             if isFocused, let window = view.window, window.firstResponder !== view {
@@ -108,8 +108,9 @@ struct MacComposerField: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: MacComposerField
-        /// The focus last asked for or reached, so an update acts only when `isFocused` changes.
+        /// The focus last delivered to SwiftUI or requested by it.
         var requestedFocus: Bool?
+        var pendingFocus: Bool?
 
         init(_ parent: MacComposerField) { self.parent = parent }
 
@@ -119,9 +120,12 @@ struct MacComposerField: NSViewRepresentable {
         }
 
         func focusChanged(_ focused: Bool) {
-            requestedFocus = focused
+            pendingFocus = focused
             DispatchQueue.main.async { [self] in
+                guard pendingFocus == focused else { return }
+                requestedFocus = focused
                 if parent.isFocused != focused { parent.isFocused = focused }
+                pendingFocus = nil
             }
         }
 
