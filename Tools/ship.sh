@@ -1,5 +1,5 @@
 #!/bin/zsh
-# The usual round after a change: the full unit suite on the simulator (with the Mac app building alongside), then,
+# The usual round after a change: the full unit suite on the simulator (Tools/test.sh, with the Mac app building alongside), then,
 # only when it passed, the Mac install, the over-the-air page and a push of main. No TestFlight (Tools/testflight.sh).
 #
 #   Tools/ship.sh              test, then install + OTA + push
@@ -29,19 +29,19 @@ xcodebuild build -project Strata.xcodeproj -scheme StrataMac -destination 'platf
   -allowProvisioningUpdates >"$MACLOG" 2>&1 &
 MAC=$!
 
-xcodebuild test -project Strata.xcodeproj -scheme Strata -destination "id=$SIM" -collect-test-diagnostics never \
-  -derivedDataPath build-sim -retry-tests-on-failure -test-iterations 2 >"$LOG" 2>&1
+Tools/test.sh "$LOG"
+TESTS=$?
 step tests
 wait $MAC
 MACOK=$?
 step mac-build
 xcrun simctl shutdown "$SIM" 2>/dev/null
 
-grep -aE "Test run with|TEST (SUCCEEDED|FAILED)" "$LOG" | tail -2
+grep -aE "Test run with|TEST (SUCCEEDED|FAILED)" "$LOG" | tail -4
 # Tests that failed at least once: on a run that still succeeded, these passed on the retry.
 grep -aoE "Test [A-Za-z0-9_]+\(\)[^✔]* failed after" "$LOG" | sed -E 's/ recorded.*| failed after//' | sort -u | sed 's/^/retried: /'
 
-if [[ ! -s $LOG ]] || ! grep -aq "TEST SUCCEEDED" "$LOG"; then
+if (( TESTS != 0 )); then
   echo "tests failed (log: $LOG)" >&2
   exit 1
 fi

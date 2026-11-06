@@ -1,0 +1,24 @@
+# Suites Tools/test.sh runs one test at a time: they measure real time or lean on shared state, so they fail under parallel load.
+AnswerNowTurnTests
+AutoRenameFlowTests
+BackgroundRevealTests
+BrowserToolTests
+ChatControllerTests
+CompactorTests
+ConversationPreferencesTests
+DeadlineTests
+FetchDeadlineTests
+FetchPipelineTests
+HTTPToolTests
+InFlightLoadTests
+ParallelToolTests
+PluginPipelineTests
+PluginWebViewTests
+RecoverySignalsTests
+RobotCheckGateTests
+RunPluginToolTests
+StreamingModelTests
+ToolProgressTests
+TranscribingControllerTests
+WebFetchContinuationTests
+WikipediaPackageTests
