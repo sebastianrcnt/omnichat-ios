@@ -80,12 +80,24 @@ indirect enum OUIValue: Equatable, Sendable {
         case .component(let c): return c.props.values.allSatisfy { $0.fits(&left) } && c.args.allSatisfy { $0.fits(&left) }
         case .action(let a):
             return a.steps.allSatisfy { step in
+                left -= 1
+                guard left >= 0 else { return false }
                 switch step {
-                case .toAssistant(_, let context?): context.fits(&left)
-                case .set(_, _, let locals): locals.values.allSatisfy { $0.fits(&left) }
-                case .custom(_, let values): values.allSatisfy { $0.fits(&left) }
-                default: true
+                case .toAssistant(let message, let context):
+                    left -= message?.utf8.count ?? 0
+                    return left >= 0 && (context?.fits(&left) ?? true)
+                case .openURL(let url), .run(let url):
+                    left -= url.utf8.count
+                case .reset(let names):
+                    for name in names { left -= 1 + name.utf8.count }
+                case .set(let name, _, let locals):
+                    left -= name.utf8.count
+                    return left >= 0 && locals.values.allSatisfy { $0.fits(&left) }
+                case .custom(let name, let values):
+                    left -= name.utf8.count
+                    return left >= 0 && values.allSatisfy { $0.fits(&left) }
                 }
+                return left >= 0
             }
         default: return true
         }
@@ -345,6 +357,7 @@ struct OUIEvaluator {
         static let work = 4_000_000
         /// A statement's value, or the rendered tree (see `OUIValue.weight`).
         static let weight = 1_000_000
+        static let actions = 10_000
         /// One string made by `+`, and all of them together, in bytes.
         static let string = 256 * 1024
         static let strings = 4 * 1024 * 1024
@@ -553,8 +566,18 @@ struct OUIEvaluator {
         switch rawName {
         case "Query", "Mutation": return nil // only valid as a whole statement
         case "Action":
-            let steps = args.flatMap { arg -> [OUIStep] in
-                Self.actionSteps(eval(arg.value, locals: locals) ?? .null)
+            var steps: [OUIStep] = []
+            for arg in args {
+                let value = eval(arg.value, locals: locals) ?? .null
+                guard !overBudget, value.weight(limit: Budget.weight) != nil else {
+                    overBudget = true
+                    return nil
+                }
+                guard let next = Self.boundedActionSteps(value, limit: Budget.actions - steps.count) else {
+                    overBudget = true
+                    return nil
+                }
+                steps.append(contentsOf: next)
             }
             return .action(OUIAction(steps: steps))
         default: break
@@ -588,6 +611,22 @@ struct OUIEvaluator {
     }
 
     // MARK: Functions and actions
+
+    /// Collect into the bounded destination rather than flattening an arbitrarily large intermediate list.
+    private static func boundedActionSteps(_ value: OUIValue, limit: Int) -> [OUIStep]? {
+        var steps: [OUIStep] = []
+        func append(_ value: OUIValue) -> Bool {
+            switch value {
+            case .action(let action):
+                guard action.steps.count <= limit - steps.count else { return false }
+                steps.append(contentsOf: action.steps)
+                return true
+            case .array(let values): return values.allSatisfy(append)
+            default: return true
+            }
+        }
+        return append(value) ? steps : nil
+    }
 
     static func actionSteps(_ value: OUIValue) -> [OUIStep] {
         switch value {

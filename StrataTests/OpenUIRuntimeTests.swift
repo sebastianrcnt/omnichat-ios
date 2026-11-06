@@ -24,6 +24,13 @@ struct OpenUIActionTests {
         return runtime.perform(button?["action"]?.actionValue, label: label, form: form, rendered: rendered, open: opened ?? { _ in })
     }
 
+    @Test func actionDoublingStopsAtTheBudget() {
+        let source = ["root = Card([Button(\"Go\", a30)])", "a0 = @ToAssistant(\"x\")"]
+            + (1...30).map { "a\($0) = Action(a\($0 - 1), a\($0 - 1))" }
+        #expect(page(source.joined(separator: "\n")).root == nil)
+        #expect(OUIValue.action(OUIAction(steps: [.toAssistant(message: "hello", context: nil)])).weight(limit: 6) == nil)
+    }
+
     @Test func aButtonWithoutAnActionSendsItsLabel() throws {
         let r = page("root = Card([Buttons([Button(\"Basic\"), Button(\"Pro\")])])")
         let runtime = OUIRuntime()
