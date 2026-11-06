@@ -307,9 +307,7 @@
     "Apple Intelligence is off": {},
     "Apple Intelligence is off. Turn it on in Settings > Apple Intelligence & Siri to use the on-device model.": {},
     "Apple Intelligence is off. Turn it on in System Settings > Apple Intelligence & Siri to use the on-device model.": {},
-    "Apple Maps": {
-      "extractionState": "stale"
-    },
+    "Apple Maps": {},
     "Apple on-device": {},
     "Apple's on-device model answers without an API key or an account. Your messages never leave this device, and it works offline. It's a small model with a short memory: good for quick questions, rewriting and summaries. For long chats or hard questions, use a larger model.": {},
     "Apple's on-device safety guardrails stopped this answer. Try rephrasing, or use another connection.": {},
@@ -344,12 +342,8 @@
       "extractionState": "stale"
     },
     "Auto searches Naver for Korean queries and Bing otherwise. If the engine fails or finds nothing, the next one is tried. web_fetch returns up to the fetch length per call; longer pages continue in further calls. A chat can turn web search on or off from the + menu.": {},
-    "Auto searches Naver for Korean queries while you're in Korea, and Bing otherwise. If the engine fails or finds nothing, the next one is tried.": {
-      "extractionState": "stale"
-    },
-    "Auto searches Naver for Korean queries while you're in Korea, and Bing otherwise. If the engine fails or finds nothing, the next one is tried. web_fetch returns up to the fetch length per call; longer pages continue in further calls. A chat can turn web search on or off from the + menu.": {
-      "extractionState": "stale"
-    },
+    "Auto searches Naver for Korean queries while you're in Korea, and Bing otherwise. If the engine fails or finds nothing, the next one is tried.": {},
+    "Auto searches Naver for Korean queries while you're in Korea, and Bing otherwise. If the engine fails or finds nothing, the next one is tried. web_fetch returns up to the fetch length per call; longer pages continue in further calls. A chat can turn web search on or off from the + menu.": {},
     "Automatic": {},
     "Available": {},
     "Away for %lld s.": {},
@@ -712,9 +706,7 @@
     "Go back to an older version?": {},
     "Go is the monthly subscription with usage limits. Pay as you go bills the workspace balance. Each plan has its own models.": {},
     "Go to chat": {},
-    "Google Maps": {
-      "extractionState": "stale"
-    },
+    "Google Maps": {},
     "Got it": {},
     "Got your location": {},
     "Green": {},
@@ -902,9 +894,7 @@
       "shouldTranslate": false
     },
     "Naming chat": {},
-    "Naver Map": {
-      "extractionState": "stale"
-    },
+    "Naver Map": {},
     "Needs %@ on in the chat.": {},
     "Needs you": {},
     "New": {},
@@ -1048,9 +1038,7 @@
       "extractionState": "stale"
     },
     "Open full screen": {},
-    "Open in %@": {
-      "extractionState": "stale"
-    },
+    "Open in %@": {},
     "Open in Browser": {},
     "Open in Naver Map": {},
     "Open in Safari": {},
@@ -1676,9 +1664,7 @@
     "The page took too long to load.": {},
     "The recipient changed or the destination is unavailable. Nothing has been sent. Confirm the recipient below, or keep the share for later and check your connection settings.": {},
     "The recording is too long to transcribe. Try a shorter one.": {},
-    "The reply stopped while OmniChat was in the background. Try again.": {
-      "extractionState": "stale"
-    },
+    "The reply stopped while OmniChat was in the background. Try again.": {},
     "The reply was stopped.": {},
     "The request is too large for the Anthropic API. Remove some images, or start a new chat.": {},
     "The response ended before it was complete. Try again.": {},
