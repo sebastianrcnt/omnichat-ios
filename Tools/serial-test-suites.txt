@@ -23,3 +23,4 @@ TranscribingControllerTests
 WebFetchContinuationTests
 WikipediaPackageTests
 ResumeTests
+FileSyncDeletionTests

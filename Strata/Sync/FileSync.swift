@@ -46,6 +46,15 @@ final class FileSync: FileMirroring, @unchecked Sendable {
     static let toolImages = "ToolImages"
     static let artifacts = "Artifacts"
     static let areas: Set<String> = [toolImages, artifacts]
+    // Serialize background record writes with the main-context deletion/save transaction.
+    static let persistenceLock = NSRecursiveLock()
+
+    static func deleteRecords(conversationID: UUID, context: ModelContext) throws {
+        let id: UUID? = conversationID
+        let records = try context.fetch(FetchDescriptor<SyncedFile>(predicate: #Predicate { $0.conversationID == id }))
+        for record in records { context.delete(record) }
+    }
+
     static let migratedKey = "sync.filesMigrated.v1"
 
     let container: ModelContainer
@@ -79,7 +88,12 @@ final class FileSync: FileMirroring, @unchecked Sendable {
     func wrote(_ data: Data, area: String, conversationID: UUID, name: String) {
         guard let path = Self.path(area: area, conversationID: conversationID, name: name) else { return }
         queue.async { [container] in
+            Self.persistenceLock.lock()
+            defer { Self.persistenceLock.unlock() }
             let context = ModelContext(container)
+            // A queued write must not resurrect bytes after a durably deleted chat.
+            let id = conversationID
+            guard (try? context.fetchCount(FetchDescriptor<Conversation>(predicate: #Predicate { $0.id == id }))) ?? 0 > 0 else { return }
             let existing = (try? context.fetch(FetchDescriptor<SyncedFile>(predicate: #Predicate { $0.path == path }))) ?? []
             for record in existing where record.data != data {
                 record.data = data
@@ -93,6 +107,8 @@ final class FileSync: FileMirroring, @unchecked Sendable {
     func removedAll(area: String, conversationID: UUID) {
         let prefix = "\(area)/\(conversationID.uuidString)/"
         queue.async { [container] in
+            Self.persistenceLock.lock()
+            defer { Self.persistenceLock.unlock() }
             let context = ModelContext(container)
             let id: UUID? = conversationID
             let records = (try? context.fetch(FetchDescriptor<SyncedFile>(predicate: #Predicate { $0.conversationID == id }))) ?? []
@@ -116,6 +132,8 @@ final class FileSync: FileMirroring, @unchecked Sendable {
 
     @discardableResult
     func materializeNow() -> Int {
+        Self.persistenceLock.lock()
+        defer { Self.persistenceLock.unlock() }
         let context = ModelContext(container)
         _ = try? SyncDedupe.files(context)
         let records = (try? context.fetch(FetchDescriptor<SyncedFile>())) ?? []
@@ -177,6 +195,8 @@ final class FileSync: FileMirroring, @unchecked Sendable {
     func migrateExisting(defaults: UserDefaults = .standard) {
         guard !defaults.bool(forKey: Self.migratedKey) else { return }
         queue.async { [self] in
+            Self.persistenceLock.lock()
+            defer { Self.persistenceLock.unlock() }
             let context = ModelContext(container)
             let chats = Set(((try? context.fetch(FetchDescriptor<Conversation>())) ?? []).map(\.id))
             let known = Set(((try? context.fetch(FetchDescriptor<SyncedFile>())) ?? []).map(\.path))

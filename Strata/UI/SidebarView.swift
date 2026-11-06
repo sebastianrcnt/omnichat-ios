@@ -237,13 +237,20 @@ struct SidebarView: View {
 /// nothing more, then its diagnostics, Python interpreter, figures and artifacts go with it. Other chats' replies go on.
 @MainActor
 enum ConversationDeletion {
-    static func delete(_ conversation: Conversation, context: ModelContext, controller: ChatController) {
+    @discardableResult
+    static func delete(_ conversation: Conversation, context: ModelContext, controller: ChatController) -> Bool {
+        FileSync.persistenceLock.lock()
+        defer { FileSync.persistenceLock.unlock() }
+        // Both deletions reach the store in one save, before sync can be enabled for health chats.
+        do { try FileSync.deleteRecords(conversationID: conversation.id, context: context) }
+        catch { return false }
         controller.discardRun(for: conversation.id)
         Diagnostics.forget(conversation.id)
         PythonRuntime.shared.conversationDeleted(conversation.id)
         ArtifactStore.shared.removeAll(conversationID: conversation.id)
         context.delete(conversation)
-        try? context.save()
+        do { try context.save(); return true }
+        catch { return false }
     }
 }
 

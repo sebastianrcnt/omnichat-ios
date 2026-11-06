@@ -202,7 +202,10 @@ struct FileSyncTests {
     @Test func writesReachTheStoreAndMissingFilesComeBack() throws {
         let container = try syncedStore()
         let here = try tempDirectory(), there = try tempDirectory()
-        let chat = UUID()
+        let conversation = Conversation()
+        container.mainContext.insert(conversation)
+        try container.mainContext.save()
+        let chat = conversation.id
         let sync = FileSync(container: container, root: here)
         sync.wrote(Data("png".utf8), area: FileSync.toolImages, conversationID: chat, name: "figure-1.png")
         sync.wrote(Data("<p>1</p>".utf8), area: FileSync.artifacts, conversationID: chat, name: "a1.html")
@@ -293,7 +296,10 @@ struct FileSyncTests {
     @Test func thisDevicesOwnWriteIsNotWrittenAgain() throws {
         let container = try syncedStore()
         let root = try tempDirectory()
-        let chat = UUID()
+        let conversation = Conversation()
+        container.mainContext.insert(conversation)
+        try container.mainContext.save()
+        let chat = conversation.id
         let sync = FileSync(container: container, root: root)
         let url = root.appendingPathComponent("Artifacts/\(chat.uuidString)/a1.html")
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -673,5 +679,28 @@ struct SyncMessageCompletenessTests {
         #expect(messages.first?.text == "Completed answer")
         #expect(messages.first?.reasoning == "Saved reasoning")
         #expect(messages.first?.conversation?.syncOrigin == "A")
+    }
+}
+
+@MainActor
+struct FileSyncDeletionTests {
+    @Test func deletionSaveRemovesFileRecordsAndLateWritesCannotResurrectThem() throws {
+        let container = try syncedStore()
+        let context = container.mainContext
+        let chat = Conversation()
+        context.insert(chat)
+        let path = "Artifacts/\(chat.id.uuidString)/a1.html"
+        context.insert(SyncedFile(path: path, conversationID: chat.id, data: Data("private bytes".utf8)))
+        try context.save()
+        let sync = FileSync(container: container, root: try tempDirectory())
+        try FileSync.persistenceLock.withLock {
+            sync.wrote(Data("queued bytes".utf8), area: FileSync.artifacts, conversationID: chat.id, name: "a2.html")
+            try FileSync.deleteRecords(conversationID: chat.id, context: context)
+            context.delete(chat)
+            try context.save()
+        }
+        sync.waitForPendingWork()
+        #expect(try ModelContext(container).fetchCount(FetchDescriptor<SyncedFile>()) == 0)
+        #expect(sync.materializeNow() == 0)
     }
 }

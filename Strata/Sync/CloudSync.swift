@@ -213,7 +213,7 @@ final class CloudSync {
     func turnOnChatSync(deletingHealthChats: Bool) {
         if deletingHealthChats, let context = container?.mainContext, let controller {
             for conversation in healthConversations() {
-                ConversationDeletion.delete(conversation, context: context, controller: controller)
+                guard ConversationDeletion.delete(conversation, context: context, controller: controller) else { return }
             }
         }
         chatSyncSwitch = true
