@@ -218,6 +218,8 @@ struct OUIParser {
     private let tokens: [OUIToken]
     private var pos = 0
     private var depth = 0
+    /// Operators and accessors so far: loops, not recursion, but each one makes the tree a level deeper.
+    private var links = 0
     private(set) var problems: [String] = []
 
     init(tokens: [OUIToken]) {
@@ -231,13 +233,22 @@ struct OUIParser {
     }
 
     private mutating func enter() -> Bool {
-        guard depth < 64 else {
-            problems.append("Expression nesting limit exceeded")
-            pos = tokens.count
-            return false
-        }
+        guard depth < 64 else { return tooDeep() }
         depth += 1
         return true
+    }
+
+    /// Counted across the statement: a limit per chain could be multiplied by nesting one chain in another.
+    private mutating func link() -> Bool {
+        guard links < 1_000 else { return tooDeep() }
+        links += 1
+        return true
+    }
+
+    private mutating func tooDeep() -> Bool {
+        problems.append("Expression nesting limit exceeded")
+        pos = tokens.count
+        return false
     }
 
     /// `name = expression`, or nil when the tokens don't have that shape (such a line is skipped without an error).
@@ -296,6 +307,7 @@ struct OUIParser {
         guard level < Self.levels.count else { return unary() }
         var left = binary(level: level + 1)
         while case .op(let o)? = peek, Self.levels[level].contains(o) {
+            guard link() else { break }
             advance()
             guard peek != nil else { break }
             left = .binary(o, left, binary(level: level + 1))
@@ -316,6 +328,7 @@ struct OUIParser {
     private mutating func postfix(_ base: OUIExpr) -> OUIExpr {
         var e = base
         while true {
+            if peek == .op(".") || peek == .op("["), !link() { return e }
             if peek == .op("."), let field = fieldName(peek(1)) {
                 pos += 2
                 e = .member(e, field)

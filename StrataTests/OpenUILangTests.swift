@@ -423,6 +423,25 @@ extension AppPrompt {
 }
 
 struct OpenUIParserLimitTests {
+    /// Flat, so the depth limit doesn't see them, but the parsed tree is as deep as the chain is long.
+    @Test(arguments: [String(repeating: "1 + ", count: 9_000) + "1",
+                      "a" + String(repeating: ".b", count: 9_000),
+                      "a" + String(repeating: "[0]", count: 6_000),
+                      String(repeating: "(" + String(repeating: "1 + ", count: 300), count: 25) + "1"
+                        + String(repeating: ")", count: 25)])
+    func aLongFlatChainIsAParseProblem(_ source: String) {
+        let parsed = OUIParser.statement("root = " + source)
+        #expect(parsed.statement == nil)
+        #expect(!parsed.problems.isEmpty)
+    }
+
+    /// On the main actor, as in a view's body: the evaluator's depth budget stops it rather than the stack.
+    @MainActor @Test func theLongestAllowedChainStopsAtTheEvaluatorsBudget() throws {
+        let parsed = OUIParser.statement("root = " + String(repeating: "1 + ", count: 999) + "1")
+        let statement = try #require(parsed.statement)
+        #expect(OUIRendered.make([statement]).problems == ["Too large to show"])
+    }
+
     @Test(arguments: ["parentheses", "unary", "ternary", "array"])
     func excessiveNestingIsAParseProblem(_ kind: String) {
         let source: String
