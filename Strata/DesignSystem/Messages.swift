@@ -828,31 +828,38 @@ struct SkillOfferChip: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        HStack(spacing: 0) {
-            Button(action: onSave) {
-                Label("Save as skill", systemImage: "wand.and.sparkles")
-                    .font(DS.Typography.uiCaption)
-                    .foregroundStyle(theme.textSecondary)
-                    .padding(.leading, DS.Spacing.sm + 2)
-                    .padding(.trailing, DS.Spacing.xs)
-                    .padding(.vertical, DS.Spacing.xs)
-                    .contentShape(Rectangle())
+        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            HStack(spacing: 0) {
+                Button(action: onSave) {
+                    Label("Save as skill", systemImage: "wand.and.sparkles")
+                        .font(DS.Typography.uiCaption)
+                        .foregroundStyle(theme.textSecondary)
+                        .padding(.leading, DS.Spacing.sm + 2)
+                        .padding(.trailing, DS.Spacing.xs)
+                        .padding(.vertical, DS.Spacing.xs)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Asks the model to save what worked here as a skill. You approve it before it is saved.")
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .font(DS.Typography.uiCaption.weight(.semibold))
+                        .foregroundStyle(theme.textTertiary)
+                        .padding(.leading, DS.Spacing.xs)
+                        .padding(.trailing, DS.Spacing.sm)
+                        .padding(.vertical, DS.Spacing.xs)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Don't save as skill")
             }
-            .buttonStyle(.plain)
-            .accessibilityHint("Asks the model to save what worked here as a skill. You approve it before it is saved.")
-            Button(action: onDismiss) {
-                Image(systemName: "xmark")
-                    .font(DS.Typography.uiCaption.weight(.semibold))
-                    .foregroundStyle(theme.textTertiary)
-                    .padding(.leading, DS.Spacing.xs)
-                    .padding(.trailing, DS.Spacing.sm)
-                    .padding(.vertical, DS.Spacing.xs)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Don't save as skill")
+            .background(theme.chipFill, in: Capsule())
+            Text("Saves the steps that worked here, so similar requests go faster next time. You'll review it before it's saved.")
+                .font(DS.Typography.uiCaption)
+                .foregroundStyle(theme.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityHidden(true) // the button's hint says this
         }
-        .background(theme.chipFill, in: Capsule())
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
