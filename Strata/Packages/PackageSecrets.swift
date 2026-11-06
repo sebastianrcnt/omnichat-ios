@@ -71,6 +71,13 @@ final class PackageSecretStore: @unchecked Sendable {
     /// Replaces every occurrence of a secret value, and its base64, base64url and percent-encoded forms, with
     /// `[secret]`: some APIs echo the token back.
     static func scrub(_ text: String, secrets: [String]) -> String {
+        // Replacing a one-character password throughout prose would corrupt the result. Fail closed for an
+        // echoed short credential instead: neither the model nor history receives any of that response.
+        for secret in secrets where !secret.isEmpty && secret.count < 4 {
+            if forms(of: secret).contains(where: { !$0.isEmpty && text.contains($0) }) {
+                return "[Response withheld: it contains a short package secret.]"
+            }
+        }
         var out = text
         for secret in secrets where secret.count >= 4 {
             for form in forms(of: secret) where !form.isEmpty { out = out.replacingOccurrences(of: form, with: "[secret]") }

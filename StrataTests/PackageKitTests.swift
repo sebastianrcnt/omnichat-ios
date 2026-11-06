@@ -275,3 +275,16 @@ struct PackageCaptureLimitTests {
         }
     }
 }
+
+struct ShortPackageSecretTests {
+    @Test func echoedShortSecretsWithholdTheResponseInsteadOfCorruptingProse() {
+        for secret in ["a", "ab", "abc", "a b"] {
+            for form in PackageSecretStore.forms(of: secret) {
+                #expect(PackageSecretStore.scrub("Invalid credential: " + form, secrets: [secret])
+                        == "[Response withheld: it contains a short package secret.]")
+            }
+        }
+        #expect(PackageSecretStore.scrub("Healthy response", secrets: ["xyz", ""]) == "Healthy response")
+        #expect(PackageSecretStore.scrub("Invalid: long-token", secrets: ["long-token"]) == "Invalid: [secret]")
+    }
+}
