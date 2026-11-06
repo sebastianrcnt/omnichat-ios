@@ -327,6 +327,20 @@ struct PySocketBridgeTests {
         #expect(activity.summary()?.contains("TCP 127.0.0.1:\(port), 8 B sent") == true, "\(activity)")
     }
 
+    /// A chosen port takes a different listener path from port 0.
+    @Test func bindsTheRequestedPortOnTheRequestedAddress() async throws {
+        let bridge = PySocketBridge(approve: { _, _, _ in true })
+        bridge.beginRun(conversationID: UUID(), callID: "call_1")
+        defer { bridge.closeAll(); _ = bridge.endRun() }
+        let (first, _) = await call(bridge, ["op": "bind", "id": 1, "kind": "tcp", "host": "127.0.0.1", "port": 0])
+        let port = try #require(first["port"] as? Int)
+        _ = await call(bridge, ["op": "close", "id": 1])
+        let (reply, _) = await call(bridge, ["op": "bind", "id": 2, "kind": "tcp", "host": "127.0.0.1", "port": port])
+        #expect(reply["errno"] == nil, "\(reply)")
+        #expect(reply["port"] as? Int == port)
+        #expect(reply["host"] as? String == "127.0.0.1")
+    }
+
     @Test func atMostSixtyFourSocketsAndCloseAllEndsThem() async throws {
         let bridge = PySocketBridge(approve: { _, _, _ in true })
         bridge.beginRun(conversationID: UUID(), callID: "call_1")

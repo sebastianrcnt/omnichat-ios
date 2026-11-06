@@ -913,8 +913,8 @@ final class PySocketBridge: @unchecked Sendable {
         if loopback { params.requiredInterfaceType = .loopback }
         let listener: NWListener
         do {
-            if port == 0 { listener = try NWListener(using: params) }
-            else { listener = try NWListener(using: params, on: NWEndpoint.Port(rawValue: UInt16(port))!) }
+            // `requiredLocalEndpoint` already holds the port: `NWListener(using:on:)` rejects it with EINVAL.
+            listener = try NWListener(using: params)
         } catch {
             return .error((error as? NWError).map(Self.errno) ?? "EADDRINUSE")
         }
