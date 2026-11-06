@@ -339,6 +339,7 @@ struct SSHRequestCard: View {
             SSHApprovalCard(approval: approval) { SSHRequests.shared.answer(request.id, .approval($0)) }
         case .prompt(let prompt):
             SSHPromptCard(prompt: prompt) { SSHRequests.shared.answer(request.id, .prompt($0)) }
+                .id(request.id)
         }
     }
 }
@@ -393,6 +394,11 @@ struct SSHPromptCard: View {
         _answers = State(initialValue: Array(repeating: "", count: prompt.prompts.count))
     }
 
+    private func answer(at index: Int) -> Binding<String> {
+        Binding(get: { answers.indices.contains(index) ? answers[index] : "" },
+                set: { if answers.indices.contains(index) { answers[index] = $0 } })
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             Text("\(prompt.hop) asks:").font(DS.Typography.feedEmphasis).foregroundStyle(theme.textPrimary)
@@ -405,9 +411,9 @@ struct SSHPromptCard: View {
                 let label = prompt.prompts[i].text.trimmingCharacters(in: .whitespaces)
                 Group {
                     if prompt.prompts[i].echo {
-                        TextField("", text: $answers[i], prompt: Text(verbatim: label))
+                        TextField("", text: answer(at: i), prompt: Text(verbatim: label))
                     } else {
-                        SecureField("", text: $answers[i], prompt: Text(verbatim: label))
+                        SecureField("", text: answer(at: i), prompt: Text(verbatim: label))
                     }
                 }
                 .font(DS.Typography.ui)
