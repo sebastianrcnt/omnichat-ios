@@ -650,3 +650,28 @@ struct BaseURLCredentialTests {
         #expect(!DebugBundle.indexLine(summary).contains("secret"))
     }
 }
+
+@MainActor
+struct SyncMessageCompletenessTests {
+    @Test(arguments: [false, true]) func completedSameIDAnswerSurvivesEitherOriginOrder(_ completedIsKeeper: Bool) throws {
+        let container = try syncedStore()
+        let context = container.mainContext
+        let keep = Conversation(), extra = Conversation()
+        keep.syncOrigin = "A"; extra.syncOrigin = "B"; extra.id = keep.id
+        context.insert(keep); context.insert(extra)
+        let empty = Message(role: .assistant, sortIndex: 0)
+        let full = Message(role: .assistant, text: "Completed answer", sortIndex: 0)
+        full.id = empty.id
+        full.reasoning = "Saved reasoning"
+        context.insert(empty); context.insert(full)
+        empty.conversation = completedIsKeeper ? extra : keep
+        full.conversation = completedIsKeeper ? keep : extra
+        try context.save()
+        #expect(try SyncDedupe.conversations(context) == 1)
+        let messages = try context.fetch(FetchDescriptor<Message>())
+        #expect(messages.count == 1)
+        #expect(messages.first?.text == "Completed answer")
+        #expect(messages.first?.reasoning == "Saved reasoning")
+        #expect(messages.first?.conversation?.syncOrigin == "A")
+    }
+}

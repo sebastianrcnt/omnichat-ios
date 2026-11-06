@@ -53,8 +53,16 @@ enum SyncDedupe {
     /// Moves what only `extra` has into `keep`: messages and compactions it alone holds, the newer title, pin, branch and
     /// model, and any frozen snapshot `keep` lacks (a frozen value is never replaced, so the cached prefix holds).
     static func merge(_ extra: Conversation, into keep: Conversation) {
-        let messageIDs = Set(keep.messages.map(\.id))
-        for message in extra.messages where !messageIDs.contains(message.id) { message.conversation = keep }
+        var messages = Dictionary(keep.messages.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for message in extra.messages {
+            if let existing = messages[message.id] {
+                guard moreComplete(message, than: existing, newer: extra.updatedAt > keep.updatedAt) else { continue }
+                // Move the whole record, including attachments, tool state and recovery metadata.
+                existing.conversation = extra
+            }
+            message.conversation = keep
+            messages[message.id] = message
+        }
         let compactionIDs = Set(keep.compactions.map(\.id))
         for record in extra.compactions where !compactionIDs.contains(record.id) { record.conversation = keep }
         if extra.updatedAt > keep.updatedAt {
@@ -86,6 +94,17 @@ enum SyncDedupe {
             keep.announcedToolsRaw = extra.announcedToolsRaw
         }
         keep.treeLinked = keep.treeLinked && extra.treeLinked
+    }
+
+    private static func moreComplete(_ candidate: Message, than existing: Message, newer: Bool) -> Bool {
+        func rank(_ message: Message) -> [Int] {
+            let complete = !message.text.isEmpty && !message.hasResume && !message.stoppedByUser && message.errorText == nil
+            let calls = message.steps.flatMap(\.calls)
+            return [complete ? 1 : 0, calls.count, message.text.utf8.count, message.reasoning.utf8.count,
+                    calls.reduce(0) { $0 + $1.result.utf8.count }, message.attachments.count]
+        }
+        let a = rank(candidate), b = rank(existing)
+        return a == b ? newer : b.lexicographicallyPrecedes(a)
     }
 
     // MARK: Skills
