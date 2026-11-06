@@ -303,6 +303,14 @@ final class ChatController {
         if run.isQueued {
             unqueue(run)
             if let message = run.message, let context = run.context, let conversation = message.conversation {
+                if let checkpoint = message.resumeCheckpoint {
+                    let render = renderStates[message.id] ?? MessageRenderState(smoothing: false)
+                    TurnTracker(message: message, conversation: conversation, render: render, checkpoint: checkpoint)
+                        .restoreSavedRound(checkpoint)
+                    message.cancelPending = true
+                    try? context.save()
+                    if let endpoint = run.endpoint { cancelOnServer(message, endpoint: endpoint, context: context) }
+                }
                 message.stoppedByUser = true
                 finish(run, message: message, conversation: conversation, context: context, error: nil)
             } else {
@@ -333,7 +341,7 @@ final class ChatController {
         skillOffers[conversationID] = nil
         compactionErrors[conversationID] = nil
         guard let run = runs[conversationID] else { return }
-        if !run.isQueued, let message = run.message, let context = run.context, let endpoint = run.endpoint {
+        if let message = run.message, let context = run.context, let endpoint = run.endpoint {
             try? run.persister?.flush()
             message.cancelPending = message.resumeData != nil
             if message.cancelPending { cancelOnServer(message, endpoint: endpoint, context: context) }

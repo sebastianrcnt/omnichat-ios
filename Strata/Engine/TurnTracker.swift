@@ -38,6 +38,27 @@ final class TurnTracker {
         if let checkpoint { segments = ProcessSegments.derive(steps: checkpoint.steps, reasoning: checkpoint.priorReasoning) }
     }
 
+    /// Materializes a saved round when it ends before the runner can replay it (for example, queued Stop).
+    func restoreSavedRound(_ checkpoint: TurnCheckpoint) {
+        beginRound(checkpoint.round)
+        addReasoning(checkpoint.accumulator.reasoning)
+        addContent(checkpoint.accumulator.content)
+        let calls = TurnRunner.uniqueIDs(checkpoint.accumulator.toolCalls, after: checkpoint.steps, round: checkpoint.round)
+        if !calls.isEmpty {
+            beginTools(calls)
+            for record in checkpoint.records { completeTool(record) }
+            for pending in checkpoint.pendingResults ?? [] {
+                guard !checkpoint.records.contains(where: { $0.id == pending.callID }),
+                      let call = calls.first(where: { $0.id == pending.callID }) else { continue }
+                completeTool(ToolCallRecord(id: call.id, name: call.name, arguments: call.arguments,
+                                           result: pending.output.text, isError: pending.output.isError, sourceIDs: []))
+            }
+            keepFinishedCallsOfOpenRound()
+        }
+        complete(finalText: nil)
+        message.steps = completedSteps
+    }
+
     func beginRound(_ n: Int) {
         finishThinking()
         roundContent = ""

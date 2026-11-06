@@ -408,6 +408,25 @@ struct ResumeTests {
         return (controller, context, conversation, reply, container)
     }
 
+    @Test(arguments: [false, true]) func queuedRecoveryStopStillCancelsTheServer(deleting: Bool) async throws {
+        let streamer = RecoveryStreamer()
+        let (controller, context, conversation, reply, container) = try outageChat(streamer: streamer)
+        _ = container
+        controller.maxConcurrentRuns = 0
+        reply.text = "" // the durable accumulator may be newer than the last displayed text
+        controller.regenerate(conversation: conversation, context: context)
+        #expect(controller.run(for: conversation)?.isQueued == true)
+        if deleting { controller.discardRun(for: conversation.id) }
+        else { controller.stop(conversation) }
+        for _ in 0..<100 where streamer.cancels.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(streamer.cancels == [rid])
+        #expect(streamer.checkpoints.isEmpty)
+        if !deleting {
+            #expect(reply.stoppedByUser)
+            #expect(reply.text == "partial")
+        }
+    }
+
     /// From the audit: Try again after an outage started a second reply and left the first to resume on its own later.
     @Test func tryAgainAfterAnOutageResumesTheSameReply() async throws {
         let streamer = RecoveryStreamer(deltas: [ChatDelta(content: " rest", sequence: 2), ChatDelta(isDone: true, sequence: 3)])
