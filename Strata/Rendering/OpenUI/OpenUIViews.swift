@@ -516,6 +516,15 @@ struct OUIDataNode: View {
     }
 }
 
+/// Includes headers and empty padded cells; divide first so hostile dimensions cannot overflow.
+enum OUITableLimit {
+    static let cells = 2_000
+    static func fits(rows: Int, columns: Int) -> Bool {
+        rows >= 0 && columns >= 0 && columns <= cells && rows < cells
+            && (columns == 0 || rows + 1 <= cells / columns)
+    }
+}
+
 /// `Table([Col(label, data, type)])`: column-oriented. Numeric columns align right; cells may hold components (tags).
 private struct OUITable: View {
     @Environment(\.theme) private var theme
@@ -526,36 +535,40 @@ private struct OUITable: View {
     var body: some View {
         let data = columns.map { $0.list("data") }
         let rows = data.map(\.count).max() ?? 0
-        let numeric = columns.indices.map { i in
-            columns[i].string("type") == "number"
-                || (!data[i].isEmpty && data[i].allSatisfy { if case .number = $0 { true } else { $0.isNull } })
-        }
-        ScrollView(.horizontal) {
-            Grid(alignment: .topLeading, horizontalSpacing: 0, verticalSpacing: 0) {
-                GridRow {
-                    ForEach(columns.indices, id: \.self) { i in
-                        cell(.string(columns[i].string("label") ?? ""), numeric: numeric[i], header: true)
-                            .gridColumnAlignment(numeric[i] ? .trailing : .leading)
-                    }
-                }
-                ForEach(0..<rows, id: \.self) { r in
-                    Rectangle().fill(theme.separator).frame(height: 1).gridCellUnsizedAxes(.horizontal)
-                    GridRow(alignment: .firstTextBaseline) {
+        if OUITableLimit.fits(rows: rows, columns: columns.count) {
+            let numeric = columns.indices.map { i in
+                columns[i].string("type") == "number"
+                    || (!data[i].isEmpty && data[i].allSatisfy { if case .number = $0 { true } else { $0.isNull } })
+            }
+            ScrollView(.horizontal) {
+                Grid(alignment: .topLeading, horizontalSpacing: 0, verticalSpacing: 0) {
+                    GridRow {
                         ForEach(columns.indices, id: \.self) { i in
-                            cell(r < data[i].count ? data[i][r] : .null, numeric: numeric[i], header: false)
+                            cell(.string(columns[i].string("label") ?? ""), numeric: numeric[i], header: true)
+                                .gridColumnAlignment(numeric[i] ? .trailing : .leading)
+                        }
+                    }
+                    ForEach(0..<rows, id: \.self) { r in
+                        Rectangle().fill(theme.separator).frame(height: 1).gridCellUnsizedAxes(.horizontal)
+                        GridRow(alignment: .firstTextBaseline) {
+                            ForEach(columns.indices, id: \.self) { i in
+                                cell(r < data[i].count ? data[i][r] : .null, numeric: numeric[i], header: false)
+                            }
                         }
                     }
                 }
+                .fixedSize(horizontal: false, vertical: true)
+                // The outline hugs the columns, so a narrow table doesn't end in an empty band.
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
+                .overlay { RoundedRectangle(cornerRadius: DS.Radius.md).stroke(theme.separator, lineWidth: 1) }
+                .padding(1)
             }
-            .fixedSize(horizontal: false, vertical: true)
-            // The outline hugs the columns, so a narrow table doesn't end in an empty band.
-            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
-            .overlay { RoundedRectangle(cornerRadius: DS.Radius.md).stroke(theme.separator, lineWidth: 1) }
-            .padding(1)
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollIndicators(.hidden)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            Text("Table is too large to display.").foregroundStyle(theme.textSecondary)
         }
-        .scrollBounceBehavior(.basedOnSize)
-        .scrollIndicators(.hidden)
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func cell(_ value: OUIValue, numeric: Bool, header: Bool) -> some View {

@@ -336,3 +336,14 @@ struct OpenUIImageTests {
         }
     }
 }
+
+struct OpenUITableLimitTests {
+    @Test func countsHeadersAndSparseCellsWithoutOverflow() {
+        #expect(OUITableLimit.fits(rows: 9, columns: 200))
+        #expect(!OUITableLimit.fits(rows: 10, columns: 200))
+        #expect(!OUITableLimit.fits(rows: 1_000, columns: 1_001))
+        #expect(!OUITableLimit.fits(rows: 0, columns: 2_001))
+        #expect(!OUITableLimit.fits(rows: Int.max, columns: Int.max))
+        #expect(OUITableLimit.fits(rows: 0, columns: 0))
+    }
+}
