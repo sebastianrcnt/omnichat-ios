@@ -25,7 +25,9 @@ final class LocalTestServer: @unchecked Sendable {
     init(_ parameters: NWParameters = .tcp, handle: @escaping @Sendable (NWConnection, LocalTestServer) -> Void) throws {
         parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
         listener = try NWListener(using: parameters)
-        listener.newConnectionHandler = { [unowned self] conn in
+        // Weak: a connection can arrive after the test finished and released the server.
+        listener.newConnectionHandler = { [weak self] conn in
+            guard let self else { conn.cancel(); return }
             lock.withLock { connections.append(conn) }
             conn.start(queue: queue)
             handle(conn, self)
@@ -332,10 +334,15 @@ struct PySocketBridgeTests {
         let bridge = PySocketBridge(approve: { _, _, _ in true })
         bridge.beginRun(conversationID: UUID(), callID: "call_1")
         defer { bridge.closeAll(); _ = bridge.endRun() }
-        let (first, _) = await call(bridge, ["op": "bind", "id": 1, "kind": "tcp", "host": "127.0.0.1", "port": 0])
-        let port = try #require(first["port"] as? Int)
-        _ = await call(bridge, ["op": "close", "id": 1])
-        let (reply, _) = await call(bridge, ["op": "bind", "id": 2, "kind": "tcp", "host": "127.0.0.1", "port": port])
+        // A random high port; one that's taken is skipped. (Closing a socket and binding its port again races the
+        // listener's teardown.) The regression this guards against was EINVAL for every chosen port.
+        var reply: [String: Any] = [:]
+        var port = 0
+        for id in 1...20 {
+            port = Int.random(in: 49_152...65_000)
+            (reply, _) = await call(bridge, ["op": "bind", "id": id, "kind": "tcp", "host": "127.0.0.1", "port": port])
+            if reply["errno"] as? String != "EADDRINUSE" { break }
+        }
         #expect(reply["errno"] == nil, "\(reply)")
         #expect(reply["port"] as? Int == port)
         #expect(reply["host"] as? String == "127.0.0.1")
