@@ -125,6 +125,7 @@ struct ComposerBar<Accessory: View>: View {
     @FocusState.Binding var isFocused: Bool
     #endif
     @State private var inputHandle = TextInputHandle()
+    @State private var openedAttachment: AttachmentImageViewer.Item?
     @Namespace private var controls
     @Environment(\.scenePhase) private var scenePhase
     @State private var dictation = DictationController(engine: ConfiguredDictationEngine())
@@ -169,10 +170,12 @@ struct ComposerBar<Accessory: View>: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: DS.Spacing.sm) {
                             ForEach(attachments) { a in
-                                AttachmentThumbnail(data: a.thumbnail ?? a.jpeg) { onRemoveAttachment(a.id) }
+                                AttachmentThumbnail(data: a.thumbnail ?? a.jpeg, onRemove: { onRemoveAttachment(a.id) },
+                                                    onOpen: { openedAttachment = .init(data: a.jpeg) })
                             }
                         }
                     }
+                    .sheet(item: $openedAttachment) { AttachmentImageViewer(data: $0.data) }
                 }
                 fieldArea
                 HStack(spacing: DS.Spacing.sm) {

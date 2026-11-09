@@ -140,21 +140,21 @@ struct AttachmentThumbnail: View {
     let data: Data
     var size: CGFloat = DS.IconSize.thumbnail
     var onRemove: (() -> Void)?
+    /// Opens the image full size; nil: a tap does nothing.
+    var onOpen: (() -> Void)?
     @Environment(\.displayScale) private var displayScale
     @State private var image: PlatformImage?
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            Group {
-                if let image {
-                    Image(platformImage: image).resizable().scaledToFill()
-                } else {
-                    theme.surfaceRaised
-                }
+            if let onOpen {
+                Button(action: onOpen) { picture }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text("Photo"))
+                    .accessibilityHint(Text("Shows the image full size"))
+            } else {
+                picture
             }
-            .frame(width: size, height: size)
-            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.thumbnail))
-            .contentShape(RoundedRectangle(cornerRadius: DS.Radius.thumbnail)) // the clipped overflow still takes taps
 
             if let onRemove {
                 Button(action: onRemove) {
@@ -174,6 +174,19 @@ struct AttachmentThumbnail: View {
                 PlatformImage.thumbnail(from: d, fitting: CGSize(width: size * scale * 2, height: size * scale * 2))
             }.value
         }
+    }
+
+    private var picture: some View {
+        Group {
+            if let image {
+                Image(platformImage: image).resizable().scaledToFill()
+            } else {
+                theme.surfaceRaised
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.thumbnail))
+        .contentShape(RoundedRectangle(cornerRadius: DS.Radius.thumbnail)) // the clipped overflow still takes taps
     }
 }
 

@@ -27,16 +27,8 @@ struct MessageBubble: View {
                 if !images.isEmpty {
                     HStack(spacing: DS.Spacing.sm) {
                         ForEach(Array(images.enumerated()), id: \.offset) { index, data in
-                            if let fullImage {
-                                Button { opened = .init(data: fullImage(index) ?? data) } label: {
-                                    AttachmentThumbnail(data: data, size: DS.IconSize.thumbnail * 1.5)
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel(Text("Photo \(index + 1)"))
-                                .accessibilityHint(Text("Shows the image full size"))
-                            } else {
-                                AttachmentThumbnail(data: data, size: DS.IconSize.thumbnail * 1.5)
-                            }
+                            AttachmentThumbnail(data: data, size: DS.IconSize.thumbnail * 1.5,
+                                                onOpen: fullImage.map { full in { opened = .init(data: full(index) ?? data) } })
                         }
                     }
                     .sheet(item: $opened) { AttachmentImageViewer(data: $0.data) }
