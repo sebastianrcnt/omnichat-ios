@@ -85,6 +85,8 @@ struct MacChatChrome<MenuContent: View>: ViewModifier {
                         .padding(.leading, DS.Spacing.xs)
                 }
                 .sharedBackgroundVisibility(.hidden)
+                // On a Mac `.primaryAction` sits at the leading edge, right after the title: push it to the trailing edge.
+                ToolbarSpacer(.flexible, placement: .primaryAction)
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button { showContext = true } label: { ContextRing(fraction: contextFraction) }
                         .help("Context usage")
