@@ -25,15 +25,17 @@ extension ChatView {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("New Chat")
-                    Button {
-                        composerFocused = false
-                        showContext = true
-                    } label: {
-                        ContextRing(fraction: conversation?.lastUsage == nil ? nil : contextFraction)
-                            .frame(width: DS.IconSize.controlDiameter, height: DS.IconSize.controlDiameter)
-                            .contentShape(Rectangle())
+                    if conversation?.lastUsage != nil { // nothing to show before the first reply
+                        Button {
+                            composerFocused = false
+                            showContext = true
+                        } label: {
+                            ContextRing(fraction: contextFraction)
+                                .frame(width: DS.IconSize.controlDiameter, height: DS.IconSize.controlDiameter)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                     GlassIconMenuPlain(systemName: "ellipsis", label: "More") { menuContent }
                 }
                 .glassEffect(.regular.interactive(), in: Capsule())

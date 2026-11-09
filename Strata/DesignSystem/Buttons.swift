@@ -84,38 +84,31 @@ struct ContextRing: View {
 
     var body: some View {
         ZStack {
-            Circle()
-                .stroke(theme.textSecondary.opacity(fraction == nil ? 0.3 : 0.45), lineWidth: lineWidth) // a full, visible track reads as a gauge, not a spinner
-            if let fraction, fraction > 0 {
-                ContextWedge(fraction: Self.arc(for: fraction))
-                    .fill(color)
-                    .padding(lineWidth * 1.5)
+            Circle().stroke(theme.textSecondary.opacity(0.25), lineWidth: lineWidth)
+            if let fraction {
+                if fraction > 0 {
+                    Circle()
+                        .trim(from: 0, to: Self.arc(for: fraction))
+                        .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                }
+                Text(verbatim: "\(Self.percent(fraction))")
+                    .font(.system(size: diameter * 0.38, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
+                    .foregroundStyle(fraction < 0.7 ? theme.textSecondary : color)
+                    .padding(lineWidth + 1)
             }
         }
         .frame(width: diameter, height: diameter)
         .animation(DS.Motion.ease, value: fraction)
         .accessibilityElement()
-        .accessibilityLabel(Text(fraction.map { "Context: \(Int(($0 * 100).rounded()))% used" } ?? "Context: no usage yet"))
-    }
-}
-
-/// A pie slice from 12 o'clock, clockwise.
-private struct ContextWedge: Shape {
-    var fraction: Double
-    var animatableData: Double {
-        get { fraction }
-        set { fraction = newValue }
+        .accessibilityLabel(Text(fraction.map { "Context: \(Self.percent($0))% used" } ?? "Context: no usage yet"))
     }
 
-    func path(in rect: CGRect) -> Path {
-        let center = CGPoint(x: rect.midX, y: rect.midY)
-        var path = Path()
-        path.move(to: center)
-        path.addArc(center: center, radius: min(rect.width, rect.height) / 2, startAngle: .degrees(-90),
-                    endAngle: .degrees(-90 + 360 * fraction), clockwise: false)
-        path.closeSubpath()
-        return path
-    }
+    /// The number inside: whole percent, never past 100.
+    nonisolated static func percent(_ fraction: Double) -> Int { Int((min(max(fraction, 0), 1) * 100).rounded()) }
 }
 
 /// The ring inside a 44pt glass circle, tappable.

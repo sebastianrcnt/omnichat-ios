@@ -44,6 +44,9 @@ struct ContextRingTests {
         #expect(ContextRing.arc(for: 0.001) == ContextRing.minimumVisibleArc)
         #expect(ContextRing.arc(for: 0.5) == 0.5)
         #expect(ContextRing.arc(for: 3) == 1)
+        #expect(ContextRing.percent(0.284) == 28)
+        #expect(ContextRing.percent(1.7) == 100)
+        #expect(ContextRing.percent(-1) == 0)
     }
 
     @Test func apiErrorsThatNeedSettings() {

@@ -1164,7 +1164,9 @@
     "Peak": {},
     "Personalization": {},
     "Photo": {},
-    "Photo %lld": {},
+    "Photo %lld": {
+      "extractionState": "stale"
+    },
     "Photo access is off. Use Add photo below.": {},
     "Pick the service OmniChat talks to. You'll enter its API key or sign in next. Keys stay in the Keychain on this device.": {},
     "Pick the service OpenChat talks to. You'll enter its API key or sign in next. Keys stay in the Keychain on this device.": {

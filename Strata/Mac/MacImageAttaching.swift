@@ -88,8 +88,10 @@ struct MacChatChrome<MenuContent: View>: ViewModifier {
                 // On a Mac `.primaryAction` sits at the leading edge, right after the title: push it to the trailing edge.
                 ToolbarSpacer(.flexible, placement: .primaryAction)
                 ToolbarItemGroup(placement: .primaryAction) {
-                    Button { showContext = true } label: { ContextRing(fraction: contextFraction) }
-                        .help("Context usage")
+                    if let contextFraction { // nothing to show before the first reply
+                        Button { showContext = true } label: { ContextRing(fraction: contextFraction) }
+                            .help("Context usage")
+                    }
                     Menu(content: menu) { Label("More", systemImage: "ellipsis") }
                         .menuIndicator(.hidden)
                         .help("More")

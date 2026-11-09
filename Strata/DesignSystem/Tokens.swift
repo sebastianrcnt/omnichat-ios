@@ -53,12 +53,12 @@ enum DS {
         static let composerIcon: CGFloat = 16
         /// Minimum touch target, kept via `contentShape` even where the visual is smaller.
         static let minHitTarget: CGFloat = 44
-        static let ring: CGFloat = 22
+        static let ring: CGFloat = 26
         /// Height of a small floating capsule ("Answer now"); grows with the text size.
         static let capsuleHeight: CGFloat = 30
         /// Site icon in a source chip.
         static let favicon: CGFloat = 16
-        static let ringStroke: CGFloat = 3
+        static let ringStroke: CGFloat = 2
         static let thumbnail: CGFloat = 64
         static let cameraTile: CGFloat = 112
         /// Site icon in a feed result row (a rounded square), and the status mark at the row's end.
