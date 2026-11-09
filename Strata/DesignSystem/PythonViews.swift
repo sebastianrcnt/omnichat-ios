@@ -127,6 +127,67 @@ struct UnplacedFigures: View {
     }
 }
 
+/// A photo attached to a message, full size: fits the sheet and zooms with a pinch. Share sits in the header.
+struct AttachmentImageViewer: View {
+    struct Item: Identifiable {
+        let id = UUID()
+        let data: Data
+    }
+
+    @Environment(\.theme) private var theme
+    @Environment(\.dismiss) private var dismiss
+    let data: Data
+    @State private var loaded: PlatformImage?
+    @State private var failed = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: DS.Spacing.sm) {
+                GlassIconButton(systemName: "xmark", label: "Close") { dismiss() }
+                Spacer()
+                if let loaded {
+                    let image = Image(platformImage: loaded)
+                    ShareLink(item: image, preview: SharePreview("Photo", image: image)) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: DS.IconSize.headerIcon, weight: .medium))
+                            .frame(width: DS.IconSize.controlDiameter, height: DS.IconSize.controlDiameter)
+                            .glassEffect(.regular.interactive(), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text("Share"))
+                }
+            }
+            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.top, DS.Spacing.lg)
+            .padding(.bottom, DS.Spacing.md)
+
+            Group {
+                if let loaded {
+                    ZoomableImage(image: loaded)
+                } else if failed {
+                    Text("The image can't be shown.").font(DS.Typography.uiSmall).foregroundStyle(theme.textSecondary)
+                } else {
+                    ProgressView()
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.bottom, DS.Spacing.lg)
+        }
+        .background(theme.background.ignoresSafeArea())
+        .presentationBackground(theme.background)
+        .presentationDetents([.large])
+        #if os(macOS)
+        .frame(minWidth: 520, idealWidth: 760, minHeight: 440, idealHeight: 620)
+        .background { Button("Close") { dismiss() }.keyboardShortcut(.cancelAction).opacity(0).accessibilityHidden(true) }
+        #endif
+        .task {
+            let d = data
+            loaded = await Task.detached { PlatformImage(data: d) }.value
+            failed = loaded == nil
+        }
+    }
+}
+
 /// One figure, full size: fits the sheet and zooms with a pinch. Save (to Photos on the phone, a file on a Mac) and Share
 /// sit in the header.
 struct ToolImageViewer: View {

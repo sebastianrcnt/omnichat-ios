@@ -137,6 +137,10 @@ extension ChatView {
         switch message.role {
         case .user:
             MessageBubble(text: message.text, images: ThumbnailBackfill.thumbnails(for: message),
+                          fullImage: { index in
+                              let attachments = message.sortedAttachments
+                              return attachments.indices.contains(index) ? attachments[index].jpegData : nil
+                          },
                           branch: branch, branchEnabled: !isStreamingHere,
                           onSwitchBranch: { switchBranch(message, by: $0) },
                           onCopy: { Pasteboard.copy(message.text) },

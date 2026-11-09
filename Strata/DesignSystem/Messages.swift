@@ -6,6 +6,8 @@ struct MessageBubble: View {
     @Environment(\.theme) private var theme
     let text: String
     var images: [Data] = []
+    /// The full-size image behind a thumbnail, read only when it's opened. Nil: thumbnails don't open.
+    var fullImage: ((Int) -> Data?)?
     var branch: BranchPosition?
     var branchEnabled = true
     var onSwitchBranch: (Int) -> Void = { _ in }
@@ -16,6 +18,7 @@ struct MessageBubble: View {
     var isEditing = false
     @State private var copies = 0
     @State private var selecting = false
+    @State private var opened: AttachmentImageViewer.Item?
 
     var body: some View {
         HStack {
@@ -23,10 +26,20 @@ struct MessageBubble: View {
             VStack(alignment: .trailing, spacing: DS.Spacing.sm) {
                 if !images.isEmpty {
                     HStack(spacing: DS.Spacing.sm) {
-                        ForEach(Array(images.enumerated()), id: \.offset) { _, data in
-                            AttachmentThumbnail(data: data, size: DS.IconSize.thumbnail * 1.5)
+                        ForEach(Array(images.enumerated()), id: \.offset) { index, data in
+                            if let fullImage {
+                                Button { opened = .init(data: fullImage(index) ?? data) } label: {
+                                    AttachmentThumbnail(data: data, size: DS.IconSize.thumbnail * 1.5)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(Text("Photo \(index + 1)"))
+                                .accessibilityHint(Text("Shows the image full size"))
+                            } else {
+                                AttachmentThumbnail(data: data, size: DS.IconSize.thumbnail * 1.5)
+                            }
                         }
                     }
+                    .sheet(item: $opened) { AttachmentImageViewer(data: $0.data) }
                 }
                 if !text.isEmpty {
                     Text(text)

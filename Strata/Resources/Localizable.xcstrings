@@ -1361,6 +1361,7 @@
     "Saved skill %@": {},
     "Saved to Documents/Debug/%@. API keys and Authorization values are always removed.": {},
     "Saves report.json, request bodies and memory stats to Documents/Debug. API keys and Authorization values are always removed.": {},
+    "Saves the steps that worked here, so similar requests go faster next time. You'll review it before it's saved.": {},
     "Saving credential %@…": {},
     "Saving…": {},
     "Script failed: %@": {},
