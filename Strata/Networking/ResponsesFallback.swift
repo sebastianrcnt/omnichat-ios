@@ -152,7 +152,7 @@ enum StandardResponses {
     static func run(_ request: ChatRequest, endpoint: Endpoint, session: URLSession,
                     into continuation: AsyncThrowingStream<ChatDelta, Error>.Continuation,
                     fallbackError: APIError? = nil, onAccepted: () -> Void = {}) async throws {
-        let body = try body(request)
+        let body = try await Task.detached { try body(request) }.value
         log.debug("standard request model=\(request.model, privacy: .public) fallback=\(fallbackError != nil, privacy: .public)")
         let (bytes, response) = try await session.bytes(for: urlRequest(endpoint: endpoint, body: body))
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0

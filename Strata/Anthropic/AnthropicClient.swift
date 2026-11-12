@@ -21,7 +21,8 @@ struct AnthropicClient: ChatStreaming {
                     var retries = Set<Retry>()
                     while true {
                         var req = Self.request(url: endpoint.requestURL, endpoint: endpoint, key: key)
-                        req.httpBody = try body.encoded()
+                        let currentBody = body
+                        req.httpBody = try await Task.detached { try currentBody.encoded() }.value
                         let (bytes, response) = try await session.bytes(for: req)
                         let http = response as? HTTPURLResponse
                         let status = http?.statusCode ?? 0

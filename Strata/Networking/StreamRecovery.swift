@@ -140,7 +140,9 @@ extension ChatClient: ResumableChatStreaming {
                 var attempt = 0
                 var failingSince: Date?
                 do {
-                    let postBody = try checkpoint.requestData ?? request.encoded()
+                    let postBody: Data
+                    if let saved = checkpoint.requestData { postBody = saved }
+                    else { postBody = try await request.encodedOffMain() }
                     while true {
                         try Task.checkCancellation()
                         do {

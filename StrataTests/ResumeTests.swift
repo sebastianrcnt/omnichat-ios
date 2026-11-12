@@ -8,13 +8,15 @@ private final class RecoveryStreamer: ResumableChatStreaming, @unchecked Sendabl
     var deltas: [ChatDelta]
     var waits: Bool
     var lookupID: String?
+    let failsWithOutage: Bool
     private var seen: [TurnCheckpoint] = []
     private var cancelledIDs: [String] = []
     private var plainCount = 0
 
-    init(deltas: [ChatDelta] = [], waits: Bool = false, lookupID: String? = nil) {
+    init(deltas: [ChatDelta] = [], waits: Bool = false, lookupID: String? = nil, failsWithOutage: Bool = false) {
         self.deltas = deltas
         self.waits = waits
+        self.failsWithOutage = failsWithOutage
         self.lookupID = lookupID
     }
     var checkpoints: [TurnCheckpoint] { lock.withLock { seen } }
@@ -30,6 +32,7 @@ private final class RecoveryStreamer: ResumableChatStreaming, @unchecked Sendabl
         return AsyncThrowingStream { c in
             let task = Task {
                 for delta in deltas { c.yield(delta) }
+                if failsWithOutage { c.finish(throwing: StreamOutage(minutes: 10)); return }
                 if waits {
                     do { try await Task.sleep(for: .seconds(60)) }
                     catch { c.finish(throwing: CancellationError()); return }
@@ -359,12 +362,12 @@ struct ResumeTests {
         context.insert(conversation); context.insert(message); try context.save()
         let streamer = RecoveryStreamer(waits: true, lookupID: beforeHeaders ? rid : nil)
         let controller = ChatController(connections: connections, settings: AppSettings(defaults: defaults), streamer: streamer, tools: FakeTools())
-        controller.restorePending(context: context)
+        await controller.restorePending(context: context)
         for _ in 0..<100 where streamer.checkpoints.isEmpty { try await Task.sleep(for: .milliseconds(10)) }
         #expect(controller.isStreaming)
         controller.stop()
         // Repeated foreground notifications while cancellation is pending must be harmless.
-        controller.restorePending(context: context)
+        await controller.restorePending(context: context)
         for _ in 0..<100 where controller.isStreaming || message.cancelPending { try await Task.sleep(for: .milliseconds(10)) }
         #expect(!controller.isStreaming)
         #expect(message.stoppedByUser && !message.cancelPending)
@@ -457,6 +460,40 @@ struct ResumeTests {
         #expect(streamer.checkpoints.count == 1 && streamer.checkpoints.first?.requestID == rid)
         #expect(conversation.messages.filter { $0.role == .assistant }.count == 1, "no sibling reply")
         #expect(reply.text == "partial rest" && reply.errorText == nil && reply.resumeData == nil)
+        let saved = try #require(try ModelContext(container).fetch(FetchDescriptor<Message>()).first { $0.id == reply.id })
+        #expect(saved.text == "partial rest" && !saved.hasResume && saved.resumeData == nil && saved.resumeDynamicData == nil)
+
+    }
+
+    @Test func automaticForegroundRetriesAreBoundedButTryAgainIsNot() async throws {
+        let streamer = RecoveryStreamer(failsWithOutage: true)
+        let (controller, context, conversation, reply, container) = try outageChat(streamer: streamer)
+        await controller.restorePending(context: context)
+        await controller.waitUntilIdle()
+        #expect(streamer.checkpoints.count == 1, "a genuinely resumable turn resumes on its first foreground")
+        for _ in 0..<5 {
+            await controller.restorePending(context: context)
+            await controller.waitUntilIdle()
+        }
+        #expect(streamer.checkpoints.count == 1)
+        #expect(try ModelContext(container).fetch(FetchDescriptor<Message>()).first { $0.id == reply.id }?.hasResume == true)
+        controller.regenerate(conversation: conversation, context: context)
+        await controller.waitUntilIdle()
+        #expect(streamer.checkpoints.count == 2, "explicit Try again bypasses automatic backoff")
+    }
+
+    @Test func aFreshTurnFinallySavesItsAnswerAndClearsCheckpoints() async throws {
+        let streamer = RecoveryStreamer(deltas: [ChatDelta(content: "new", sequence: 1), ChatDelta(isDone: true, sequence: 2)])
+        let (controller, context, conversation, reply, container) = try outageChat(streamer: streamer)
+        reply.clearResume()
+        try context.save()
+        controller.send(text: "next", images: [], conversation: conversation, context: context)
+        await controller.waitUntilIdle()
+        let fresh = ModelContext(container)
+        let answers = try fresh.fetch(FetchDescriptor<Message>()).filter { $0.role == .assistant }
+        let answer = try #require(answers.first { $0.id != reply.id })
+        #expect(answer.text == "new")
+        #expect(answer.resumeData == nil && answer.resumeDynamicData == nil && !answer.hasResume)
     }
 
     /// A fresh reply (here an edit of the question) cancels the reply the outage kept, so a later foreground doesn't
@@ -472,7 +509,7 @@ struct ResumeTests {
         #expect(streamer.cancels == [rid])
         #expect(reply.resumeData == nil && !reply.hasResume && !reply.cancelPending)
         let before = streamer.checkpoints.count
-        controller.restorePending(context: context)
+        await controller.restorePending(context: context)
         await controller.waitUntilIdle()
         #expect(streamer.checkpoints.count == before, "nothing is resumed")
         #expect(reply.text == "partial")

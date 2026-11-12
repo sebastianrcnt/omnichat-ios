@@ -176,7 +176,7 @@ struct TurnRunner: Sendable {
                     let outcome = try await Compactor(streamer: streamer).compact(
                         endpoint: endpoint, base: base, meter: meter, window: compaction.window,
                         extra: pending.map { [$0] } ?? []) { request in
-                        if let log, let body = try? request.encoded() { log(.sent(id: UUID(), url: url, body: body)) }
+                        if let log, let body = try? await request.encodedOffMain() { log(.sent(id: UUID(), url: url, body: body)) }
                     }
                     messages = system + outcome.replacement + (pending.map { [$0] } ?? [])
                     meter = .estimate(messages)
@@ -206,13 +206,15 @@ struct TurnRunner: Sendable {
                     checkpoint.idempotencyKey = UUID().uuidString.lowercased()
                 }
                 if checkpoint.requestData == nil {
-                    checkpoint.requestData = try request.encoded()
+                    checkpoint.requestData = try await request.encodedOffMain()
+                    try Task.checkCancellation()
                     checkpoint.reasoningByMessage = TurnCheckpoint.reasoning(of: messages)
                     checkpoint.endpointFingerprint = TurnCheckpoint.fingerprint(endpoint)
                 }
                 let firstSend = !checkpoint.submissionStarted
                 checkpoint.submissionStarted = true
                 try onEvent(.checkpoint(checkpoint))
+                try Task.checkCancellation()
                 let logID = UUID()
                 if firstSend, let log = requestLog, let body = checkpoint.requestData {
                     log(.sent(id: logID, url: endpoint.requestURL.absoluteString, body: body))

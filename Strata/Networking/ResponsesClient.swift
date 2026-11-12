@@ -16,7 +16,7 @@ struct ResponsesClient: ChatStreaming {
                         effort=\(translated.reasoning?.effort ?? "-", privacy: .public) \
                         summary=\(translated.reasoning?.summary ?? "-", privacy: .public)
                         """)
-                    let body = try translated.encoded()
+                    let body = try await Task.detached { try translated.encoded() }.value
                     var token = try await tokens.accessToken(connectionID: endpoint.connectionID)
                     var retried = false
                     while true {

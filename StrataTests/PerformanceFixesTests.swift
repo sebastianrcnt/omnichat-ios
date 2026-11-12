@@ -86,7 +86,8 @@ struct PendingTurnQueryTests {
         cancelling.cancelPending = true
         context.insert(pending); context.insert(cancelling)
         try context.save()
-        let found = ChatController.pendingMessages(context: context, defaults: defaults)
+        try ChatController.migrateResumeFlags(context: context, defaults: defaults)
+        let found = try PendingRecoveryQuery.identifiers(container: context.container, device: DeviceIdentity.current).compactMap { context.model(for: $0) as? Message }
         #expect(Set(found.map(\.sortIndex)) == [99, 100])
     }
 
@@ -99,8 +100,10 @@ struct PendingTurnQueryTests {
         old.resumeData = Data("legacy".utf8) // saved by a build without hasResume
         context.insert(old)
         try context.save()
-        #expect(ChatController.pendingMessages(context: context, defaults: defaults).map(\.sortIndex) == [1])
+        try ChatController.migrateResumeFlags(context: context, defaults: defaults)
         #expect(old.hasResume)
+        #expect(try PendingRecoveryQuery.identifiers(container: context.container, device: DeviceIdentity.current).compactMap { context.model(for: $0) as? Message }.map(\.sortIndex) == [1])
+        #expect(try ModelContext(container).fetch(FetchDescriptor<Message>()).first?.hasResume == true)
     }
 }
 

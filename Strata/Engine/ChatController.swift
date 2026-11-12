@@ -137,6 +137,8 @@ final class ChatController {
     @ObservationIgnored var packages: PackageStore = .shared
     /// "Only send health data to on-device or local models" (Settings > Health); tests set it.
     @ObservationIgnored var healthLocalOnly: () -> Bool = { HealthSettings.localOnly }
+    @ObservationIgnored var queryingPending = false
+    @ObservationIgnored var recoveryAttempts = RecoveryAttempts()
     @ObservationIgnored var cancelTasks: [UUID: Task<Void, Never>] = [:]
     private let background = ReplyBackgroundExecution()
 
@@ -713,7 +715,7 @@ final class ChatController {
             do {
                 let outcome = try await Compactor(streamer: streamer).compact(
                     endpoint: endpoint, base: request, meter: usable.map { ContextMeter(usage: $0) } ?? meter, window: window) { sent in
-                    if let body = try? sent.encoded() { ring.record(conversationID: conversationID, url: url, body: body, id: UUID()) }
+                    if let body = try? await sent.encodedOffMain() { ring.record(conversationID: conversationID, url: url, body: body, id: UUID()) }
                 }
                 guard !run.discarded else { return }
                 self?.storeCompaction(outcome, conversation: conversation, anchor: leaf.id, anchorSteps: -1, automatic: false, context: context)

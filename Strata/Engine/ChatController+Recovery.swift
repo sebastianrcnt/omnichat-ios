@@ -62,8 +62,22 @@ extension ChatController {
 
     /// Called at launch and foreground. Live runs reconnect themselves; every other unfinished reply is picked up, each
     /// in its own chat (later ones queue like any send).
-    func restorePending(context: ModelContext) {
-        let messages = Self.pendingMessages(context: context)
+    func restorePending(context: ModelContext) async {
+        guard !queryingPending else { return }
+        queryingPending = true
+        defer { queryingPending = false }
+        // A background save does not refresh already-loaded main-context models. Backfill on their owner once;
+        // normal activations only check the defaults flag before doing a read-only background query.
+        do { try Self.migrateResumeFlags(context: context) } catch { return }
+        let container = context.container
+        let device = DeviceIdentity.current
+        let identifiers = (try? await Task.detached(priority: .utility) {
+            try PendingRecoveryQuery.identifiers(container: container, device: device)
+        }.value) ?? []
+        // In particular, an empty result never fetches, faults or saves on the main context.
+        let messages = identifiers.filter { recoveryAttempts.isEligible($0) }.compactMap {
+            context.model(for: $0) as? Message
+        }
         for message in messages where message.cancelPending {
             if let conversation = message.conversation,
                let endpoint = connections.endpoint(connectionID: conversation.connectionID, modelID: conversation.modelID,
@@ -77,8 +91,20 @@ extension ChatController {
             guard let conversation = message.conversation, !claimed.contains(conversation.id),
                   let checkpoint = message.resumeCheckpoint else { continue }
             claimed.insert(conversation.id)
+            recoveryAttempts.record(message.persistentModelID)
             generate(conversation: conversation, context: context, restoring: message, checkpoint: checkpoint)
         }
+    }
+
+    /// One-time legacy backfill. Keep loaded main models coherent with the store, including their next save.
+    static func migrateResumeFlags(context: ModelContext, defaults: UserDefaults = .standard) throws {
+        let key = "strata.resumeFlagMigrated.v1"
+        guard !defaults.bool(forKey: key) else { return }
+        for message in try context.fetch(FetchDescriptor<Message>()) where message.resumeData != nil && !message.hasResume {
+            message.hasResume = true
+        }
+        try context.save()
+        defaults.set(true, forKey: key)
     }
 
     /// The checkpoint of a reply this device can still pick up (`restorePending` would), or nil.
@@ -109,24 +135,33 @@ extension ChatController {
         }
     }
 
-    /// Unfinished turns only, found by a predicate (not by loading every message on each foreground). Only this device's
-    /// own: a turn another device is running syncs here with its checkpoint, and must not run twice.
-    /// Turns saved before the `hasResume` flag existed are flagged once.
-    static func pendingMessages(context: ModelContext, defaults: UserDefaults = .standard,
-                                device: String = DeviceIdentity.current) -> [Message] {
-        let key = "strata.resumeFlagMigrated.v1"
-        if !defaults.bool(forKey: key) {
-            for message in (try? context.fetch(FetchDescriptor<Message>())) ?? [] where message.resumeData != nil && !message.hasResume {
-                message.hasResume = true
-            }
-            try? context.save()
-            defaults.set(true, forKey: key)
-        }
+}
+
+/// Only identifiers cross the executor boundary. This context never writes to models owned by the UI.
+enum PendingRecoveryQuery {
+    static func identifiers(container: ModelContainer, device: String) throws -> [PersistentIdentifier] {
+        let context = ModelContext(container)
+        context.autosaveEnabled = false
         let device: String? = device
         var descriptor = FetchDescriptor<Message>(predicate: #Predicate<Message> {
             ($0.cancelPending || $0.hasResume) && ($0.resumeDeviceID == nil || $0.resumeDeviceID == device)
         })
         descriptor.fetchLimit = 20
-        return (try? context.fetch(descriptor)) ?? []
+        return try context.fetchIdentifiers(descriptor)
+    }
+}
+
+/// The first foreground after an outage always retries. Only repeated automatic recoveries back off; Try again is
+/// explicit and bypasses this policy. State is local to this controller, never synced to another device.
+struct RecoveryAttempts {
+    private var attempts: [PersistentIdentifier: (count: Int, next: Date)] = [:]
+
+    func isEligible(_ id: PersistentIdentifier, now: Date = .now) -> Bool {
+        attempts[id].map { now >= $0.next } ?? true
+    }
+
+    mutating func record(_ id: PersistentIdentifier, now: Date = .now) {
+        let count = min((attempts[id]?.count ?? 0) + 1, 6)
+        attempts[id] = (count, now.addingTimeInterval(min(600, 30 * pow(2, Double(count - 1)))))
     }
 }

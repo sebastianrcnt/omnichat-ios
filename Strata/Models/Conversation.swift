@@ -325,6 +325,7 @@ enum MessageRole: String, Codable, Sendable { case user, assistant }
 
 @Model
 final class Message {
+    #Index<Message>([\.hasResume], [\.cancelPending])
     var id: UUID = UUID()
     var roleRaw: String = MessageRole.assistant.rawValue
     var text: String = ""

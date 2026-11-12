@@ -39,7 +39,7 @@ struct Compactor: Sendable {
     ///   - extra: messages that follow the compacted history (a user message about to be sent); counted in the size after.
     ///   - onRequest: told each request sent (diagnostics).
     func compact(endpoint: Endpoint, base: ChatRequest, meter: ContextMeter, window: Int, extra: [APIMessage] = [],
-                 onRequest: (@MainActor @Sendable (ChatRequest) -> Void)? = nil) async throws -> CompactionOutcome {
+                 onRequest: (@MainActor @Sendable (ChatRequest) async -> Void)? = nil) async throws -> CompactionOutcome {
         let system = base.messages.first?.role == "system" ? base.messages.first : nil
         let history = Array(base.messages.dropFirst(system == nil ? 0 : 1))
         guard !history.isEmpty else { throw CompactionError.nothingToCompact }
