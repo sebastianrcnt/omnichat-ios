@@ -61,22 +61,33 @@ struct MacComposerField: NSViewRepresentable {
         guard let view = scroll.documentView as? ComposerTextView else { return }
         view.onPasteImages = onPasteImages
 
+        // This runs on every keystroke (the binding changes). Setting the font or colour restyles and lays out the
+        // whole text again, so it is done only when the size or colour actually changed.
         let size = 17 * DS.typeScale(typeSize)
-        let font = NSFont(name: DS.Typography.regularFontName, size: size) ?? .systemFont(ofSize: size)
-        let style = NSMutableParagraphStyle()
-        style.lineSpacing = DS.Leading.spacing(multiple: DS.Leading.ui.multiple, size: size)
         let resolved = textColor.resolve(in: context.environment)
-        let color = NSColor(srgbRed: CGFloat(resolved.red), green: CGFloat(resolved.green), blue: CGFloat(resolved.blue), alpha: 1)
-        view.font = font
-        view.textColor = color
-        view.insertionPointColor = color
-        view.defaultParagraphStyle = style
-        view.typingAttributes = [.font: font, .foregroundColor: color, .paragraphStyle: style]
+        let look = Coordinator.Look(size: size, red: resolved.red, green: resolved.green, blue: resolved.blue)
+        let coordinator = context.coordinator
+        if coordinator.look != look {
+            coordinator.look = look
+            let font = NSFont(name: DS.Typography.regularFontName, size: size) ?? .systemFont(ofSize: size)
+            let style = NSMutableParagraphStyle()
+            style.lineSpacing = DS.Leading.spacing(multiple: DS.Leading.ui.multiple, size: size)
+            let color = NSColor(srgbRed: CGFloat(resolved.red), green: CGFloat(resolved.green), blue: CGFloat(resolved.blue), alpha: 1)
+            coordinator.attributes = [.font: font, .foregroundColor: color, .paragraphStyle: style]
+            view.font = font
+            view.textColor = color
+            view.insertionPointColor = color
+            view.defaultParagraphStyle = style
+            view.typingAttributes = coordinator.attributes
+            coordinator.measured = nil
+        }
 
-        if view.string != text && !view.hasMarkedText() {
+        // The view's own edits reach `text` through the delegate, so they compare equal here; only an outside change
+        // (sent, cleared, restored draft) replaces the text.
+        if !view.hasMarkedText(), view.string != text {
             view.string = text
-            view.textStorage?.addAttributes([.font: font, .foregroundColor: color, .paragraphStyle: style],
-                                            range: NSRange(location: 0, length: (text as NSString).length))
+            view.textStorage?.setAttributes(coordinator.attributes, range: NSRange(location: 0, length: (text as NSString).length))
+            coordinator.measured = nil
         }
         // AppKit focus notifications reach the binding asynchronously. Until that delivery, the binding is stale:
         // do not interpret it as a new request to undo a click. Otherwise only a binding edge moves focus.
@@ -92,17 +103,32 @@ struct MacComposerField: NSViewRepresentable {
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView scroll: NSScrollView, context: Context) -> CGSize? {
-        guard let view = scroll.documentView as? NSTextView, let layout = view.layoutManager else { return nil }
+        guard let view = scroll.documentView as? NSTextView, let layout = view.layoutManager,
+              let container = view.textContainer else { return nil }
         let width = max(proposal.width ?? 400, 1)
+        let coordinator = context.coordinator
+        let string = view.string
+        // SwiftUI asks several times per layout pass, often for the same width and text.
+        if let m = coordinator.measured, m.width == width, m.text == string { return m.size }
         let font = view.font ?? .systemFont(ofSize: 17)
         let spacing = view.defaultParagraphStyle?.lineSpacing ?? 0
         let line = layout.defaultLineHeight(for: font) + spacing
-        // Measured on a copy of the text, so the real container keeps the width the view gave it.
-        let used = view.attributedString().boundingRect(with: NSSize(width: width, height: CGFloat.greatestFiniteMagnitude),
-                                                        options: [.usesLineFragmentOrigin, .usesFontLeading]).height
-        // A trailing newline starts a line the bounding box does not count.
-        let extra = view.string.hasSuffix("\n") ? line : 0
-        return CGSize(width: width, height: min(max(used + extra, line), line * CGFloat(maxLines)).rounded(.up))
+        let used: CGFloat
+        if abs(container.size.width - width) < 0.5 {
+            // The usual case: the field already has this width, and the layout the text view keeps for drawing (done
+            // incrementally as the text changes) gives the height. A trailing newline's empty line is included.
+            layout.ensureLayout(for: container)
+            used = layout.usedRect(for: container).height
+        } else {
+            // Another width is proposed: measured on a copy, so the real container keeps the width the view gave it.
+            let box = view.attributedString().boundingRect(with: NSSize(width: width, height: CGFloat.greatestFiniteMagnitude),
+                                                           options: [.usesLineFragmentOrigin, .usesFontLeading]).height
+            // A trailing newline starts a line the bounding box does not count.
+            used = box + (string.hasSuffix("\n") ? line : 0)
+        }
+        let size = CGSize(width: width, height: min(max(used, line), line * CGFloat(maxLines)).rounded(.up))
+        coordinator.measured = (width, string, size)
+        return size
     }
 
     @MainActor
@@ -111,6 +137,13 @@ struct MacComposerField: NSViewRepresentable {
         /// The focus last delivered to SwiftUI or requested by it.
         var requestedFocus: Bool?
         var pendingFocus: Bool?
+
+        /// Font size and colour last applied to the text view.
+        struct Look: Equatable { var size: CGFloat; var red: Float; var green: Float; var blue: Float }
+        var look: Look?
+        var attributes: [NSAttributedString.Key: Any] = [:]
+        /// The last height measured, for the width and text it was measured at.
+        var measured: (width: CGFloat, text: String, size: CGSize)?
 
         init(_ parent: MacComposerField) { self.parent = parent }
 

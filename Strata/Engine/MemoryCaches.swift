@@ -55,6 +55,7 @@ enum MemoryPurge {
         PageCache.shared.removeAll()
         ImageDataURLCache.shared.purge()
         FaviconImages.purge()
+        ParsedDocumentCache.shared.removeAll()
         for purge in extra { purge() }
     }
 

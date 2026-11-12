@@ -600,3 +600,21 @@ struct ReasoningMarkdownTests {
         #expect(ReasoningMarkdownText.paragraphs("**Bold** start")[0][0].marker == nil)
     }
 }
+
+@MainActor
+struct ParsedDocumentCacheTests {
+    @Test func parsedDocumentsAreKeptByText() {
+        let cache = ParsedDocumentCache()
+        cache.characterLimit = 1000
+        let a = String(repeating: "Paragraph a.\n\n", count: 20)
+        let b = String(repeating: "Paragraph b.\n\n", count: 20)
+        #expect(cache.blocks(for: a) == IncrementalBlockParser.parse(a))
+        #expect(cache.blocks(for: a) == IncrementalBlockParser.parse(a))
+        _ = cache.blocks(for: b)
+        // A text over a quarter of the limit is parsed but not kept.
+        let huge = String(repeating: "x", count: 400)
+        #expect(cache.blocks(for: huge) == IncrementalBlockParser.parse(huge))
+        cache.removeAll()
+        #expect(cache.blocks(for: "short") == IncrementalBlockParser.parse("short"))
+    }
+}

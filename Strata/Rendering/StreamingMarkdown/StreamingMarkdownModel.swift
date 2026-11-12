@@ -111,7 +111,7 @@ final class StreamingMarkdownModel {
         pipeline = nil
         reveal = RevealController(pacing: RevealPacing())
         text = newText
-        finalized = IncrementalBlockParser.parse(newText)
+        finalized = ParsedDocumentCache.shared.blocks(for: newText)
         tail = []
         freshSpans = []
         hasContent = !finalized.isEmpty
@@ -398,5 +398,45 @@ final class MessageRenderState {
         let model = StreamingMarkdownModel(text: text, smoothing: false)
         translated = (text, model)
         return model
+    }
+}
+
+/// Blocks of finished messages, by text. A chat's render state is let go when another chat opens; coming back, its
+/// messages are parsed again as their rows appear. This keeps the parse, bounded by characters held.
+@MainActor
+final class ParsedDocumentCache {
+    static let shared = ParsedDocumentCache()
+
+    /// About 16 MB of text (and as much again in blocks).
+    var characterLimit = 8_000_000
+    private var entries: [String: [MarkdownBlock]] = [:]
+    /// Least recently used first.
+    private var order: [String] = []
+    private var characters = 0
+
+    func blocks(for text: String) -> [MarkdownBlock] {
+        if let hit = entries[text] {
+            if order.last != text, let i = order.firstIndex(of: text) { order.remove(at: i); order.append(text) }
+            return hit
+        }
+        let blocks = IncrementalBlockParser.parse(text)
+        // Short texts parse faster than they are looked up; a huge one would push everything else out.
+        let size = text.utf16.count
+        guard size >= 200, size <= characterLimit / 4 else { return blocks }
+        entries[text] = blocks
+        order.append(text)
+        characters += size
+        while characters > characterLimit, !order.isEmpty {
+            let old = order.removeFirst()
+            characters -= old.utf16.count
+            entries[old] = nil
+        }
+        return blocks
+    }
+
+    func removeAll() {
+        entries = [:]
+        order = []
+        characters = 0
     }
 }

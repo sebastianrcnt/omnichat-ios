@@ -32,7 +32,11 @@ network delta -> RevealController (smoothing) -> IncrementalBlockParser (backgro
    MarkdownUI through an `Equatable` `MarkdownBlockView`, so unchanged blocks are never re-evaluated. The
    one open (last) block uses a cheap path: inline Markdown into `AttributedString`, open fences as plain
    monospaced text, unfinished tables as raw rows. The newly revealed span fades in over 0.45 s, easing out
-   (one opacity ramp per recent span on the tail's text, not a view per token; off with Reduce Motion).
+   (one opacity ramp per recent span on the tail's text, not a view per token, at 30 frames a second; off with
+   Reduce Motion). Drawing the ramp in a `TextRenderer` instead (no layout per frame) was measured slower on the
+   main thread (run-loop turn p99 about 35 ms against 6 to 10 ms), so it is not used. Finished messages loaded from history are parsed through
+   `ParsedDocumentCache` (by text, bounded by characters, emptied on a memory warning), so reopening a chat
+   does not parse its messages again.
 
 ## Details
 

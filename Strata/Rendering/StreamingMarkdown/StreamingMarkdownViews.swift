@@ -608,7 +608,10 @@ struct InlineMarkdownText: View {
         } else {
             let now = Date()
             let allFaded = !spans.contains { $0.isFading(at: now) }
-            TimelineView(.animation(paused: allFaded)) { context in
+            // 30 frames a second: each frame lays the paragraph out again, and the text itself changes only every
+            // 33 ms reveal tick, so display-rate frames (60 to 120 Hz) doubled or quadrupled that work for no
+            // visible gain in a 0.45 s fade.
+            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: allFaded)) { context in
                 styled(Self.faded(attributed, spans: spans, color: color, now: context.date), selectable: false)
             }
         }
