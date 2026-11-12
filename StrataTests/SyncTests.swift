@@ -57,24 +57,29 @@ struct SyncDedupeTests {
         #expect(try SyncDedupe.conversations(context) == 0)
     }
 
-    @Test func backgroundImportMaintenanceKeepsTheSameDedupeAndBusySemantics() async throws {
+    @Test func mainContextMaintenanceKeepsLoadedModelsAndBusySemantics() throws {
         let container = try syncedStore()
         let context = container.mainContext
         context.autosaveEnabled = false
         let merged = twoCopies(context)
         let busy = twoCopies(context)
         try context.save()
-        let unsaved = Conversation(title: "not saved by maintenance")
-        context.insert(unsaved)
-        await SyncDedupe.afterImport(container: container, skipping: [busy.id], merged: [:])
-        let fresh = ModelContext(container)
-        let all = try fresh.fetch(FetchDescriptor<Conversation>())
+        let loaded = try #require(try context.fetch(FetchDescriptor<Conversation>()).first {
+            $0.id == merged.id && $0.syncOrigin == "A"
+        })
+        #expect(try SyncDedupe.conversations(context, skipping: [busy.id]) == 1)
+        let all = try context.fetch(FetchDescriptor<Conversation>())
         #expect(all.count == 3)
         #expect(all.filter { $0.id == busy.id }.count == 2)
         let kept = try #require(all.first { $0.id == merged.id })
         #expect(kept.syncOrigin == "A" && kept.title == "Renamed")
         #expect(Set(kept.messages.map(\.id)) == [merged.shared, merged.onlyFirst, merged.onlySecond])
-        #expect(context.hasChanges)
+        #expect(kept === loaded)
+        #expect(loaded.title == "Renamed")
+        loaded.title = "edited after tidy"
+        try context.save()
+        let saved = try ModelContext(container).fetch(FetchDescriptor<Conversation>()).filter { $0.id == merged.id }
+        #expect(saved.count == 1 && saved.first?.title == "edited after tidy")
     }
 
     @Test func everyDeviceKeepsTheSameCopy() throws {

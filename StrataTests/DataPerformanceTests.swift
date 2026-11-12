@@ -20,18 +20,16 @@ struct DataPerformanceTests {
         let unsaved = Message(role: .assistant, sortIndex: 0)
         unsaved.cancelPending = true
         main.insert(unsaved)
-        let suite = "strata.tests.\(UUID())"
-        defer { UserDefaults.standard.removePersistentDomain(forName: suite) }
         let found = try await Task.detached {
             #expect(!Self.isMainThread())
-            return try PendingRecoveryQuery.identifiers(container: container, device: "me", defaults: UserDefaults(suiteName: suite)!)
+            return try PendingRecoveryQuery.identifiers(container: container, device: "me")
         }.value
         #expect(found.isEmpty)
         #expect(main.hasChanges)
         #expect(unsaved.cancelPending)
     }
 
-    @Test func legacyFlagMigrationAndDeviceFilteringWorkInBackground() async throws {
+    @Test func legacyFlagMigrationStaysCoherentAndDeviceFilteringWorksInBackground() async throws {
         let container = try store()
         let context = container.mainContext
         let mine = Message(role: .assistant, sortIndex: 0)
@@ -47,12 +45,15 @@ struct DataPerformanceTests {
         let expected = Set([mine.persistentModelID, cancel.persistentModelID])
         let suite = "strata.tests.\(UUID())"
         defer { UserDefaults.standard.removePersistentDomain(forName: suite) }
+        let defaults = UserDefaults(suiteName: suite)!
+        try ChatController.migrateResumeFlags(context: context, defaults: defaults)
+        #expect(defaults.bool(forKey: "strata.resumeFlagMigrated.v1"))
+        #expect(mine.hasResume, "the main model sees the backfill immediately")
+        mine.text = "a later main-context edit"
+        try context.save()
         let found = try await Task.detached {
             #expect(!Self.isMainThread())
-            let defaults = UserDefaults(suiteName: suite)!
-            let ids = try PendingRecoveryQuery.identifiers(container: container, device: "me", defaults: defaults)
-            #expect(defaults.bool(forKey: "strata.resumeFlagMigrated.v1"))
-            return Set(ids)
+            return Set(try PendingRecoveryQuery.identifiers(container: container, device: "me"))
         }.value
         #expect(found == expected)
         #expect(try ModelContext(container).fetch(FetchDescriptor<Message>()).first { $0.sortIndex == 0 }?.hasResume == true)
@@ -77,52 +78,21 @@ struct DataPerformanceTests {
         }
     }
 
-    @Test func overlappingFlushesCannotOverwriteANewerCheckpoint() async throws {
+    @Test func completedMigrationDoesNotFetchOrSaveMainContext() throws {
         let container = try store()
-        let message = Message(role: .assistant, sortIndex: 0)
-        container.mainContext.insert(message)
-        try container.mainContext.save()
-        let writer = CheckpointStore(container: container, id: message.persistentModelID)
-        var writes: [Int] = []
-        var release: CheckedContinuation<Void, Never>?
-        let persister = CheckpointPersister(minInterval: 0, center: NotificationCenter(), autoTrailing: false) { snapshot in
-            if writes.isEmpty {
-                writes.append(snapshot.checkpoint.lastSequence)
-                await withCheckedContinuation { release = $0 }
-            } else {
-                writes.append(snapshot.checkpoint.lastSequence)
-            }
-            try await writer.write(snapshot, device: "me", sources: nil)
-        }
-        var first = try TurnCheckpoint(messages: [.user("hi")])
-        first.requestData = try ChatRequest(model: "m", messages: [.user("hi")]).encoded()
-        first.submissionStarted = true
-        _ = try first.apply(ChatDelta(content: "a", requestID: "request", sequence: 1))
-        let earlier = first
-        let one = Task { try await persister.update(earlier) }
-        for _ in 0..<1000 where release == nil { await Task.yield() }
-        #expect(release != nil)
-        var second = first
-        _ = try second.apply(ChatDelta(content: "b", sequence: 2))
-        let later = second
-        let two = Task { try await persister.update(later) }
-        for _ in 0..<1000 where persister.latest?.lastSequence != 2 { await Task.yield() }
-        #expect(persister.latest?.lastSequence == 2)
-        #expect(writes == [1], "the newer flush waits until the earlier write completes")
-        release?.resume()
-        try await one.value
-        try await two.value
-        try await persister.flush()
-        #expect(writes == [1, 2])
-        let saved = try #require(try ModelContext(container).fetch(FetchDescriptor<Message>()).first?.resumeCheckpoint)
-        #expect(saved.lastSequence == 2 && saved.accumulator.content == "ab")
-        persister.close()
-        writer.close()
-        await #expect(throws: CancellationError.self) {
-            try await writer.write(.init(checkpoint: earlier, staticData: nil,
-                                         dynamicData: JSONEncoder().encode(earlier.dynamicPart)), device: "me", sources: nil)
-        }
-        #expect(try ModelContext(container).fetch(FetchDescriptor<Message>()).first?.resumeCheckpoint?.lastSequence == 2)
+        let context = container.mainContext
+        context.autosaveEnabled = false
+        let suite = "strata.tests.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: "strata.resumeFlagMigrated.v1")
+        let unsaved = Message(role: .assistant, sortIndex: 0)
+        unsaved.resumeData = Data("legacy".utf8)
+        context.insert(unsaved)
+        try ChatController.migrateResumeFlags(context: context, defaults: defaults)
+        #expect(context.hasChanges)
+        #expect(!unsaved.hasResume, "no backfill scan once the migration flag is set")
+        #expect(try ModelContext(container).fetchCount(FetchDescriptor<Message>()) == 0)
     }
 
     @Test func requestEncodingOffMainPreservesExactBytes() async throws {

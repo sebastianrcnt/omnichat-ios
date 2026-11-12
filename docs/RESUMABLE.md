@@ -43,22 +43,35 @@ also survive process death, including before the initial response headers.
 Before sending, checkpoint callbacks now throw on SwiftData save failure: a POST
 is not issued if its key/body cannot be saved, and a failed save at a tool-result
 boundary stops the turn too (`CheckpointPersister`). This is verified by unit tests.
-The controller checkpoints on a dedicated serial background context: the dynamic
+The controller checkpoints synchronously through the main context: the dynamic
 half is throttled to about once a second, while submission and tool boundaries
-await a durable save before proceeding. Overlapping stream/lifecycle flushes are
-serialized, and Stop, deletion and finalization fence the writer before the final
-main-context save. Text and reasoning are recovered from the checkpoint's matching
+save durably before proceeding. The static half is encoded only when its request
+changes. Stream/lifecycle flushes and Stop/finalization stay ordered on the main
+actor, with no suspended checkpoint write to race a terminal save. Exact request
+encoding is detached off main and awaited before checkpointing and submission.
+Text and reasoning are recovered from the checkpoint's matching
 cursor/accumulator pair and materialized into their columns at the end of the turn.
 A relaunched app restores the same assistant message, selects its conversation, replays only subsequent events,
 runs pending tools, skips already persisted tool results, and starts the next
 model round automatically.
 
-Foreground discovery (including the one-time legacy `hasResume` flag migration)
-runs off main and returns only persistent identifiers. Separate indexes cover
+Foreground discovery is read-only, runs off main and returns only persistent
+identifiers. The one-time legacy `hasResume` flag backfill runs on the main context
+before querying, only when `strata.resumeFlagMigrated.v1` is unset. Once set, an
+empty discovery never fetches or saves on main. Separate indexes cover
 `hasResume` and `cancelPending`; the store retains automatic lightweight migration.
 The first foreground retries an interrupted turn immediately. Repeated automatic
 recovery attempts back off in memory from 30 seconds up to 10 minutes per message;
 explicit Try again bypasses that backoff.
+
+Checkpoints and import dedupe deliberately stay on the main context. A file-backed
+iOS 27 probe showed that its in-memory models do not merge another context's saved
+changes: a later main save silently overwrote a background checkpoint's fields
+with stale nil/false values. Background dedupe can also invalidate UI-held models
+by deleting their rows, or have merged data overwritten/resurrected by main saves.
+Import tidy therefore merges/deletes on main and remaps ChatGPT conversations
+afterward. `CheckpointMainContextTests` checks the real checkpoint path mid-turn:
+a later main save of the same message must preserve the checkpoint in the store.
 
 A call of a tool that can act outside the app (`ToolNames.mayActOutside`:
 Python, page scripts and clicks, plugins, skill scripts, `ssh_exec`/`ssh_upload`,
@@ -189,8 +202,9 @@ connection's resumable toggle when testing plain mode.
 - Checkpoint saves now fail the turn on save errors rather than sending an
   unpersisted submission. Storage failure or protected-data unavailability still
   cannot be guaranteed away.
-  Persisting full snapshots per event also adds I/O cost, especially with image
-  history. Durable server orchestration is needed for an unconditional promise.
+  Main-context saves still add I/O cost; dynamic snapshots are throttled, and
+  the large static half is encoded only when it changes. Durable server
+  orchestration is needed for an unconditional promise.
 
 No manual SwiftData migration is required for these additive optional/defaulted
 fields. Preserve the existing automatic lightweight migration behavior.

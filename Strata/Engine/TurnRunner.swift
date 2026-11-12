@@ -122,7 +122,7 @@ struct TurnRunner: Sendable {
              effort: Effort?,
              sources: SourceStore? = nil,
              checkpoint restored: TurnCheckpoint? = nil,
-             onEvent: @MainActor (TurnEvent) async throws -> Void) async throws -> TurnOutcome {
+             onEvent: @MainActor (TurnEvent) throws -> Void) async throws -> TurnOutcome {
         if let saved = restored?.endpointFingerprint, saved != TurnCheckpoint.fingerprint(endpoint) {
             throw APIError.server(String(localized: "This reply was started with a different server or model, so it can't be resumed. Try again to send it with the current one."))
         }
@@ -156,7 +156,7 @@ struct TurnRunner: Sendable {
             let retrying = checkpoint.emptyAnswerRetry == true
             let capped = toolsDisabled || retrying || round >= Self.maxToolRounds
             if capped && !toolsDisabled && !retrying { hitCap = true }
-            try await onEvent(.roundStarted(round))
+            try onEvent(.roundStarted(round))
 
             // Checked before the turn and before each continuation: the history is summarized when the last reported
             // usage plus what was appended since has reached the limit. A request already built (a replayed round) is
@@ -169,7 +169,7 @@ struct TurnRunner: Sendable {
                 let history = messages.count - system.count - (pending == nil ? 0 : 1)
                 if (!preTurn || pending != nil), history > 0,
                    Compaction.needsCompaction(meter, limit: compactionLimit, extraChars: pending.map(Compaction.messageChars) ?? 0) {
-                    try await onEvent(.compactionStarted)
+                    try onEvent(.compactionStarted)
                     let base = makeRequest(pending == nil ? messages : Array(messages.dropLast()), capped: capped)
                     let log = requestLog
                     let url = endpoint.requestURL.absoluteString
@@ -181,16 +181,16 @@ struct TurnRunner: Sendable {
                     messages = system + outcome.replacement + (pending.map { [$0] } ?? [])
                     meter = .estimate(messages)
                     lastUsage = nil // what was reported belongs to the history before it
-                    try await onEvent(.compacted(outcome, anchorSteps: steps.count, preTurn: preTurn))
+                    try onEvent(.compacted(outcome, anchorSteps: steps.count, preTurn: preTurn))
                 }
             }
             let request = makeRequest(messages, capped: capped)
 
             if restored != nil && round == restored?.round {
-                if !checkpoint.accumulator.reasoning.isEmpty { try await onEvent(.reasoning(checkpoint.accumulator.reasoning)) }
-                if !checkpoint.accumulator.content.isEmpty { try await onEvent(.content(checkpoint.accumulator.content)) }
+                if !checkpoint.accumulator.reasoning.isEmpty { try onEvent(.reasoning(checkpoint.accumulator.reasoning)) }
+                if !checkpoint.accumulator.content.isEmpty { try onEvent(.content(checkpoint.accumulator.content)) }
             }
-            try await onEvent(.checkpoint(checkpoint))
+            try onEvent(.checkpoint(checkpoint))
             if !checkpoint.streamDone {
                 // A restored round was submitted as a resumable request. With recovery now off for the connection,
                 // sending it again would start a second, unkeyed generation appended to the saved partial answer.
@@ -213,7 +213,7 @@ struct TurnRunner: Sendable {
                 }
                 let firstSend = !checkpoint.submissionStarted
                 checkpoint.submissionStarted = true
-                try await onEvent(.checkpoint(checkpoint))
+                try onEvent(.checkpoint(checkpoint))
                 try Task.checkCancellation()
                 let logID = UUID()
                 if firstSend, let log = requestLog, let body = checkpoint.requestData {
@@ -235,17 +235,17 @@ struct TurnRunner: Sendable {
                     try Task.checkCancellation()
                     guard try checkpoint.apply(delta) else { continue }
                     if !delta.toolCalls.isEmpty, let call = checkpoint.accumulator.toolCalls.last, let shown = draft.update(call) {
-                        try await onEvent(.drafting(name: shown.name, title: shown.title, bytes: shown.bytes,
+                        try onEvent(.drafting(name: shown.name, title: shown.title, bytes: shown.bytes,
                                               arguments: shown.name == ToolNames.showHTML ? call.arguments : ""))
                     }
-                    if let r = delta.reasoning, !r.isEmpty { try await onEvent(.reasoning(r)) }
-                    if let c = delta.content, !c.isEmpty { try await onEvent(.content(c)) }
-                    if let u = delta.usage { meter.record(u); try await onEvent(.usage(u)) }
-                    try await onEvent(.checkpoint(checkpoint))
+                    if let r = delta.reasoning, !r.isEmpty { try onEvent(.reasoning(r)) }
+                    if let c = delta.content, !c.isEmpty { try onEvent(.content(c)) }
+                    if let u = delta.usage { meter.record(u); try onEvent(.usage(u)) }
+                    try onEvent(.checkpoint(checkpoint))
                 }
                 try Task.checkCancellation()
                 checkpoint.streamDone = true
-                try await onEvent(.checkpoint(checkpoint))
+                try onEvent(.checkpoint(checkpoint))
             }
             let acc = checkpoint.accumulator
             if let u = acc.usage { lastUsage = u }
@@ -267,7 +267,7 @@ struct TurnRunner: Sendable {
                     checkpoint.steps = steps
                     checkpoint.priorReasoning = priorReasoning
                     checkpoint.emptyAnswerRetry = true
-                    try await onEvent(.checkpoint(checkpoint))
+                    try onEvent(.checkpoint(checkpoint))
                     continue
                 }
                 return TurnOutcome(steps: steps, finalContent: acc.content, finalReasoning: finalReasoning,
@@ -276,14 +276,14 @@ struct TurnRunner: Sendable {
 
             let thinking = endpoint.kind == .anthropic && !acc.reasoningItems.isEmpty
                 ? StepThinking(model: endpoint.model.id, items: acc.reasoningItems) : nil
-            if let thinking { try await onEvent(.stepThinking(thinking)) }
-            try await onEvent(.toolsRequested(calls))
+            if let thinking { try onEvent(.stepThinking(thinking)) }
+            try onEvent(.toolsRequested(calls))
             // Calls run side by side, a few at a time. Results are numbered and appended in call order, so the
             // history and the source ids are what a one-by-one run would produce; a result that finishes early waits
             // (and is checkpointed) until the calls before it are done.
             var records: [ToolCallRecord] = checkpoint.records
             var outputs = records.map(\.output)
-            for record in records { try await onEvent(.toolFinished(record)) }
+            for record in records { try onEvent(.toolFinished(record)) }
             var finished: [Int: ToolOutput] = [:]
             let flushed = Set(records.map(\.id))
             let stashed = Dictionary((checkpoint.pendingResults ?? []).map { ($0.callID, $0) }, uniquingKeysWith: { first, _ in first })
@@ -302,7 +302,7 @@ struct TurnRunner: Sendable {
             }
             var nextToAppend = calls.firstIndex { !flushed.contains($0.id) } ?? calls.count
 
-            func appendReady() async throws {
+            func appendReady() throws {
                 var appended = false
                 while nextToAppend < calls.count, var out = finished[nextToAppend] {
                     let call = calls[nextToAppend]
@@ -327,7 +327,7 @@ struct TurnRunner: Sendable {
                     records.append(record)
                     outputs.append(out)
                     checkpoint.pendingResults?.removeAll { $0.callID == call.id }
-                    try await onEvent(.toolFinished(record))
+                    try onEvent(.toolFinished(record))
                     appended = true
                 }
                 if appended {
@@ -340,33 +340,33 @@ struct TurnRunner: Sendable {
             /// and a call that can act outside the app and had started gets `stoppedCallNote` (its effect may have
             /// happened). A read-only call cut off is dropped: a call without a result cannot be sent back.
             var startedIndices: Set<Int> = []
-            func flushStopped() async throws {
+            func flushStopped() throws {
                 for i in nextToAppend..<calls.count where finished[i] == nil && startedIndices.contains(i)
                     && ToolNames.mayActOutside(calls[i].name) {
                     finished[i] = ToolOutput(text: Self.stoppedCallNote, isError: true)
                 }
                 while nextToAppend < calls.count {
-                    if finished[nextToAppend] == nil { nextToAppend += 1 } else { try await appendReady() }
+                    if finished[nextToAppend] == nil { nextToAppend += 1 } else { try appendReady() }
                 }
             }
 
             try Task.checkCancellation()
-            try await appendReady() // results restored from a checkpoint
+            try appendReady() // results restored from a checkpoint
             let offered = OfferedTools(base: tools, names: Set(toolList.map(\.function.name)), switches: switches, packages: packages)
             do {
                 try await ToolRound.execute(calls, indices: toRun, tools: offered, limit: maxConcurrentTools, onStart: { index in
                     startedIndices.insert(index)
                     guard ToolNames.mayActOutside(calls[index].name) else { return }
                     checkpoint.startedCalls = (checkpoint.startedCalls ?? []) + [calls[index].id]
-                    try await onEvent(.checkpoint(checkpoint)) // on disk before the call runs, or the round stops here
+                    try onEvent(.checkpoint(checkpoint)) // on disk before the call runs, or the round stops here
                 }) { index, out in
                     finished[index] = out
                     checkpoint.pendingResults = (checkpoint.pendingResults ?? []) + [RawToolResult(callID: calls[index].id, output: out)]
-                    try await appendReady()
-                    try await onEvent(.checkpoint(checkpoint))
+                    try appendReady()
+                    try onEvent(.checkpoint(checkpoint))
                 }
             } catch {
-                if error is CancellationError || Task.isCancelled { try? await flushStopped() }
+                if error is CancellationError || Task.isCancelled { try? flushStopped() }
                 throw error
             }
             try Task.checkCancellation()
@@ -382,7 +382,7 @@ struct TurnRunner: Sendable {
             checkpoint.round = round
             checkpoint.steps = steps
             checkpoint.priorReasoning = priorReasoning
-            try await onEvent(.checkpoint(checkpoint))
+            try onEvent(.checkpoint(checkpoint))
         }
     }
 }

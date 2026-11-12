@@ -278,7 +278,8 @@ struct StoreMigrationTests {
         }
         let mine = pending("me"), legacy = pending(nil), theirs = pending("other")
         try context.save()
-        let found = Set(try PendingRecoveryQuery.identifiers(container: context.container, device: "me", defaults: defaults).compactMap { context.model(for: $0) as? Message }.map(\.id))
+        try ChatController.migrateResumeFlags(context: context, defaults: defaults)
+        let found = Set(try PendingRecoveryQuery.identifiers(container: context.container, device: "me").compactMap { context.model(for: $0) as? Message }.map(\.id))
         #expect(found == [mine.id, legacy.id])
         #expect(!found.contains(theirs.id))
     }

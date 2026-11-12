@@ -11,8 +11,8 @@ enum ToolRound {
     /// once they have all returned.
     @MainActor
     static func execute(_ calls: [ToolCall], indices: [Int], tools: any ToolExecuting, limit: Int = maxConcurrent,
-                        onStart: @MainActor (Int) async throws -> Void = { _ in },
-                        onFinished: @MainActor (Int, ToolOutput) async throws -> Void) async throws {
+                        onStart: @MainActor (Int) throws -> Void = { _ in },
+                        onFinished: @MainActor (Int, ToolOutput) throws -> Void) async throws {
         guard !indices.isEmpty else { return }
         try await withThrowingTaskGroup(of: (Int, ToolOutput).self) { group in
             var next = 0
@@ -21,19 +21,17 @@ enum ToolRound {
                 let index = indices[next]
                 let call = calls[index]
                 next += 1
-                try await onStart(index)
-                try Task.checkCancellation()
+                try onStart(index)
                 group.addTask { try await runOne(index, call, tools) }
             }
             while let (index, output) = try await group.next() {
                 try Task.checkCancellation()
-                try await onFinished(index, output)
+                try onFinished(index, output)
                 if next < indices.count {
                     let nextIndex = indices[next]
                     let call = calls[nextIndex]
                     next += 1
-                    try await onStart(nextIndex)
-                    try Task.checkCancellation()
+                    try onStart(nextIndex)
                     group.addTask { try await runOne(nextIndex, call, tools) }
                 }
             }

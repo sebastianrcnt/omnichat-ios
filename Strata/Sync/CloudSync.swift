@@ -49,7 +49,7 @@ final class CloudSync {
         self.defaults = defaults
         chatsSyncing = StrataStore.syncEnabled(defaults)
 
-        Task { await tidyStore() }
+        tidyStore()
         let skills = SkillSync(container: container, defaults: defaults)
         skills.start()
         self.skills = skills
@@ -152,8 +152,10 @@ final class CloudSync {
         tidyTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled, let self else { return }
-            await self.tidyStore()
-            guard !Task.isCancelled else { return }
+            self.tidyStore()
+            if let context = self.container?.mainContext, let merged = self.connections?.mergedIDs {
+                _ = try? ChatGPTDedupe.remapConversations(context, merged) // chats synced from before a merge
+            }
             self.skills?.apply()
             self.files?.materialize()
             self.files?.removeOrphans() // chats deleted on another device
@@ -161,11 +163,12 @@ final class CloudSync {
     }
 
     /// Removes duplicate records. A conversation that is on screen or replying is left for the next time.
-    private func tidyStore() async {
-        guard let container else { return }
+    private func tidyStore() {
+        guard let context = container?.mainContext else { return }
         var busy = controller?.runningConversationIDs ?? []
         if let visible = controller?.visibleConversationID { busy.insert(visible) }
-        await SyncDedupe.afterImport(container: container, skipping: busy, merged: connections?.mergedIDs ?? [:])
+        _ = try? SyncDedupe.conversations(context, skipping: busy)
+        _ = try? SyncDedupe.files(context)
     }
 
     /// Points chats and settings at the connections that `merged`'s ids went into.

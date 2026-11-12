@@ -66,6 +66,9 @@ extension ChatController {
         guard !queryingPending else { return }
         queryingPending = true
         defer { queryingPending = false }
+        // A background save does not refresh already-loaded main-context models. Backfill on their owner once;
+        // normal activations only check the defaults flag before doing a read-only background query.
+        do { try Self.migrateResumeFlags(context: context) } catch { return }
         let container = context.container
         let device = DeviceIdentity.current
         let identifiers = (try? await Task.detached(priority: .utility) {
@@ -91,6 +94,17 @@ extension ChatController {
             recoveryAttempts.record(message.persistentModelID)
             generate(conversation: conversation, context: context, restoring: message, checkpoint: checkpoint)
         }
+    }
+
+    /// One-time legacy backfill. Keep loaded main models coherent with the store, including their next save.
+    static func migrateResumeFlags(context: ModelContext, defaults: UserDefaults = .standard) throws {
+        let key = "strata.resumeFlagMigrated.v1"
+        guard !defaults.bool(forKey: key) else { return }
+        for message in try context.fetch(FetchDescriptor<Message>()) where message.resumeData != nil && !message.hasResume {
+            message.hasResume = true
+        }
+        try context.save()
+        defaults.set(true, forKey: key)
     }
 
     /// The checkpoint of a reply this device can still pick up (`restorePending` would), or nil.
@@ -123,20 +137,11 @@ extension ChatController {
 
 }
 
-/// Only identifiers cross the executor boundary. The legacy flag migration also runs in this context, once.
+/// Only identifiers cross the executor boundary. This context never writes to models owned by the UI.
 enum PendingRecoveryQuery {
-    static func identifiers(container: ModelContainer, device: String,
-                            defaults: UserDefaults = .standard) throws -> [PersistentIdentifier] {
+    static func identifiers(container: ModelContainer, device: String) throws -> [PersistentIdentifier] {
         let context = ModelContext(container)
         context.autosaveEnabled = false
-        let key = "strata.resumeFlagMigrated.v1"
-        if !defaults.bool(forKey: key) {
-            for message in try context.fetch(FetchDescriptor<Message>()) where message.resumeData != nil && !message.hasResume {
-                message.hasResume = true
-            }
-            try context.save()
-            defaults.set(true, forKey: key)
-        }
         let device: String? = device
         var descriptor = FetchDescriptor<Message>(predicate: #Predicate<Message> {
             ($0.cancelPending || $0.hasResume) && ($0.resumeDeviceID == nil || $0.resumeDeviceID == device)

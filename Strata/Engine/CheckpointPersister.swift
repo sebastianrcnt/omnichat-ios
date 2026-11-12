@@ -15,7 +15,7 @@ import Foundation
 ///   couldn't find again; a failed throttled write is retried with the next one.
 @MainActor
 final class CheckpointPersister {
-    struct Snapshot: Sendable {
+    struct Snapshot {
         var checkpoint: TurnCheckpoint
         /// Set only when the static part changed since the previous write.
         var staticData: Data?
@@ -28,11 +28,9 @@ final class CheckpointPersister {
 
     private let now: () -> TimeInterval
     private let encodeStatic: (TurnCheckpoint) throws -> Data
-    private let write: (Snapshot) async throws -> Void
+    private let write: (Snapshot) throws -> Void
     private let autoTrailing: Bool
-    private(set) var latest: TurnCheckpoint?
-    private var revision = 0
-    private var flushing: Task<Void, Error>?
+    private var latest: TurnCheckpoint?
     private var dirty = false
     private var lastKey: CheckpointStaticKey?
     private var lastFlushAt: TimeInterval?
@@ -50,7 +48,7 @@ final class CheckpointPersister {
          center: NotificationCenter = .default,
          autoTrailing: Bool = true,
          encodeStatic: @escaping (TurnCheckpoint) throws -> Data = { try TurnCheckpoint.encodeStatic($0) },
-         write: @escaping (Snapshot) async throws -> Void) {
+         write: @escaping (Snapshot) throws -> Void) {
         self.minInterval = minInterval
         self.now = now
         self.autoTrailing = autoTrailing
@@ -59,16 +57,15 @@ final class CheckpointPersister {
         self.center = center
         for name in AppLifecycle.checkpointTriggers {
             observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                Task { @MainActor [weak self] in try? await self?.flush() }
+                MainActor.assumeIsolated { try? self?.flush() }
             })
         }
     }
 
     /// Records the newest checkpoint and writes it now or later, per the policy above. Throws when a new round's
     /// request or a tool result could not be written.
-    func update(_ checkpoint: TurnCheckpoint) async throws {
+    func update(_ checkpoint: TurnCheckpoint) throws {
         guard !closed, checkpoint.isPersistable else { return }
-        revision += 1
         latest = checkpoint
         dirty = true
         let t = now()
@@ -76,32 +73,25 @@ final class CheckpointPersister {
             || checkpoint.records.count != lastRecords || (checkpoint.pendingResults?.count ?? 0) != lastPending
             || (checkpoint.startedCalls?.count ?? 0) != lastStarted
         if boundary {
-            try await flush()
+            try flush()
         } else if checkpoint.streamDone != lastStreamDone || lastFlushAt == nil || t - (lastFlushAt ?? 0) >= minInterval {
-            try? await flush()
+            try? flush()
         } else if autoTrailing, trailing == nil {
             let delay = max(0.01, minInterval - (t - (lastFlushAt ?? t)))
             trailing = Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .seconds(delay))
                 self?.trailing = nil
-                try? await self?.flush()
+                try? self?.flush()
             }
         }
     }
 
     /// Writes the newest checkpoint if it has not been written yet. Throws `CheckpointWriteError` when it can't be
     /// encoded or the write fails; it then stays dirty.
-    func flush() async throws {
-        // Lifecycle/trailing flushes can enter while a database write is suspended. Wait for it before preparing
-        // another snapshot: static/dynamic halves and their completion bookkeeping must stay in submission order.
-        while let flushing {
-            _ = try? await flushing.value
-        }
-
+    func flush() throws {
         guard !closed, dirty, let checkpoint = latest else { return }
         trailing?.cancel()
         trailing = nil
-        let writingRevision = revision
         var staticData: Data?
         let key = checkpoint.staticKey
         if key != lastKey {
@@ -112,28 +102,20 @@ final class CheckpointPersister {
         }
         guard let dynamicData = try? JSONEncoder().encode(checkpoint.dynamicPart) else { throw CheckpointWriteError() }
         if staticData != nil { staticEncodeCount += 1 }
-        // The task owns both the write and its bookkeeping. Waiters cannot prepare a newer snapshot until both
-        // are finished, even when lifecycle and stream callbacks overlap across an actor suspension.
-        let snapshot = Snapshot(checkpoint: checkpoint, staticData: staticData, dynamicData: dynamicData)
-        let wroteStatic = staticData != nil
-        let task = Task {
-            defer { flushing = nil }
-            do {
-                try await write(snapshot)
-            } catch {
-                throw CheckpointWriteError()
-            }
-            dirty = !closed && revision != writingRevision
-            if wroteStatic { lastKey = key }
-            lastStreamDone = checkpoint.streamDone
-            lastRecords = checkpoint.records.count
-            lastPending = checkpoint.pendingResults?.count ?? 0
-            lastStarted = checkpoint.startedCalls?.count ?? 0
-            lastFlushAt = now()
-            writeCount += 1
+        // Clean only once it is on disk: a failed write keeps the round's request to write again.
+        do {
+            try write(Snapshot(checkpoint: checkpoint, staticData: staticData, dynamicData: dynamicData))
+        } catch {
+            throw CheckpointWriteError()
         }
-        flushing = task
-        try await task.value
+        dirty = false
+        if staticData != nil { lastKey = key }
+        lastStreamDone = checkpoint.streamDone
+        lastRecords = checkpoint.records.count
+        lastPending = checkpoint.pendingResults?.count ?? 0
+        lastStarted = checkpoint.startedCalls?.count ?? 0
+        lastFlushAt = now()
+        writeCount += 1
     }
 
     /// Stops all further writes (the turn ended and its checkpoint was cleared).
