@@ -75,7 +75,6 @@ struct ChatViewInvalidationTests {
         window.rootViewController = host
         window.windowLevel = .alert + 1
         window.isHidden = false
-        defer { window.isHidden = true }
         MessageRows.evaluations = 0
         MessageRow.evaluations = 0
         host.view.layoutIfNeeded()
@@ -99,6 +98,12 @@ struct ChatViewInvalidationTests {
         draft.text = ""
         await settle(host)
         #expect(MessageRows.evaluations == rowsBuilt)
+        // Take the chat down before its store goes: a task it left running must not read a model the closing
+        // container has destroyed.
+        window.rootViewController = nil
+        window.isHidden = true
+        try? await Task.sleep(for: .seconds(2))
+        withExtendedLifetime((container, host)) {}
         print("ChatViewInvalidation: rows built for 300 messages:", rowBodies, "row lists evaluated:", MessageRows.evaluations,
               "rows re-evaluated by composer and focus:", MessageRow.evaluations - rowBodies)
     }
