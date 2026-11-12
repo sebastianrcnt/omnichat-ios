@@ -16,11 +16,14 @@ extension View {
     }
 }
 
-/// Image attachments on a Mac: a file panel (the composer's plus button), and images dropped onto the chat.
-/// Files are resized to JPEG exactly as photos are on the phone.
+/// Image attachments on a Mac: a file panel (the composer's plus button), and images dragged onto the chat
+/// (`ImageDropCatcher`). Files are resized to JPEG exactly as photos are on the phone.
 struct MacImageAttaching: ViewModifier {
+    @Environment(\.theme) private var theme
     @Binding var isPresented: Bool
     let onPick: ([Data]) -> Void
+    /// An image is being dragged over the chat.
+    @State private var targeted = false
 
     func body(content: Content) -> some View {
         content
@@ -28,28 +31,145 @@ struct MacImageAttaching: ViewModifier {
                 guard case .success(let urls) = result else { return }
                 Task { await attach(urls) }
             }
-            .dropDestination(for: URL.self) { urls, _ in
-                let images = urls.filter { url in
-                    (try? url.resourceValues(forKeys: [.contentTypeKey]).contentType)?.conforms(to: .image) ?? false
+            .overlay {
+                ImageDropCatcher(onTarget: { targeted = $0 }, onImages: { files in Task { await attach(files) } })
+                    .allowsHitTesting(false)
+            }
+            .overlay {
+                if targeted {
+                    RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous)
+                        .strokeBorder(theme.accent, lineWidth: 2)
+                        .padding(DS.Spacing.sm)
+                        .allowsHitTesting(false)
                 }
-                guard !images.isEmpty else { return false }
-                Task { await attach(images) }
-                return true
             }
     }
 
     private func attach(_ urls: [URL]) async {
-        var out: [Data] = []
+        var files: [Data] = []
         for url in urls {
-            let jpeg = await Task.detached(priority: .userInitiated) { () -> Data? in
+            let data = await Task.detached(priority: .userInitiated) { () -> Data? in
                 let scoped = url.startAccessingSecurityScopedResource()
                 defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                guard let data = try? Data(contentsOf: url) else { return nil }
-                return ImageProcessor.jpegData(from: data)
+                return try? Data(contentsOf: url)
             }.value
-            if let jpeg { out.append(jpeg) }
+            if let data { files.append(data) }
+        }
+        await attach(files)
+    }
+
+    /// Image files as they were read; ones that aren't images after all are left out.
+    private func attach(_ files: [Data]) async {
+        var out: [Data] = []
+        for file in files {
+            if let jpeg = await Task.detached(priority: .userInitiated, operation: { ImageProcessor.jpegData(from: file) }).value {
+                out.append(jpeg)
+            }
         }
         if !out.isEmpty { onPick(out) }
+    }
+}
+
+/// Catches images dragged onto the chat. Three kinds of drag bring one: image files (Finder), files the drag promises to
+/// write (the floating thumbnail of a screenshot just taken, Photos, Mail), and the picture itself (a browser).
+/// SwiftUI's own drop of file URLs sees only the first kind, so this is an AppKit view over the chat. A click goes
+/// through it (`hitTest`); AppKit finds a drag's destination by the registered types instead, so the drag still lands.
+struct ImageDropCatcher: NSViewRepresentable {
+    let onTarget: @MainActor @Sendable (Bool) -> Void
+    /// The files' bytes as dragged (not yet resized), as each one arrives.
+    let onImages: @MainActor @Sendable ([Data]) -> Void
+
+    func makeNSView(context: Context) -> ImageDropView { ImageDropView() }
+
+    func updateNSView(_ view: ImageDropView, context: Context) {
+        view.onTarget = onTarget
+        view.onImages = onImages
+    }
+}
+
+final class ImageDropView: NSView {
+    var onTarget: (@MainActor @Sendable (Bool) -> Void)?
+    var onImages: (@MainActor @Sendable ([Data]) -> Void)?
+
+    private static let imageData: [NSPasteboard.PasteboardType] = [.png, .tiff]
+    private static let imageFiles: [NSPasteboard.ReadingOptionKey: Any] = [
+        .urlReadingFileURLsOnly: true, .urlReadingContentsConformToTypes: [UTType.image.identifier],
+    ]
+    /// Promised files are written and read here, off the main thread.
+    private let queue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.qualityOfService = .userInitiated
+        return queue
+    }()
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        registerForDraggedTypes(NSFilePromiseReceiver.readableDraggedTypes.map { NSPasteboard.PasteboardType($0) }
+                                + [.fileURL] + Self.imageData)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    /// The promises of image files in the drag. A promise that doesn't say what it is counts: it is checked once read.
+    private static func promises(_ board: NSPasteboard) -> [NSFilePromiseReceiver] {
+        let receivers = board.readObjects(forClasses: [NSFilePromiseReceiver.self], options: nil) as? [NSFilePromiseReceiver] ?? []
+        return receivers.filter { receiver in
+            let types = receiver.fileTypes.compactMap { UTType($0) ?? UTType(filenameExtension: $0) }
+            return types.isEmpty || types.contains { $0.conforms(to: .image) }
+        }
+    }
+
+    private static func holdsImages(_ board: NSPasteboard) -> Bool {
+        board.canReadObject(forClasses: [NSURL.self], options: imageFiles) || !promises(board).isEmpty
+            || board.availableType(from: imageData) != nil
+    }
+
+    override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        guard Self.holdsImages(sender.draggingPasteboard) else { return [] }
+        onTarget?(true)
+        return .copy
+    }
+
+    override func draggingExited(_ sender: (any NSDraggingInfo)?) { onTarget?(false) }
+    override func draggingEnded(_ sender: any NSDraggingInfo) { onTarget?(false) }
+
+    override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        let board = sender.draggingPasteboard
+        let onImages = onImages
+        onTarget?(false)
+        if let urls = board.readObjects(forClasses: [NSURL.self], options: Self.imageFiles) as? [URL], !urls.isEmpty {
+            queue.addOperation {
+                let files = urls.compactMap { url -> Data? in
+                    let scoped = url.startAccessingSecurityScopedResource()
+                    defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                    return try? Data(contentsOf: url)
+                }
+                Task { @MainActor in onImages?(files) }
+            }
+            return true
+        }
+        let promises = Self.promises(board)
+        if !promises.isEmpty {
+            // Each promised file is written into a folder of its own drop, read, and removed again.
+            let folder = FileManager.default.temporaryDirectory.appendingPathComponent("drop-" + UUID().uuidString, isDirectory: true)
+            guard (try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)) != nil else { return false }
+            for promise in promises {
+                promise.receivePromisedFiles(atDestination: folder, options: [:], operationQueue: queue) { url, error in
+                    defer { try? FileManager.default.removeItem(at: url) }
+                    guard error == nil, let file = try? Data(contentsOf: url) else { return }
+                    Task { @MainActor in onImages?([file]) }
+                }
+            }
+            return true
+        }
+        if let type = board.availableType(from: Self.imageData), let file = board.data(forType: type) {
+            onImages?([file])
+            return true
+        }
+        return false
     }
 }
 

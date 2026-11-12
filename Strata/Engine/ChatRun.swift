@@ -38,6 +38,8 @@ final class ChatRun {
     /// Whether the turn can still be cut short for an early answer (the pill still waits for its own timing).
     var canAnswerNow: Bool { kind == .turn && !isEarly && !isQueued }
 
+    /// The artifact being written, for its live preview.
+    @ObservationIgnored let artifactDraft = ArtifactDraftFeed()
     @ObservationIgnored var task: Task<Void, Never>?
     /// Starts a queued run once a slot is free.
     @ObservationIgnored var start: (() -> Void)?
@@ -62,6 +64,34 @@ final class ChatRun {
         self.conversationID = conversationID
         self.kind = kind
         self.messageID = messageID
+    }
+}
+
+/// The artifact a run's model is writing, for the live preview (`ArtifactDraftViewer`). The preview keeps the feed and
+/// reads it a few times a second, so none of it is observed: the page growing never re-renders the chat.
+@MainActor
+final class ArtifactDraftFeed {
+    enum State: Equatable {
+        case writing
+        case stored(ArtifactRef)
+        /// The call failed, or the run ended before it was made: no artifact comes.
+        case ended
+    }
+
+    /// The `show_html` arguments so far: JSON, cut off wherever the model is (`ToolDraft.html`).
+    private(set) var arguments = ""
+    /// What each finished `show_html` call of the run stored, oldest first; nil for one that failed.
+    private(set) var results: [ArtifactRef?] = []
+    private(set) var ended = false
+
+    func write(_ arguments: String) { self.arguments = arguments }
+    func finish(_ ref: ArtifactRef?) { results.append(ref) }
+    func end() { ended = true }
+
+    /// - Parameter seen: how many calls had finished when the preview opened; the one it shows comes after them.
+    func state(after seen: Int) -> State {
+        if let result = results.dropFirst(seen).last { return result.map(State.stored) ?? .ended }
+        return ended ? .ended : .writing
     }
 }
 

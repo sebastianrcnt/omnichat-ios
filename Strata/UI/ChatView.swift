@@ -7,6 +7,7 @@ struct ChatView: View {
     @Environment(\.appSettings) var settings
     @Environment(\.connectionStore) var connections
     @Environment(\.chatController) var controller
+    @Environment(\.artifactPanel) var artifactPanel
 
     @Binding var conversation: Conversation?
     let onOpenSidebar: () -> Void
@@ -51,6 +52,8 @@ struct ChatView: View {
     @State var editing: Message?
     @State var savedDraft: (text: String, attachments: [ComposerAttachment])?
     @State var timeline: TimelineRequest?
+    /// The live preview of an artifact being written, where there is no panel beside the chat for it.
+    @State var draftPreview: ArtifactDraftRequest?
     @State var compactionNotes: CompactionRecord?
     @State var citationItem: SourceListItem?
     @State var sourcesItem: SourceListItem?
@@ -244,6 +247,9 @@ struct ChatView: View {
                 ContextSheet(conversation: conversation, window: contextLength, maxOutput: selectedModel?.maxOutputTokens,
                              connection: connections.connection(selection.connectionID))
                     .environment(\.theme, theme)
+            }
+            .fullScreenCoverOrSheet(item: $draftPreview) { request in
+                ArtifactDraftViewer(request: request).environment(\.theme, theme)
             }
             .sheet(item: $timeline) { request in
                 let message = request.message

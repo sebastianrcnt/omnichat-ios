@@ -220,6 +220,7 @@
     "A key is saved in the Keychain. Enter a new one to replace it.": {},
     "A language code such as en or ko. Leave empty for the video's own captions.": {},
     "A link asks to add this server. Add it only if you trust where the link came from: what you send in chats goes to this server.": {},
+    "A preview of the page so far. Its scripts start once it's finished.": {},
     "A running reply on the Lock Screen and in the Dynamic Island when iOS isn't showing its own progress for it.": {},
     "A server with an OpenAI-compatible API, Anthropic, or your ChatGPT plan. API keys and sign-ins are stored in the Keychain.": {},
     "A server with an OpenAI-compatible API, your ChatGPT plan, or your OpenCode account. API keys and sign-ins are stored in the Keychain.": {},
@@ -961,6 +962,7 @@
     "Not available": {
       "extractionState": "stale"
     },
+    "Not finished": {},
     "Not medical advice": {},
     "Not now": {},
     "Not reported": {
@@ -1188,6 +1190,7 @@
     "Preparing replies": {},
     "Preparing reply": {},
     "Preparing view…": {},
+    "Preview": {},
     "Previous 30 Days": {},
     "Previous 7 Days": {},
     "Previous Artifact": {},
@@ -1450,6 +1453,7 @@
     "Shows the full reasoning": {},
     "Shows the image full size": {},
     "Shows the notes that replaced them": {},
+    "Shows the page so far": {},
     "Shows the page the browser was on, to use it yourself": {},
     "Shows the page the tool stopped on": {},
     "Shows the place and directions": {},
@@ -1667,6 +1671,7 @@
     },
     "The on-device model is still downloading. Keep the device on Wi-Fi and power, and try again in a few minutes.": {},
     "The on-device model isn't available right now (it may be updating). Try again later.": {},
+    "The page appears here as it's written.": {},
     "The page failed to load: %@": {},
     "The page took too long to load.": {},
     "The recipient changed or the destination is unavailable. Nothing has been sent. Confirm the recipient below, or keep the share for later and check your connection settings.": {},
@@ -1702,6 +1707,7 @@
     "This OpenCode account has no Go subscription. Subscribe in the OpenCode Console, or switch this connection to Pay as you go in Settings.": {},
     "This answer · %lld": {},
     "This artifact is no longer stored on this device.": {},
+    "This artifact wasn't finished.": {},
     "This chat": {
       "extractionState": "stale"
     },

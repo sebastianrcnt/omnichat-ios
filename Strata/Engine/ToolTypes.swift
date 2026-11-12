@@ -473,4 +473,102 @@ struct ToolDraft {
         }
         return ""
     }
+
+    /// The `html` string of `show_html` arguments still being written: what has come of it so far, unescaped, for the
+    /// live preview (`ArtifactDraftViewer`). "" before the value starts.
+    nonisolated static func html(in arguments: String) -> String { partialString("html", in: arguments) }
+
+    /// A top-level string value of a JSON object that may be cut off anywhere: the whole value, or as much of it as has
+    /// been written (an escape cut in half is left out). Works on bytes: the arguments of a large page are read again a
+    /// few times a second.
+    nonisolated static func partialString(_ key: String, in arguments: String) -> String {
+        let b = Array(arguments.utf8)
+        let n = b.count
+        let quote = UInt8(ascii: "\""), backslash = UInt8(ascii: "\\")
+        var i = 0
+
+        func space() { while i < n, b[i] == 0x20 || b[i] == 0x0A || b[i] == 0x0D || b[i] == 0x09 { i += 1 } }
+        func hex4(_ at: Int) -> UInt32? {
+            guard at + 4 <= n else { return nil }
+            var value: UInt32 = 0
+            for c in b[at..<at + 4] {
+                guard let digit = Character(Unicode.Scalar(c)).hexDigitValue else { return nil }
+                value = value << 4 | UInt32(digit)
+            }
+            return value
+        }
+        /// The string starting at `i` (its opening quote). A string the text ends inside is returned only when `partial`.
+        func string(partial: Bool) -> [UInt8]? {
+            i += 1
+            var out: [UInt8] = []
+            while i < n {
+                let c = b[i]
+                if c == quote { i += 1; return out }
+                guard c == backslash else { out.append(c); i += 1; continue }
+                guard i + 1 < n else { break }
+                switch b[i + 1] {
+                case UInt8(ascii: "n"): out.append(0x0A)
+                case UInt8(ascii: "t"): out.append(0x09)
+                case UInt8(ascii: "r"): out.append(0x0D)
+                case UInt8(ascii: "b"): out.append(0x08)
+                case UInt8(ascii: "f"): out.append(0x0C)
+                case UInt8(ascii: "u"):
+                    guard let unit = hex4(i + 2) else { i = n; continue }
+                    var scalar = unit
+                    var length = 6
+                    if (0xD800...0xDBFF).contains(unit) {
+                        // The second half of a pair may not have come yet: the character waits for it.
+                        guard i + 12 <= n else { i = n; continue }
+                        if b[i + 6] == backslash, b[i + 7] == UInt8(ascii: "u"), let low = hex4(i + 8), (0xDC00...0xDFFF).contains(low) {
+                            scalar = 0x10000 + ((unit - 0xD800) << 10) + (low - 0xDC00)
+                            length = 12
+                        }
+                    }
+                    out.append(contentsOf: String(Unicode.Scalar(scalar) ?? "\u{FFFD}").utf8)
+                    i += length
+                    continue
+                case let other: out.append(other)
+                }
+                i += 2
+            }
+            return partial ? out : nil
+        }
+
+        space()
+        guard i < n, b[i] == UInt8(ascii: "{") else { return "" }
+        i += 1
+        let wanted = Array(key.utf8)
+        while true {
+            space()
+            if i < n, b[i] == UInt8(ascii: ",") { i += 1; continue }
+            guard i < n, b[i] == quote, let name = string(partial: false) else { return "" }
+            space()
+            guard i < n, b[i] == UInt8(ascii: ":") else { return "" }
+            i += 1
+            space()
+            guard i < n else { return "" }
+            if b[i] == quote {
+                if name == wanted { return String(decoding: string(partial: true) ?? [], as: UTF8.self) }
+                guard string(partial: false) != nil else { return "" }
+                continue
+            }
+            // Another kind of value (a number, an object): skipped up to the comma that ends it.
+            var depth = 0
+            skipping: while i < n {
+                switch b[i] {
+                case quote:
+                    guard string(partial: false) != nil else { return "" }
+                    continue
+                case UInt8(ascii: "{"), UInt8(ascii: "["): depth += 1
+                case UInt8(ascii: "}"), UInt8(ascii: "]"):
+                    guard depth > 0 else { return "" }
+                    depth -= 1
+                case UInt8(ascii: ",") where depth == 0: break skipping
+                default: break
+                }
+                i += 1
+            }
+            guard i < n else { return "" }
+        }
+    }
 }

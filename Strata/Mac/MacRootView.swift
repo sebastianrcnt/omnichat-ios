@@ -17,6 +17,8 @@ struct MacRootView: View {
     @State private var findToken = 0
     /// The artifact open in the panel beside the chat.
     @State private var artifact: ArtifactRef?
+    /// The artifact being written whose preview is in the panel.
+    @State private var artifactDraft: ArtifactDraftRequest?
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
@@ -33,11 +35,12 @@ struct MacRootView: View {
                      onNewChat: newChat, focusToken: focusToken, draft: drafts.draft(for: selected?.id))
                 .id(chatKey.id)
                 .background(theme.background)
-                .artifactPanel($artifact)
+                .artifactPanel($artifact, draft: $artifactDraft)
         }
         .frame(minWidth: 760, minHeight: 520)
         .onChange(of: selected?.id) { old, new in
             if artifact?.conversationID != new { artifact = nil } // another chat: its artifact panel goes
+            artifactDraft = nil
             chatKey.update(old: old, new: new, active: new.flatMap { controller.isRunning($0) ? $0 : nil })
         }
         .chatLifecycle(selected: $selected)

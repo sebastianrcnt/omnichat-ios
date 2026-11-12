@@ -22,6 +22,8 @@ struct ThoughtLine: View {
     var placeholder: String
     let action: () -> Void
     var onDetails: (() -> Void)?
+    /// Names what a tap on the working line opens when that isn't the reasoning ("Preview" while an artifact is written).
+    var actionTitle: LocalizedStringKey?
     /// What the live line was showing when this round's line took its place (a translation whose sentence the round's
     /// last line isn't translated yet): kept until that translation comes, so the English doesn't flash in between.
     @State private var carried: String?
@@ -33,7 +35,8 @@ struct ThoughtLine: View {
 
     /// - Parameter takesOverLive: this round's line is replacing the live one now (its message is streaming).
     init(isWorking: Bool, line: String? = nil, seconds: Double? = nil, reasoning: ReasoningChunkModel? = nil,
-         placeholder: String, takesOverLive: Bool = false, action: @escaping () -> Void, onDetails: (() -> Void)? = nil) {
+         placeholder: String, takesOverLive: Bool = false, action: @escaping () -> Void, onDetails: (() -> Void)? = nil,
+         actionTitle: LocalizedStringKey? = nil) {
         self.isWorking = isWorking
         self.line = line
         self.seconds = seconds
@@ -41,6 +44,7 @@ struct ThoughtLine: View {
         self.placeholder = placeholder
         self.action = action
         self.onDetails = onDetails
+        self.actionTitle = actionTitle
         let untranslated = line.map { ThoughtTranslator.shared.result(for: $0) == nil } ?? false
         _carried = State(initialValue: takesOverLive && untranslated ? ThoughtTranslator.shared.recentlyShown(within: 1.5) : nil)
     }
@@ -73,9 +77,14 @@ struct ThoughtLine: View {
                         .id(doneTitle) // a translation arriving rises in
                         .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 6)), removal: .quickExit))
                 }
-                Image(systemName: "chevron.right")
-                    .font(.system(size: DS.Feed.mark, weight: .semibold)).foregroundStyle(theme.textTertiary)
-                    .opacity(isWorking ? 0 : 1)
+                if let actionTitle, isWorking {
+                    Text(actionTitle).font(DS.Typography.uiCaption.weight(.semibold)).foregroundStyle(theme.accent)
+                        .lineLimit(1).fixedSize()
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: DS.Feed.mark, weight: .semibold)).foregroundStyle(theme.textTertiary)
+                        .opacity(isWorking ? 0 : 1)
+                }
                 Spacer(minLength: 0)
             }
             // A feed line's height and padding, so the thought and the feed under it read as one list.
@@ -87,7 +96,7 @@ struct ThoughtLine: View {
         .contextMenu {
             if let onDetails { Button("Show Timeline", systemImage: "list.bullet.below.rectangle", action: onDetails) }
         }
-        .accessibilityHint(Text("Shows the full reasoning"))
+        .accessibilityHint(Text(actionTitle != nil && isWorking ? "Shows the page so far" : "Shows the full reasoning"))
         .animation(reduceMotion ? nil : .easeOut(duration: 0.3), value: doneTitle)
         .task(id: settings.translateThinking ? line : nil) {
             if settings.translateThinking, let line { ThoughtTranslator.shared.request(line) }

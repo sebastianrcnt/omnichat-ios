@@ -5,7 +5,8 @@ enum TurnEvent: Sendable {
     case content(String)
     case toolsRequested([ToolCall])
     /// A tool call the model is still writing (`ToolDraft`): which tool, the title so far, and the arguments' size.
-    case drafting(name: String, title: String, bytes: Int)
+    /// `arguments` is the JSON so far for an artifact (the live preview reads the page out of it), "" for other tools.
+    case drafting(name: String, title: String, bytes: Int, arguments: String)
     /// The signed thinking that led to the calls about to be announced (an Anthropic connection only), kept with their
     /// step for later turns (`StepThinking`).
     case stepThinking(StepThinking)
@@ -232,7 +233,8 @@ struct TurnRunner: Sendable {
                     try Task.checkCancellation()
                     guard try checkpoint.apply(delta) else { continue }
                     if !delta.toolCalls.isEmpty, let call = checkpoint.accumulator.toolCalls.last, let shown = draft.update(call) {
-                        try onEvent(.drafting(name: shown.name, title: shown.title, bytes: shown.bytes))
+                        try onEvent(.drafting(name: shown.name, title: shown.title, bytes: shown.bytes,
+                                              arguments: shown.name == ToolNames.showHTML ? call.arguments : ""))
                     }
                     if let r = delta.reasoning, !r.isEmpty { try onEvent(.reasoning(r)) }
                     if let c = delta.content, !c.isEmpty { try onEvent(.content(c)) }

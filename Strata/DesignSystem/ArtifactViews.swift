@@ -261,6 +261,159 @@ struct ArtifactViewer: View {
     }
 }
 
+// MARK: - Live preview
+
+/// Opens the page of an artifact the model is still writing.
+struct ArtifactDraftRequest: Identifiable {
+    let id = UUID()
+    let feed: ArtifactDraftFeed
+    /// How many `show_html` calls the run had finished when the preview opened (`ArtifactDraftFeed.state`).
+    let seen: Int
+
+    @MainActor init(feed: ArtifactDraftFeed) {
+        self.feed = feed
+        seen = feed.results.count
+    }
+}
+
+/// An artifact while the model writes it: the page as far as it has come, refreshed a few times a second where it is
+/// scrolled. The page's scripts don't run here (the page is cut off mid-way most of the time, and they would start
+/// again at every refresh). Once the artifact is stored, the real one takes the preview's place.
+struct ArtifactDraftViewer: View {
+    @Environment(\.theme) private var theme
+    @Environment(\.dismiss) private var dismiss
+    let request: ArtifactDraftRequest
+    /// The panel beside the chat (`ArtifactPanel`): the stored artifact opens in it, and Done closes it.
+    var onStored: ((ArtifactRef) -> Void)?
+    var onClose: (() -> Void)?
+
+    /// How often the page is brought up to date.
+    static let refresh: Duration = .milliseconds(400)
+
+    @State private var title = ""
+    @State private var html = ""
+    @State private var bytes = 0
+    @State private var stored: ArtifactRef?
+    @State private var ended = false
+    private enum Rules { case loading, ready(WKContentRuleList), unsafe }
+    @State private var rules = Rules.loading
+
+    private func close() { if let onClose { onClose() } else { dismiss() } }
+
+    var body: some View {
+        if let stored {
+            ArtifactViewer(ref: stored, onClose: onClose)
+        } else {
+            draft
+        }
+    }
+
+    private var draft: some View {
+        VStack(spacing: 0) {
+            bar
+            Group {
+                switch rules {
+                case .loading:
+                    ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                case .unsafe:
+                    notice("The artifact can't be opened safely right now.")
+                case .ready(let rules):
+                    if html.isEmpty {
+                        notice(ended ? "This artifact wasn't finished." : "The page appears here as it's written.")
+                    } else {
+                        ArtifactDraftWebView(html: ArtifactHTML.prepared(html), rules: rules)
+                    }
+                }
+            }
+            Text(ended ? "This artifact wasn't finished." : "A preview of the page so far. Its scripts start once it's finished.")
+                .font(DS.Typography.uiCaption)
+                .foregroundStyle(theme.textTertiary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, DS.Spacing.lg)
+                .padding(.vertical, DS.Spacing.sm)
+                .frame(maxWidth: .infinity)
+        }
+        .background(theme.background.ignoresSafeArea())
+        .task {
+            // Nothing loads before the local-network rules are in place.
+            if let list = await LocalNetworkRules.artifactRules() { rules = .ready(list) } else { rules = .unsafe }
+            await follow()
+        }
+        #if os(macOS)
+        .frame(minWidth: onClose == nil ? 640 : nil, idealWidth: onClose == nil ? 900 : nil,
+               minHeight: onClose == nil ? 520 : nil, idealHeight: onClose == nil ? 720 : nil)
+        .background { Button("Close", action: close).keyboardShortcut(.cancelAction).opacity(0).accessibilityHidden(true) }
+        #endif
+    }
+
+    /// Reads the feed until the artifact is stored or the run is over.
+    private func follow() async {
+        while !Task.isCancelled {
+            switch request.feed.state(after: request.seen) {
+            case .stored(let ref):
+                if let onStored { onStored(ref) } else { stored = ref }
+                return
+            case .ended:
+                await read()
+                ended = true
+                return
+            case .writing:
+                await read()
+            }
+            try? await Task.sleep(for: Self.refresh)
+        }
+    }
+
+    private func read() async {
+        let arguments = request.feed.arguments
+        let size = arguments.utf8.count
+        guard size != bytes else { return }
+        bytes = size
+        let (newTitle, page) = await Task.detached(priority: .userInitiated) {
+            (ToolDraft.title(in: arguments), ToolDraft.html(in: arguments))
+        }.value
+        if !newTitle.isEmpty { title = newTitle }
+        html = page
+    }
+
+    private var bar: some View {
+        HStack(spacing: DS.Spacing.sm) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(verbatim: title.isEmpty ? String(localized: "Artifact") : title)
+                    .font(DS.Typography.title).foregroundStyle(theme.textPrimary).lineLimit(1)
+                HStack(spacing: DS.Spacing.xs) {
+                    ArtifactBadge()
+                    Text(verbatim: Self.status(bytes: bytes, ended: ended))
+                        .font(DS.Typography.uiCaption).foregroundStyle(theme.textSecondary).monospacedDigit()
+                }
+            }
+            Spacer(minLength: 0)
+            if !ended { ProgressView().controlSize(.small) }
+            Button("Done", action: close)
+                .buttonStyle(.glassProminent)
+                .tint(theme.accent)
+        }
+        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.vertical, DS.Spacing.md)
+    }
+
+    /// "Writing · 12 KB" under the title; the size once there is a KB.
+    nonisolated static func status(bytes: Int, ended: Bool) -> String {
+        let what = ended ? String(localized: "Not finished") : String(localized: "Writing")
+        guard bytes >= 1024 else { return what }
+        return what + " · " + bytes.formatted(.byteCount(style: .file))
+    }
+
+    private func notice(_ text: LocalizedStringKey) -> some View {
+        Text(text)
+            .font(DS.Typography.ui)
+            .foregroundStyle(theme.textSecondary)
+            .multilineTextAlignment(.center)
+            .padding(DS.Spacing.xl)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
 /// The artifact as an `.html` file named after its title, for Share.
 struct ArtifactFile: Transferable {
     let title: String
@@ -304,7 +457,7 @@ struct ArtifactFile: Transferable {
 /// Decides where the artifact's page may go: it stays put, subframes load from public hosts, and a link the user taps
 /// that would replace it opens outside (the in-app browser on a phone, the default browser on a Mac).
 @MainActor
-final class ArtifactNavigation: NSObject, WKNavigationDelegate, WKUIDelegate {
+class ArtifactNavigation: NSObject, WKNavigationDelegate, WKUIDelegate {
     private var lastOpened = Date.distantPast
 
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction) async -> WKNavigationActionPolicy {
@@ -353,10 +506,11 @@ final class ArtifactNavigation: NSObject, WKNavigationDelegate, WKUIDelegate {
 
     /// A web view with nothing of the app in it: its own throwaway data store, no message handlers, no file access
     /// (loaded from a string with no base URL), and the local-network rules.
-    static func makeWebView(html: String, rules: WKContentRuleList, delegate: ArtifactNavigation) -> WKWebView {
+    /// - Parameter scripts: false for the live preview of a page still being written (`ArtifactDraftNavigation`).
+    static func makeWebView(html: String, rules: WKContentRuleList, delegate: ArtifactNavigation, scripts: Bool = true) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
-        config.defaultWebpagePreferences.allowsContentJavaScript = true
+        config.defaultWebpagePreferences.allowsContentJavaScript = scripts
         config.userContentController.add(rules)
         #if canImport(UIKit)
         config.allowsInlineMediaPlayback = true
@@ -374,6 +528,65 @@ final class ArtifactNavigation: NSObject, WKNavigationDelegate, WKUIDelegate {
         return view
     }
 }
+
+/// The live preview's page: an empty document that the page so far is written into again as it grows, in place, so the
+/// scroll position stays and nothing navigates. The page's own scripts are off; only this rewrite runs.
+@MainActor
+final class ArtifactDraftNavigation: ArtifactNavigation {
+    static let shell = "<!doctype html><html><head><meta charset=\"utf-8\"></head><body></body></html>"
+    private static let rewrite = "var x=window.scrollX,y=window.scrollY;document.open();document.write(h);document.close();window.scrollTo(x,y);"
+
+    private var loaded = false
+    private var writing = false
+    private var shown = ""
+    private var wanted = ""
+
+    func show(_ html: String, in view: WKWebView) {
+        wanted = html
+        flush(view)
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        loaded = true
+        flush(webView)
+    }
+
+    /// One rewrite at a time; a page that came while one ran is written after it.
+    private func flush(_ view: WKWebView) {
+        guard loaded, !writing, wanted != shown else { return }
+        let html = wanted
+        writing = true
+        Task { [weak self, weak view] in
+            _ = try? await view?.callAsyncJavaScript(Self.rewrite, arguments: ["h": html], in: nil, contentWorld: .defaultClient)
+            guard let self else { return }
+            self.shown = html
+            self.writing = false
+            if let view { self.flush(view) }
+        }
+    }
+}
+
+#if canImport(UIKit)
+private struct ArtifactDraftWebView: UIViewRepresentable {
+    let html: String
+    let rules: WKContentRuleList
+    func makeCoordinator() -> ArtifactDraftNavigation { ArtifactDraftNavigation() }
+    func makeUIView(context: Context) -> WKWebView {
+        ArtifactNavigation.makeWebView(html: ArtifactDraftNavigation.shell, rules: rules, delegate: context.coordinator, scripts: false)
+    }
+    func updateUIView(_ view: WKWebView, context: Context) { context.coordinator.show(html, in: view) }
+}
+#else
+private struct ArtifactDraftWebView: NSViewRepresentable {
+    let html: String
+    let rules: WKContentRuleList
+    func makeCoordinator() -> ArtifactDraftNavigation { ArtifactDraftNavigation() }
+    func makeNSView(context: Context) -> WKWebView {
+        ArtifactNavigation.makeWebView(html: ArtifactDraftNavigation.shell, rules: rules, delegate: context.coordinator, scripts: false)
+    }
+    func updateNSView(_ view: WKWebView, context: Context) { context.coordinator.show(html, in: view) }
+}
+#endif
 
 #if canImport(UIKit)
 private struct ArtifactWebView: UIViewRepresentable {

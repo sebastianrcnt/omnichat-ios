@@ -177,6 +177,7 @@ extension ChatView {
                 render: controller.renderState(for: message),
                 onOpenTimeline: { timeline = TimelineRequest(message: message, showsTools: true) },
                 onOpenReasoning: { timeline = TimelineRequest(message: message, showsTools: true) },
+                onOpenDraft: live.map { run in { openDraftPreview(of: run) } },
                 onOpenSources: { sourcesItem = SourceListItem(sources: $0, all: conversationUsedSources) },
                 onCopy: { Pasteboard.copy(MarkdownPlain.text(from: MessageLayout.fullText(segments: segments, answer: shownText))) },
                 onRegenerate: {
@@ -306,5 +307,14 @@ extension ChatView {
             guard pinnedID == id else { return }
             withAnimation(DS.Motion.spring) { position.scrollTo(id: id, anchor: .top) }
         }
+    }
+}
+
+extension ChatView {
+    /// The page of the artifact this run's model is writing: in the panel beside the chat on a Mac, over the chat
+    /// elsewhere.
+    func openDraftPreview(of run: ChatRun) {
+        let request = ArtifactDraftRequest(feed: run.artifactDraft)
+        if let artifactPanel { artifactPanel.openDraft(request) } else { draftPreview = request }
     }
 }

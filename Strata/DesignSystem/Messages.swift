@@ -369,6 +369,8 @@ struct AssistantMessage: View {
     /// The Timeline sheet (reasoning and every tool call), and the reasoning alone (the thought line).
     var onOpenTimeline: () -> Void = {}
     var onOpenReasoning: () -> Void = {}
+    /// Opens the live preview of the artifact being written (`ArtifactDraftViewer`); nil where there is none to open.
+    var onOpenDraft: (() -> Void)?
     var onOpenSources: ([SourceInfo]) -> Void = { _ in }
     var onCopy: () -> Void = {}
     var onRegenerate: () -> Void = {}
@@ -523,6 +525,12 @@ struct AssistantMessage: View {
         return false
     }
 
+    /// Opens the page so far while an artifact is being written (the working line's tap, instead of the reasoning).
+    private var draftPreview: (() -> Void)? {
+        if case .drafting(ToolNames.showHTML, _, _) = content.phase { return onOpenDraft }
+        return nil
+    }
+
     private var toolPhaseLabel: String {
         switch content.phase {
         case .tool(let name, _):
@@ -578,7 +586,8 @@ struct AssistantMessage: View {
                         placeholder: phaseLabel, takesOverLive: content.isStreaming, action: onOpenReasoning, onDetails: onOpenTimeline)
         case .working:
             ThoughtLine(isWorking: true, reasoning: toolRunning ? nil : render.reasoning, placeholder: phaseLabel,
-                        action: onOpenReasoning, onDetails: onOpenTimeline)
+                        action: draftPreview ?? onOpenReasoning, onDetails: onOpenTimeline,
+                        actionTitle: draftPreview == nil ? nil : "Preview")
         case .feed(let n):
             // A feed with a note after it is done: it folds like a feed does once the answer starts.
             let isLast = n == feeds.count - 1
@@ -664,7 +673,8 @@ struct AssistantMessage: View {
             .animation(reduceMotion ? nil : DS.Motion.enter, value: items)
             // Text came before the call being written, so the work's live line has gone: say what is being made below it.
             if isDrafting && answerStarted {
-                ThoughtLine(isWorking: true, reasoning: nil, placeholder: phaseLabel, action: onOpenReasoning, onDetails: onOpenTimeline)
+                ThoughtLine(isWorking: true, reasoning: nil, placeholder: phaseLabel, action: draftPreview ?? onOpenReasoning,
+                            onDetails: onOpenTimeline, actionTitle: draftPreview == nil ? nil : "Preview")
             }
             if content.stopped && !content.cutForEarlyAnswer {
                 Text("Stopped").font(DS.Typography.uiCaption).foregroundStyle(theme.textTertiary)

@@ -431,6 +431,7 @@ final class ChatController {
         run.persister?.close()
         run.persister = nil
         run.start = nil
+        run.artifactDraft.end()
         if runs[run.conversationID] === run { runs[run.conversationID] = nil }
         if !handover { admitNext() }
     }
@@ -625,7 +626,8 @@ final class ChatController {
             if run.phase != .writing { run.phase = .writing }
         case .stepThinking(let thinking):
             tracker.stepThinking = thinking
-        case .drafting(let name, let title, let bytes):
+        case .drafting(let name, let title, let bytes, let arguments):
+            if name == ToolNames.showHTML { run.artifactDraft.write(arguments) }
             run.phase = .drafting(name: name, title: title, bytes: bytes)
         case .toolsRequested(let calls):
             tracker.finishThinking()
@@ -643,6 +645,7 @@ final class ChatController {
                 tracker.conversation.healthTainted = true
             }
             tracker.completeTool(record)
+            if record.name == ToolNames.showHTML { run.artifactDraft.finish(record.artifact) }
             if let store = run.sourceStore { run.liveSources = store.items }
             run.roundRecords.append(record)
             run.pendingCalls.removeAll { $0.id == record.id }
