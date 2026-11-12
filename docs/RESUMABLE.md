@@ -43,12 +43,22 @@ also survive process death, including before the initial response headers.
 Before sending, checkpoint callbacks now throw on SwiftData save failure: a POST
 is not issued if its key/body cannot be saved, and a failed save at a tool-result
 boundary stops the turn too (`CheckpointPersister`). This is verified by unit tests.
-The controller saves a snapshot synchronously at each applied SSE boundary and
-after each completed tool result. Text, reasoning, sources and snapshot are
-saved together with `ModelContext.save`. A relaunched app restores the same
-assistant message, selects its conversation, replays only subsequent events,
+The controller checkpoints on a dedicated serial background context: the dynamic
+half is throttled to about once a second, while submission and tool boundaries
+await a durable save before proceeding. Overlapping stream/lifecycle flushes are
+serialized, and Stop, deletion and finalization fence the writer before the final
+main-context save. Text and reasoning are recovered from the checkpoint's matching
+cursor/accumulator pair and materialized into their columns at the end of the turn.
+A relaunched app restores the same assistant message, selects its conversation, replays only subsequent events,
 runs pending tools, skips already persisted tool results, and starts the next
-model round automatically. One active turn is supported, as before.
+model round automatically.
+
+Foreground discovery (including the one-time legacy `hasResume` flag migration)
+runs off main and returns only persistent identifiers. Separate indexes cover
+`hasResume` and `cancelPending`; the store retains automatic lightweight migration.
+The first foreground retries an interrupted turn immediately. Repeated automatic
+recovery attempts back off in memory from 30 seconds up to 10 minutes per message;
+explicit Try again bypasses that backoff.
 
 A call of a tool that can act outside the app (`ToolNames.mayActOutside`:
 Python, page scripts and clicks, plugins, skill scripts, `ssh_exec`/`ssh_upload`,

@@ -47,6 +47,8 @@ final class ChatRun {
     @ObservationIgnored var context: ModelContext?
     @ObservationIgnored var endpoint: Endpoint?
     @ObservationIgnored var persister: CheckpointPersister?
+    @ObservationIgnored var checkpointStore: CheckpointStore?
+    @ObservationIgnored var checkpointSuppressed = false
     @ObservationIgnored var persistedSourceCount = -1
     @ObservationIgnored var sourceStore: SourceStore?
     @ObservationIgnored var earlyAnswerRequested = false

@@ -112,7 +112,7 @@ struct ChatClient: ChatStreaming {
 
     private func send(_ request: ChatRequest, endpoint: Endpoint) async throws -> (URLSession.AsyncBytes, URLResponse) {
         var req = HTTP.makeRequest(url: endpoint.baseURL.appendingPathComponent("chat/completions"),
-                                   endpoint: endpoint, method: "POST", body: try request.encoded())
+                                   endpoint: endpoint, method: "POST", body: try await request.encodedOffMain())
         req.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         req.timeoutInterval = 300
         return try await session.bytes(for: req)

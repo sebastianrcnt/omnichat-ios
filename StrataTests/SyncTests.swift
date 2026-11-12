@@ -57,6 +57,26 @@ struct SyncDedupeTests {
         #expect(try SyncDedupe.conversations(context) == 0)
     }
 
+    @Test func backgroundImportMaintenanceKeepsTheSameDedupeAndBusySemantics() async throws {
+        let container = try syncedStore()
+        let context = container.mainContext
+        context.autosaveEnabled = false
+        let merged = twoCopies(context)
+        let busy = twoCopies(context)
+        try context.save()
+        let unsaved = Conversation(title: "not saved by maintenance")
+        context.insert(unsaved)
+        await SyncDedupe.afterImport(container: container, skipping: [busy.id], merged: [:])
+        let fresh = ModelContext(container)
+        let all = try fresh.fetch(FetchDescriptor<Conversation>())
+        #expect(all.count == 3)
+        #expect(all.filter { $0.id == busy.id }.count == 2)
+        let kept = try #require(all.first { $0.id == merged.id })
+        #expect(kept.syncOrigin == "A" && kept.title == "Renamed")
+        #expect(Set(kept.messages.map(\.id)) == [merged.shared, merged.onlyFirst, merged.onlySecond])
+        #expect(context.hasChanges)
+    }
+
     @Test func everyDeviceKeepsTheSameCopy() throws {
         // Whichever copy a device has locally (inserted first), the one that stays is the same.
         for (first, second) in [("A", "B"), ("B", "A")] {

@@ -15,7 +15,7 @@ private struct ChatLifecycle: ViewModifier {
     func body(content: Content) -> some View {
         content
             .task {
-                controller.restorePending(context: context)
+                await controller.restorePending(context: context)
                 selectRecoveredConversation()
                 connections.refreshOnDeviceModels()
                 // Refresh models (and capability flags such as image input) for every connection with a key.
@@ -25,8 +25,10 @@ private struct ChatLifecycle: ViewModifier {
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active {
-                    controller.restorePending(context: context)
-                    selectRecoveredConversation()
+                    Task { @MainActor in
+                        await controller.restorePending(context: context)
+                        selectRecoveredConversation()
+                    }
                 }
             }
             .onChange(of: ReplyNotificationRouter.shared?.pending, initial: true) { _, id in

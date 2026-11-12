@@ -248,7 +248,7 @@ struct AnswerNowTurnTests {
         r.controller.send(text: "question", images: [], conversation: r.conversation, context: r.context)
         await waitFor { r.streamer.requests.count == 1 }
         r.controller.answerNow(r.conversation)
-        await waitFor { (r.controller.soleRun?.isEarly ?? false) }
+        await waitFor { (r.controller.soleRun?.isEarly ?? false) && r.streamer.requests.count == 2 }
         #expect((r.controller.soleRun?.isEarly ?? false))
         #expect(!(r.controller.soleRun?.canAnswerNow ?? false))
         r.controller.answerNow(r.conversation) // ignored

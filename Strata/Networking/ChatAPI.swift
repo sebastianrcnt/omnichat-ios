@@ -137,6 +137,10 @@ struct ChatRequest: Encodable, Sendable {
     }()
 
     func encoded() throws -> Data { try Self.encoder.encode(self) }
+
+    func encodedOffMain() async throws -> Data {
+        try await Task.detached { try self.encoded() }.value
+    }
 }
 
 /// OpenAI function-tool definition.

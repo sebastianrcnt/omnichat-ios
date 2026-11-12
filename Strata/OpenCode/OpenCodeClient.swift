@@ -15,7 +15,7 @@ struct OpenCodeClient: ChatStreaming {
                     guard api.isSupported else {
                         throw APIError.server(String(localized: "OmniChat can't talk to \(endpoint.model.id) yet. Choose another model."))
                     }
-                    let body = try Self.body(request, endpoint: endpoint)
+                    let body = try await Task.detached { try Self.body(request, endpoint: endpoint) }.value
                     OpenCodeAuth.log.debug("""
                         request model=\(request.model, privacy: .public) api=\(api.rawValue, privacy: .public) \
                         effort=\(Self.effort(request, model: endpoint.model) ?? "-", privacy: .public)

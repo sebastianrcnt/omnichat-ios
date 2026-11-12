@@ -121,7 +121,6 @@ enum ChatGPTDedupe {
     }
 
     /// Points chats at the connection theirs merged into. Returns how many changed.
-    @MainActor
     static func remapConversations(_ context: ModelContext, _ merged: [UUID: UUID]) throws -> Int {
         guard !merged.isEmpty else { return 0 }
         let losers: [UUID?] = merged.keys.map { $0 }

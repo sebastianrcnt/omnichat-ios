@@ -137,6 +137,8 @@ final class ChatController {
     @ObservationIgnored var packages: PackageStore = .shared
     /// "Only send health data to on-device or local models" (Settings > Health); tests set it.
     @ObservationIgnored var healthLocalOnly: () -> Bool = { HealthSettings.localOnly }
+    @ObservationIgnored var queryingPending = false
+    @ObservationIgnored var recoveryAttempts = RecoveryAttempts()
     @ObservationIgnored var cancelTasks: [UUID: Task<Void, Never>] = [:]
     private let background = ReplyBackgroundExecution()
 
@@ -319,7 +321,7 @@ final class ChatController {
             return
         }
         revealAll(run)
-        try? run.persister?.flush() // the cancel request needs the newest request id and cursor
+        sealCheckpoint(run) // the cancel request needs the newest request id and cursor
         if let message = run.message, let context = run.context, let endpoint = run.endpoint {
             message.stoppedByUser = true
             message.cancelPending = message.resumeData != nil
@@ -342,7 +344,7 @@ final class ChatController {
         compactionErrors[conversationID] = nil
         guard let run = runs[conversationID] else { return }
         if let message = run.message, let context = run.context, let endpoint = run.endpoint {
-            try? run.persister?.flush()
+            sealCheckpoint(run)
             message.cancelPending = message.resumeData != nil
             if message.cancelPending { cancelOnServer(message, endpoint: endpoint, context: context) }
         }
@@ -428,7 +430,7 @@ final class ChatController {
 
     /// Takes the run out of `runs` and gives back what it held. `handover`: an early answer takes its slot next.
     private func endRun(_ run: ChatRun, handover: Bool = false) {
-        run.persister?.close()
+        sealCheckpoint(run)
         run.persister = nil
         run.start = nil
         run.artifactDraft.end()
@@ -505,9 +507,10 @@ final class ChatController {
 
         let path = conversation.path(to: assistant.parentID).filter { $0.id != assistant.id }
         run.persistedSourceCount = -1
+        run.checkpointStore = endpoint.supportsResumable ? CheckpointStore(container: context.container, id: assistant.persistentModelID) : nil
         run.persister = endpoint.supportsResumable ? CheckpointPersister { [weak self, weak run] snapshot in
             guard let self, let run, !run.discarded else { return }
-            try self.persist(snapshot, run: run, message: assistant, conversation: conversation, context: context)
+            try await self.persist(snapshot, run: run, message: assistant, conversation: conversation, context: context)
         } : nil
         background.begin(run.conversationID)
         run.holdsLease = true
@@ -549,7 +552,7 @@ final class ChatController {
                     try await ToolContext.$readsImages.withValue(endpoint.model.supportsImages) {
                         try await ToolContext.$destination.withValue(ToolDestination(endpoint)) {
                             try await runner.run(endpoint: endpoint, messages: messages, effort: effort, sources: sourceStore, checkpoint: checkpoint) { event in
-                                try self.handle(event, run: run, tracker: tracker, context: context)
+                                try await self.handle(event, run: run, tracker: tracker, context: context)
                             }
                         }
                     }
@@ -602,13 +605,13 @@ final class ChatController {
         }
     }
 
-    private func handle(_ event: TurnEvent, run: ChatRun, tracker: TurnTracker, context: ModelContext) throws {
+    private func handle(_ event: TurnEvent, run: ChatRun, tracker: TurnTracker, context: ModelContext) async throws {
         // A deleted chat's run writes nothing more, even a tool result that lands before the cancellation does.
         if run.discarded { throw CancellationError() }
         background.advance()
         switch event {
         case .checkpoint(let checkpoint):
-            try run.persister?.update(checkpoint)
+            try await run.persister?.update(checkpoint)
         case .roundStarted(let n):
             // Before every request of the turn (and the compaction before it), resumed and retried ones too.
             if let blocked = healthBlock(tracker.conversation, run.endpoint) { throw blocked }
@@ -713,7 +716,7 @@ final class ChatController {
             do {
                 let outcome = try await Compactor(streamer: streamer).compact(
                     endpoint: endpoint, base: request, meter: usable.map { ContextMeter(usage: $0) } ?? meter, window: window) { sent in
-                    if let body = try? sent.encoded() { ring.record(conversationID: conversationID, url: url, body: body, id: UUID()) }
+                    if let body = try? await sent.encodedOffMain() { ring.record(conversationID: conversationID, url: url, body: body, id: UUID()) }
                 }
                 guard !run.discarded else { return }
                 self?.storeCompaction(outcome, conversation: conversation, anchor: leaf.id, anchorSteps: -1, automatic: false, context: context)
@@ -728,33 +731,45 @@ final class ChatController {
         }
     }
 
-    /// One throttled checkpoint write: the large half only when it changed, the small half always, together.
+    /// One throttled checkpoint write. No checkpoint property is dirtied on the view context while streaming, so
+    /// neither an explicit save nor SwiftData autosave can reintroduce per-second main-context I/O.
     private func persist(_ snapshot: CheckpointPersister.Snapshot, run: ChatRun, message: Message, conversation: Conversation,
-                         context: ModelContext) throws {
-        // While chat sync blocks Health, a checkpoint holding a health result isn't stored: that turn can't resume. The
-        // large half is written only when it changes, so one dropped earlier (by `HealthRedaction`) stays missing.
-        if HealthRedaction.isActive, (snapshot.staticData == nil && !message.hasResume)
+                         context: ModelContext) async throws {
+        guard let store = run.checkpointStore else { return }
+        if HealthRedaction.isActive, (snapshot.staticData == nil && run.checkpointSuppressed)
             || HealthRedaction.mentionsHealth(snapshot.staticData) || HealthRedaction.mentionsHealth(snapshot.dynamicData) {
-            if message.hasResume { message.clearResume() }
+            run.checkpointSuppressed = true
+            try await store.write(nil, device: DeviceIdentity.current, sources: nil)
             return
         }
-        if let data = snapshot.staticData { message.resumeData = data }
-        if !message.hasResume { message.hasResume = true }
-        if message.resumeDeviceID != DeviceIdentity.current { message.resumeDeviceID = DeviceIdentity.current }
-        message.resumeDynamicData = snapshot.dynamicData
+        run.checkpointSuppressed = false
+        let items = run.sourceStore?.items
+        let sources = items.flatMap { $0.count != run.persistedSourceCount ? $0 : nil }
+        try await store.write(snapshot, device: DeviceIdentity.current, sources: sources)
+        if let sources { run.persistedSourceCount = sources.count }
         onCheckpointWrite?((snapshot.staticData?.count ?? 0) + snapshot.dynamicData.count)
         DiagnosticCounters.shared.recordCheckpointWrite(conversation: conversation.id, staticBytes: snapshot.staticData?.count,
                                                         dynamicBytes: snapshot.dynamicData.count)
-        // Text and reasoning live in the dynamic half (the accumulator); they are copied into their columns when the
-        // turn ends. Sources are written only when new ones arrived, so the sidebar's query is not invalidated.
-        if let items = run.sourceStore?.items, items.count != run.persistedSourceCount {
-            run.persistedSourceCount = items.count
-            conversation.sources = items
-        }
-        try context.save()
         #if DEBUG
         DebugHooks.recordResumeSmoke(message, checkpoint: snapshot.checkpoint)
         #endif
+    }
+
+    /// Fence background writes before a terminal save, then expose the latest checkpoint to Stop/recovery on main.
+    /// This is the only time the main model takes ownership of the checkpoint columns again.
+    private func sealCheckpoint(_ run: ChatRun) {
+        run.persister?.close()
+        run.checkpointStore?.close()
+        run.checkpointStore = nil
+        guard let message = run.message else { return }
+        if run.checkpointSuppressed {
+            message.clearResume()
+        } else if let checkpoint = run.persister?.latest {
+            message.resumeData = try? TurnCheckpoint.encodeStatic(checkpoint)
+            message.resumeDynamicData = try? JSONEncoder().encode(checkpoint.dynamicPart)
+            message.hasResume = message.resumeData != nil
+            message.resumeDeviceID = DeviceIdentity.current
+        }
     }
 
     /// The chat's title, or (before it has one) the question that was asked.
@@ -779,7 +794,7 @@ final class ChatController {
     /// - Parameter handover: an early answer follows at once and takes this run's slot.
     private func finish(_ run: ChatRun, message: Message, conversation: Conversation, context: ModelContext,
                         error: Error?, tracker: TurnTracker? = nil, handover: Bool = false) {
-        run.persister?.close()
+        sealCheckpoint(run)
         run.persister = nil
         // Pages kept for the user after a failed tool go a few minutes from now; Stop browsing applied to this reply.
         KeptPages.shared.turnEnded(conversation: conversation.id)

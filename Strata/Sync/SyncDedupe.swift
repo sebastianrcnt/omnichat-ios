@@ -10,6 +10,23 @@ import SwiftData
 /// came from), never by ones that may be stale here (`updatedAt`, a child count still arriving). Copies from the same
 /// device are left as they are. What only the other copy has is moved over first, so nothing is lost.
 enum SyncDedupe {
+    private static let importQueue = DispatchQueue(label: "cc.coolservices.strata.sync-dedupe", qos: .utility)
+
+    /// Serial even when a later import arrives while a previous tidy is suspended. Only saved store changes reach
+    /// the view context; no fetched models cross the queue boundary. The same dedupe functions serve both paths.
+    static func afterImport(container: ModelContainer, skipping: Set<UUID>, merged: [UUID: UUID]) async {
+        await withCheckedContinuation { continuation in
+            importQueue.async {
+                let context = ModelContext(container)
+                context.autosaveEnabled = false
+                _ = try? conversations(context, skipping: skipping)
+                FileSync.persistenceLock.withLock { _ = try? files(context) }
+                _ = try? ChatGPTDedupe.remapConversations(context, merged)
+                continuation.resume()
+            }
+        }
+    }
+
     struct Report: Equatable {
         var conversations = 0
         var skills = 0

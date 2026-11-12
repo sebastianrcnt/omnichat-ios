@@ -73,6 +73,12 @@ struct ChatControllerTests {
 
     private func settle(_ r: Rig) async { await r.controller.waitUntilIdle() }
 
+    /// Encoding and durable submission can suspend off main; a sleep is not evidence that the intended phase began.
+    private func waitFor(_ condition: @MainActor () -> Bool) async {
+        for _ in 0..<300 where !condition() { try? await Task.sleep(for: .milliseconds(10)) }
+        #expect(condition())
+    }
+
     @Test func stopBeforeFirstByteMarksStopped() async throws {
         let r = try rig([([], .hang)])
         r.controller.send(text: "hi", images: [], conversation: r.conversation, context: r.context)
@@ -99,7 +105,7 @@ struct ChatControllerTests {
     @Test func stopWhileThinkingKeepsPartialReasoning() async throws {
         let r = try rig([([ChatDelta(reasoning: "pondering the question")], .hang)])
         r.controller.send(text: "hi", images: [], conversation: r.conversation, context: r.context)
-        try await Task.sleep(for: .milliseconds(100))
+        await waitFor { r.controller.soleRun?.phase == .thinking }
         r.controller.stop()
         await settle(r)
         let m = try #require(assistant(r))
@@ -110,7 +116,7 @@ struct ChatControllerTests {
     @Test func stopWhileWritingKeepsPartialText() async throws {
         let r = try rig([([ChatDelta(content: "Partial answer so far")], .hang)])
         r.controller.send(text: "hi", images: [], conversation: r.conversation, context: r.context)
-        try await Task.sleep(for: .milliseconds(100))
+        await waitFor { r.controller.soleRun?.phase == .writing }
         r.controller.stop()
         await settle(r)
         let m = try #require(assistant(r))
@@ -120,7 +126,7 @@ struct ChatControllerTests {
     @Test func stopDuringToolCancelsTheToolAndDropsItsResult() async throws {
         let r = try rig([([toolDelta()], .finish)], tools: SlowTools())
         r.controller.send(text: "hi", images: [], conversation: r.conversation, context: r.context)
-        try await Task.sleep(for: .milliseconds(150))
+        await waitFor { if case .tool = r.controller.soleRun?.phase { true } else { false } }
         if case .tool = (r.controller.soleRun?.phase ?? .idle) {} else { Issue.record("expected tool phase, got \((r.controller.soleRun?.phase ?? .idle))") }
         let started = ContinuousClock.now
         r.controller.stop()

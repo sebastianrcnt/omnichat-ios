@@ -244,7 +244,9 @@
 		509D19BA187CC1669E902208 /* ChatGPTConnectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85518AFBF34570F272695809 /* ChatGPTConnectionTests.swift */; };
 		510EDAB0953F6252F9A3AB52 /* ArtifactThumbnails.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79860A965007316869D4DF59 /* ArtifactThumbnails.swift */; };
 		513E353263698BA6CD2BBE1F /* MessageTreeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42DD6DE488FF594429FF03E /* MessageTreeTests.swift */; };
+		519EF6D013D4C30E2F3578F9 /* CheckpointStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3D5CE8B3B5D0035BF7624EE /* CheckpointStore.swift */; };
 		51DF420444A3FA34885F55CD /* PythonViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10BAC6EFC108A1D8E6E5B69 /* PythonViews.swift */; };
+		52164E502AF2CE1E3E51BEE0 /* CheckpointStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3D5CE8B3B5D0035BF7624EE /* CheckpointStore.swift */; };
 		525239D1099C9C9841701BB8 /* ToolExecutionRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = B15A63FD6C73B4F0AC754DBB /* ToolExecutionRecovery.swift */; };
 		525F91FD31875AC6DCC724C9 /* BrowserToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3931A4CD4FF17FED76CF10E7 /* BrowserToolTests.swift */; };
 		5348CDBC0D85DB0A84FCD99B /* OnDeviceModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96E02D8F125489114E54E1BC /* OnDeviceModel.swift */; };
@@ -342,6 +344,7 @@
 		78A6B2EA7DE39CFE20B142D7 /* Places.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE0FD91626F766E566AA1DCD /* Places.swift */; };
 		792BA13033DCDD1F9F87D034 /* InFlightLoads.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAAF1AA8F6545AAD623C9514 /* InFlightLoads.swift */; };
 		796035B400885F19288917B2 /* ThoughtSentence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1311BB3FAFBD1EC5F5DAA45E /* ThoughtSentence.swift */; };
+		79E6C83274CDBFC540D98CA9 /* DataPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33DBD43C8C59F5E20ABA8C78 /* DataPerformanceTests.swift */; };
 		7A4AB033521DA71E829776C9 /* MarkdownBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = C48316140F6C91D3CBA80AB7 /* MarkdownBlock.swift */; };
 		7A8B280D44A0C4FCA8F9BEA2 /* HealthSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = C612F50B1912B1F050696899 /* HealthSeed.swift */; };
 		7B5FA03B7924BF85DCFEF606 /* PySocketBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AA041031B8B2971BD97D579 /* PySocketBridge.swift */; };
@@ -866,6 +869,7 @@
 		322733D5196A244B3D718B05 /* TranslationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationTests.swift; sourceTree = "<group>"; };
 		335A89D1EA6C94CE1A622FE0 /* Pretendard-Bold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-Bold.otf"; sourceTree = "<group>"; };
 		335F872846CDE505A495C6B2 /* PackageSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackageSnapshot.swift; sourceTree = "<group>"; };
+		33DBD43C8C59F5E20ABA8C78 /* DataPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataPerformanceTests.swift; sourceTree = "<group>"; };
 		342661A12FE2062C81D8B547 /* QuoteCitationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuoteCitationTests.swift; sourceTree = "<group>"; };
 		3478FEB4D8CC14325F39C573 /* ToolsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsTests.swift; sourceTree = "<group>"; };
 		348AF3042AD5771C3007465F /* ChatEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatEntities.swift; sourceTree = "<group>"; };
@@ -1058,6 +1062,7 @@
 		A0CB73D9E008A6C0380E94DD /* ZoomableImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomableImage.swift; sourceTree = "<group>"; };
 		A1CB2B2D84A4EF8F12B03DA0 /* PackageKitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackageKitTests.swift; sourceTree = "<group>"; };
 		A31065DA97EF6BCD85ECBF6C /* ConnectionDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionDraftTests.swift; sourceTree = "<group>"; };
+		A3D5CE8B3B5D0035BF7624EE /* CheckpointStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckpointStore.swift; sourceTree = "<group>"; };
 		A569BAF3210B79C213A4E5DD /* HealthModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthModel.swift; sourceTree = "<group>"; };
 		A56AE75878AC38E54E367EF0 /* TimelineMotionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineMotionTests.swift; sourceTree = "<group>"; };
 		A5BF573BD32EBB71EEDC79EF /* TurnRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnRunner.swift; sourceTree = "<group>"; };
@@ -1322,6 +1327,7 @@
 				A31065DA97EF6BCD85ECBF6C /* ConnectionDraftTests.swift */,
 				52456DC15AD97C0E9E117D78 /* ConnectionHeadersTests.swift */,
 				B62DB34499406A1921D8E58C /* ContextGridTests.swift */,
+				33DBD43C8C59F5E20ABA8C78 /* DataPerformanceTests.swift */,
 				60932D1B714F8CE587A2343A /* DiagnosticsTests.swift */,
 				DC6B34C896276506BC107F64 /* DictationEngineTests.swift */,
 				7C55EA9B17DA1BECA1CF0D5E /* DictationTests.swift */,
@@ -1641,6 +1647,7 @@
 				9639EF3590819A8FDE02A87D /* ChatRun.swift */,
 				118C88E6BA7A08D427C99E48 /* ChatTools.swift */,
 				BA664C3216587A234466E7CA /* CheckpointPersister.swift */,
+				A3D5CE8B3B5D0035BF7624EE /* CheckpointStore.swift */,
 				CEBD4BA8EA9CBAB919310F52 /* ContextGrid.swift */,
 				7FCC4C024AED5AC7DD77A998 /* MemoryCaches.swift */,
 				2787E35474BAA48D4652C8AE /* MessageLayout.swift */,
@@ -2332,6 +2339,7 @@
 				6C37365F3032F425A96BF602 /* ConnectionDraftTests.swift in Sources */,
 				123AAC24DA6AD1D19D65B740 /* ConnectionHeadersTests.swift in Sources */,
 				EA4D7247DE83503B065958D6 /* ContextGridTests.swift in Sources */,
+				79E6C83274CDBFC540D98CA9 /* DataPerformanceTests.swift in Sources */,
 				F2B94DA81A5E4E4CC1E8947E /* DiagnosticsTests.swift in Sources */,
 				AD4F10B146AC14AFA82A8B3F /* DictationEngineTests.swift in Sources */,
 				7449A19979D5D5C88B11C73E /* DictationTests.swift in Sources */,
@@ -2484,6 +2492,7 @@
 				500DD2E765D51DC8A98C5693 /* ChatView+Messages.swift in Sources */,
 				FA35D891CCBE9F222D8F8CF2 /* ChatView.swift in Sources */,
 				72AAA62A9D9A009F58388B18 /* CheckpointPersister.swift in Sources */,
+				52164E502AF2CE1E3E51BEE0 /* CheckpointStore.swift in Sources */,
 				22BF34D03CA1C7FDC09D0C4D /* ChipText.swift in Sources */,
 				639FD6541E20101AC43D58A5 /* CitationParser.swift in Sources */,
 				217A42249CBDEFFF9C3DE7A1 /* CloudRecordSize.swift in Sources */,
@@ -2775,6 +2784,7 @@
 				92113EACDE8D37D7A4F53AE8 /* ChatView+Messages.swift in Sources */,
 				F4174052796416D2C1855A40 /* ChatView.swift in Sources */,
 				FFBEEB9AB428E88D4BB300FA /* CheckpointPersister.swift in Sources */,
+				519EF6D013D4C30E2F3578F9 /* CheckpointStore.swift in Sources */,
 				0471356FA78CD773405A4822 /* ChipText.swift in Sources */,
 				CFEF59E4843D76B9B2AB2059 /* CitationParser.swift in Sources */,
 				284C8AB36C8477263F24D3E9 /* CloudRecordSize.swift in Sources */,

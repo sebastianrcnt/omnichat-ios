@@ -182,7 +182,7 @@ enum AutoRename {
         for request in (followUp.map { [$0] } ?? []) + standalone {
             if Task.isCancelled { return nil }
             let id = UUID()
-            if let log, let body = try? request.encoded() { await log(.sent(id: id, url: url, body: body)) }
+            if let log, let body = try? await request.encodedOffMain() { await log(.sent(id: id, url: url, body: body)) }
             do {
                 let reply = try await collect(request, endpoint: endpoint, streamer: streamer, timeout: timeout)
                 if let log { await log(.finished(id: id, finishReason: reply.finishReason, usage: reply.usage)) }
