@@ -8,14 +8,14 @@ extension ChatView {
     var header: some View {
         GlassEffectContainer(spacing: DS.Spacing.sm) {
             HStack(spacing: DS.Spacing.sm) {
-                GlassIconButton(systemName: "line.3.horizontal", label: "Sidebar") { composerFocused = false; onOpenSidebar() }
+                GlassIconButton(systemName: "line.3.horizontal", label: "Sidebar") { focus.isFocused = false; onOpenSidebar() }
                 // No title: the chat is what's on the page, and the sidebar and the menu name it (Rename is there).
                 // The model and effort are in the composer's chip.
                 Spacer(minLength: 0)
                 // New chat, the context gauge and the menu share one glass capsule, like a toolbar group.
                 HStack(spacing: 0) {
                     Button {
-                        composerFocused = false
+                        focus.isFocused = false
                         onNewChat()
                     } label: {
                         Image(systemName: "square.and.pencil")
@@ -27,7 +27,7 @@ extension ChatView {
                     .accessibilityLabel("New Chat")
                     if conversation?.lastUsage != nil { // nothing to show before the first reply
                         Button {
-                            composerFocused = false
+                            focus.isFocused = false
                             showContext = true
                         } label: {
                             ContextRing(fraction: contextFraction)

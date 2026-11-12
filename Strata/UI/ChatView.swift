@@ -18,19 +18,17 @@ struct ChatView: View {
 
     /// Reference-typed so typing never invalidates this view: only `ComposerHost` reads the text.
     var draft = ComposerDraft()
-    @State var position = ScrollPosition(edge: .bottom)
-    @State var atBottom = true
-    /// The question being answered, held at the top of the screen from its send until the next send or until the user
-    /// scrolls the room reserved under it out of view. Nil when nothing is pinned (a chat just opened).
-    @State var pinnedID: UUID?
-    /// Set by the jump button: the view then sticks to the end while the answer grows, until the user scrolls or sends.
-    @State var followsBottom = false
-    /// The question just sent: its bubble flies up from the composer once (`SendFlyIn`).
-    @State var flyingID: UUID?
-    @State var jumpRetry: Task<Void, Never>?
+    /// Scrolling, the pinned question and what floats over the chat: read only by the small views that show them
+    /// (`ChatMessageList`, `FloatingControls`), so scrolling, the composer's height and the end coming into view never
+    /// re-evaluate this view.
+    @State var scroll = ChatScroll()
     /// Heights for the room under the pinned question; read only by `PinReserve`, so scrolling and streaming never
     /// re-evaluate this view.
     @State var pin = PinLayout()
+    /// The transcript and its sources, worked out once per version of the conversation (`TranscriptVersion`).
+    @State var transcriptCache = ChatTranscriptCache()
+    /// The composer's focus, owned by `FocusedComposer`: focusing never re-evaluates this view.
+    @State var focus = ComposerFocus()
     @State var showAttach = false
     /// The "+" menu's tool switches of a new chat before its first message creates it (nil: the defaults in Settings).
     @State var newChatTools: Set<ToolGroup>?
@@ -41,8 +39,6 @@ struct ChatView: View {
     #endif
     /// "Select model" (models, effort, search engine): a sheet on the phone, a popover from the gauge on a Mac.
     @State var showChatSettings = false
-    /// The composer's height, so the floating "Answer now" capsule sits just above it.
-    @State var composerHeight: CGFloat = 0
     @State var showContext = false
     @State var showDetails = false
     #if DEBUG
@@ -70,11 +66,6 @@ struct ChatView: View {
     #endif
     @State var renameText = ""
     @State var confirmDelete = false
-    #if os(macOS)
-    @State var composerFocused = false
-    #else
-    @FocusState var composerFocused: Bool
-    #endif
     #if DEBUG
     @State var debugViewer = false
     #endif
@@ -142,9 +133,19 @@ struct ChatView: View {
         return min(1, Double(used) / Double(contextLength))
     }
 
+    /// The chat's sources by id. Read by sheets and actions, never by the body: the rows work out their own.
     var citationContext: CitationContext {
-        let list = run.map(\.liveSources) ?? conversation?.allSources ?? []
-        return CitationContext(sources: Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) }), conversationID: conversation?.id)
+        let list = run.map(\.liveSources) ?? conversation.map { transcriptCache.allSources(for: $0) } ?? []
+        return CitationContext(sources: Self.sourceMap(list), conversationID: conversation?.id)
+    }
+
+    static func sourceMap(_ list: [SourceInfo]) -> [Int: SourceInfo] {
+        Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
+    }
+
+    /// The path on screen, from the cache: a hit reads a few fields of the conversation and nothing of its messages.
+    var transcript: ChatTranscript? {
+        conversation.map { transcriptCache.transcript(for: $0) }
     }
 
     /// The chat's citations as one message reads them: its own calls' numbering first (`SourceSnapshots.overlay`).
@@ -163,7 +164,7 @@ struct ChatView: View {
         let byID = citationContext.sources
         let known = Set(byID.keys)
         var ids: [Int] = []
-        for message in conversation.activePath where message.role == .assistant {
+        for message in transcriptCache.transcript(for: conversation).activePath where message.role == .assistant {
             for id in SourceUsage.ids(calls: message.segments.flatMap(\.calls),
                                           text: MessageLayout.fullText(segments: message.segments, answer: message.text), known: known)
             where !ids.contains(id) { ids.append(id) }
@@ -195,12 +196,9 @@ struct ChatView: View {
                 menu: { menuContent }))
             #endif
             .overlay(alignment: .bottom) {
-                // Stacked, so the jump button and "Answer now" never overlap.
-                VStack(spacing: 0) {
-                    jumpButton
-                    answerNowCapsule
-                }
-                .padding(.bottom, composerHeight + Self.floatingGap)
+                FloatingControls(scroll: scroll, conversation: conversation, run: run,
+                                 message: { id in transcript?.activePath.last { $0.id == id } },
+                                 onJump: jumpToBottom)
             }
             // Where a language that is not installed yet is downloaded and the answer translated.
             .translationTask(controller.translation.configuration) { session in
@@ -301,19 +299,14 @@ struct ChatView: View {
                     }
                 }
             }
-            .onChange(of: showAttach) { _, on in if on { composerFocused = false } }
-            .onChange(of: showChatSettings) { _, on in if on { composerFocused = false } }
-            .onChange(of: showContext) { _, on in if on { composerFocused = false } }
-            .onChange(of: composerFocused) { _, focused in
-                // Keep the latest message visible when the keyboard opens.
-                // A pinned question stays where it is when the keyboard opens.
-                if focused && atBottom && pinnedID == nil { withAnimation(DS.Motion.spring) { position.scrollTo(edge: .bottom) } }
-            }
+            .onChange(of: showAttach) { _, on in if on { focus.isFocused = false } }
+            .onChange(of: showChatSettings) { _, on in if on { focus.isFocused = false } }
+            .onChange(of: showContext) { _, on in if on { focus.isFocused = false } }
             .intentDraft(draft, isNewChat: conversation == nil)
             .task(id: focusToken) {
                 guard focusToken > 0 else { return }
                 try? await Task.sleep(for: .milliseconds(150))
-                composerFocused = true
+                focus.isFocused = true
             }
             .task(id: conversation?.id) { // opening a chat: link one saved before branching; leaving one ends an edit
                 cancelEdit()
@@ -321,7 +314,7 @@ struct ChatView: View {
                 conversation?.ensureTree()
                 #if os(macOS)
                 try? await Task.sleep(for: .milliseconds(250)) // the window has to exist before it can focus anything
-                composerFocused = true // there is no keyboard to summon: the cursor is always ready
+                focus.isFocused = true // there is no keyboard to summon: the cursor is always ready
                 #endif
             }
             .task {
@@ -335,7 +328,7 @@ struct ChatView: View {
             .onChange(of: connections.allModels.count) { _, _ in persistAutoSelection() }
             .onDisappear { modelFetch?.cancel() }
             #if os(macOS)
-            .onChange(of: conversation?.activePath.last?.id, initial: true) { _, _ in installMenuActions() }
+            .onChange(of: transcript?.activePath.last?.id, initial: true) { _, _ in installMenuActions() }
             .onChange(of: isStreamingHere) { _, _ in installMenuActions() }
             #endif
     }
