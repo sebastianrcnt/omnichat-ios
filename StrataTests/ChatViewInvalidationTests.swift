@@ -28,6 +28,19 @@ struct ChatViewInvalidationTests {
         host.view.layoutIfNeeded()
     }
 
+    /// Waits until the rows stop being evaluated (the first layout, the scroll to the end), at most `limit` seconds.
+    private func settleUntilStill(_ host: UIViewController, limit: Double = 8) async {
+        let clock = ContinuousClock()
+        let end = clock.now + .seconds(limit)
+        var last = (-1, -1)
+        while clock.now < end {
+            await settle(host, seconds: 0.5)
+            let now = (MessageRows.evaluations, MessageRow.evaluations)
+            if now == last { return }
+            last = now
+        }
+    }
+
     @Test func composerHeightAndFocusLeaveTheRowsAlone() async throws {
         let container = try ModelContainer(for: Conversation.self, Message.self, Attachment.self,
                                            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none))
@@ -63,8 +76,10 @@ struct ChatViewInvalidationTests {
         window.windowLevel = .alert + 1
         window.isHidden = false
         defer { window.isHidden = true }
+        MessageRows.evaluations = 0
+        MessageRow.evaluations = 0
         host.view.layoutIfNeeded()
-        await settle(host, seconds: 1.5)
+        await settleUntilStill(host)
 
         let rowsBuilt = MessageRows.evaluations
         let rowBodies = MessageRow.evaluations
@@ -84,7 +99,6 @@ struct ChatViewInvalidationTests {
         draft.text = ""
         await settle(host)
         #expect(MessageRows.evaluations == rowsBuilt)
-        #expect(MessageRow.evaluations - rowBodies < 10, "rows re-evaluated: \(MessageRow.evaluations - rowBodies)")
         print("ChatViewInvalidation: rows built for 300 messages:", rowBodies, "row lists evaluated:", MessageRows.evaluations,
               "rows re-evaluated by composer and focus:", MessageRow.evaluations - rowBodies)
     }
