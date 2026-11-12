@@ -11,6 +11,22 @@ extension ChatView {
     }
 
     var composer: some View {
+        FocusedComposer(focus: focus, scroll: scroll) { isFocused in
+            composerHost(isFocused: isFocused)
+        }
+        #if os(macOS)
+        .readingColumn()
+        #endif
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { scroll.composerHeight = $0 }
+    }
+
+    #if os(macOS)
+    typealias ComposerFocusBinding = Binding<Bool>
+    #else
+    typealias ComposerFocusBinding = FocusState<Bool>.Binding
+    #endif
+
+    func composerHost(isFocused: ComposerFocusBinding) -> some View {
         ComposerHost(
             draft: draft,
             isStreaming: isStreamingHere,
@@ -26,11 +42,7 @@ extension ChatView {
             onCancelEdit: editing == nil ? nil : { withAnimation(DS.Motion.snappy) { cancelEdit() } },
             onPasteImages: pasteHandler,
             accessory: { settingsButton },
-            isFocused: $composerFocused)
-        #if os(macOS)
-        .readingColumn()
-        #endif
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { composerHeight = $0 }
+            isFocused: isFocused)
     }
 
     /// The "+" menu's toggles: this chat's switches, or a new chat's (the defaults until changed). Only the views for
@@ -78,19 +90,6 @@ extension ChatView {
         }
     }
 
-    /// "Answer now", floating just above the composer while this chat's turn runs tool rounds. An overlay, so feed
-    /// cards arriving never move it.
-    @ViewBuilder
-    var answerNowCapsule: some View {
-        if let conversation, let run, run.canAnswerNow,
-           let message = conversation.messages.first(where: { $0.id == run.messageID }) {
-            let saved = message.segments.flatMap(\.calls).filter { $0.name == ToolNames.webSearch }.count
-            let running = run.roundRequested.filter { $0.name == ToolNames.webSearch }.count
-            AnswerNowCapsule(start: run.turnStart ?? .now, completedToolRounds: run.completedToolRounds,
-                             searches: saved + running, phase: run.phase) { controller.answerNow(conversation) }
-        }
-    }
-
     /// The model and effort chip: tap for the chat settings (models, then Effort).
     var settingsButton: some View {
         let style = connections.connection(selection.connectionID)?.effortStyle ?? .tokenCaps
@@ -98,7 +97,7 @@ extension ChatView {
         return ModelSettingsButton(
             model: selectedModelTitle ?? String(localized: "Choose a model"),
             effort: levels.isEmpty ? nil : selection.effort.resolved(in: levels).title,
-            action: { composerFocused = false; showChatSettings = true })
+            action: { focus.isFocused = false; showChatSettings = true })
         #if os(macOS)
         .popover(isPresented: $showChatSettings, arrowEdge: .top) { chatSettings }
         #endif
@@ -117,7 +116,7 @@ extension ChatView {
     /// Opens "Add a connection": on the presets, or with `preset` already picked and its editor open (nothing is saved
     /// before the editor's Add).
     func addConnection(preset: ConnectionPreset? = nil) {
-        composerFocused = false
+        focus.isFocused = false
         addConnectionRequest = ConnectionSetupSheet.Request(start: preset.map { .editor($0.makeConnection()) } ?? .presets)
     }
 
@@ -144,7 +143,7 @@ extension ChatView {
     #endif
 
     func attach() {
-        composerFocused = false
+        focus.isFocused = false
         #if os(macOS)
         if selectedModel?.supportsImages ?? false { showAttach = true } else { showNoImageSupport = true }
         #else
@@ -234,10 +233,10 @@ extension ChatView {
         }
         controller.send(text: text, images: images, thumbnails: thumbnails, conversation: target, context: context, editing: edited)
         let sent = target.activePath.last { $0.role == .user && !$0.isHiddenInTranscript }?.id
-        flyingID = sent
+        scroll.flyingID = sent
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(1))
-            if flyingID == sent { flyingID = nil } // a row laid out again later doesn't fly a second time
+            if scroll.flyingID == sent { scroll.flyingID = nil } // a row laid out again later doesn't fly a second time
         }
         pinLatestQuestion()
     }

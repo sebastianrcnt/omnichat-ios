@@ -267,10 +267,23 @@ final class DecodeCache<Value>: @unchecked Sendable {
     init(limit: Int = 300) { cache.countLimit = limit }
 
     func value(for id: UUID, source: Data, _ decode: () -> Value?) -> Value? {
-        if let hit = cache.object(forKey: id as NSUUID), hit.source == source { return hit.value }
+        if let hit = cache.object(forKey: id as NSUUID), Self.same(hit.source, source) { return hit.value }
         guard let v = decode() else { return nil }
         cache.setObject(Box(source, v), forKey: id as NSUUID)
         return v
+    }
+}
+
+extension DecodeCache {
+    /// Whether `a` and `b` hold the same bytes, cheaply where possible. A different length is a change, without looking
+    /// at the bytes. The same storage object is the same value: the cache keeps the bytes it decoded alive, so that
+    /// object can't have been freed and reused for other bytes, and an unchanged stored value comes back as the same
+    /// object (Core Data keeps it in the row; an external-storage blob is read from its file only when its bytes are).
+    /// Only a new value of the same length is compared byte by byte.
+    nonisolated static func same(_ a: Data, _ b: Data) -> Bool {
+        guard a.count == b.count else { return false }
+        if a.isEmpty || (a as NSData) === (b as NSData) { return true }
+        return a == b
     }
 }
 

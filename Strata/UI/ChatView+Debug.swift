@@ -132,7 +132,8 @@ extension ChatView {
             }
             // `-StrataDebugJump 1`: scroll to the top, then press the jump button.
             if DebugHooks.value("StrataDebugJump") != nil {
-                position.scrollTo(edge: .top)
+                scroll.followsBottom = false
+                scroll.position.scrollTo(edge: .top)
                 try? await Task.sleep(for: .seconds(3))
                 jumpToBottom()
                 // How long the main thread stalls while the jump lays the rows out (printed for smoke runs).
@@ -144,7 +145,7 @@ extension ChatView {
                     worst = max(worst, clock.now - last)
                     last = clock.now
                 }
-                print("StrataDebugJump worst main-thread gap:", worst, "atBottom:", atBottom)
+                print("StrataDebugJump worst main-thread gap:", worst, "atBottom:", scroll.atBottom, "end scrolls:", scroll.endScrolls)
             }
         } else if DebugHooks.autoSend != nil {
             return
