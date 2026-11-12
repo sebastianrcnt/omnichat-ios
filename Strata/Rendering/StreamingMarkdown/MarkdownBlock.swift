@@ -10,6 +10,8 @@ struct MarkdownBlock: Identifiable, Equatable, Sendable {
         case code
         case table
         case thematicBreak
+        /// A display formula on its own lines (`$$ … $$`, `\[ … \]`).
+        case math
     }
 
     /// Position in the document. Stable for finalized blocks.
@@ -17,7 +19,7 @@ struct MarkdownBlock: Identifiable, Equatable, Sendable {
     var kind: Kind
     /// Raw source of the block (no trailing blank lines).
     var text: String
-    /// False while the block may still grow at its end (open fence, table not yet followed by anything).
+    /// False while the block may still grow at its end (open fence or formula, table not yet followed by anything).
     var isClosed: Bool
     /// `text` with the CJK emphasis fix applied, ready to hand to a Markdown renderer.
     var renderText: String

@@ -9,6 +9,12 @@ packages:
   MarkdownUI:
     url: https://github.com/gonzalezreal/swift-markdown-ui
     exactVersion: 2.4.1
+  MathJaxSwift: # LaTeX to SVG: MathJax 3 in JavaScriptCore (Strata/Rendering/Math)
+    url: https://github.com/colinc86/MathJaxSwift
+    exactVersion: 3.5.0
+  SwiftDraw: # draws that SVG
+    url: https://github.com/swhitty/SwiftDraw
+    exactVersion: 0.29.0
   OmniChatPackageKit: # the package format, MIT (docs/PACKAGES.md), shared with Tools/omnichat-pkg
     path: Packages/OmniChatPackageKit
 settings:
@@ -46,6 +52,8 @@ targets:
         buildPhase: resources
     dependencies:
       - package: MarkdownUI
+      - package: MathJaxSwift
+      - package: SwiftDraw
       - package: OmniChatPackageKit
       - framework: Vendor/CLibSSH2.xcframework # libssh2 + OpenSSL libcrypto, static (Tools/build-libssh2.sh)
         embed: false
@@ -233,6 +241,8 @@ targets:
         buildPhase: resources
     dependencies:
       - package: MarkdownUI
+      - package: MathJaxSwift
+      - package: SwiftDraw
       - package: OmniChatPackageKit
       - framework: Vendor/CLibSSH2.xcframework # libssh2 + OpenSSL libcrypto, static (Tools/build-libssh2.sh)
         embed: false

@@ -173,10 +173,13 @@ enum MarkdownPlain {
     static func text(from markdown: String, showingLinks: Bool = false) -> String {
         // Interactive views copy as what they show, not as their program (`OUIPlainText`).
         let markdown = OpenUIFence.replacingBlocks(in: markdown) { OUIPlainText.text(source: $0) }
-        let prepared = LenientEmphasis.normalize(TildeEscaper.escape(markdown))
+        // Formulas are copied as typed: Markdown would eat their backslashes and underscores.
+        let math = MathScanner.extract(markdown, isOpen: false)
+        let prepared = LenientEmphasis.normalize(TildeEscaper.escape(math?.text ?? markdown))
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         guard let attributed = try? AttributedString(markdown: prepared, options: options) else { return markdown }
-        let plain = LenientEmphasis.stripZeroWidth(attributed)
+        var plain = LenientEmphasis.stripZeroWidth(attributed)
+        if let math { MathScanner.restore(math.spans, in: &plain) }
         guard showingLinks else { return String(plain.characters) }
         var out = ""
         for (link, range) in plain.runs[\.link] {

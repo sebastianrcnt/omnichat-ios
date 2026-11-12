@@ -112,6 +112,39 @@ enum BlockScanner {
         }
 
         var containsPipe: Bool { rest.contains("|") }
+
+        /// The delimiter a display formula opens with, when the line starts with one (indent <= 3).
+        var mathOpener: MathScanner.BlockDelimiter? {
+            guard indent <= 3 else { return nil }
+            if rest.hasPrefix("$$") { return .dollars }
+            if rest.hasPrefix(#"\["#) { return .brackets }
+            return nil
+        }
+    }
+
+    /// The display formula that starts at line `i`: its last line and whether it is closed there. Nil when the line
+    /// does not open one. A formula ends on the line that ends with its closing delimiter. Text after the delimiter,
+    /// or a blank line before it, means this is prose (the inline renderer still finds `$$…$$` inside a paragraph).
+    /// Without either, the formula is still being written and runs to the end of the text.
+    static func mathBlock(_ lines: [Line], from i: Int) -> (end: Int, closed: Bool)? {
+        guard let delimiter = lines[i].mathOpener else { return nil }
+        let closer = delimiter.closer
+        var j = i
+        while j < lines.count {
+            let line = lines[j]
+            if line.isBlank {
+                // An empty last line is only the newline that just arrived, not a blank line yet.
+                if j == lines.count - 1 { break }
+                return nil
+            }
+            // On the opening line, look after the opener: "$$" alone is not "$$ … $$".
+            let text = j == i ? line.trimmed.dropFirst(2) : line.trimmed
+            if let found = text.range(of: closer) {
+                return found.upperBound == text.endIndex ? (j, true) : nil
+            }
+            j += 1
+        }
+        return (lines.count - 1, false)
     }
 
     // MARK: Scanning
@@ -123,10 +156,12 @@ enum BlockScanner {
         var i = 0
         let n = parsed.count
 
-        func isBlockStart(_ l: Line) -> Bool {
+        /// Whether line `j` starts a block that interrupts a paragraph.
+        func isBlockStart(_ j: Int) -> Bool {
+            let l = parsed[j]
             if l.fence != nil || l.atxLevel != nil || l.isThematicBreak || l.isQuote { return true }
             if let m = l.listMarker, m.hasContent, !m.ordered || m.start == 1 { return true }
-            return false
+            return mathBlock(parsed, from: j) != nil
         }
 
         while i < n {
@@ -144,6 +179,12 @@ enum BlockScanner {
                 let end = closed ? j : n - 1
                 blocks.append(.init(kind: .code, startLine: i, endLine: end, isClosed: closed))
                 i = end + 1
+                continue
+            }
+            // Display formula
+            if let math = mathBlock(parsed, from: i) {
+                blocks.append(.init(kind: .math, startLine: i, endLine: math.end, isClosed: math.closed))
+                i = math.end + 1
                 continue
             }
             // ATX heading
@@ -165,7 +206,7 @@ enum BlockScanner {
                     let l = parsed[j]
                     if l.isBlank { break }
                     if l.isQuote { j += 1; continue }
-                    if isBlockStart(l) { break } // lazy continuation only for plain text
+                    if isBlockStart(j) { break } // lazy continuation only for plain text
                     j += 1
                 }
                 blocks.append(.init(kind: .blockquote, startLine: i, endLine: j - 1, isClosed: true))
@@ -190,7 +231,7 @@ enum BlockScanner {
                         break
                     }
                     if l.isThematicBreak && l.indent < 2 { break }
-                    if l.indent < 2 && (l.atxLevel != nil || l.isQuote) { break }
+                    if l.indent < 2 && (l.atxLevel != nil || l.isQuote || mathBlock(parsed, from: j) != nil) { break }
                     if l.indent >= 2, let f = l.fenceAnyIndent {
                         // Fenced code inside an item: consume through its closing fence.
                         var k = j + 1
@@ -213,7 +254,7 @@ enum BlockScanner {
             // Table: header row with pipes followed by a delimiter row
             if line.containsPipe, i + 1 < n, parsed[i + 1].isTableDelimiter {
                 var j = i + 2
-                while j < n, !parsed[j].isBlank, !isBlockStart(parsed[j]) { j += 1 }
+                while j < n, !parsed[j].isBlank, !isBlockStart(j) { j += 1 }
                 let terminated = j < n
                 blocks.append(.init(kind: .table, startLine: i, endLine: j - 1, isClosed: terminated))
                 i = j
@@ -238,7 +279,7 @@ enum BlockScanner {
                 let l = parsed[j]
                 if l.isBlank { break }
                 if let level = l.setextLevel { heading = level; j += 1; break }
-                if isBlockStart(l) { break }
+                if isBlockStart(j) { break }
                 if l.containsPipe, j + 1 < n, parsed[j + 1].isTableDelimiter { break }
                 j += 1
             }

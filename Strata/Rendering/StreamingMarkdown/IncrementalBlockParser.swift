@@ -35,7 +35,7 @@ struct IncrementalBlockParser: Sendable {
         let lines = BlockScanner.lines(of: text)
         return BlockScanner.scan(lines: lines).enumerated().map { index, s in
             let body = lines[s.startLine...s.endLine].joined(separator: "\n")
-            let render = s.kind == .code ? body : CJKEmphasisFixer.fix(body)
+            let render = s.kind == .code || s.kind == .math ? body : CJKEmphasisFixer.fix(body)
             return MarkdownBlock(id: idOffset + index, kind: s.kind, text: body, isClosed: s.isClosed, renderText: render)
         }
     }

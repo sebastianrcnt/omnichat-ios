@@ -1126,8 +1126,8 @@ The model is open core:
 - **The app** (iOS and Mac, everything in `Strata/`, `StrataMac/`, `Widgets/`) is **GPLv3**. Contributions require a
   **CLA** that grants us the right to relicense. That right is what lets us ship App Store builds, whose terms are often
   considered incompatible with the GPL for third-party copyright holders. Vendored code is compatible with GPLv3:
-  libssh2 (BSD-3), OpenSSL 3 (Apache-2.0), Pyodide (MPL-2.0), MarkdownUI (MIT), Readability.js (Apache-2.0). We keep a
-  check in `Strata/Resources/Licenses`.
+  libssh2 (BSD-3), OpenSSL 3 (Apache-2.0), Pyodide (MPL-2.0), MarkdownUI (MIT), Readability.js (Apache-2.0), MathJaxSwift
+  (MIT) with MathJax (Apache-2.0), SwiftDraw (zlib). We keep a check in `Strata/Resources/Licenses`.
 - **The package side is MIT**:
   - `Packages/OmniChatPackageKit` (Swift: manifest, validation, signing, URL templates, response projection, canonical
     JSON)

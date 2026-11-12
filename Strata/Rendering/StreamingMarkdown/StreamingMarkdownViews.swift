@@ -108,6 +108,8 @@ struct MarkdownBlockView: View, Equatable {
             } else {
                 QuoteBlockView(source: block.text, simple: block.usesInlineRenderer, typeScale: typeScale)
             }
+        } else if block.kind == .math {
+            MathBlockView(source: block.text, isOpen: !block.isClosed)
         } else if block.usesInlineRenderer {
             InlineBlockView(block: block, spans: [], isOpen: false)
         } else if block.kind == .code, OpenUIFence.isOpenUI(blockText: block.text) {
@@ -154,7 +156,7 @@ extension MarkdownBlock {
                 let t = line.drop(while: { $0 == " " || $0 == ">" || $0 == "\t" })
                 return t.hasPrefix("```") || t.hasPrefix("~~~") || t.hasPrefix("- ") || t.hasPrefix("* ") || t.hasPrefix("|") || t.hasPrefix("#")
             }
-        case .code, .table, .thematicBreak:
+        case .code, .table, .thematicBreak, .math:
             return false
         }
     }
@@ -283,6 +285,8 @@ struct TableCellText: View {
     @Environment(\.citations) private var citations
     @Environment(\.theme) private var theme
     @ScaledMetric(relativeTo: .caption2) private var chipHeight: CGFloat = 17
+    @ScaledMetric(relativeTo: .subheadline) private var mathSize: CGFloat = 15
+    @Environment(\.displayScale) private var displayScale
     let source: String
     let header: Bool
     var alignment: MarkdownTable.Alignment = .leading
@@ -298,7 +302,8 @@ struct TableCellText: View {
 
     var body: some View {
         let composed = InlineMarkdownText.composed(Self.attributed(source, sources: citations.sources,
-                                                                   chipColor: theme.textSecondary))
+                                                                   chipColor: theme.textSecondary),
+                                                   math: MathStyle(pointSize: mathSize, scale: displayScale))
         let text = composed.text
             .font(header ? DS.Typography.tableHeader : DS.Typography.tableCell)
             .dsLeading(.ui)
@@ -353,6 +358,9 @@ struct OpenBlockView: View {
             plainCode(block.text)
         case .thematicBreak:
             Divider()
+        case .math:
+            // Its source as typed until the closing delimiter arrives, then the formula.
+            MathBlockView(source: block.text, isOpen: !block.isClosed)
         default:
             InlineBlockView(block: block, spans: reduceMotion ? [] : spans, isOpen: true)
         }
@@ -525,6 +533,8 @@ struct QuoteBlockView: View {
 struct InlineMarkdownText: View {
     @Environment(\.citations) private var citations
     @Environment(\.theme) private var theme
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.displayScale) private var displayScale
     let source: String
     let font: Font
     let color: Color
@@ -537,7 +547,9 @@ struct InlineMarkdownText: View {
     nonisolated static func attributed(_ source: String, sources: [Int: SourceInfo] = [:], isOpen: Bool = false,
                                        chipFont: Font = DS.Typography.chipInline,
                                        chipColor: Color = .secondary, chipBackground: Color = .gray.opacity(0.2)) -> AttributedString {
-        var text = TildeEscaper.escape(source)
+        // Formulas leave first (one placeholder character each), so nothing below reads Markdown into LaTeX.
+        let math = MathScanner.extract(source, isOpen: isOpen)
+        var text = TildeEscaper.escape(math?.text ?? source)
         text = CitationParser.transform(text, sources: sources, holdBack: isOpen)
         // Closers first: the CJK fix adds hair spaces around `**`, which would make a closer look like an opener.
         if isOpen { text = OptimisticCloser.closeInline(text) }
@@ -547,6 +559,7 @@ struct InlineMarkdownText: View {
                                                               failurePolicy: .returnPartiallyParsedIfPossible)
         var result = (try? AttributedString(markdown: closed, options: options)) ?? AttributedString(source)
         result = LenientEmphasis.stripZeroWidth(result)
+        if let math { MathScanner.restore(math.spans, in: &result) }
         // Style citation links as chips.
         var chipRanges: [Range<AttributedString.Index>] = []
         for run in result.runs {
@@ -603,7 +616,7 @@ struct InlineMarkdownText: View {
 
     @ViewBuilder
     private func styled(_ attributed: AttributedString, selectable: Bool = true) -> some View {
-        let composed = Self.composed(attributed)
+        let composed = Self.composed(attributed, math: MathStyle(pointSize: leading.size * DS.typeScale(typeSize), scale: displayScale))
         let base = composed.text
             .font(font)
             .dsLeading(leading)

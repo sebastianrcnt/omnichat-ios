@@ -17,7 +17,7 @@ network delta -> RevealController (smoothing) -> IncrementalBlockParser (backgro
    everything is flushed at once. Settings has a "Smooth streaming" switch; off reveals everything that has
    arrived on each tick.
 2. **BlockScanner** is a cheap line-based splitter into top-level blocks (paragraph, heading, list,
-   blockquote, fenced/indented code, table, thematic break). It does not build an AST. It was written
+   blockquote, fenced/indented code, table, thematic break, display formula). It does not build an AST. It was written
    instead of using apple/swift-markdown because that package pulls in a second cmark-gfm that clashes
    with the one MarkdownUI links, and block boundaries are all we need.
 3. **IncrementalBlockParser** keeps `finalized` blocks (immutable, id = index) and a `tail` of the last
@@ -56,13 +56,24 @@ network delta -> RevealController (smoothing) -> IncrementalBlockParser (backgro
   example `[`, `[1` or the start of a second marker after `[1]`) is dropped from the rendered text
   (`holdBack: true`) instead of flashing as raw brackets; the chip appears once the marker is complete.
   Finished text never holds anything back.
-- **Inline renderer** (`InlineMarkdownText.attributed`): `TildeEscaper` -> `CitationParser` ->
-  `CJKEmphasisFixer` -> `OptimisticCloser` (open blocks only) -> `LenientEmphasis.normalize` ->
-  `AttributedString(markdown:)` (inline only) -> `stripZeroWidth`. Paragraphs, headings, quotes and
+- **Inline renderer** (`InlineMarkdownText.attributed`): `MathScanner.extract` -> `TildeEscaper` ->
+  `CitationParser` -> `CJKEmphasisFixer` -> `OptimisticCloser` (open blocks only) -> `LenientEmphasis.normalize` ->
+  `AttributedString(markdown:)` (inline only) -> `stripZeroWidth` -> `MathScanner.restore`. Paragraphs, headings, quotes and
   list items use it, and so do the cells of a closed top-level table (`MarkdownTable` splits the rows,
   `MarkdownTableView` lays them out in a `Grid`: header band, natural-width columns that wrap at a cap,
   horizontal scrolling, compact chips via `TableCellText`). Other complex finished blocks (a table nested
   in a list or quote) fall back to MarkdownUI (`markdownUIText`), which loses chips but keeps everything else.
+- **Formulas** (`Rendering/Math`): LaTeX in `$…$`, `\(…\)` (text style) and `$$…$$`, `\[…\]` (display style).
+  `MathScanner` finds them (not in code, link destinations or URLs; "$5 and $10" stays text) and the inline
+  renderer swaps each for one private-use character before Markdown parses the text, then puts the source back
+  tagged with `MathAttribute`, so `_` and `*` in LaTeX are never emphasis and copied text keeps the LaTeX.
+  `InlineMarkdownText.composed` replaces a tagged run by an image on the text baseline. A display formula on its
+  own lines is a `.math` block (`MathBlockView`: centred, scrolls sideways when too wide). Typesetting is MathJax
+  in JavaScriptCore (MathJaxSwift) to SVG, drawn by SwiftDraw as a template image that takes the text colour
+  (`MathTypesetter`, an actor: about 2 ms per formula on a Mac, several times that on iOS, and about 40 MB once
+  loaded; a memory warning unloads it). `MathStore` caches images by formula and size and redraws only the views
+  that were waiting. Until an image is ready, while a formula is still being written, or when MathJax cannot
+  read it, the source is shown as typed. The MarkdownUI fallback paths do not render formulas.
 - **Code blocks** (`DesignSystem/CodeBlocks.swift`): an open fence streams into a fixed-height,
   bottom-following plain monospaced box; the finished block has a header (language, Copy), collapses
   past 18 lines, and opens a full-screen viewer. No syntax highlighting.

@@ -46,24 +46,42 @@ struct ChipTextRenderer: TextRenderer {
 
 extension InlineMarkdownText {
     /// Builds a `Text` from the attributed string. Citation chips become tagged runs so `ChipTextRenderer`
-    /// can draw capsules behind them; text without chips takes the plain path.
-    static func composed(_ attributed: AttributedString) -> (text: Text, hasChips: Bool) {
-        var pieces: [(range: Range<AttributedString.Index>, chip: Bool)] = []
+    /// can draw capsules behind them. A formula (`MathAttribute`) is replaced by its image on the text baseline once
+    /// it is typeset (`MathStore`), and shows its source until then. Text with neither takes the plain path.
+    static func composed(_ attributed: AttributedString, math: MathStyle? = nil) -> (text: Text, hasChips: Bool) {
+        enum Kind: Equatable { case plain, chip, math(MathSpan) }
+        var pieces: [(range: Range<AttributedString.Index>, kind: Kind)] = []
         for run in attributed.runs {
-            let chip = run.link?.scheme == CitationParser.scheme
-            if let last = pieces.last, last.chip == chip {
+            let kind: Kind = if run.link?.scheme == CitationParser.scheme {
+                .chip
+            } else if math != nil, let span = run[MathAttribute.self] {
+                .math(span)
+            } else {
+                .plain
+            }
+            if let last = pieces.last, last.kind == kind {
                 pieces[pieces.count - 1].range = last.range.lowerBound..<run.range.upperBound
             } else {
-                pieces.append((run.range, chip))
+                pieces.append((run.range, kind))
             }
         }
-        guard pieces.contains(where: \.chip) else { return (Text(attributed), false) }
+        guard pieces.contains(where: { $0.kind != .plain }) else { return (Text(attributed), false) }
         var text = Text("")
         for piece in pieces {
-            let t = Text(AttributedString(attributed[piece.range]))
-            let part = piece.chip ? t.customAttribute(ChipTextAttribute()) : t
+            var part = Text(AttributedString(attributed[piece.range]))
+            switch piece.kind {
+            case .plain:
+                break
+            case .chip:
+                part = part.customAttribute(ChipTextAttribute())
+            case .math(let span):
+                let request = MathRequest(latex: span.latex, display: span.display, pointSize: math?.pointSize ?? 17, scale: math?.scale ?? 2)
+                if case .ready(let image) = MathStore.shared.state(request) {
+                    part = Text(image.view(latex: span.latex)).baselineOffset(-image.descent)
+                }
+            }
             text = Text("\(text)\(part)")
         }
-        return (text, true)
+        return (text, pieces.contains { $0.kind == .chip })
     }
 }

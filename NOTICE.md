@@ -34,6 +34,7 @@ Settings → Licenses:
 - Readability (Apache-2.0): `Strata/Resources/Readability/LICENSE.md`
 - Pretendard (SIL Open Font License 1.1): `Strata/Resources/Fonts/Pretendard-OFL.txt`
 - swift-markdown-ui, NetworkImage (MIT) and swift-cmark (BSD-2-Clause), through Swift Package Manager
+- MathJaxSwift (MIT), which bundles MathJax (Apache-2.0), and SwiftDraw (zlib), through Swift Package Manager
 
 ## Name
 
